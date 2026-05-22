@@ -1,3 +1,14 @@
+// ── Gestionnaires d'erreurs globaux (debug production) ────────────────────
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION:', err.message);
+  console.error(err.stack);
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('UNHANDLED REJECTION:', reason);
+  process.exit(1);
+});
+
 require('dotenv').config();
 const express  = require('express');
 const cors     = require('cors');
@@ -7,12 +18,18 @@ const multer   = require('multer');
 const path     = require('path');
 const fs       = require('fs');
 
+// Créer les dossiers uploads au démarrage
+['uploads','uploads/gallery','uploads/profiles','uploads/invoices',
+ 'uploads/payments','uploads/talents','uploads/annonces','uploads/attachments']
+  .forEach(d => { const p = path.join(__dirname, d); if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true }); });
+
 const db = require('./db/database');
 const { authMiddleware, requireRole, JWT_SECRET } = require('./middleware/auth');
 const mailer = require('./mailer');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
+console.log(`Starting AHH server on PORT=${PORT}`);
 
 // ── Middleware ──────────────────────────────────────────────────────────────
 app.use(cors());
