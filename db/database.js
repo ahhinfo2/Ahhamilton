@@ -112,6 +112,9 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS talents (
   site_web TEXT,
   photo_path TEXT,
   actif INTEGER DEFAULT 1,
+  statut TEXT DEFAULT 'approuve',
+  notif_renouv INTEGER DEFAULT 0,
+  retrait_raison TEXT,
   date_creation TEXT DEFAULT CURRENT_TIMESTAMP
 )`); } catch {}
 try { db.exec(`CREATE TABLE IF NOT EXISTS annonces (
@@ -125,6 +128,10 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS annonces (
   categorie TEXT DEFAULT 'general',
   telephone TEXT,
   actif INTEGER DEFAULT 1,
+  statut TEXT DEFAULT 'approuve',
+  notif_renouv INTEGER DEFAULT 0,
+  retrait_vendu INTEGER,
+  retrait_raison TEXT,
   date_creation TEXT DEFAULT CURRENT_TIMESTAMP
 )`); } catch {}
 try { db.exec(`CREATE TABLE IF NOT EXISTS annonce_photos (
@@ -149,7 +156,10 @@ function init() {
       actif INTEGER DEFAULT 1,
       date_inscription TEXT DEFAULT CURRENT_TIMESTAMP,
       photo_url TEXT,
-      bio TEXT
+      bio TEXT,
+      plan TEXT DEFAULT 'gratuit',
+      plan_unpaid_count INTEGER DEFAULT 0,
+      plan_paid_month TEXT
     );
 
     CREATE TABLE IF NOT EXISTS activities (
@@ -164,7 +174,11 @@ function init() {
       max_participants INTEGER,
       statut TEXT DEFAULT 'planifiee',
       cree_par INTEGER REFERENCES users(id),
-      date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+      date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+      prix REAL DEFAULT 0,
+      paiement_requis INTEGER DEFAULT 0,
+      rabais_json TEXT DEFAULT '{}',
+      qr_token TEXT
     );
 
     CREATE TABLE IF NOT EXISTS activity_registrations (
@@ -173,6 +187,9 @@ function init() {
       user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
       statut TEXT DEFAULT 'inscrit',
       date_inscription TEXT DEFAULT CURRENT_TIMESTAMP,
+      paye INTEGER DEFAULT 0,
+      montant_paye REAL DEFAULT 0,
+      date_paiement TEXT,
       UNIQUE(activity_id, user_id)
     );
 
