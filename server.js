@@ -43,20 +43,14 @@ app.post('/api/stripe/webhook', express.raw({ type: '*/*' }), async (req, res) =
     const bodyStr = req.body instanceof Buffer ? req.body.toString('utf8') : JSON.stringify(req.body);
     const parsed  = JSON.parse(bodyStr);
 
-    if (stripeKey && sig && secret) {
+    // Si c'est un thin event (juste un ID), récupérer l'événement complet
+    if (stripeKey && parsed.id && (!parsed.data || !parsed.data.object)) {
       try {
-        // Essai 1 : vérification signature classique
         const stripe = Stripe(stripeKey);
-        event = stripe.webhooks.constructEvent(req.body, sig, secret);
+        event = await stripe.events.retrieve(parsed.id);
+        console.log('Stripe event récupéré:', event.type);
       } catch (e) {
-        // Essai 2 : Workbench thin event → récupérer l'événement complet via API
-        try {
-          const stripe = Stripe(stripeKey);
-          event = await stripe.events.retrieve(parsed.id);
-          console.log('Stripe thin event récupéré:', event.type);
-        } catch (e2) {
-          event = parsed; // fallback
-        }
+        event = parsed;
       }
     } else {
       event = parsed;
