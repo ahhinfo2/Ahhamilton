@@ -17,6 +17,7 @@ const jwt      = require('jsonwebtoken');
 const multer   = require('multer');
 const path     = require('path');
 const fs       = require('fs');
+const Stripe   = require('stripe');
 
 // Créer les dossiers uploads au démarrage
 ['uploads','uploads/gallery','uploads/profiles','uploads/invoices',
@@ -30,6 +31,59 @@ const mailer = require('./mailer');
 const app  = express();
 const PORT = process.env.PORT || 3001;
 console.log(`Starting AHH server on PORT=${PORT}`);
+
+// ── Webhook Stripe (corps brut — AVANT express.json) ─────────────────────
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), (req, res) => {
+  const sig    = req.headers['stripe-signature'];
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!secret) return res.status(200).json({ received: true }); // pas encore configuré
+
+  let event;
+  try {
+    const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+    event = stripe.webhooks.constructEvent(req.body, sig, secret);
+  } catch (err) {
+    console.error('Stripe webhook error:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  if (event.type === 'checkout.session.completed') {
+    const session  = event.data.object;
+    const email    = session.customer_details?.email || '';
+    const montant  = (session.amount_total || 0) / 100;
+    const ref      = session.payment_intent || session.id;
+    const mois     = new Date().toISOString().substring(0, 7);
+
+    // Trouver le membre par courriel
+    const membre = email ? db.prepare('SELECT * FROM users WHERE email = ?').get(email) : null;
+    const userId = membre?.id || null;
+
+    // Enregistrer comme paiement/don approuvé automatiquement
+    const adminId = db.prepare("SELECT id FROM users WHERE role='admin' LIMIT 1").get()?.id || 1;
+    db.prepare(`INSERT INTO payments (user_id, montant, type, methode, reference, note, statut, date_soumission)
+      VALUES (?, ?, 'don', 'stripe', ?, ?, 'approuve', CURRENT_TIMESTAMP)`)
+      .run(userId, montant, ref, `Don Stripe — ${email}`);
+
+    // Créer une alerte et un message pour la trésorière
+    const finance = db.prepare("SELECT id FROM users WHERE role IN ('admin','tresoriere') AND actif=1").all();
+    const msgText = `Don Stripe reçu — ${email} — $${montant.toFixed(2)}`;
+    const msg = db.prepare("INSERT INTO messages (expediteur_id,sujet,contenu,type) VALUES (?,?,?,'individuel')")
+      .run(adminId, `💳 Don Stripe $${montant.toFixed(2)} — ${email}`, msgText);
+    finance.forEach(f => {
+      db.prepare('INSERT INTO message_recipients (message_id,destinataire_id) VALUES (?,?)').run(msg.lastInsertRowid, f.id);
+      createAlert(f.id, 'paiement', `💳 Don Stripe $${montant.toFixed(2)}`, email);
+    });
+
+    // Notifier le donateur si c'est un membre
+    if (membre) {
+      mailer.sendPaiementApprouve(membre, montant, mois).catch(() => {});
+    }
+
+    console.log(`✅ Stripe don enregistré : ${email} — $${montant}`);
+  }
+
+  res.json({ received: true });
+});
 
 // ── Middleware ──────────────────────────────────────────────────────────────
 app.use(cors());
