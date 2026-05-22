@@ -364,7 +364,7 @@ img   { display: block; max-width: 100%; }
   background-size: 24px 24px;
 }
 .donation-content { position: relative; z-index: 1; }
-.donation-cards { display: grid; grid-template-columns: repeat(3,1fr); gap: 20px; margin-top: 8px; }
+.donation-cards { display: grid; grid-template-columns: repeat(4,1fr); gap: 20px; margin-top: 8px; }
 .donation-card {
   background: rgba(255,255,255,.09); border: 1px solid rgba(255,255,255,.18);
   border-radius: var(--radius-lg); padding: 36px 24px; text-align: center;

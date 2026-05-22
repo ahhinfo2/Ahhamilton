@@ -201,7 +201,7 @@
       <div class="footer-links">
         <h5 data-i18n="Membre">Membre</h5>
         <a href="${pre}dashboard/login.html" data-i18n="Espace membre">Espace membre</a>
-        <a href="${pre}index.html#don"       data-i18n="Faire un don">Faire un don</a>
+        <a href="https://donate.stripe.com/fZe9CTg1Oh0qehacMM" target="_blank" rel="noopener" data-i18n="Faire un don">Faire un don</a>
         <a href="${pre}index.html#contact"   data-i18n="Nous contacter">Nous contacter</a>
       </div>
       <div class="footer-contact">

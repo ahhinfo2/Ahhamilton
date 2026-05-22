@@ -46,19 +46,19 @@
     <div class="container">
       <div class="stats-grid">
         <div class="stat-item">
-          <div class="stat-number" id="stat-membres" data-target="120">0</div>
+          <div class="stat-number" id="stat-membres" data-target="0">…</div>
           <div class="stat-label" data-i18n="stat.membres">Membres actifs</div>
         </div>
         <div class="stat-item">
-          <div class="stat-number" id="stat-activites" data-target="52">0</div>
+          <div class="stat-number" id="stat-activites" data-target="0">…</div>
           <div class="stat-label" data-i18n="stat.activites">Activités</div>
         </div>
         <div class="stat-item">
-          <div class="stat-number" id="stat-benevoles" data-target="300">0</div>
+          <div class="stat-number" id="stat-benevoles" data-target="0">…</div>
           <div class="stat-label" data-i18n="stat.benevoles">Heures de bénévolat</div>
         </div>
         <div class="stat-item">
-          <div class="stat-number" id="stat-annees" data-target="17">0</div>
+          <div class="stat-number" id="stat-annees" data-target="0">…</div>
           <div class="stat-label" data-i18n="stat.annees">Années de service</div>
         </div>
       </div>
@@ -177,7 +177,7 @@
         <h2 data-i18n="team.h2">Notre équipe dirigeante</h2>
         <p data-i18n="team.p">Des bénévoles engagés au service de la communauté depuis 2009.</p>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:24px;max-width:900px;margin:0 auto">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px;max-width:600px;margin:0 auto">
         <div class="team-mini-card" data-reveal data-delay="0">
           <div class="team-mini-photo" style="background:linear-gradient(135deg,#f9a825,#fdd835)">
             <img src="Public/Jean Carme.jpg" alt="Jean Carme" onerror="this.style.display='none'"/>
@@ -249,24 +249,45 @@
           <div class="donation-amount">$10</div>
           <div class="donation-label">Ami</div>
           <p>Couvre les frais d'une activité communautaire.</p>
-          <a href="adhesion.html" class="btn btn-outline-white">Donner $10</a>
+          <a href="https://donate.stripe.com/fZe9CTg1Oh0qehacMM" target="_blank" rel="noopener" class="btn btn-outline-white">Donner $10</a>
         </div>
         <div class="donation-card featured" data-reveal data-delay="120">
           <div class="donation-badge">Populaire</div>
           <div class="donation-amount">$50</div>
           <div class="donation-label">Bienfaiteur</div>
           <p>Soutient une famille dans son installation à Hamilton.</p>
-          <a href="adhesion.html" class="btn btn-primary">Donner $50</a>
+          <a href="https://donate.stripe.com/fZe9CTg1Oh0qehacMM" target="_blank" rel="noopener" class="btn btn-primary">Donner $50</a>
         </div>
         <div class="donation-card" data-reveal data-delay="240">
           <div class="donation-amount">$100</div>
           <div class="donation-label">Partenaire</div>
           <p>Sponsor un événement culturel ou un projet communautaire.</p>
-          <a href="adhesion.html" class="btn btn-outline-white">Donner $100</a>
+          <a href="https://donate.stripe.com/fZe9CTg1Oh0qehacMM" target="_blank" rel="noopener" class="btn btn-outline-white">Donner $100</a>
+        </div>
+        <div class="donation-card" data-reveal data-delay="360">
+          <div class="donation-amount">✦</div>
+          <div class="donation-label">Montant libre</div>
+          <p>Choisissez le montant qui vous convient. Chaque dollar compte !</p>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:auto">
+            <input type="number" id="customDonation" min="1" placeholder="$" step="1"
+              style="width:80px;padding:10px;border:2px solid rgba(255,255,255,.4);border-radius:8px;background:rgba(255,255,255,.15);color:#fff;font-size:.9rem;font-weight:700;outline:none;text-align:center"/>
+            <a id="customDonateBtn" href="https://donate.stripe.com/fZe9CTg1Oh0qehacMM" target="_blank" rel="noopener" class="btn btn-outline-white" style="flex:1">Donner</a>
+          </div>
         </div>
       </div>
     </div>
   </section>
+  <script>
+  (function() {
+    var input = document.getElementById('customDonation');
+    var btn   = document.getElementById('customDonateBtn');
+    if (!input || !btn) return;
+    input.addEventListener('input', function() {
+      var val = parseInt(this.value);
+      btn.textContent = val > 0 ? 'Donner $' + val : 'Donner';
+    });
+  })();
+  </script>
 
   <!-- ===== CONTACT ===== -->
   <section class="contact-section" id="contact">
@@ -357,20 +378,27 @@
   <script src="nav-auth.js"></script>
   <script src="casl-consent.js"></script>
   <script>
-  // Contact form — attaché après chargement complet du DOM
-  // Stats dynamiques depuis l'API
+  // Stats dynamiques — URL automatique (local ou Render)
   (async function() {
+    var API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+      ? 'http://localhost:3001/api/stats/public'
+      : '/api/stats/public';
     try {
-      const r = await fetch('http://localhost:3001/api/stats/public');
+      var r = await fetch(API);
       if (!r.ok) return;
-      const s = await r.json();
-      const map = { 'stat-membres': s.membres, 'stat-activites': s.activites, 'stat-benevoles': s.benevoles, 'stat-annees': s.annees };
-      Object.entries(map).forEach(function(e) {
-        const el = document.getElementById(e[0]);
-        if (el) el.setAttribute('data-target', e[1]);
+      var s = await r.json();
+      var map = {
+        'stat-membres':   s.membres,
+        'stat-activites': s.activites,
+        'stat-benevoles': s.benevoles,
+        'stat-annees':    s.annees
+      };
+      Object.entries(map).forEach(function(entry) {
+        var el = document.getElementById(entry[0]);
+        if (!el) return;
+        el.setAttribute('data-target', entry[1]);
+        el.textContent = entry[1] + '+';
       });
-      // Relancer l'animation des compteurs si script.js a déjà tourné
-      if (window._initCounters) window._initCounters();
     } catch(e) {}
   })();
 
