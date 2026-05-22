@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Paiement activité – AHH</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--g1:#1b5e20;--g2:#2e7d32;--g3:#43a047;--accent:#f9a825;--white:#fff;--text:#1a2e1a;--muted:#5a7a5a;--border:#c8e6c9}
+    body{font-family:'Poppins',sans-serif;min-height:100vh;background:linear-gradient(135deg,var(--g1),var(--g2));display:flex;align-items:center;justify-content:center;padding:20px}
+    .card{background:#fff;border-radius:20px;padding:36px 32px;max-width:440px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+    .logo-wrap{text-align:center;margin-bottom:20px}
+    .logo-wrap img{width:60px;height:60px;border-radius:14px;object-fit:cover;border:2px solid var(--border)}
+    .activity-name{font-size:1.2rem;font-weight:700;color:var(--text);text-align:center;margin-bottom:4px}
+    .activity-meta{font-size:.82rem;color:var(--muted);text-align:center;margin-bottom:20px;line-height:1.6}
+    .price-box{background:var(--g2);color:#fff;border-radius:12px;padding:14px 20px;text-align:center;margin-bottom:20px}
+    .price-val{font-size:2rem;font-weight:800}
+    .price-plan{font-size:.75rem;opacity:.75;margin-top:2px}
+    .form-group{margin-bottom:14px}
+    label{display:block;font-size:.75rem;font-weight:700;color:var(--text);margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em}
+    input,select{width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:10px;font-family:'Poppins',sans-serif;font-size:.88rem;color:var(--text);outline:none;transition:.2s}
+    input:focus,select:focus{border-color:var(--g2);box-shadow:0 0 0 3px rgba(46,125,50,.1)}
+    .btn{width:100%;padding:13px;background:linear-gradient(135deg,var(--g2),var(--g3));color:#fff;border:none;border-radius:10px;font-family:'Poppins',sans-serif;font-size:.95rem;font-weight:600;cursor:pointer;transition:.25s;margin-top:4px}
+    .btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(46,125,50,.35)}
+    .btn:disabled{opacity:.6;cursor:not-allowed;transform:none}
+    .btn-scan{background:linear-gradient(135deg,#0277bd,#29b6f6)}
+    .msg{padding:12px 16px;border-radius:10px;font-size:.83rem;margin-bottom:14px;display:none}
+    .msg.ok{background:#e8f5e9;color:#1b5e20;border-left:3px solid var(--g2)}
+    .msg.err{background:#fdecea;color:#c62828;border-left:3px solid #c62828}
+    .divider{display:flex;align-items:center;gap:12px;margin:16px 0;color:var(--muted);font-size:.75rem}
+    .divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border)}
+    .not-payant{text-align:center;padding:16px 0}
+    .not-payant .icon{font-size:3rem;margin-bottom:8px}
+    .not-payant p{font-size:.85rem;color:var(--muted)}
+    .login-note{text-align:center;font-size:.78rem;color:var(--muted);margin-top:14px}
+    .login-note a{color:var(--g2);font-weight:600}
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo-wrap">
+    <img src="Public/logo.jpg" alt="AHH"/>
+  </div>
+
+  <div id="loading" style="text-align:center;color:var(--muted);padding:24px">⏳ Chargement…</div>
+  <div id="mainContent" style="display:none">
+    <div class="activity-name" id="actTitle"></div>
+    <div class="activity-meta" id="actMeta"></div>
+    <div class="msg" id="msgBox"></div>
+    <div id="payBlock"></div>
+  </div>
+</div>
+
+<script>
+  const API = 'http://localhost:3001/api';
+  const params = new URLSearchParams(location.search);
+  const actId = params.get('actid');
+  const token = params.get('token');
+  const authToken = localStorage.getItem('ahh_token');
+  const user = authToken ? JSON.parse(localStorage.getItem('ahh_user') || '{}') : null;
+
+  async function init() {
+    if (!actId || !token) { showErr('Lien QR invalide.'); return; }
+    try {
+      const res = await fetch(`${API}/activities/${actId}/checkout?token=${token}`);
+      const act = await res.json();
+      if (!res.ok) { showErr(act.error || 'QR invalide'); return; }
+
+      document.getElementById('actTitle').textContent = act.titre;
+      document.getElementById('actMeta').innerHTML =
+        (act.date_debut ? '📅 ' + new Date(act.date_debut).toLocaleDateString('fr-CA', {weekday:'long',year:'numeric',month:'long',day:'numeric'}) + '<br/>' : '') +
+        (act.lieu ? '📍 ' + act.lieu : '');
+
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('mainContent').style.display = 'block';
+
+      if (!act.paiement_requis || !act.prix) {
+        // Pas de paiement — juste valider présence si connecté
+        document.getElementById('payBlock').innerHTML =
+          '<div class="not-payant"><div class="icon">✅</div>' +
+          '<p>Cette activité est <strong>gratuite</strong>.</p></div>' +
+          (authToken ?
+            '<button class="btn btn-scan" onclick="scanPresence()">📍 Valider ma présence</button>' :
+            '<div class="login-note">Connectez-vous pour valider votre présence : <a href="dashboard/login.html">Connexion →</a></div>');
+      } else {
+        // Activité payante
+        const prixAffiche = act.prix.toFixed(2);
+        document.getElementById('payBlock').innerHTML =
+          '<div class="price-box"><div class="price-val">$' + prixAffiche + '</div>' +
+          (user && user.plan && user.plan !== 'gratuit' ? '<div class="price-plan">Rabais possible selon votre plan ' + user.plan + '</div>' : '') +
+          '</div>' +
+          (authToken ? `
+            <form id="payForm">
+              <div class="form-group"><label>Méthode de paiement</label>
+                <select id="methode">
+                  <option value="interac">Interac</option>
+                  <option value="cash">Espèces (sur place)</option>
+                  <option value="cheque">Chèque</option>
+                  <option value="virement">Virement bancaire</option>
+                </select></div>
+              <div class="form-group"><label>Référence (optionnel)</label>
+                <input id="ref" placeholder="ex: confirmation Interac…"/></div>
+              <button type="submit" class="btn">💳 Payer $${prixAffiche}</button>
+            </form>
+            <div class="divider">ou</div>
+            <button class="btn btn-scan" onclick="scanPresence()">📍 Seulement valider ma présence</button>` :
+            '<div class="login-note">Connectez-vous pour payer et valider votre présence :<br/><a href="dashboard/login.html">🔐 Connexion AHH</a></div>');
+
+        if (authToken) {
+          document.getElementById('payForm')?.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const btn = this.querySelector('[type=submit]');
+            btn.disabled = true; btn.textContent = 'Traitement…';
+            try {
+              const r = await fetch(`${API}/activities/${actId}/pay`, {
+                method: 'POST',
+                headers: { 'Content-Type':'application/json', Authorization: 'Bearer ' + authToken },
+                body: JSON.stringify({ qr_token: token, methode: document.getElementById('methode').value, reference: document.getElementById('ref').value })
+              });
+              const d = await r.json();
+              if (!r.ok) throw new Error(d.error);
+              showOk('✅ Paiement de $' + d.montant.toFixed(2) + ' enregistré ! Vous recevrez une confirmation par courriel.');
+              document.getElementById('payForm').style.display = 'none';
+            } catch(ex) { showErr(ex.message); btn.disabled=false; btn.textContent = '💳 Payer $' + prixAffiche; }
+          });
+        }
+      }
+    } catch(e) { showErr('Erreur de chargement : ' + e.message); }
+  }
+
+  async function scanPresence() {
+    if (!authToken) { showErr('Connectez-vous d\'abord.'); return; }
+    try {
+      const r = await fetch(`${API}/activities/${actId}/scan`, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', Authorization: 'Bearer ' + authToken },
+        body: JSON.stringify({ qr_token: token })
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error);
+      showOk('✅ Présence validée pour « ' + d.activite + ' ». Bonne activité !');
+    } catch(ex) { showErr(ex.message); }
+  }
+
+  function showOk(msg) {
+    const el = document.getElementById('msgBox');
+    el.className = 'msg ok'; el.textContent = msg; el.style.display='block';
+  }
+  function showErr(msg) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('mainContent').style.display = 'block';
+    const el = document.getElementById('msgBox');
+    el.className = 'msg err'; el.textContent = msg; el.style.display='block';
+  }
+
+  init();
+</script>
+</body>
+</html>

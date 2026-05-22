@@ -1,0 +1,423 @@
+const { Database: _DB } = require('node-sqlite3-wasm');
+const bcrypt = require('bcryptjs');
+const path = require('path');
+
+// Wrapper de compatibilité : node-sqlite3-wasm attend un tableau,
+// better-sqlite3 (l'ancienne API) passait des arguments variadiques.
+function wrapStmt(stmt) {
+  const normalize = (args) => args.length > 1 ? args : args[0];
+  const origRun = stmt.run.bind(stmt);
+  const origGet = stmt.get.bind(stmt);
+  const origAll = stmt.all.bind(stmt);
+  stmt.run = (...a) => origRun(normalize(a));
+  stmt.get = (...a) => origGet(normalize(a));
+  stmt.all = (...a) => origAll(normalize(a));
+  return stmt;
+}
+
+class Database extends _DB {
+  prepare(sql) { return wrapStmt(super.prepare(sql)); }
+}
+
+// DB_PATH peut être forcé par variable d'environnement (production/Render)
+const fs2 = require('fs');
+let DB_PATH;
+if (process.env.DB_PATH) {
+  DB_PATH = process.env.DB_PATH;
+} else {
+  const DB_DIR = path.join(process.env.LOCALAPPDATA || process.env.HOME || __dirname, 'ahh-hamilton');
+  if (!fs2.existsSync(DB_DIR)) fs2.mkdirSync(DB_DIR, { recursive: true });
+  DB_PATH = path.join(DB_DIR, 'ahh.db');
+}
+const db = new Database(DB_PATH);
+
+db.exec('PRAGMA foreign_keys = ON');
+// Migrations silencieuses
+try { db.exec('ALTER TABLE message_recipients ADD COLUMN supprime INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE messages ADD COLUMN supprime_sent INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE messages ADD COLUMN attachment_path TEXT'); } catch {}
+try { db.exec('ALTER TABLE messages ADD COLUMN attachment_name TEXT'); } catch {}
+try { db.exec(`CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  token TEXT NOT NULL UNIQUE,
+  expires_at TEXT NOT NULL,
+  used INTEGER DEFAULT 0
+)`); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN plan TEXT DEFAULT \'gratuit\''); } catch {}
+try { db.exec('ALTER TABLE talents ADD COLUMN statut TEXT DEFAULT \'approuve\''); } catch {}
+try { db.exec('ALTER TABLE annonces ADD COLUMN statut TEXT DEFAULT \'approuve\''); } catch {}
+try { db.exec('ALTER TABLE talents ADD COLUMN notif_renouv INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE annonces ADD COLUMN notif_renouv INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE talents ADD COLUMN retrait_satisfait INTEGER'); } catch {}
+try { db.exec('ALTER TABLE talents ADD COLUMN retrait_raison TEXT'); } catch {}
+try { db.exec('ALTER TABLE annonces ADD COLUMN retrait_vendu INTEGER'); } catch {}
+try { db.exec('ALTER TABLE annonces ADD COLUMN retrait_raison TEXT'); } catch {}
+// Gestion financière membres
+try { db.exec('ALTER TABLE users ADD COLUMN plan_unpaid_count INTEGER DEFAULT 0'); } catch {}
+// Activités payantes avec QR
+try { db.exec('ALTER TABLE activities ADD COLUMN prix REAL DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE activities ADD COLUMN paiement_requis INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE activities ADD COLUMN rabais_json TEXT DEFAULT \'{}\''); } catch {}
+try { db.exec('ALTER TABLE activities ADD COLUMN qr_token TEXT'); } catch {}
+// Paiement des inscriptions
+try { db.exec('ALTER TABLE activity_registrations ADD COLUMN paye INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE activity_registrations ADD COLUMN montant_paye REAL DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE activity_registrations ADD COLUMN date_paiement TEXT'); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN plan_paid_month TEXT'); } catch {}  // 'YYYY-MM' du dernier paiement approuvé
+try { db.exec(`CREATE TABLE IF NOT EXISTS pending_registrations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  prenom TEXT NOT NULL, nom TEXT NOT NULL,
+  email TEXT NOT NULL, telephone TEXT, adresse TEXT, date_naissance TEXT,
+  password_hash TEXT NOT NULL, plan TEXT DEFAULT 'gratuit',
+  message TEXT, source TEXT,
+  statut TEXT DEFAULT 'en_attente',
+  traite_par INTEGER REFERENCES users(id),
+  date_soumission TEXT DEFAULT CURRENT_TIMESTAMP,
+  date_traitement TEXT
+)`); } catch {}
+try { db.exec(`CREATE TABLE IF NOT EXISTS payments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER REFERENCES users(id),
+  montant REAL NOT NULL,
+  type TEXT DEFAULT 'mensualite',  -- mensualite | don
+  mois TEXT,                        -- YYYY-MM pour mensualité
+  methode TEXT DEFAULT 'virement',
+  reference TEXT,
+  proof_path TEXT,
+  note TEXT,
+  statut TEXT DEFAULT 'en_attente', -- en_attente | approuve | rejete
+  approuve_par INTEGER REFERENCES users(id),
+  date_soumission TEXT DEFAULT CURRENT_TIMESTAMP,
+  date_approbation TEXT
+)`); } catch {}
+try { db.exec(`CREATE TABLE IF NOT EXISTS tax_receipts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER REFERENCES users(id),
+  annee INTEGER NOT NULL,
+  montant_total REAL NOT NULL,
+  genere_par INTEGER REFERENCES users(id),
+  contenu TEXT,
+  date_generation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+try { db.exec(`CREATE TABLE IF NOT EXISTS talents (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER REFERENCES users(id),
+  nom TEXT NOT NULL,
+  categorie TEXT NOT NULL,
+  specialite TEXT,
+  description TEXT,
+  telephone TEXT,
+  adresse TEXT,
+  site_web TEXT,
+  photo_path TEXT,
+  actif INTEGER DEFAULT 1,
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+try { db.exec(`CREATE TABLE IF NOT EXISTS annonces (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER REFERENCES users(id),
+  titre TEXT NOT NULL,
+  description TEXT,
+  prix REAL,
+  gratuit INTEGER DEFAULT 0,
+  type TEXT DEFAULT 'vente',
+  categorie TEXT DEFAULT 'general',
+  telephone TEXT,
+  actif INTEGER DEFAULT 1,
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+try { db.exec(`CREATE TABLE IF NOT EXISTS annonce_photos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  annonce_id INTEGER REFERENCES annonces(id) ON DELETE CASCADE,
+  photo_path TEXT NOT NULL,
+  ordre INTEGER DEFAULT 0
+)`); } catch {}
+
+function init() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      prenom TEXT NOT NULL,
+      nom TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      telephone TEXT,
+      adresse TEXT,
+      date_naissance TEXT,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'member',
+      actif INTEGER DEFAULT 1,
+      date_inscription TEXT DEFAULT CURRENT_TIMESTAMP,
+      photo_url TEXT,
+      bio TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS activities (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      titre TEXT NOT NULL,
+      description TEXT,
+      type TEXT DEFAULT 'general',
+      date_debut TEXT,
+      date_fin TEXT,
+      lieu TEXT,
+      budget_prevu REAL DEFAULT 0,
+      max_participants INTEGER,
+      statut TEXT DEFAULT 'planifiee',
+      cree_par INTEGER REFERENCES users(id),
+      date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS activity_registrations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      activity_id INTEGER REFERENCES activities(id) ON DELETE CASCADE,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      statut TEXT DEFAULT 'inscrit',
+      date_inscription TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(activity_id, user_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS financial_lines (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      activity_id INTEGER REFERENCES activities(id) ON DELETE CASCADE,
+      titre TEXT NOT NULL,
+      budget_alloue REAL DEFAULT 0,
+      date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+      statut TEXT DEFAULT 'actif'
+    );
+
+    CREATE TABLE IF NOT EXISTS transactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      financial_line_id INTEGER REFERENCES financial_lines(id),
+      type TEXT NOT NULL,
+      montant REAL NOT NULL,
+      description TEXT,
+      methode TEXT DEFAULT 'cash',
+      reference TEXT,
+      invoice_id INTEGER REFERENCES invoices(id),
+      cree_par INTEGER REFERENCES users(id),
+      date_transaction TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS invoices (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      titre TEXT NOT NULL,
+      fournisseur TEXT,
+      montant REAL,
+      date_facture TEXT,
+      photo_path TEXT,
+      financial_line_id INTEGER REFERENCES financial_lines(id),
+      cree_par INTEGER REFERENCES users(id),
+      statut TEXT DEFAULT 'en_attente',
+      date_upload TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS account_info (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      institution TEXT,
+      numero_compte TEXT,
+      nom_titulaire TEXT,
+      solde REAL DEFAULT 0,
+      date_maj TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS sub_committees (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nom TEXT NOT NULL,
+      description TEXT,
+      activity_id INTEGER REFERENCES activities(id),
+      chef_id INTEGER REFERENCES users(id),
+      statut TEXT DEFAULT 'actif',
+      date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS sub_committee_members (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      committee_id INTEGER REFERENCES sub_committees(id) ON DELETE CASCADE,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      role_comite TEXT DEFAULT 'membre',
+      UNIQUE(committee_id, user_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      expediteur_id INTEGER REFERENCES users(id),
+      sujet TEXT,
+      contenu TEXT NOT NULL,
+      type TEXT DEFAULT 'individuel',
+      date_envoi TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS message_recipients (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      message_id INTEGER REFERENCES messages(id) ON DELETE CASCADE,
+      destinataire_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      lu INTEGER DEFAULT 0,
+      date_lecture TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS volunteer_hours (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      activity_id INTEGER REFERENCES activities(id),
+      heures REAL NOT NULL,
+      description TEXT,
+      date_service TEXT,
+      statut TEXT DEFAULT 'en_attente',
+      approuve_par INTEGER REFERENCES users(id),
+      date_approbation TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS meeting_notes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      auteur_id INTEGER REFERENCES users(id),
+      titre TEXT,
+      contenu TEXT,
+      langue TEXT DEFAULT 'fr',
+      contenu_corrige TEXT,
+      date_reunion TEXT,
+      activity_id INTEGER REFERENCES activities(id),
+      date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+      date_modification TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS recommendation_letters (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      membre_id INTEGER REFERENCES users(id),
+      demande_par INTEGER REFERENCES users(id),
+      genere_par INTEGER REFERENCES users(id),
+      contenu TEXT,
+      date_demande TEXT DEFAULT CURRENT_TIMESTAMP,
+      date_generation TEXT,
+      signe_par INTEGER REFERENCES users(id),
+      date_signature TEXT,
+      statut TEXT DEFAULT 'demande'
+    );
+
+    CREATE TABLE IF NOT EXISTS alerts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL,
+      titre TEXT,
+      contenu TEXT,
+      destinataire_id INTEGER REFERENCES users(id),
+      source_id INTEGER,
+      lu INTEGER DEFAULT 0,
+      date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS projects (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nom TEXT NOT NULL,
+      description TEXT,
+      responsable_id INTEGER REFERENCES users(id),
+      statut TEXT DEFAULT 'en_cours',
+      progression INTEGER DEFAULT 0,
+      date_debut TEXT,
+      date_fin TEXT,
+      date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS gallery_photos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      titre TEXT,
+      categorie TEXT DEFAULT 'general',
+      photo_path TEXT NOT NULL,
+      cree_par INTEGER REFERENCES users(id),
+      date_upload TEXT DEFAULT CURRENT_TIMESTAMP,
+      actif INTEGER DEFAULT 1
+    );
+
+    CREATE TABLE IF NOT EXISTS chat_rooms (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'group',
+      activity_id INTEGER REFERENCES activities(id),
+      created_by INTEGER REFERENCES users(id),
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS chat_room_members (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      room_id INTEGER REFERENCES chat_rooms(id) ON DELETE CASCADE,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      last_read_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(room_id, user_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      room_id INTEGER REFERENCES chat_rooms(id) ON DELETE CASCADE,
+      sender_id INTEGER REFERENCES users(id),
+      content TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  // Seed initial admin accounts
+  const existingAdmin = db.prepare('SELECT id FROM users WHERE role = ?').get('admin');
+  if (!existingAdmin) {
+    const hash = bcrypt.hashSync('AHH2026!', 10);
+    const insert = db.prepare(`
+      INSERT INTO users (prenom, nom, email, telephone, password_hash, role)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    insert.run('Jean', 'Carme', 'presidente@ahhamilton.ca', '905-818-8269', hash, 'admin');
+    insert.run('Jean', 'Raymond', 'vp@ahhamilton.ca', '905-818-8269', hash, 'admin');
+    insert.run('Aviole', 'AHH', 'tresoriere@ahhamilton.ca', '', hash, 'tresoriere');
+    insert.run('Pierre', 'Jeens', 'jeens@ahhamilton.ca', '', hash, 'secretaire');
+    insert.run('Garry', 'AHH', 'garry@ahhamilton.ca', '', hash, 'delegue');
+    insert.run('Dricoll', 'AHH', 'dricoll@ahhamilton.ca', '', hash, 'delegue');
+
+    // Seed account info
+    db.prepare(`INSERT INTO account_info (institution, numero_compte, nom_titulaire, solde)
+      VALUES (?, ?, ?, ?)`)
+      .run('Caisse populaire', '****-****-1234', 'AHH', 0);
+
+    console.log('✅ Comptes initiaux créés (mot de passe: AHH2026!)');
+  }
+
+  // ── Comptes membres mamb1–mamb7 ──────────────────────────────────────
+  const existingMamb = db.prepare("SELECT id FROM users WHERE email = 'mamb1@ahhamilton.ca'").get();
+  if (!existingMamb) {
+    const hashM = bcrypt.hashSync('mamb123456', 10);
+    const insertM = db.prepare(`INSERT INTO users (prenom, nom, email, password_hash, role) VALUES (?,?,?,?,'member')`);
+    const prénoms = ['Marie', 'Jean', 'Rose', 'Paul', 'Sandra', 'Michel'];
+    const noms    = ['Dupont', 'Pierre', 'Laurent', 'Dumont', 'Éloi', 'Joseph'];
+    for (let i = 1; i <= 6; i++) {
+      insertM.run(prénoms[i-1], noms[i-1], `mamb${i}@ahhamilton.ca`, hashM);
+    }
+    console.log('✅ Comptes mamb1–mamb6 créés (mot de passe: mamb123456)');
+  }
+  // mamb7 — compte de test plan bienfaiteur
+  const existingMamb7 = db.prepare("SELECT id FROM users WHERE email = 'mamb7@ahhamilton.ca'").get();
+  if (!existingMamb7) {
+    const hashM7 = bcrypt.hashSync('mamb123456', 10);
+    db.prepare(`INSERT INTO users (prenom, nom, email, password_hash, role, plan) VALUES (?,?,?,?,'member','bienfaiteur')`)
+      .run('Lesly', 'Rénovation', 'mamb7@ahhamilton.ca', hashM7);
+    console.log('✅ Compte mamb7 créé (bienfaiteur, mot de passe: mamb123456)');
+  }
+  // Mettre mamb6 en plan bienfaiteur pour les tests
+  db.prepare("UPDATE users SET plan = 'bienfaiteur' WHERE email = 'mamb6@ahhamilton.ca' AND plan = 'gratuit'").run();
+
+  // ── Salons de chat par défaut ──────────────────────────────────────────
+  const existingRoom = db.prepare("SELECT id FROM chat_rooms WHERE type = 'general'").get();
+  if (!existingRoom) {
+    const addRoom = db.prepare(`INSERT INTO chat_rooms (name, type, created_by) VALUES (?, ?, 1)`);
+    const generalId   = addRoom.run('💬 Général', 'general').lastInsertRowid;
+    const committeeId = addRoom.run('🔒 Comité', 'committee').lastInsertRowid;
+
+    // Ajouter tous les membres au salon Général
+    const allUsers = db.prepare('SELECT id FROM users WHERE actif = 1').all();
+    const addMember = db.prepare('INSERT OR IGNORE INTO chat_room_members (room_id, user_id) VALUES (?, ?)');
+    allUsers.forEach(u => addMember.run(generalId, u.id));
+
+    // Ajouter seulement le comité au salon Comité
+    const committee = db.prepare("SELECT id FROM users WHERE role IN ('admin','tresoriere','secretaire','delegue') AND actif = 1").all();
+    committee.forEach(u => addMember.run(committeeId, u.id));
+
+    console.log('✅ Salons de chat créés (Général + Comité)');
+  }
+}
+
+init();
+
+module.exports = db;

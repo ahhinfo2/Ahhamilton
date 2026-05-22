@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Adhésion – AHH</title>
+  <meta name="description" content="Devenez membre de l'Association Haïtienne de Hamilton. Formulaire d'adhésion et avantages membres."/>
+  <meta property="og:title" content="Rejoindre AHH"/>
+  <meta property="og:image" content="https://ahhamilton.ca/Public/logo.jpg"/>
+  <link rel="icon" type="image/jpeg" href="Public/logo.jpg"/>
+  <link rel="stylesheet" href="style.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet"/>
+  <style>
+    .adh-section { padding: 80px 0; background: #fff; }
+    .adh-section.alt { background: var(--off); }
+    .membership-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 24px; margin-bottom: 48px;
+    }
+    .mem-card {
+      border-radius: 20px; padding: 36px 28px; text-align: center;
+      border: 2px solid var(--border); background: #fff;
+      box-shadow: var(--shadow); transition: var(--tr); position: relative;
+    }
+    .mem-card:hover { transform: translateY(-5px); box-shadow: var(--shadow-lg); }
+    .mem-card.popular { border-color: var(--g2); }
+    .mem-popular-badge {
+      position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+      background: linear-gradient(135deg, var(--g2), var(--g3));
+      color: #fff; font-size: .7rem; font-weight: 700; letter-spacing: .06em;
+      padding: 3px 14px; border-radius: 50px; text-transform: uppercase;
+    }
+    .mem-icon   { font-size: 2.5rem; margin-bottom: 12px; }
+    .mem-price  { font-size: 2.2rem; font-weight: 800; color: var(--g2); line-height: 1; }
+    .mem-period { font-size: .75rem; color: var(--muted); font-weight: 500; margin-bottom: 8px; }
+    .mem-name   { font-size: 1rem; font-weight: 700; margin-bottom: 16px; color: var(--text); }
+    .mem-features { list-style: none; text-align: left; margin-bottom: 24px; display: flex; flex-direction: column; gap: 8px; }
+    .mem-features li { font-size: .82rem; color: var(--muted); display: flex; gap: 8px; align-items: flex-start; }
+    .mem-features li::before { content: '✓'; color: var(--g2); font-weight: 700; flex-shrink: 0; }
+    .adh-form-section { display: grid; grid-template-columns: 1fr 1.4fr; gap: 60px; align-items: start; }
+    .adh-info h2 { font-family: 'Playfair Display', serif; font-size: 1.9rem; margin-bottom: 14px; }
+    .adh-info p  { color: var(--muted); font-size: .88rem; line-height: 1.75; margin-bottom: 14px; }
+    .adh-steps  { margin-top: 28px; display: flex; flex-direction: column; gap: 16px; }
+    .adh-step   { display: flex; gap: 14px; align-items: flex-start; }
+    .step-num   {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--g2), var(--g3));
+      color: #fff; font-size: .82rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .step-text strong { display: block; font-size: .88rem; color: var(--text); margin-bottom: 2px; }
+    .step-text p { font-size: .8rem; color: var(--muted); margin: 0; line-height: 1.5; }
+    .adh-form   { background: var(--off); border-radius: 20px; padding: 36px 32px; border: 1px solid var(--border); }
+    .adh-form h3{ font-size: 1.1rem; font-weight: 700; margin-bottom: 20px; }
+    select { background: #fff; }
+    @media(max-width:1024px) { .membership-grid { grid-template-columns: 1fr 1fr; } }
+    @media(max-width:768px)  { .membership-grid, .adh-form-section { grid-template-columns: 1fr; } .adh-form { padding: 24px 20px; } }
+  </style>
+</head>
+<body>
+
+  <section class="page-hero">
+    <div class="container page-hero-content">
+      <div class="breadcrumb"><a href="index.html">Accueil</a><span>›</span><span>Rejoindre</span></div>
+      <h1 data-i18n="adh.h1">Rejoindre AHH</h1>
+      <p data-i18n="adh.p1">Devenez membre et faites partie d'une communauté unie, active et bienveillante.</p>
+    </div>
+  </section>
+
+  <!-- TYPES DE MEMBRES -->
+  <section class="adh-section">
+    <div class="container">
+      <div class="section-header" data-reveal>
+        <span class="section-badge" data-i18n="adh.plans.badge">Adhésion</span>
+        <h2 data-i18n="adh.plans.h2">Choisissez votre membership</h2>
+        <p data-i18n="adh.plans.p">Toutes les formules incluent l'accès aux activités et l'appartenance à notre communauté.</p>
+      </div>
+      <div class="membership-grid">
+        <div class="mem-card" data-reveal data-delay="0">
+          <div class="mem-icon">🌱</div>
+          <div class="mem-price">Gratuit</div>
+          <div class="mem-period" data-i18n="mem.free.period">Membres de base</div>
+          <div class="mem-name">Membre</div>
+          <ul class="mem-features">
+            <li>Accès aux événements publics</li>
+            <li>Newsletter mensuelle</li>
+            <li>Répertoire des membres</li>
+            <li>Accès au portail en ligne</li>
+            <li>Droit de vote aux AG</li>
+          </ul>
+          <a href="#formAdh" class="btn btn-outline full" data-i18n="mem.free.btn">Adhérer gratuitement</a>
+        </div>
+        <div class="mem-card popular" data-reveal data-delay="120">
+          <div class="mem-popular-badge" data-i18n="mem.bien.badge">Le plus populaire</div>
+          <div class="mem-icon">🌺</div>
+          <div class="mem-price">$10</div>
+          <div class="mem-period" data-i18n="mem.bien.period">par mois · $100/an</div>
+          <div class="mem-name">Bienfaiteur</div>
+          <ul class="mem-features">
+            <li>Tous les avantages Membre</li>
+            <li>Accès prioritaire aux événements</li>
+            <li>Tarifs réduits sur les activités</li>
+            <li>Invitation aux événements VIP</li>
+            <li>Soutien aux programmes d'assistance</li>
+          </ul>
+          <a href="#formAdh" class="btn btn-primary full" data-i18n="mem.bien.btn">Devenir bienfaiteur</a>
+        </div>
+        <div class="mem-card" data-reveal data-delay="240">
+          <div class="mem-icon">⭐</div>
+          <div class="mem-price">$20</div>
+          <div class="mem-period" data-i18n="mem.part.period">par mois · $200/an</div>
+          <div class="mem-name">Partenaire</div>
+          <ul class="mem-features">
+            <li>Tous les avantages Bienfaiteur</li>
+            <li>Nom affiché sur nos communications</li>
+            <li>Accès aux réunions du comité</li>
+            <li>Lettre de reconnaissance annuelle</li>
+            <li>Sponsor d'un événement au choix</li>
+          </ul>
+          <a href="#formAdh" class="btn btn-outline full" data-i18n="mem.part.btn">Devenir partenaire</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FORMULAIRE D'ADHÉSION -->
+  <section class="adh-section alt" id="formAdh">
+    <div class="container adh-form-section">
+      <div class="adh-info" data-reveal>
+        <span class="section-badge" data-i18n="adh.form.badge">Inscription</span>
+        <h2 data-i18n="adh.form.h2">Remplissez votre demande d'adhésion</h2>
+        <p>Complétez ce formulaire pour rejoindre officiellement AHH. Notre équipe vous contactera dans les 48 heures pour confirmer votre adhésion et vous accueillir dans la communauté.</p>
+        <div class="adh-steps">
+          <div class="adh-step">
+            <div class="step-num">1</div>
+            <div class="step-text">
+              <strong data-i18n="step1.title">Remplissez le formulaire</strong>
+              <p>Vos informations personnelles et le type d'adhésion souhaité.</p>
+            </div>
+          </div>
+          <div class="adh-step">
+            <div class="step-num">2</div>
+            <div class="step-text">
+              <strong data-i18n="step2.title">Confirmation par courriel</strong>
+              <p>Vous recevrez un courriel de bienvenue avec vos accès au portail membre.</p>
+            </div>
+          </div>
+          <div class="adh-step">
+            <div class="step-num">3</div>
+            <div class="step-text">
+              <strong data-i18n="step3.title">Bienvenue dans la communauté !</strong>
+              <p>Accédez aux événements, au portail et à toute la famille AHH.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <form class="adh-form" id="adhesionForm" data-reveal data-delay="150">
+        <h3 data-i18n="adh.form.h3">Formulaire d'adhésion</h3>
+        <div class="form-row">
+          <div class="form-group">
+            <label data-i18n="Prénom *">Prénom *</label>
+            <input type="text" id="adh_prenom" placeholder="Jean" required/>
+          </div>
+          <div class="form-group">
+            <label data-i18n="Nom *">Nom *</label>
+            <input type="text" id="adh_nom" placeholder="Dupont" required/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label data-i18n="Adresse courriel *">Adresse courriel *</label>
+          <input type="email" id="adh_email" placeholder="votre@email.com" required/>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label data-i18n="Téléphone">Téléphone</label>
+            <input type="tel" id="adh_tel" placeholder="905-000-0000"/>
+          </div>
+          <div class="form-group">
+            <label data-i18n="Date de naissance">Date de naissance</label>
+            <input type="date" id="adh_dob"/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label data-i18n="Adresse">Adresse</label>
+          <input type="text" id="adh_addr" placeholder="123 rue Principale, Hamilton, ON"/>
+        </div>
+        <div class="form-group">
+          <label data-i18n="Type d'adhésion *">Type d'adhésion *</label>
+          <select id="adh_type" required>
+            <option value="">Choisir une formule…</option>
+            <option>Membre (Gratuit)</option>
+            <option>Bienfaiteur ($10/mois)</option>
+            <option>Partenaire ($20/mois)</option>
+            <option>Don ponctuel</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label data-i18n="Comment avez-vous connu AHH ?">Comment avez-vous connu AHH ?</label>
+          <select id="adh_source">
+            <option value="">Choisir…</option>
+            <option>Bouche à oreille</option>
+            <option>Réseaux sociaux</option>
+            <option>Site web</option>
+            <option>Un événement</option>
+            <option>Autre</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label data-i18n="Message (facultatif)">Message (facultatif)</label>
+          <textarea id="adh_msg" rows="3" placeholder="Présentez-vous ou posez vos questions…"></textarea>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:18px">
+          <input type="checkbox" id="consent" required style="width:auto;margin-top:3px"/>
+          <label for="consent" style="font-size:.78rem;color:var(--muted);text-transform:none;letter-spacing:0;font-weight:400">
+            J'accepte que mes données soient traitées par AHH conformément à la
+            <a href="privacy.html" style="color:var(--g2)">politique de confidentialité</a>.
+          </label>
+        </div>
+        <button type="submit" class="btn btn-primary full" id="adhBtn" data-i18n="Envoyer ma demande d'adhésion">Envoyer ma demande d'adhésion</button>
+        <div id="adhSuccess" style="display:none;margin-top:16px;background:#e8f5e9;border:1px solid #c8e6c9;border-radius:10px;padding:14px;font-size:.85rem;color:#1b5e20;text-align:center">
+          ✅ Votre demande a été envoyée ! Nous vous contacterons dans les 48 heures.
+        </div>
+        <div id="adhError" style="display:none;margin-top:12px;background:#fdecea;border:1px solid #f5c6cb;border-radius:10px;padding:12px;font-size:.82rem;color:#c62828;text-align:center"></div>
+        <p style="font-size:.72rem;color:var(--muted);margin-top:12px;text-align:center">
+          Vous avez déjà un compte ? <a href="dashboard/login.html" style="color:var(--g2)">Connectez-vous</a>
+        </p>
+      </form>
+    </div>
+  </section>
+
+  <script src="script.js"></script>
+  <script src="_lang.js"></script>
+  <script src="_nav.js"></script>
+  <script src="nav-auth.js"></script>
+  <script src="casl-consent.js"></script>
+  <script>
+    document.getElementById('adhesionForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const btn = document.getElementById('adhBtn');
+      const errEl = document.getElementById('adhError');
+      btn.disabled = true; btn.textContent = 'Envoi en cours…';
+      errEl.style.display = 'none';
+      try {
+        const nom = document.getElementById('adh_prenom').value + ' ' + document.getElementById('adh_nom').value;
+        const msg = 'Type : ' + document.getElementById('adh_type').value + '\n' +
+          'Source : ' + document.getElementById('adh_source').value + '\n\n' +
+          (document.getElementById('adh_msg').value || '');
+        await fetch('http://localhost:3001/api/contact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nom: nom,
+            email: document.getElementById('adh_email').value,
+            sujet: 'Demande d\'adhésion — AHH',
+            message: msg
+          })
+        });
+        document.getElementById('adhSuccess').style.display = 'block';
+        btn.style.display = 'none';
+        e.target.querySelectorAll('input,select,textarea').forEach(function(el) { el.disabled = true; });
+      } catch(ex) {
+        errEl.textContent = 'Erreur lors de l\'envoi. Réessayez ou contactez-nous directement.';
+        errEl.style.display = 'block';
+        btn.disabled = false; btn.textContent = 'Envoyer ma demande d\'adhésion';
+      }
+    });
+  </script>
+</body>
+</html>

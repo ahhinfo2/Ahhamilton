@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Activités & Événements – AHH</title>
+  <meta name="description" content="Calendrier des activités et événements de l'Association Haïtienne de Hamilton — culturels, bénévolat et rassemblements communautaires."/>
+  <meta property="og:title" content="Activités – AHH"/>
+  <meta property="og:image" content="https://ahhamilton.ca/Public/logo.jpg"/>
+  <link rel="icon" type="image/jpeg" href="Public/logo.jpg"/>
+  <link rel="stylesheet" href="style.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet"/>
+  <style>
+    .act-section { padding: 80px 0; background: #fff; }
+    .act-section.alt { background: var(--off); }
+    .filter-bar  { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 32px; }
+    .filter-btn  {
+      padding: 7px 16px; border-radius: 50px; border: 1.5px solid var(--border);
+      background: #fff; font-family: 'Poppins', sans-serif; font-size: .78rem; font-weight: 600;
+      cursor: pointer; transition: var(--tr); color: var(--muted);
+    }
+    .filter-btn.active, .filter-btn:hover { background: var(--g2); color: #fff; border-color: var(--g2); }
+    .events-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px; }
+    .event-card  {
+      background: #fff; border-radius: 18px; border: 1px solid var(--border);
+      box-shadow: var(--shadow); overflow: hidden; transition: var(--tr);
+    }
+    .event-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
+    .event-header {
+      height: 140px; display: flex; align-items: center; justify-content: center;
+      font-size: 3.5rem; position: relative;
+    }
+    .event-cat-tag {
+      position: absolute; top: 12px; left: 12px;
+      background: rgba(255,255,255,.9); font-size: .68rem; font-weight: 700;
+      letter-spacing: .06em; text-transform: uppercase; padding: 3px 10px;
+      border-radius: 50px; color: var(--g2);
+    }
+    .event-date-badge {
+      position: absolute; top: 12px; right: 12px;
+      background: #fff; border-radius: 10px; padding: 6px 10px;
+      text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,.12);
+    }
+    .event-date-badge .day   { font-size: 1.3rem; font-weight: 800; color: var(--g2); line-height: 1; }
+    .event-date-badge .month { font-size: .65rem; font-weight: 600; color: var(--muted); text-transform: uppercase; }
+    .event-body { padding: 20px; }
+    .event-body h3 { font-size: .98rem; font-weight: 700; margin-bottom: 6px; color: var(--text); }
+    .event-body p  { font-size: .82rem; color: var(--muted); line-height: 1.65; margin-bottom: 14px; }
+    .event-meta { display: flex; gap: 14px; font-size: .75rem; color: var(--muted); margin-bottom: 16px; flex-wrap: wrap; }
+    .event-meta span { display: flex; align-items: center; gap: 4px; }
+    .register-cta { background: linear-gradient(135deg, var(--g1), var(--g2)); border-radius: 20px; padding: 48px 40px; text-align: center; color: #fff; margin-top: 48px; }
+    .register-cta h2 { font-family: 'Playfair Display', serif; font-size: 1.8rem; margin-bottom: 12px; }
+    .register-cta p  { color: rgba(255,255,255,.78); margin-bottom: 24px; font-size: .9rem; }
+    .events-loading { text-align: center; padding: 48px; color: var(--muted); font-size: .9rem; }
+    .events-empty { text-align: center; padding: 48px; }
+    .events-empty .ee-icon { font-size: 3rem; margin-bottom: 12px; }
+    @media(max-width:600px){ .events-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+
+  <section class="page-hero">
+    <div class="container page-hero-content">
+      <div class="breadcrumb"><a href="index.html">Accueil</a><span>›</span><span>Activités</span></div>
+      <h1 data-i18n="act.h1">Activités & Événements</h1>
+      <p data-i18n="act.p1">Découvrez nos prochains rassemblements et revivez nos moments passés.</p>
+    </div>
+  </section>
+
+  <!-- PROCHAINS ÉVÉNEMENTS (dynamiques depuis la BD) -->
+  <section class="act-section">
+    <div class="container">
+      <div class="section-header" data-reveal>
+        <span class="section-badge" data-i18n="act.upcoming.badge">À venir</span>
+        <h2 data-i18n="act.upcoming.h2">Prochains événements</h2>
+        <p data-i18n="act.upcoming.p">Rejoignez-nous pour ces moments de partage, culture et solidarité.</p>
+      </div>
+      <div class="filter-bar" id="filterBar">
+        <button class="filter-btn active" data-cat="tous" data-i18n="Tous">Tous</button>
+        <button class="filter-btn" data-cat="culturel" data-i18n="Culturel">🌺 Culturel</button>
+        <button class="filter-btn" data-cat="benevolat" data-i18n="Bénévolat">🤝 Bénévolat</button>
+        <button class="filter-btn" data-cat="social">🍽️ Social</button>
+        <button class="filter-btn" data-cat="reunion" data-i18n="Réunion">📋 Réunion</button>
+      </div>
+      <div id="upcomingGrid" class="events-grid">
+        <div class="events-loading">⏳ Chargement des événements...</div>
+      </div>
+
+      <div class="register-cta" data-reveal>
+        <h2 data-i18n="act.cta.h2">Vous souhaitez participer ?</h2>
+        <p data-i18n="act.cta.p">Devenez membre d'AHH pour accéder aux événements réservés aux membres, recevoir les invitations en avant-première et profiter de tarifs préférentiels.</p>
+        <a href="adhesion.html" class="btn btn-primary" data-i18n="act.cta.btn">Devenir membre →</a>
+        &nbsp;&nbsp;
+        <a href="index.html#contact" class="btn btn-ghost">Nous contacter</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ÉVÉNEMENTS PASSÉS (statiques) -->
+  <section class="act-section alt">
+    <div class="container">
+      <div class="section-header" data-reveal>
+        <span class="section-badge" data-i18n="act.past.badge">Archives</span>
+        <h2 data-i18n="act.past.h2">Événements passés</h2>
+        <p>Revivez nos plus beaux moments ensemble.</p>
+      </div>
+      <div class="events-grid">
+        <div class="event-card" style="opacity:.8" data-reveal>
+          <div class="event-header" style="background:linear-gradient(135deg,#1b5e20,#43a047)">🇭🇹</div>
+          <div class="event-body">
+            <h3>Fête nationale haïtienne 2025
+              <span style="background:var(--off);color:var(--muted);font-size:.68rem;font-weight:600;padding:3px 10px;border-radius:50px;margin-left:8px">Terminé</span>
+            </h3>
+            <div class="event-meta"><span>📅 1er janvier 2025</span><span>👥 85 participants</span></div>
+            <p>Une célébration mémorable avec plus de 85 membres réunis pour honorer l'indépendance d'Haïti.</p>
+            <a href="galerie.html" class="btn btn-ghost btn-sm" style="font-size:.78rem;padding:7px 14px">Voir les photos →</a>
+          </div>
+        </div>
+        <div class="event-card" style="opacity:.8" data-reveal data-delay="100">
+          <div class="event-header" style="background:linear-gradient(135deg,#f9a825,#fdd835)">🎊</div>
+          <div class="event-body">
+            <h3>Gala AHH 2025
+              <span style="background:var(--off);color:var(--muted);font-size:.68rem;font-weight:600;padding:3px 10px;border-radius:50px;margin-left:8px">Terminé</span>
+            </h3>
+            <div class="event-meta"><span>📅 Avril 2025</span><span>👥 120 participants</span></div>
+            <p>Notre gala annuel 2025 a réuni plus de 120 personnes dans une soirée de célébration et de reconnaissance.</p>
+            <a href="galerie.html" class="btn btn-ghost btn-sm" style="font-size:.78rem;padding:7px 14px">Voir les photos →</a>
+          </div>
+        </div>
+        <div class="event-card" style="opacity:.8" data-reveal data-delay="200">
+          <div class="event-header" style="background:linear-gradient(135deg,#0277bd,#29b6f6)">🤝</div>
+          <div class="event-body">
+            <h3>Journée bénévolat Automne 2025
+              <span style="background:var(--off);color:var(--muted);font-size:.68rem;font-weight:600;padding:3px 10px;border-radius:50px;margin-left:8px">Terminé</span>
+            </h3>
+            <div class="event-meta"><span>📅 Octobre 2025</span><span>👥 40 bénévoles</span></div>
+            <p>40 bénévoles ont offert 160 heures de service à la communauté hamiltonienne lors de cette journée solidaire.</p>
+            <a href="galerie.html" class="btn btn-ghost btn-sm" style="font-size:.78rem;padding:7px 14px">Voir les photos →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script src="script.js"></script>
+  <script src="_lang.js"></script>
+  <script src="_nav.js"></script>
+  <script src="nav-auth.js"></script>
+  <script src="casl-consent.js"></script>
+  <script>
+    const API_URL = 'http://localhost:3001/api';
+
+    const TYPE_ICONS = {
+      culturel:  { icon: '🌺', gradient: 'linear-gradient(135deg,#1b5e20,#43a047)', emoji: '🇭🇹' },
+      benevolat: { icon: '🤝', gradient: 'linear-gradient(135deg,#0277bd,#29b6f6)', emoji: '🤝' },
+      social:    { icon: '🍽️', gradient: 'linear-gradient(135deg,#00695c,#26a69a)', emoji: '🍽️' },
+      reunion:   { icon: '📋', gradient: 'linear-gradient(135deg,#37474f,#546e7a)', emoji: '📋' },
+      general:   { icon: '✨', gradient: 'linear-gradient(135deg,#6a1b9a,#ab47bc)', emoji: '✨' },
+    };
+
+    let allEvents = [];
+    let activeFilter = 'tous';
+
+    function formatDate(str) {
+      if (!str) return { day: '?', month: '?' };
+      const d = new Date(str);
+      return {
+        day:   d.getDate(),
+        month: d.toLocaleDateString('fr-CA', { month: 'short', year: 'numeric' })
+      };
+    }
+
+    function renderCard(ev) {
+      const t = TYPE_ICONS[ev.type] || TYPE_ICONS.general;
+      const d = formatDate(ev.date_debut);
+      const spots = ev.max_participants
+        ? '👥 ' + (ev.nb_inscrits || 0) + '/' + ev.max_participants + ' places'
+        : '👥 Entrée libre';
+      const isLoggedIn = !!localStorage.getItem('ahh_token');
+      const btnHtml = isLoggedIn
+        ? '<a href="dashboard/app.html" class="btn btn-primary btn-sm" style="font-size:.8rem;padding:9px 18px">S\'inscrire via mon espace →</a>'
+        : '<a href="dashboard/login.html" class="btn btn-primary btn-sm" style="font-size:.8rem;padding:9px 18px">Connexion pour s\'inscrire →</a>';
+
+      const typeLabel = ev.type.charAt(0).toUpperCase() + ev.type.slice(1);
+      const dateStr  = ev.date_debut ? '📅 ' + new Date(ev.date_debut).toLocaleDateString('fr-CA') : '';
+      const lieuStr  = ev.lieu ? '📍 ' + ev.lieu : '';
+      const desc     = ev.description || 'Rejoignez-nous pour cet événement communautaire.';
+
+      return '<div class="event-card" data-type="' + ev.type + '" data-reveal>' +
+        '<div class="event-header" style="background:' + t.gradient + '">' +
+          t.emoji +
+          '<span class="event-cat-tag">' + t.icon + ' ' + typeLabel + '</span>' +
+          '<div class="event-date-badge">' +
+            '<div class="day">' + d.day + '</div>' +
+            '<div class="month">' + d.month + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="event-body">' +
+          '<h3>' + ev.titre + '</h3>' +
+          '<div class="event-meta">' +
+            (dateStr ? '<span>' + dateStr + '</span>' : '') +
+            (lieuStr ? '<span>' + lieuStr + '</span>' : '') +
+            '<span>' + spots + '</span>' +
+          '</div>' +
+          '<p>' + desc + '</p>' +
+          btnHtml +
+        '</div>' +
+      '</div>';
+    }
+
+    function renderGrid() {
+      const grid = document.getElementById('upcomingGrid');
+      const filtered = activeFilter === 'tous'
+        ? allEvents
+        : allEvents.filter(function(e) { return e.type === activeFilter; });
+
+      if (!filtered.length) {
+        grid.innerHTML = '<div class="events-empty" style="grid-column:1/-1">' +
+          '<div class="ee-icon">📅</div>' +
+          '<p>Aucun événement à venir pour cette catégorie.</p></div>';
+      } else {
+        grid.innerHTML = filtered.map(renderCard).join('');
+      }
+    }
+
+    async function loadEvents() {
+      try {
+        const res = await fetch(API_URL + '/activities/public');
+        allEvents = await res.json();
+        renderGrid();
+      } catch(e) {
+        document.getElementById('upcomingGrid').innerHTML =
+          '<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted)">' +
+          '<div style="font-size:2rem;margin-bottom:8px">📅</div>' +
+          '<p>Événements temporairement indisponibles. ' +
+          '<a href="index.html#contact">Contactez-nous</a> pour plus d\'info.</p></div>';
+      }
+    }
+
+    document.getElementById('filterBar').addEventListener('click', function(e) {
+      const btn = e.target.closest('.filter-btn');
+      if (!btn) return;
+      document.querySelectorAll('.filter-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      activeFilter = btn.dataset.cat;
+      renderGrid();
+    });
+
+    loadEvents();
+  </script>
+</body>
+</html>

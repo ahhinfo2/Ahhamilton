@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AHH – Association Haïtienne de Hamilton</title>
+  <meta name="description" content="Association Haïtienne de Hamilton — Communauté haïtienne unie autour de la culture, du networking et de l'entraide à Hamilton, Ontario."/>
+  <meta property="og:title" content="AHH – Association Haïtienne de Hamilton"/>
+  <meta property="og:description" content="Networking, événements culturels et programmes d'assistance pour les familles haïtiennes de Hamilton, ON."/>
+  <meta property="og:image" content="https://ahhamilton.ca/Public/logo.jpg"/>
+  <meta property="og:url" content="https://ahhamilton.ca"/>
+  <meta property="og:type" content="website"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <link rel="icon" type="image/jpeg" href="Public/logo.jpg"/>
+  <link rel="stylesheet" href="style.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet"/>
+</head>
+<body>
+
+  <!-- ===== HERO ===== -->
+  <section class="hero" id="accueil">
+    <div class="hero-photo-bg"></div>
+    <div class="hero-overlay"></div>
+    <div class="container hero-layout">
+      <div class="hero-content">
+        <span class="hero-badge" data-i18n="hero.badge">🇭🇹 Communauté Haïtienne · Hamilton, ON</span>
+        <h1 class="hero-title">
+          <span class="hero-intro" data-i18n="hero.intro">Notre communauté s'appuie sur des valeurs essentielles :</span>
+          <span class="hero-values" data-i18n="hero.values">Liberté · Égalité · Entraide</span>
+          <span class="hero-subtitle-line" data-i18n="hero.subtitle">et l'union comme source de notre puissance.</span>
+        </h1>
+        <p class="hero-sub" data-i18n="hero.sub">Main dans la main, créons l'endroit que nous avons toujours espéré.</p>
+        <div class="hero-buttons">
+          <a href="actualites.html" class="btn btn-primary" data-i18n="hero.btn1">Voir nos activités</a>
+          <a href="adhesion.html" class="btn btn-ghost" data-i18n="hero.btn2">Nous rejoindre</a>
+        </div>
+      </div>
+    </div>
+    <div class="hero-scroll"><div class="scroll-dot"></div></div>
+  </section>
+
+  <!-- ===== STATS dynamiques ===== -->
+  <section class="stats">
+    <div class="container">
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-number" id="stat-membres" data-target="120">0</div>
+          <div class="stat-label" data-i18n="stat.membres">Membres actifs</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-number" id="stat-activites" data-target="52">0</div>
+          <div class="stat-label" data-i18n="stat.activites">Activités</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-number" id="stat-benevoles" data-target="300">0</div>
+          <div class="stat-label" data-i18n="stat.benevoles">Heures de bénévolat</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-number" id="stat-annees" data-target="17">0</div>
+          <div class="stat-label" data-i18n="stat.annees">Années de service</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== PILLIERS ===== -->
+  <section class="pillars" id="activites">
+    <div class="container">
+      <div class="section-header" data-reveal>
+        <span class="section-badge" data-i18n="pillars.badge">Notre mission</span>
+        <h2 data-i18n="pillars.h2">Trois piliers qui nous unissent</h2>
+        <p data-i18n="pillars.desc">AHH repose sur :</p>
+      </div>
+      <div class="pillars-grid">
+        <div class="pillar-card" data-reveal data-delay="0">
+          <div class="pillar-icon-wrap">🌐</div>
+          <h3 data-i18n="pillar1.h3">Réseautage & Connexions</h3>
+          <p data-i18n="pillar1.p">Créer des espaces de rencontre pour que les familles haïtiennes de Hamilton se connectent, partagent et bâtissent des liens durables.</p>
+          <a href="actualites.html" class="pillar-link" data-i18n="pillar1.link">Voir les activités →</a>
+        </div>
+        <div class="pillar-card featured" data-reveal data-delay="120">
+          <div class="pillar-icon-wrap">🎭</div>
+          <h3 data-i18n="pillar2.h3">Événements culturels</h3>
+          <p data-i18n="pillar2.p">Organiser des événements vibrants pour célébrer la richesse de la culture haïtienne et renforcer notre identité commune.</p>
+          <a href="galerie.html" class="pillar-link" data-i18n="pillar2.link">Voir la galerie →</a>
+        </div>
+        <div class="pillar-card" data-reveal data-delay="240">
+          <div class="pillar-icon-wrap">🤲</div>
+          <h3 data-i18n="pillar3.h3">Programmes d'assistance</h3>
+          <p data-i18n="pillar3.p">Offrir un soutien adapté aux familles haïtiennes — nouveaux arrivants, ressources d'intégration et réseau de solidarité.</p>
+          <a href="adhesion.html" class="pillar-link" data-i18n="pillar3.link">Rejoindre AHH →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== TEMOIGNAGES ===== -->
+  <section class="testimonials">
+    <div class="container">
+      <div class="section-header" data-reveal>
+        <span class="section-badge" data-i18n="test.badge">Témoignages</span>
+        <h2 data-i18n="test.h2">Ce que dit notre communauté</h2>
+      </div>
+      <div class="carousel-wrapper" id="testimonialCarousel">
+        <div class="carousel-slide">
+          <div class="testimonials-grid-carousel">
+            <div class="testimonial-card">
+              <div class="quote-icon">"</div>
+              <p>AHH m'a permis de trouver ma famille ici au Canada. Je me sens vraiment chez moi depuis que j'ai rejoint cette communauté.</p>
+              <div class="testimonial-author">
+                <div class="author-avatar">MC</div>
+                <div><strong>Marie-Claire D.</strong><span>Membre depuis 2022</span></div>
+              </div>
+            </div>
+            <div class="testimonial-card">
+              <div class="quote-icon">"</div>
+              <p>Les activités culturelles nous permettent de garder nos racines vivantes. Nos enfants sont fiers de leur identité haïtienne.</p>
+              <div class="testimonial-author">
+                <div class="author-avatar">JB</div>
+                <div><strong>Jean-Baptiste M.</strong><span>Père de famille</span></div>
+              </div>
+            </div>
+            <div class="testimonial-card">
+              <div class="quote-icon">"</div>
+              <p>Grâce à l'entraide de la communauté, mes premiers mois à Hamilton ont été tellement plus faciles. Merci à l'équipe d'AHH!</p>
+              <div class="testimonial-author">
+                <div class="author-avatar">RP</div>
+                <div><strong>Rose-Pétra L.</strong><span>Nouvelle arrivante</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="carousel-slide">
+          <div class="testimonials-grid-carousel">
+            <div class="testimonial-card">
+              <div class="quote-icon">"</div>
+              <p>Les programmes d'assistance ont été une bouée de sauvetage pour notre famille à notre arrivée à Hamilton.</p>
+              <div class="testimonial-author">
+                <div class="author-avatar">PD</div>
+                <div><strong>Paul D.</strong><span>Membre actif</span></div>
+              </div>
+            </div>
+            <div class="testimonial-card">
+              <div class="quote-icon">"</div>
+              <p>Les événements d'AHH sont magnifiques. Ils renforcent notre identité collective et notre fierté haïtienne.</p>
+              <div class="testimonial-author">
+                <div class="author-avatar">SE</div>
+                <div><strong>Sandra E.</strong><span>Bénévole</span></div>
+              </div>
+            </div>
+            <div class="testimonial-card">
+              <div class="quote-icon">"</div>
+              <p>Le réseau AHH m'a ouvert des portes extraordinaires. Une communauté vraiment soudée et bienveillante.</p>
+              <div class="testimonial-author">
+                <div class="author-avatar">MJ</div>
+                <div><strong>Michel J.</strong><span>Entrepreneur</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="carousel-controls">
+        <button class="carousel-nav-btn" id="carouselPrev">‹</button>
+        <div id="carouselDots"></div>
+        <button class="carousel-nav-btn" id="carouselNext">›</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== ÉQUIPE (photos réelles) ===== -->
+  <section style="padding:72px 0;background:var(--off)" id="equipe">
+    <div class="container">
+      <div class="section-header" data-reveal>
+        <span class="section-badge" data-i18n="team.badge">Leadership</span>
+        <h2 data-i18n="team.h2">Notre équipe dirigeante</h2>
+        <p data-i18n="team.p">Des bénévoles engagés au service de la communauté depuis 2009.</p>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:24px;max-width:900px;margin:0 auto">
+        <div class="team-mini-card" data-reveal data-delay="0">
+          <div class="team-mini-photo" style="background:linear-gradient(135deg,#f9a825,#fdd835)">
+            <img src="Public/Jean Carme.jpg" alt="Jean Carme" onerror="this.style.display='none'"/>
+          </div>
+          <div class="team-mini-name">Jean Carme</div>
+          <div class="team-mini-role" data-i18n="Présidente">Présidente</div>
+        </div>
+        <div class="team-mini-card" data-reveal data-delay="80">
+          <div class="team-mini-photo" style="background:linear-gradient(135deg,#1b5e20,#43a047)">
+            <img src="Public/Jean Raymond.jpg" alt="Jean Raymond" onerror="this.style.display='none'"/>
+          </div>
+          <div class="team-mini-name">Jean Raymond</div>
+          <div class="team-mini-role" data-i18n="Vice-Président">Vice-Président</div>
+        </div>
+        <div class="team-mini-card" data-reveal data-delay="160">
+          <div class="team-mini-photo" style="background:linear-gradient(135deg,#6a1b9a,#ab47bc)">
+            <span>AV</span>
+          </div>
+          <div class="team-mini-name">Aviole</div>
+          <div class="team-mini-role" data-i18n="Trésorière">Trésorière</div>
+        </div>
+        <div class="team-mini-card" data-reveal data-delay="240">
+          <div class="team-mini-photo" style="background:linear-gradient(135deg,#0277bd,#29b6f6)">
+            <img src="Public/Pierre Jeens.jpg" alt="Pierre Jeens" onerror="this.style.display='none'"/>
+          </div>
+          <div class="team-mini-name">Pierre Jeens</div>
+          <div class="team-mini-role" data-i18n="Secrétaire">Secrétaire</div>
+        </div>
+        <div class="team-mini-card" data-reveal data-delay="320">
+          <div class="team-mini-photo" style="background:linear-gradient(135deg,#d84315,#ff7043)">
+            <img src="Public/Garry.jpg" alt="Garry" onerror="this.parentElement.innerHTML='<span>GA</span>'"/>
+          </div>
+          <div class="team-mini-name">Garry</div>
+          <div class="team-mini-role" data-i18n="Délégué">Délégué</div>
+        </div>
+        <div class="team-mini-card" data-reveal data-delay="400">
+          <div class="team-mini-photo" style="background:linear-gradient(135deg,#00695c,#26a69a)">
+            <img src="Public/Driscoll.jpg" alt="Dricoll" onerror="this.parentElement.innerHTML='<span>DR</span>'"/>
+          </div>
+          <div class="team-mini-name">Dricoll</div>
+          <div class="team-mini-role" data-i18n="Délégué">Délégué</div>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:28px">
+        <a href="equipe.html" class="btn btn-outline">Voir l'équipe complète →</a>
+      </div>
+    </div>
+  </section>
+  <style>
+    .team-mini-card { text-align:center; }
+    .team-mini-photo { width:100px;height:100px;border-radius:50%;overflow:hidden;margin:0 auto 10px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,.15); }
+    .team-mini-photo img { width:100%;height:100%;object-fit:cover; }
+    .team-mini-photo span { color:#fff;font-size:1.4rem;font-weight:700; }
+    .team-mini-name { font-size:.88rem;font-weight:700;color:var(--text);margin-bottom:2px; }
+    .team-mini-role { font-size:.75rem;color:var(--muted); }
+  </style>
+
+  <!-- ===== DON ===== -->
+  <section class="donation" id="don">
+    <div class="donation-bg"></div>
+    <div class="container donation-content">
+      <div class="section-header light" data-reveal>
+        <span class="section-badge">Soutenir AHH</span>
+        <h2>Contribuez à notre mission</h2>
+        <p>Votre don finance nos activités, soutient les familles et fait rayonner la culture haïtienne à Hamilton.</p>
+      </div>
+      <div class="donation-cards">
+        <div class="donation-card" data-reveal data-delay="0">
+          <div class="donation-amount">$10</div>
+          <div class="donation-label">Ami</div>
+          <p>Couvre les frais d'une activité communautaire.</p>
+          <a href="adhesion.html" class="btn btn-outline-white">Donner $10</a>
+        </div>
+        <div class="donation-card featured" data-reveal data-delay="120">
+          <div class="donation-badge">Populaire</div>
+          <div class="donation-amount">$50</div>
+          <div class="donation-label">Bienfaiteur</div>
+          <p>Soutient une famille dans son installation à Hamilton.</p>
+          <a href="adhesion.html" class="btn btn-primary">Donner $50</a>
+        </div>
+        <div class="donation-card" data-reveal data-delay="240">
+          <div class="donation-amount">$100</div>
+          <div class="donation-label">Partenaire</div>
+          <p>Sponsor un événement culturel ou un projet communautaire.</p>
+          <a href="adhesion.html" class="btn btn-outline-white">Donner $100</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== CONTACT ===== -->
+  <section class="contact-section" id="contact">
+    <div class="container contact-grid">
+      <div class="contact-info" data-reveal>
+        <span class="section-badge">Contact</span>
+        <h2>Écrivez-nous</h2>
+        <p>Nous sommes heureux de vous accueillir. Contactez-nous pour toute question.</p>
+        <div class="contact-items">
+          <div class="contact-item">
+            <span class="contact-icon">📍</span>
+            <div>
+              <strong>Adresse</strong>
+              <span>231 Fernwood Crescent, Hamilton, ON  L8T 3L7</span>
+            </div>
+          </div>
+          <div class="contact-item">
+            <span class="contact-icon">📞</span>
+            <div>
+              <strong>Téléphone</strong>
+              <span>
+                <a href="tel:9058188269">905-818-8269</a> /
+                <a href="tel:9055197967">905-519-7967</a>
+              </span>
+            </div>
+          </div>
+          <div class="contact-item">
+            <span class="contact-icon">✉️</span>
+            <div>
+              <strong>Courriel</strong>
+              <span><a href="mailto:info@ahhamilton.ca">info@ahhamilton.ca</a></span>
+            </div>
+          </div>
+        </div>
+        <!-- Google Maps -->
+        <div class="contact-map">
+          <iframe
+            src="https://maps.google.com/maps?q=231+Fernwood+Crescent+Hamilton+ON+L8T+3L7&output=embed&z=15"
+            width="100%" height="200" style="border:0;border-radius:12px"
+            allowfullscreen loading="lazy" referrerpolicy="no-referrer-when-downgrade"
+            title="Carte AHH"></iframe>
+        </div>
+      </div>
+      <form class="contact-form" id="contactForm" data-reveal data-delay="150">
+        <h3 class="form-title">Envoyez-nous un message</h3>
+        <div id="contactMsg" style="display:none;padding:10px 14px;border-radius:8px;font-size:.82rem;margin-bottom:14px"></div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Prénom</label>
+            <input type="text" id="cf_prenom" placeholder="Jean" required/>
+          </div>
+          <div class="form-group">
+            <label>Nom</label>
+            <input type="text" id="cf_nom" placeholder="Dupont" required/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Courriel</label>
+          <input type="email" id="cf_email" placeholder="votre@email.com" required/>
+        </div>
+        <div class="form-group">
+          <label>Sujet</label>
+          <select id="cf_sujet">
+            <option value="">Choisir un sujet…</option>
+            <option>Information générale</option>
+            <option>Adhésion</option>
+            <option>Bénévolat</option>
+            <option>Événements</option>
+            <option>Partenariat</option>
+            <option>Autre</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Message</label>
+          <textarea id="cf_message" rows="4" placeholder="Comment pouvons-nous vous aider ?" required></textarea>
+        </div>
+        <button type="submit" id="cf_btn" class="btn btn-primary full">Envoyer le message</button>
+        <p style="font-size:.72rem;color:var(--muted);margin-top:10px;text-align:center">
+          Vos données sont traitées selon notre <a href="privacy.html" style="color:var(--g2)">politique de confidentialité</a>.
+        </p>
+      </form>
+    </div>
+  </section>
+
+  <script src="script.js"></script>
+  <script src="_lang.js"></script>
+  <script src="_nav.js"></script>
+  <script src="nav-auth.js"></script>
+  <script src="casl-consent.js"></script>
+  <script>
+  // Contact form — attaché après chargement complet du DOM
+  // Stats dynamiques depuis l'API
+  (async function() {
+    try {
+      const r = await fetch('http://localhost:3001/api/stats/public');
+      if (!r.ok) return;
+      const s = await r.json();
+      const map = { 'stat-membres': s.membres, 'stat-activites': s.activites, 'stat-benevoles': s.benevoles, 'stat-annees': s.annees };
+      Object.entries(map).forEach(function(e) {
+        const el = document.getElementById(e[0]);
+        if (el) el.setAttribute('data-target', e[1]);
+      });
+      // Relancer l'animation des compteurs si script.js a déjà tourné
+      if (window._initCounters) window._initCounters();
+    } catch(e) {}
+  })();
+
+  document.addEventListener('DOMContentLoaded', function() {
+    var form = document.getElementById('contactForm');
+    if (!form) return;
+    form.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      var btn = document.getElementById('cf_btn');
+      var msg = document.getElementById('contactMsg');
+      if (!btn || !msg) return;
+      var nom = ((document.getElementById('cf_prenom')||{}).value||'') + ' ' +
+                ((document.getElementById('cf_nom')||{}).value||'');
+      nom = nom.trim();
+      var email   = (document.getElementById('cf_email')||{}).value || '';
+      var sujet   = (document.getElementById('cf_sujet')||{}).value || 'Contact';
+      var message = (document.getElementById('cf_message')||{}).value || '';
+      if (!nom || !email || !message) {
+        msg.style.cssText = 'display:block;background:#fdecea;color:#c62828;border-left:3px solid #c62828;padding:10px 14px;border-radius:8px;font-size:.82rem;margin-bottom:14px';
+        msg.textContent = 'Veuillez remplir tous les champs obligatoires.';
+        return;
+      }
+      btn.disabled = true; btn.textContent = 'Envoi en cours…';
+      msg.style.display = 'none';
+      try {
+        var res = await fetch('http://localhost:3001/api/contact', {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ nom: nom, email: email, sujet: sujet, message: message })
+        });
+        var data = await res.json().catch(function(){ return {}; });
+        if (!res.ok) throw new Error(data.error || 'Erreur serveur');
+        msg.style.cssText = 'display:block;background:#e8f5e9;color:#1b5e20;border-left:3px solid #2e7d32;padding:10px 14px;border-radius:8px;font-size:.82rem;margin-bottom:14px';
+        msg.textContent = '✅ Message envoyé ! Nous vous répondrons sous peu.';
+        form.reset();
+      } catch(ex) {
+        msg.style.cssText = 'display:block;background:#fdecea;color:#c62828;border-left:3px solid #c62828;padding:10px 14px;border-radius:8px;font-size:.82rem;margin-bottom:14px';
+        msg.textContent = ex.message || 'Erreur lors de l\'envoi. Vérifiez votre connexion.';
+      } finally {
+        btn.disabled = false; btn.textContent = 'Envoyer le message';
+      }
+    });
+  });
+  </script>
+</body>
+</html>

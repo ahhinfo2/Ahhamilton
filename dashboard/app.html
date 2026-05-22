@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dashboard – AHH</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="dashboard.css"/>
+</head>
+<body>
+
+<!-- ── BARRE DE NAVIGATION DU SITE (commune à toutes les pages) ─────────── -->
+<div class="site-nav-strip" id="siteNavStrip">
+  <div class="site-nav-inner">
+    <a href="../index.html" class="site-nav-logo">
+      <img src="../Public/logo.jpg" alt="AHH" class="site-nav-logo-img"/>
+      <span>AHH</span>
+    </a>
+    <nav class="site-nav-links">
+      <a href="../index.html">🏠 Accueil</a>
+      <a href="../index.html#activites">Activités</a>
+      <a href="../galerie.html">🖼️ Galerie</a>
+      <a href="../equipe.html">👥 Équipe</a>
+      <a href="../index.html#don">💚 Soutenir</a>
+      <a href="../index.html#contact">✉️ Contact</a>
+    </nav>
+    <div class="site-nav-user" id="siteNavUser">
+      <span class="site-nav-connected" title="Connecté"></span>
+      <span id="siteNavName"></span>
+      <button class="site-nav-logout" id="siteNavLogout">⬅ Déconnexion</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── SIDEBAR ──────────────────────────────────────────────────────────── -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <img src="../Public/logo.jpg" alt="AHH" class="sb-logo-img"/>
+    <span class="sb-name">Mon espace</span>
+  </div>
+  <nav class="sidebar-nav" id="sidebarNav"></nav>
+  <div class="sidebar-footer">
+    <button class="btn-logout" id="btnLogout">⬅ Déconnexion</button>
+  </div>
+</aside>
+
+<!-- ── MAIN ─────────────────────────────────────────────────────────────── -->
+<div class="main-wrapper">
+  <!-- Topbar interne du dashboard -->
+  <header class="topbar">
+    <button class="hamburger-dash" id="sidebarToggle">☰</button>
+    <div class="topbar-title" id="topbarTitle">Tableau de bord</div>
+
+    <!-- Barre de recherche globale -->
+    <div class="search-wrap" id="searchWrap">
+      <input class="search-input" id="searchInput" type="text" placeholder="🔍 Rechercher..." autocomplete="off"/>
+      <div class="search-results" id="searchResults" style="display:none"></div>
+    </div>
+
+    <div class="topbar-right">
+      <!-- Sélecteur de langue -->
+      <div class="lang-selector" id="langSelectorWrap" onclick="event.stopPropagation()">
+        <button class="icon-btn lang-btn" id="langBtn" title="Changer la langue"
+          onclick="document.getElementById('langSelectorWrap').classList.toggle('open')">
+          🌐 <span id="langLabel">FR</span>
+        </button>
+        <div class="lang-dropdown" id="langDropdown">
+          <div class="lang-dropdown-title">Langue / Language</div>
+          <button class="lang-opt" data-lang="fr" onclick="if(window.AHH_LANG)AHH_LANG.set('fr');document.getElementById('langSelectorWrap').classList.remove('open')">🇫🇷 Français</button>
+          <button class="lang-opt" data-lang="en" onclick="if(window.AHH_LANG)AHH_LANG.set('en');document.getElementById('langSelectorWrap').classList.remove('open')">🇬🇧 English</button>
+          <button class="lang-opt" data-lang="ht" onclick="if(window.AHH_LANG)AHH_LANG.set('ht');document.getElementById('langSelectorWrap').classList.remove('open')">🇭🇹 Kreyòl</button>
+        </div>
+      </div>
+      <button class="icon-btn" id="darkToggle" title="Mode nuit">🌙</button>
+      <button class="icon-btn" id="alertBtn" title="Alertes">🔔<span class="badge" id="alertCount" style="display:none"></span></button>
+      <button class="icon-btn" id="msgBtn" title="Messages">✉️<span class="badge" id="msgCount" style="display:none"></span></button>
+      <div class="user-chip" id="userChip"></div>
+    </div>
+  </header>
+
+  <!-- Contenu principal -->
+  <main class="content" id="mainContent">
+    <div class="loading-screen"><div class="spinner"></div><p>Chargement...</p></div>
+  </main>
+</div>
+
+<!-- ── MODAL ────────────────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="modalOverlay" style="display:none">
+  <div class="modal" id="modal">
+    <div class="modal-header"><h3 id="modalTitle">Modal</h3><button class="modal-close" id="modalClose">✕</button></div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<!-- ── TOAST ────────────────────────────────────────────────────────────── -->
+<div id="toast" class="toast" style="display:none"></div>
+
+<script src="lang.js"></script>
+<script src="dashboard.js"></script>
+</body>
+</html>

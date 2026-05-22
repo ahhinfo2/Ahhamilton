@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>À propos – AHH</title>
+  <meta name="description" content="Découvrez l'histoire, la mission et les valeurs de l'Association Haïtienne de Hamilton (AHH) — 17 ans au service de la communauté."/>
+  <meta property="og:title" content="À propos – AHH"/>
+  <meta property="og:image" content="https://ahhamilton.ca/Public/logo.jpg"/>
+  <link rel="icon" type="image/jpeg" href="Public/logo.jpg"/>
+  <link rel="stylesheet" href="style.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet"/>
+  <style>
+    .about-section     { padding: 80px 0; background: #fff; }
+    .about-section.alt { background: var(--off); }
+    .about-grid        { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
+    .about-grid.rev    { direction: rtl; }
+    .about-grid.rev > *{ direction: ltr; }
+    .about-text h2     { font-family: 'Playfair Display', serif; font-size: 2rem; margin-bottom: 16px; line-height: 1.25; }
+    .about-text p      { color: var(--muted); font-size: .9rem; line-height: 1.8; margin-bottom: 14px; }
+    .about-visual      { border-radius: 20px; overflow: hidden; box-shadow: 0 8px 40px rgba(27,94,32,.15); }
+    .about-img-placeholder {
+      height: 320px; background: linear-gradient(135deg, var(--g1), var(--g2));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 5rem; border-radius: 20px;
+    }
+
+    /* Statistique des 17 ans */
+    .about-badge-17 {
+      display: inline-flex; align-items: center; gap: 10px;
+      background: linear-gradient(135deg, var(--g1), var(--g2));
+      color: #fff; border-radius: 50px; padding: 8px 20px;
+      font-size: .85rem; font-weight: 700; margin-bottom: 20px;
+      box-shadow: 0 4px 16px rgba(27,94,32,.3);
+    }
+
+    .values-grid  { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .value-card   { background: #fff; border-radius: 16px; padding: 28px 20px; text-align: center; border: 1px solid var(--border); box-shadow: 0 2px 12px rgba(27,94,32,.07); transition: var(--tr); }
+    .value-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
+    .value-icon   { font-size: 2.4rem; margin-bottom: 12px; }
+    .value-card h3{ font-size: .95rem; font-weight: 700; margin-bottom: 8px; }
+    .value-card p { font-size: .82rem; color: var(--muted); line-height: 1.65; }
+
+    .timeline { display: flex; flex-direction: column; gap: 0; position: relative; padding-left: 32px; }
+    .timeline::before { content:''; position:absolute; left:10px; top:0; bottom:0; width:2px; background:var(--border); }
+    .tl-item  { position: relative; padding: 0 0 28px 24px; }
+    .tl-item::before {
+      content:''; position:absolute; left:-22px; top:4px;
+      width:12px; height:12px; border-radius:50%;
+      background:var(--g2); border:2px solid #fff;
+      box-shadow:0 0 0 3px var(--border);
+    }
+    .tl-item:last-child::before { background: var(--accent); box-shadow: 0 0 0 3px rgba(249,168,37,.3); }
+    .tl-year  { font-size:.72rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--g2); margin-bottom:4px; }
+    .tl-title { font-size:.95rem; font-weight:700; color:var(--text); margin-bottom:4px; }
+    .tl-text  { font-size:.85rem; color:var(--muted); line-height:1.65; }
+
+    .partners-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+    .partner-card  { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 20px; text-align: center; transition: var(--tr); }
+    .partner-card:hover { box-shadow: var(--shadow); transform: translateY(-2px); }
+    .partner-card p{ font-size:.78rem; color:var(--muted); margin-top:6px; }
+
+    @media(max-width:768px){
+      .about-grid,.values-grid,.partners-grid { grid-template-columns: 1fr; }
+      .about-grid.rev { direction: ltr; }
+    }
+    @media(max-width:1024px){
+      .values-grid    { grid-template-columns: 1fr 1fr; }
+      .partners-grid  { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ===== HERO ===== -->
+  <section class="page-hero">
+    <div class="container page-hero-content">
+      <div class="breadcrumb"><a href="index.html">Accueil</a><span>›</span><span>À propos</span></div>
+      <h1 data-i18n="about.h1">À propos d'AHH</h1>
+      <p data-i18n="about.p1">Notre histoire, notre mission et les valeurs qui nous animent depuis notre fondation en 2009.</p>
+    </div>
+  </section>
+
+  <!-- ===== QUI SOMMES-NOUS ===== -->
+  <section class="about-section">
+    <div class="container about-grid">
+      <div class="about-text" data-reveal>
+        <span class="section-badge" data-i18n="about.who.badge">Qui sommes-nous</span>
+        <div class="about-badge-17">🇭🇹 17 ans au service de la communauté · 2009 – 2026</div>
+        <h2 data-i18n="about.who.h2">Une association au service de la communauté haïtienne</h2>
+        <p>L'Association Haïtienne de Hamilton (AHH) est un organisme communautaire à but non lucratif fondé en <strong>2009</strong> pour rassembler, soutenir et célébrer la communauté haïtienne établie dans la région de Hamilton, Ontario.</p>
+        <p>Nous croyons que chaque famille mérite un espace où elle se sent comprise, valorisée et connectée à ses racines culturelles, tout en s'intégrant pleinement dans la société canadienne.</p>
+        <p>Notre association est gouvernée par un comité exécutif élu par les membres et opère dans le respect des lois de l'Ontario régissant les organismes sans but lucratif.</p>
+        <a href="adhesion.html" class="btn btn-primary" style="margin-top:8px">Devenir membre →</a>
+      </div>
+      <div class="about-visual" data-reveal data-delay="150">
+        <div class="about-img-placeholder">🇭🇹</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== MISSION ET VALEURS ===== -->
+  <section class="about-section alt">
+    <div class="container">
+      <div class="section-header" data-reveal>
+        <span class="section-badge" data-i18n="about.mission.badge">Mission & Valeurs</span>
+        <h2 data-i18n="about.mission.h2">Ce qui nous guide</h2>
+        <p data-i18n="about.mission.p">Notre mission repose sur trois piliers fondamentaux et des valeurs ancrées dans notre identité haïtienne.</p>
+      </div>
+      <div class="values-grid">
+        <div class="value-card" data-reveal data-delay="0">
+          <div class="value-icon">🕊️</div>
+          <h3 data-i18n="val.liberte.h3">Liberté</h3>
+          <p>Nous défendons le droit de chaque membre à s'exprimer, participer et s'épanouir librement au sein de notre communauté.</p>
+        </div>
+        <div class="value-card" data-reveal data-delay="100">
+          <div class="value-icon">⚖️</div>
+          <h3 data-i18n="val.egalite.h3">Égalité</h3>
+          <p>Chaque membre, quelle que soit sa situation, bénéficie du même accès aux ressources, activités et opportunités offertes par AHH.</p>
+        </div>
+        <div class="value-card" data-reveal data-delay="200">
+          <div class="value-icon">🤝</div>
+          <h3 data-i18n="val.entraide.h3">Entraide</h3>
+          <p>La solidarité est au cœur de notre action. Nous nous soutenons mutuellement dans les moments difficiles comme dans les célébrations.</p>
+        </div>
+        <div class="value-card" data-reveal data-delay="0">
+          <div class="value-icon">🌺</div>
+          <h3 data-i18n="val.culture.h3">Culture</h3>
+          <p>Nous préservons et célébrons la richesse de la culture haïtienne — langue, gastronomie, musique, art et traditions.</p>
+        </div>
+        <div class="value-card" data-reveal data-delay="100">
+          <div class="value-icon">💪</div>
+          <h3 data-i18n="val.resilience.h3">Résilience</h3>
+          <p>Héritiers d'une nation qui a su surmonter l'adversité, nous incarnons la force et la persévérance dans tout ce que nous faisons.</p>
+        </div>
+        <div class="value-card" data-reveal data-delay="200">
+          <div class="value-icon">🌱</div>
+          <h3 data-i18n="val.espoir.h3">Espoir</h3>
+          <p>Nous construisons aujourd'hui l'avenir que nos enfants et les générations futures méritent : inclusif, prospère et épanoui.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== HISTOIRE ===== -->
+  <section class="about-section">
+    <div class="container about-grid rev">
+      <div class="about-text" data-reveal>
+        <span class="section-badge" data-i18n="about.hist.badge">Notre histoire</span>
+        <h2 data-i18n="about.hist.h2">17 ans de croissance et d'engagement</h2>
+        <div class="timeline">
+          <div class="tl-item">
+            <div class="tl-year">2009</div>
+            <div class="tl-title" data-i18n="tl.2009.title">Fondation d'AHH</div>
+            <div class="tl-text">Un groupe de familles haïtiennes se rassemble pour créer un espace d'entraide et de célébration culturelle à Hamilton, Ontario.</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-year">2010 – 2013</div>
+            <div class="tl-title" data-i18n="tl.2010.title">Premières années — Construction des bases</div>
+            <div class="tl-text">Premiers événements culturels publics, célébration du 1er janvier haïtien, premiers repas communautaires et collectes de fonds.</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-year">2014 – 2017</div>
+            <div class="tl-title" data-i18n="tl.2014.title">Croissance et structuration</div>
+            <div class="tl-text">Mise en place d'une structure formelle avec présidente, vice-président, trésorière, secrétaire et délégués élus par les membres.</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-year">2018 – 2021</div>
+            <div class="tl-title" data-i18n="tl.2018.title">Expansion communautaire</div>
+            <div class="tl-text">AHH atteint plus de 80 membres actifs et lance ses programmes d'assistance aux nouveaux arrivants haïtiens à Hamilton.</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-year">2022 – 2025</div>
+            <div class="tl-title" data-i18n="tl.2022.title">Rayonnement et reconnaissance</div>
+            <div class="tl-text">Plus de 120 membres, 52 événements annuels, 300+ heures de bénévolat et lancement du portail numérique ahhamilton.ca.</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-year">2026</div>
+            <div class="tl-title" data-i18n="tl.2026.title">✨ Aujourd'hui — 17 ans d'engagement</div>
+            <div class="tl-text">AHH continue de grandir et de servir la communauté haïtienne de Hamilton avec la même passion et la même détermination qu'en 2009.</div>
+          </div>
+        </div>
+      </div>
+      <div class="about-visual" data-reveal data-delay="150">
+        <div class="about-img-placeholder">📅</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== PARTENAIRES ===== -->
+  <section class="about-section alt">
+    <div class="container">
+      <div class="section-header" data-reveal>
+        <span class="section-badge" data-i18n="about.part.badge">Partenaires</span>
+        <h2 data-i18n="about.part.h2">Ceux qui nous soutiennent</h2>
+        <p data-i18n="about.part.p">AHH collabore avec des organisations locales partageant nos valeurs d'inclusion et de soutien communautaire.</p>
+      </div>
+      <div class="partners-grid">
+        <div class="partner-card" data-reveal data-delay="0">
+          <div style="font-size:2rem">🏛️</div>
+          <p>Ville de Hamilton</p>
+        </div>
+        <div class="partner-card" data-reveal data-delay="80">
+          <div style="font-size:2rem">🎓</div>
+          <p>McMaster University</p>
+        </div>
+        <div class="partner-card" data-reveal data-delay="160">
+          <div style="font-size:2rem">🤝</div>
+          <p>Immigration Hamilton</p>
+        </div>
+        <div class="partner-card" data-reveal data-delay="240">
+          <div style="font-size:2rem">➕</div>
+          <p><em style="font-size:.78rem;color:var(--muted)">Devenez partenaire</em></p>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:32px">
+        <a href="index.html#contact" class="btn btn-outline" data-i18n="Devenir partenaire →">Devenir partenaire →</a>
+      </div>
+    </div>
+  </section>
+
+  <script src="script.js"></script>
+  <script src="_lang.js"></script>
+  <script src="_nav.js"></script>
+  <script src="nav-auth.js"></script>
+  <script src="casl-consent.js"></script>
+</body>
+</html>

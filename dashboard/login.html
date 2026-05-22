@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Connexion – AHH</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --g1:#1b5e20;--g2:#2e7d32;--g3:#43a047;
+      --accent:#f9a825;--accent-lt:#fdd835;
+      --white:#fff;--off:#f4f8f4;--text:#1a2e1a;--muted:#5a7a5a;--border:#c8e6c9;
+    }
+    body{font-family:'Poppins',sans-serif;min-height:100vh;background:#fff;padding-top:56px}
+
+    /* ── NAVBAR ── */
+    .navbar{
+      position:fixed;top:0;left:0;right:0;z-index:1000;
+      height:56px;background:linear-gradient(135deg,var(--g1),var(--g2));
+      box-shadow:0 2px 16px rgba(0,0,0,.15);
+    }
+    .nav-inner{
+      max-width:1160px;margin:0 auto;padding:0 20px;
+      height:56px;display:flex;align-items:center;justify-content:space-between;gap:12px;
+    }
+    .logo{display:flex;align-items:center;gap:9px;text-decoration:none;flex-shrink:0}
+    .logo img{width:34px;height:34px;border-radius:8px;object-fit:cover;border:1.5px solid rgba(255,255,255,.3)}
+    .logo-text{color:#fff;font-weight:700;font-size:.88rem;line-height:1.1}
+    .logo-sub{color:rgba(255,255,255,.62);font-size:.62rem;font-weight:400}
+    .logo-text-group{display:flex;flex-direction:column}
+
+    .nav-links{display:flex;align-items:center;gap:2px;flex:1;justify-content:center}
+    .nav-link{color:rgba(255,255,255,.82);font-size:.78rem;font-weight:500;padding:6px 11px;border-radius:7px;text-decoration:none;transition:.2s;white-space:nowrap}
+    .nav-link:hover{color:#fff;background:rgba(255,255,255,.14)}
+    .nav-link.active{color:#fff;font-weight:700;background:rgba(255,255,255,.15)}
+
+    .btn-login-nav{
+      background:linear-gradient(135deg,var(--accent),var(--accent-lt));
+      color:var(--text)!important;font-weight:700;font-size:.78rem;
+      padding:7px 15px;border-radius:50px;border:none;cursor:pointer;
+      text-decoration:none;white-space:nowrap;
+      box-shadow:0 2px 10px rgba(249,168,37,.3);transition:.2s;
+    }
+    .btn-login-nav:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(249,168,37,.45)}
+
+    /* Hamburger */
+    .hamburger{display:none;flex-direction:column;gap:5px;background:none;border:none;cursor:pointer;padding:4px;z-index:1001}
+    .hamburger span{display:block;width:22px;height:2px;background:#fff;border-radius:2px;transition:.25s;transform-origin:center}
+    .hamburger.active span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+    .hamburger.active span:nth-child(2){opacity:0;transform:scaleX(0)}
+    .hamburger.active span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+
+    /* Mobile menu */
+    .nav-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:998;backdrop-filter:blur(3px)}
+    .nav-overlay.show{display:block}
+
+    /* ── PAGE BODY ── */
+    .page-body{min-height:calc(100vh - 56px);display:flex}
+    .left{
+      flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+      padding:48px 40px;position:relative;
+      background:linear-gradient(135deg,var(--g1) 0%,var(--g2) 55%,var(--g3) 100%);
+    }
+    .left::before{
+      content:'';position:absolute;inset:0;
+      background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='rgba(255,255,255,0.035)'%3E%3Ccircle cx='30' cy='30' r='20'/%3E%3C/g%3E%3C/svg%3E") repeat;
+    }
+    .brand{position:relative;z-index:1;text-align:center;color:#fff;max-width:340px}
+    .brand-logo{width:72px;height:72px;border-radius:18px;object-fit:cover;border:3px solid rgba(255,255,255,.35);box-shadow:0 8px 28px rgba(0,0,0,.2);margin:0 auto 18px}
+    .brand h1{font-size:1.4rem;font-weight:700;margin-bottom:8px;line-height:1.3}
+    .brand p{color:rgba(255,255,255,.72);font-size:.85rem;line-height:1.7}
+    .brand-links{margin-top:28px;display:flex;flex-direction:column;gap:8px}
+    .brand-link{
+      display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:10px;
+      background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);
+      color:rgba(255,255,255,.85);font-size:.8rem;font-weight:500;text-decoration:none;
+      transition:.2s;
+    }
+    .brand-link:hover{background:rgba(255,255,255,.2);color:#fff}
+    .brand-link-icon{font-size:1.1rem}
+
+    .right{width:440px;background:#fff;display:flex;align-items:center;justify-content:center;padding:48px 40px}
+    .form-box{width:100%}
+    .form-box h2{font-size:1.5rem;font-weight:700;color:var(--text);margin-bottom:4px}
+    .form-box .sub{color:var(--muted);font-size:.85rem;margin-bottom:28px}
+    .form-group{margin-bottom:18px}
+    label{display:block;font-size:.75rem;font-weight:700;color:var(--text);margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em}
+    input{width:100%;padding:12px 15px;border:1.5px solid var(--border);border-radius:10px;font-family:'Poppins',sans-serif;font-size:.88rem;color:var(--text);outline:none;transition:.2s}
+    input:focus{border-color:var(--g2);box-shadow:0 0 0 3px rgba(46,125,50,.1)}
+    .btn-submit{width:100%;padding:13px;background:linear-gradient(135deg,var(--g2),var(--g3));color:#fff;border:none;border-radius:10px;font-family:'Poppins',sans-serif;font-size:.92rem;font-weight:600;cursor:pointer;transition:.25s;margin-top:4px}
+    .btn-submit:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(46,125,50,.35)}
+    .btn-submit:disabled{opacity:.6;cursor:not-allowed;transform:none}
+    .link-row{text-align:center;margin-top:18px;font-size:.83rem;color:var(--muted)}
+    .link-row a{color:var(--g2);font-weight:600}
+    .error{background:#fdecea;color:#c62828;padding:10px 14px;border-radius:8px;font-size:.82rem;margin-bottom:14px;display:none;border-left:3px solid #c62828}
+    .divider{display:flex;align-items:center;gap:12px;margin:20px 0;color:var(--muted);font-size:.78rem}
+    .divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border)}
+
+    @media(max-width:768px){
+      .hamburger{display:flex}
+      .nav-links{
+        position:fixed;top:56px;right:-100%;bottom:0;width:min(280px,80vw);
+        background:linear-gradient(160deg,var(--g1),var(--g2));
+        flex-direction:column;align-items:stretch;gap:0;z-index:999;
+        transition:right .3s ease;padding:12px 0;
+        box-shadow:-6px 0 32px rgba(0,0,0,.2);
+      }
+      .nav-links.open{right:0}
+      .nav-link{padding:12px 20px;border-radius:0;border-bottom:1px solid rgba(255,255,255,.06);font-size:.86rem}
+      .btn-login-nav{margin:14px 16px;border-radius:10px;display:block;text-align:center;padding:11px}
+      .page-body{flex-direction:column}
+      .left{padding:32px 24px;min-height:auto}
+      .right{width:100%;padding:28px 20px}
+      .brand-links{display:none}
+    }
+    @media(max-width:480px){
+      .nav-links .nav-link:not(:last-child){display:block}
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ===== NAVBAR ===== -->
+  <header class="navbar">
+    <div class="nav-inner">
+      <a href="../index.html" class="logo">
+        <img src="../Public/logo.jpg" alt="AHH"/>
+        <div class="logo-text-group">
+          <span class="logo-text">AHH</span>
+          <span class="logo-sub">Association Haïtienne de Hamilton</span>
+        </div>
+      </a>
+
+      <div class="nav-overlay" id="navOverlay"></div>
+      <nav class="nav-links" id="navLinks">
+        <a href="../index.html" class="nav-link">🏠 Accueil</a>
+        <a href="../index.html#activites" class="nav-link">Activités</a>
+        <a href="../galerie.html" class="nav-link">Galerie</a>
+        <a href="../equipe.html" class="nav-link">Équipe</a>
+        <a href="../index.html#don" class="nav-link">Soutenir</a>
+        <a href="../index.html#contact" class="nav-link">Contact</a>
+        <a href="login.html" class="btn-login-nav active">🔐 Connexion</a>
+      </nav>
+
+      <button class="hamburger" id="hamburger" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ===== CONTENU ===== -->
+  <div class="page-body">
+    <div class="left">
+      <div class="brand">
+        <img src="../Public/logo.jpg" alt="AHH" class="brand-logo"/>
+        <h1>Association des Haïtiens<br/>de Hamilton</h1>
+        <p>Portail communautaire — Gérez vos activités, votre bénévolat et restez connecté à la communauté.</p>
+        <div class="brand-links">
+          <a href="../index.html" class="brand-link"><span class="brand-link-icon">🏠</span> Retour à l'accueil</a>
+          <a href="../galerie.html" class="brand-link"><span class="brand-link-icon">🖼️</span> Voir la galerie</a>
+          <a href="../equipe.html" class="brand-link"><span class="brand-link-icon">👥</span> Notre équipe</a>
+          <a href="../index.html#contact" class="brand-link"><span class="brand-link-icon">✉️</span> Nous contacter</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="form-box">
+        <h2>Connexion</h2>
+        <p class="sub">Accédez à votre espace membre</p>
+        <div class="error" id="errMsg"></div>
+        <form id="loginForm">
+          <div class="form-group">
+            <label>Adresse courriel</label>
+            <input type="email" id="email" placeholder="votre@email.com" required autocomplete="email"/>
+          </div>
+          <div class="form-group">
+            <label>Mot de passe</label>
+            <input type="password" id="password" placeholder="••••••••" required autocomplete="current-password"/>
+          </div>
+          <button type="submit" class="btn-submit" id="loginBtn">Se connecter</button>
+        </form>
+        <div class="link-row" style="margin-top:12px;font-size:.8rem">
+          <a href="forgot-password.html" style="color:var(--muted)">Mot de passe oublié ?</a>
+        </div>
+        <div class="divider">ou</div>
+        <div class="link-row">
+          Pas encore membre ? <a href="register.html">Créer un compte</a>
+        </div>
+        <div class="link-row" style="margin-top:10px">
+          <a href="../index.html">← Retour au site public</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API = 'http://localhost:3001/api';
+    if (localStorage.getItem('ahh_token')) location.href = 'app.html';
+
+    // Hamburger
+    const hamburger  = document.getElementById('hamburger');
+    const navLinks   = document.getElementById('navLinks');
+    const navOverlay = document.getElementById('navOverlay');
+    const close = () => { navLinks.classList.remove('open'); hamburger.classList.remove('active'); navOverlay.classList.remove('show'); };
+    hamburger.addEventListener('click', () => navLinks.classList.contains('open') ? close() : (navLinks.classList.add('open'), hamburger.classList.add('active'), navOverlay.classList.add('show')));
+    navOverlay.addEventListener('click', close);
+    navLinks.querySelectorAll('a').forEach(a => a.addEventListener('click', close));
+
+    // Login
+    document.getElementById('loginForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const btn = document.getElementById('loginBtn');
+      const err = document.getElementById('errMsg');
+      btn.disabled = true; btn.textContent = 'Connexion en cours...';
+      err.style.display = 'none';
+      try {
+        const res = await fetch(`${API}/auth/login`, {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ email: document.getElementById('email').value, password: document.getElementById('password').value })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Email ou mot de passe invalide');
+        localStorage.setItem('ahh_token', data.token);
+        localStorage.setItem('ahh_user', JSON.stringify(data.user));
+        location.href = 'app.html';
+      } catch(ex) {
+        err.textContent = ex.message; err.style.display = 'block';
+        btn.disabled = false; btn.textContent = 'Se connecter';
+      }
+    });
+  </script>
+</body>
+</html>

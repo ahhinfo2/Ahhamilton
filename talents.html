@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Nos Talents – AHH</title>
+  <meta name="description" content="Annuaire des professionnels de la communauté haïtienne de Hamilton — construction, art, cuisine, technologie et plus."/>
+  <link rel="icon" type="image/jpeg" href="Public/logo.jpg"/>
+  <link rel="stylesheet" href="style.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet"/>
+  <style>
+    .tal-section { padding: 72px 0; }
+    .tal-filter-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 32px; align-items: center; }
+    .tal-filter { padding: 7px 16px; border-radius: 50px; border: 1.5px solid var(--border); background: #fff;
+      font-family: 'Poppins',sans-serif; font-size: .78rem; font-weight: 600; cursor: pointer;
+      transition: var(--tr); color: var(--muted); }
+    .tal-filter.active, .tal-filter:hover { background: var(--g2); color: #fff; border-color: var(--g2); }
+    .tal-search { flex: 1; max-width: 300px; padding: 8px 16px; border: 1.5px solid var(--border);
+      border-radius: 50px; font-family: 'Poppins',sans-serif; font-size: .82rem; outline: none; transition: .2s; }
+    .tal-search:focus { border-color: var(--g2); }
+
+    .tal-cat-title { font-family: 'Playfair Display',serif; font-size: 1.4rem; font-weight: 700;
+      color: var(--text); margin-bottom: 20px; display: flex; align-items: center; gap: 10px;
+      padding-bottom: 10px; border-bottom: 2px solid var(--border); }
+    .tal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; margin-bottom: 48px; }
+
+    .tal-card {
+      background: #fff; border-radius: 18px; border: 1px solid var(--border);
+      box-shadow: var(--shadow); overflow: hidden; transition: var(--tr);
+    }
+    .tal-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
+    .tal-photo {
+      height: 180px; background: linear-gradient(135deg, var(--g1), var(--g2));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 3.5rem; overflow: hidden; position: relative;
+    }
+    .tal-photo img { width: 100%; height: 100%; object-fit: cover; }
+    .tal-body { padding: 18px; }
+    .tal-name { font-size: 1rem; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+    .tal-spec { font-size: .78rem; color: var(--g2); font-weight: 600; margin-bottom: 12px; }
+    .tal-desc { font-size: .82rem; color: var(--muted); line-height: 1.6; margin-bottom: 12px;
+      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .tal-contact { display: flex; flex-direction: column; gap: 5px; }
+    .tal-contact a, .tal-contact span {
+      display: flex; align-items: center; gap: 6px;
+      font-size: .78rem; color: var(--muted); text-decoration: none; transition: .15s;
+    }
+    .tal-contact a:hover { color: var(--g2); }
+
+    .tal-empty { text-align: center; padding: 64px 24px; color: var(--muted); }
+    .tal-empty .te-icon { font-size: 3rem; margin-bottom: 12px; }
+
+    .tal-cta { background: linear-gradient(135deg, var(--g1), var(--g2)); border-radius: 20px;
+      padding: 48px 40px; text-align: center; color: #fff; margin-top: 40px; }
+    .tal-cta h2 { font-family: 'Playfair Display',serif; font-size: 1.8rem; margin-bottom: 10px; }
+    .tal-cta p { color: rgba(255,255,255,.78); font-size: .9rem; margin-bottom: 24px; }
+
+    @media(max-width:600px) { .tal-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+
+  <section class="page-hero">
+    <div class="container page-hero-content">
+      <div class="breadcrumb"><a href="index.html">Accueil</a><span>›</span><span>Nos talents</span></div>
+      <h1 data-i18n="tal.h1">Nos talents communautaires</h1>
+      <p data-i18n="tal.p1">Découvrez les professionnels et artisans de la communauté haïtienne de Hamilton.</p>
+    </div>
+  </section>
+
+  <section class="tal-section">
+    <div class="container">
+
+      <!-- Barre de recherche + filtres -->
+      <div class="tal-filter-bar">
+        <input class="tal-search" id="talSearch" type="text" placeholder="🔍 Rechercher un talent…" data-i18n-ph="Rechercher un talent…"/>
+        <button class="tal-filter active" data-cat="tous" data-i18n="Tous">Tous</button>
+        <button class="tal-filter" data-cat="construction" data-i18n="Construction">🔨 Construction</button>
+        <button class="tal-filter" data-cat="art">🎨 Art</button>
+        <button class="tal-filter" data-cat="cuisine" data-i18n="Cuisine">🍽️ Cuisine</button>
+        <button class="tal-filter" data-cat="beaute">💅 Beauté</button>
+        <button class="tal-filter" data-cat="technologie" data-i18n="Technologie">💻 Tech</button>
+        <button class="tal-filter" data-cat="education" data-i18n="Éducation">📚 Éducation</button>
+        <button class="tal-filter" data-cat="sante" data-i18n="Santé">🏥 Santé</button>
+        <button class="tal-filter" data-cat="autre">✨ Autre</button>
+      </div>
+
+      <!-- Grille dynamique -->
+      <div id="talContainer">
+        <div style="text-align:center;padding:60px;color:var(--muted)">⏳ Chargement…</div>
+      </div>
+
+      <!-- CTA -->
+      <div class="tal-cta">
+        <h2 data-i18n="tal.cta.h2">Vous êtes membre et souhaitez vous afficher ?</h2>
+        <p data-i18n="tal.cta.p">Les membres avec un plan bienfaiteur ($10/mois) peuvent créer leur fiche professionnelle. Contactez l'administration pour mettre à jour votre plan.</p>
+        <a href="adhesion.html" class="btn btn-primary" style="margin-right:12px" data-i18n="tal.cta.btn">Devenir bienfaiteur →</a>
+        <a href="index.html#contact" class="btn btn-ghost">Nous contacter</a>
+      </div>
+    </div>
+  </section>
+
+  <script src="script.js"></script>
+  <script src="_lang.js"></script>
+  <script src="_nav.js"></script>
+  <script src="nav-auth.js"></script>
+  <script src="casl-consent.js"></script>
+  <script>
+    const API = 'http://localhost:3001/api';
+
+    const CAT_META = {
+      construction: { label:'Construction & Rénovation', emoji:'🔨' },
+      art:          { label:'Art & Créativité',          emoji:'🎨' },
+      cuisine:      { label:'Cuisine & Traiteur',        emoji:'🍽️' },
+      beaute:       { label:'Beauté & Bien-être',        emoji:'💅' },
+      technologie:  { label:'Technologie & Informatique',emoji:'💻' },
+      education:    { label:'Éducation & Coaching',      emoji:'📚' },
+      sante:        { label:'Santé & Sport',             emoji:'🏥' },
+      transport:    { label:'Transport & Livraison',     emoji:'🚗' },
+      finance:      { label:'Finance & Comptabilité',    emoji:'💰' },
+      autre:        { label:'Autre',                     emoji:'✨' },
+    };
+
+    let allTalents = [];
+    let activeFilter = 'tous';
+    let searchQuery = '';
+
+    function renderTalent(t) {
+      const cat = CAT_META[t.categorie] || { emoji: '✨', label: t.categorie };
+      const photoHtml = t.photo_path
+        ? '<img src="http://localhost:3001' + t.photo_path + '" alt="' + t.nom + '" onerror="this.style.display=\'none\'"/>'
+        : '<span>' + cat.emoji + '</span>';
+
+      return '<div class="tal-card">' +
+        '<div class="tal-photo">' + photoHtml + '</div>' +
+        '<div class="tal-body">' +
+          '<div class="tal-name">' + t.nom + '</div>' +
+          '<div class="tal-spec">' + (t.specialite || cat.label) + '</div>' +
+          (t.description ? '<p class="tal-desc">' + t.description + '</p>' : '') +
+          '<div class="tal-contact">' +
+            (t.telephone ? '<span>📞 <a href="tel:' + t.telephone + '">' + t.telephone + '</a></span>' : '') +
+            (t.adresse   ? '<span>📍 ' + t.adresse + '</span>' : '') +
+            (t.site_web  ? '<a href="' + t.site_web + '" target="_blank" rel="noopener">🌐 ' + t.site_web.replace(/^https?:\/\//, '') + '</a>' : '') +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }
+
+    function render() {
+      const container = document.getElementById('talContainer');
+      let filtered = allTalents;
+
+      if (activeFilter !== 'tous') filtered = filtered.filter(function(t) { return t.categorie === activeFilter; });
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        filtered = filtered.filter(function(t) {
+          return (t.nom + t.specialite + t.description + t.adresse).toLowerCase().includes(q);
+        });
+      }
+
+      if (!filtered.length) {
+        container.innerHTML = '<div class="tal-empty"><div class="te-icon">🔍</div><p>Aucun résultat.</p></div>';
+        return;
+      }
+
+      // Grouper par catégorie
+      const grouped = {};
+      filtered.forEach(function(t) {
+        if (!grouped[t.categorie]) grouped[t.categorie] = [];
+        grouped[t.categorie].push(t);
+      });
+
+      let html = '';
+      Object.entries(grouped).forEach(function(entry) {
+        const catKey = entry[0], list = entry[1];
+        const cat = CAT_META[catKey] || { emoji:'✨', label: catKey };
+        html += '<h3 class="tal-cat-title">' + cat.emoji + ' ' + cat.label +
+          ' <span style="font-size:.75rem;background:var(--border);color:var(--muted);padding:2px 10px;border-radius:50px;font-family:Poppins,sans-serif">' +
+          list.length + '</span></h3>';
+        html += '<div class="tal-grid">' + list.map(renderTalent).join('') + '</div>';
+      });
+      container.innerHTML = html;
+    }
+
+    async function loadTalents() {
+      try {
+        const res = await fetch(API + '/talents');
+        allTalents = await res.json();
+        render();
+      } catch(e) {
+        document.getElementById('talContainer').innerHTML =
+          '<div class="tal-empty"><div class="te-icon">⚠️</div><p>Impossible de charger les talents.</p></div>';
+      }
+    }
+
+    // Filtres
+    document.querySelectorAll('.tal-filter').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('.tal-filter').forEach(function(b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        activeFilter = btn.dataset.cat;
+        render();
+      });
+    });
+
+    // Recherche
+    let searchTimer;
+    document.getElementById('talSearch').addEventListener('input', function() {
+      clearTimeout(searchTimer);
+      const q = this.value;
+      searchTimer = setTimeout(function() { searchQuery = q; render(); }, 250);
+    });
+
+    loadTalents();
+  </script>
+</body>
+</html>

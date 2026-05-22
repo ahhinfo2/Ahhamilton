@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Petites Annonces – AHH</title>
+  <meta name="description" content="Petites annonces de la communauté haïtienne de Hamilton — vente, dons, échanges entre membres."/>
+  <link rel="icon" type="image/jpeg" href="Public/logo.jpg"/>
+  <link rel="stylesheet" href="style.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet"/>
+  <style>
+    .ann-section { padding: 72px 0; }
+    .ann-toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 28px; align-items: center; }
+    .ann-search { flex: 1; min-width: 200px; max-width: 360px; padding: 10px 18px;
+      border: 1.5px solid var(--border); border-radius: 50px;
+      font-family: 'Poppins',sans-serif; font-size: .85rem; outline: none; transition: .2s; }
+    .ann-search:focus { border-color: var(--g2); }
+    .ann-filter { padding: 8px 16px; border-radius: 50px; border: 1.5px solid var(--border); background: #fff;
+      font-family: 'Poppins',sans-serif; font-size: .78rem; font-weight: 600; cursor: pointer;
+      transition: var(--tr); color: var(--muted); }
+    .ann-filter.active, .ann-filter:hover { background: var(--g2); color: #fff; border-color: var(--g2); }
+
+    .ann-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+    .ann-card {
+      background: #fff; border-radius: 18px; border: 1px solid var(--border);
+      box-shadow: var(--shadow); overflow: hidden; transition: var(--tr); display: flex; flex-direction: column;
+    }
+    .ann-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+
+    /* Galerie photos */
+    .ann-photos { height: 200px; background: var(--off); position: relative; overflow: hidden; }
+    .ann-photos img { width: 100%; height: 100%; object-fit: cover; cursor: zoom-in; }
+    .ann-no-photo { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 3.5rem; }
+    .ann-photo-count { position: absolute; bottom: 8px; right: 10px;
+      background: rgba(0,0,0,.55); color: #fff; font-size: .68rem; font-weight: 700;
+      border-radius: 50px; padding: 2px 8px; }
+    .ann-nav-btn {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      background: rgba(0,0,0,.4); color: #fff; border: none; width: 30px; height: 30px;
+      border-radius: 50%; cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center; }
+    .ann-prev { left: 6px; }
+    .ann-next { right: 6px; }
+
+    /* Type badge */
+    .ann-type-badge { position: absolute; top: 10px; left: 10px;
+      font-size: .65rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+      padding: 3px 10px; border-radius: 50px; }
+    .type-vente    { background: #e3f2fd; color: #0d47a1; }
+    .type-don      { background: #e8f5e9; color: #1b5e20; }
+    .type-echange  { background: #fff3e0; color: #e65100; }
+    .type-recherche{ background: #f3e5f5; color: #6a1b9a; }
+
+    .ann-body { padding: 16px; flex: 1; display: flex; flex-direction: column; }
+    .ann-title { font-size: .95rem; font-weight: 700; color: var(--text); margin-bottom: 6px;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .ann-desc { font-size: .82rem; color: var(--muted); line-height: 1.55; margin-bottom: 10px; flex: 1;
+      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .ann-prix { font-size: 1.2rem; font-weight: 800; color: var(--g2); margin-bottom: 10px; }
+    .ann-prix.gratuit { color: #388e3c; }
+    .ann-meta { font-size: .73rem; color: var(--muted); display: flex; flex-direction: column; gap: 3px; border-top: 1px solid var(--border); padding-top: 10px; margin-top: auto; }
+    .ann-tel { font-size: .8rem; color: var(--g2); font-weight: 600; margin-top: 8px; }
+    .ann-tel a { color: var(--g2); }
+
+    .ann-empty { text-align: center; padding: 72px 24px; color: var(--muted); }
+    .ann-empty .ae-icon { font-size: 3rem; margin-bottom: 12px; }
+
+    .ann-cta { background: linear-gradient(135deg,var(--g1),var(--g2)); border-radius: 20px;
+      padding: 48px 40px; text-align: center; color: #fff; margin-top: 48px; }
+    .ann-cta h2 { font-family: 'Playfair Display',serif; font-size: 1.8rem; margin-bottom: 10px; }
+    .ann-cta p { color: rgba(255,255,255,.78); font-size: .9rem; margin-bottom: 24px; }
+
+    /* Lightbox */
+    #annLb { display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;
+      align-items:center;justify-content:center;gap:16px; }
+    #annLb.open { display:flex; }
+    #annLbImg { max-width:90vw;max-height:85vh;border-radius:12px;object-fit:contain; }
+    #annLbClose { position:absolute;top:16px;right:20px;background:rgba(255,255,255,.15);
+      border:none;color:#fff;font-size:1.4rem;width:42px;height:42px;border-radius:50%;cursor:pointer; }
+    .ann-lb-arr { width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.15);
+      border:none;color:#fff;font-size:2rem;cursor:pointer;flex-shrink:0; }
+
+    @media(max-width:600px) { .ann-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+
+  <section class="page-hero">
+    <div class="container page-hero-content">
+      <div class="breadcrumb"><a href="index.html">Accueil</a><span>›</span><span>Petites annonces</span></div>
+      <h1 data-i18n="ann.h1">Petites annonces</h1>
+      <p data-i18n="ann.p1">Vendez, donnez, échangez — entre membres de la communauté AHH.</p>
+    </div>
+  </section>
+
+  <section class="ann-section">
+    <div class="container">
+      <div class="ann-toolbar">
+        <input class="ann-search" id="annSearch" type="text" placeholder="🔍 Rechercher une annonce…" data-i18n-ph="Rechercher une annonce…"/>
+        <button class="ann-filter active" data-type="tous" data-i18n="Tous">Tout</button>
+        <button class="ann-filter" data-type="vente" data-i18n="Vente">🏷️ Vente</button>
+        <button class="ann-filter" data-type="don" data-i18n="Don">🎁 Don</button>
+        <button class="ann-filter" data-type="echange" data-i18n="Échange">🔄 Échange</button>
+        <button class="ann-filter" data-type="recherche" data-i18n="Recherche">🔍 Recherche</button>
+      </div>
+
+      <div id="annGrid" class="ann-grid">
+        <div style="text-align:center;padding:60px;color:var(--muted);grid-column:1/-1">⏳ Chargement…</div>
+      </div>
+
+      <div class="ann-cta">
+        <h2 data-i18n="ann.cta.h2">Vous avez quelque chose à vendre ou à donner ?</h2>
+        <p data-i18n="ann.cta.p">Les membres avec un plan bienfaiteur ($10/mois) peuvent publier des annonces. Contactez l'administration ou connectez-vous à votre espace membre.</p>
+        <a href="dashboard/login.html" class="btn btn-primary" style="margin-right:12px">Mon espace membre →</a>
+        <a href="adhesion.html" class="btn btn-ghost" data-i18n="ann.cta.btn">Devenir bienfaiteur</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Lightbox -->
+  <div id="annLb">
+    <button id="annLbClose" onclick="annLbClose()">✕</button>
+    <button class="ann-lb-arr" onclick="annLbNav(-1)">&#8249;</button>
+    <img id="annLbImg" src="" alt=""/>
+    <button class="ann-lb-arr" onclick="annLbNav(+1)">&#8250;</button>
+  </div>
+
+  <script src="script.js"></script>
+  <script src="_lang.js"></script>
+  <script src="_nav.js"></script>
+  <script src="nav-auth.js"></script>
+  <script src="casl-consent.js"></script>
+  <script>
+    const API = 'http://localhost:3001/api';
+    let allAnnonces = [];
+    let activeFilter = 'tous';
+    let searchQuery = '';
+    let lbPhotos = [];
+    let lbIdx = 0;
+
+    const TYPE_LABEL = { vente:'🏷️ Vente', don:'🎁 Don', echange:'🔄 Échange', recherche:'🔍 Recherche' };
+    const TYPE_CSS   = { vente:'type-vente', don:'type-don', echange:'type-echange', recherche:'type-recherche' };
+
+    const CAT_EMOJI  = { electronique:'📱',meubles:'🛋️',vetements:'👗',maison:'🏡',sport:'⚽',vehicule:'🚗',cuisine:'🍽️',bebe:'🧸',services:'🤝',autre:'📦' };
+
+    function annCard(a, idx) {
+      const photos = a.photos || [];
+      const hasPhotos = photos.length > 0;
+
+      let photoHtml = '';
+      if (hasPhotos) {
+        photoHtml = '<img id="ann-ph-' + idx + '" src="http://localhost:3001' + photos[0] +
+          '" alt="' + a.titre + '" onerror="this.style.display=\'none\'" ' +
+          'onclick="annLbOpen(' + JSON.stringify(photos).replace(/"/g,'&quot;') + ',0)"/>';
+        if (photos.length > 1) {
+          photoHtml += '<button class="ann-nav-btn ann-prev" onclick="event.stopPropagation();annCardNav(' + idx + ',' + JSON.stringify(photos).replace(/"/g,'&quot;') + ',-1)">&#8249;</button>';
+          photoHtml += '<button class="ann-nav-btn ann-next" onclick="event.stopPropagation();annCardNav(' + idx + ',' + JSON.stringify(photos).replace(/"/g,'&quot;') + ',+1)">&#8250;</button>';
+          photoHtml += '<div class="ann-photo-count">1 / ' + photos.length + '</div>';
+        }
+      } else {
+        const em = CAT_EMOJI[a.categorie] || '📦';
+        photoHtml = '<div class="ann-no-photo">' + em + '</div>';
+      }
+
+      const prix = a.gratuit ? '<div class="ann-prix gratuit">🎁 Gratuit</div>'
+        : (a.prix ? '<div class="ann-prix">$' + parseFloat(a.prix).toFixed(2) + '</div>'
+        : '<div class="ann-prix" style="color:var(--muted)">Prix à discuter</div>');
+
+      const date = new Date(a.date_creation).toLocaleDateString('fr-CA', { year:'numeric', month:'short', day:'numeric' });
+
+      return '<div class="ann-card">' +
+        '<div class="ann-photos" id="annp-' + idx + '">' +
+          '<span class="ann-type-badge ' + (TYPE_CSS[a.type]||'type-vente') + '">' + (TYPE_LABEL[a.type]||a.type) + '</span>' +
+          photoHtml +
+        '</div>' +
+        '<div class="ann-body">' +
+          '<div class="ann-title">' + a.titre + '</div>' +
+          (a.description ? '<p class="ann-desc">' + a.description + '</p>' : '') +
+          prix +
+          '<div class="ann-meta">' +
+            '<span>👤 ' + a.prenom + ' ' + a.nom + '</span>' +
+            '<span>📅 ' + date + '</span>' +
+          '</div>' +
+          (a.telephone ? '<div class="ann-tel">📞 <a href="tel:' + a.telephone + '">' + a.telephone + '</a></div>' : '') +
+        '</div>' +
+      '</div>';
+    }
+
+    function render() {
+      let filtered = allAnnonces;
+      if (activeFilter !== 'tous') filtered = filtered.filter(function(a) { return a.type === activeFilter; });
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        filtered = filtered.filter(function(a) {
+          return (a.titre + a.description).toLowerCase().includes(q);
+        });
+      }
+      const grid = document.getElementById('annGrid');
+      if (!filtered.length) {
+        grid.innerHTML = '<div class="ann-empty" style="grid-column:1/-1"><div class="ae-icon">📭</div><p>Aucune annonce pour l\'instant.</p></div>';
+        return;
+      }
+      grid.innerHTML = filtered.map(function(a, i) { return annCard(a, i); }).join('');
+    }
+
+    // Navigation photos dans une carte
+    var cardPhotoIdx = {};
+    function annCardNav(cardIdx, photos, dir) {
+      if (!cardPhotoIdx[cardIdx]) cardPhotoIdx[cardIdx] = 0;
+      cardPhotoIdx[cardIdx] = (cardPhotoIdx[cardIdx] + dir + photos.length) % photos.length;
+      const idx = cardPhotoIdx[cardIdx];
+      const img = document.getElementById('ann-ph-' + cardIdx);
+      if (img) img.src = 'http://localhost:3001' + photos[idx];
+      const cnt = document.querySelector('#annp-' + cardIdx + ' .ann-photo-count');
+      if (cnt) cnt.textContent = (idx + 1) + ' / ' + photos.length;
+    }
+
+    // Lightbox
+    function annLbOpen(photos, startIdx) {
+      lbPhotos = photos; lbIdx = startIdx;
+      document.getElementById('annLbImg').src = 'http://localhost:3001' + photos[startIdx];
+      document.getElementById('annLb').classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+    function annLbClose() {
+      document.getElementById('annLb').classList.remove('open');
+      document.body.style.overflow = '';
+    }
+    function annLbNav(dir) {
+      lbIdx = (lbIdx + dir + lbPhotos.length) % lbPhotos.length;
+      document.getElementById('annLbImg').src = 'http://localhost:3001' + lbPhotos[lbIdx];
+    }
+    document.getElementById('annLb').addEventListener('click', function(e) { if (e.target === this) annLbClose(); });
+    document.addEventListener('keydown', function(e) {
+      if (!document.getElementById('annLb').classList.contains('open')) return;
+      if (e.key === 'ArrowLeft')  annLbNav(-1);
+      if (e.key === 'ArrowRight') annLbNav(+1);
+      if (e.key === 'Escape')     annLbClose();
+    });
+
+    async function loadAnnonces() {
+      try {
+        const res = await fetch(API + '/annonces');
+        allAnnonces = await res.json();
+        render();
+      } catch(e) {
+        document.getElementById('annGrid').innerHTML =
+          '<div class="ann-empty" style="grid-column:1/-1"><div class="ae-icon">⚠️</div><p>Impossible de charger les annonces.</p></div>';
+      }
+    }
+
+    document.querySelectorAll('.ann-filter').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('.ann-filter').forEach(function(b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        activeFilter = btn.dataset.type;
+        render();
+      });
+    });
+
+    let searchTimer;
+    document.getElementById('annSearch').addEventListener('input', function() {
+      clearTimeout(searchTimer);
+      const q = this.value;
+      searchTimer = setTimeout(function() { searchQuery = q; render(); }, 250);
+    });
+
+    loadAnnonces();
+  </script>
+</body>
+</html>

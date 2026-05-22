@@ -1,0 +1,15 @@
+node_modules/
+.env
+uploads/
+*.db
+*.db-lock
+*.db.lock
+*.log
+start.bat
+Lesly.jpg
+logo.jpeg
+.claude/
+Public/Galerie/*.CR2
+Public/Galerie/*.cr2
+_fix_lightbox.js
+_gal_replace.js

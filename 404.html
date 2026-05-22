@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Page introuvable – AHH</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Poppins',sans-serif;min-height:100vh;background:linear-gradient(135deg,#1b5e20,#2e7d32);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;color:#fff}
+    .code{font-size:8rem;font-weight:800;line-height:1;opacity:.15;position:absolute;top:50%;left:50%;transform:translate(-50%,-55%)}
+    .card{position:relative;z-index:1;background:rgba(255,255,255,.1);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.2);border-radius:24px;padding:48px 40px;max-width:500px;width:100%}
+    .icon{font-size:4rem;margin-bottom:16px}
+    h1{font-size:1.8rem;font-weight:700;margin-bottom:10px}
+    p{color:rgba(255,255,255,.75);font-size:.92rem;line-height:1.7;margin-bottom:28px}
+    .links{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+    .btn{padding:11px 22px;border-radius:10px;font-family:'Poppins',sans-serif;font-size:.85rem;font-weight:600;cursor:pointer;border:none;text-decoration:none;transition:.2s}
+    .btn-white{background:#fff;color:#1b5e20}
+    .btn-white:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.2)}
+    .btn-ghost{background:rgba(255,255,255,.15);color:#fff;border:1.5px solid rgba(255,255,255,.3)}
+    .btn-ghost:hover{background:rgba(255,255,255,.25)}
+  </style>
+</head>
+<body>
+  <div class="code">404</div>
+  <div class="card">
+    <div class="icon">🗺️</div>
+    <h1>Page introuvable</h1>
+    <p>La page que vous cherchez n'existe pas ou a été déplacée. Revenez à l'accueil ou explorez notre site.</p>
+    <div class="links">
+      <a href="/index.html" class="btn btn-white">🏠 Accueil</a>
+      <a href="/actualites.html" class="btn btn-ghost">📅 Activités</a>
+      <a href="/galerie.html" class="btn btn-ghost">🖼️ Galerie</a>
+      <a href="/dashboard/login.html" class="btn btn-ghost">🔐 Connexion</a>
+    </div>
+  </div>
+</body>
+</html>
