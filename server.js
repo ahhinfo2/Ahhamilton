@@ -34,9 +34,9 @@ console.log(`Starting AHH server on PORT=${PORT}`);
 
 // ── Webhook Stripe (corps brut — AVANT express.json) ─────────────────────
 app.post('/api/stripe/webhook', express.raw({ type: '*/*' }), async (req, res) => {
-  const stripeKey = process.env.STRIPE_SECRET_KEY;
+  const stripeKey = (process.env.STRIPE_SECRET_KEY || '').trim();
   const sig       = req.headers['stripe-signature'];
-  const secret    = process.env.STRIPE_WEBHOOK_SECRET;
+  const secret    = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
 
   let event;
   try {
