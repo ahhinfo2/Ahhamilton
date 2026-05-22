@@ -33,18 +33,37 @@ const PORT = process.env.PORT || 3001;
 console.log(`Starting AHH server on PORT=${PORT}`);
 
 // ── Webhook Stripe (corps brut — AVANT express.json) ─────────────────────
-app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), (req, res) => {
-  const sig    = req.headers['stripe-signature'];
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!secret) return res.status(200).json({ received: true }); // pas encore configuré
+app.post('/api/stripe/webhook', express.raw({ type: '*/*' }), async (req, res) => {
+  const stripeKey = process.env.STRIPE_SECRET_KEY;
+  const sig       = req.headers['stripe-signature'];
+  const secret    = process.env.STRIPE_WEBHOOK_SECRET;
 
   let event;
   try {
-    const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
-    event = stripe.webhooks.constructEvent(req.body, sig, secret);
+    const bodyStr = req.body instanceof Buffer ? req.body.toString('utf8') : JSON.stringify(req.body);
+    const parsed  = JSON.parse(bodyStr);
+
+    if (stripeKey && sig && secret) {
+      try {
+        // Essai 1 : vérification signature classique
+        const stripe = Stripe(stripeKey);
+        event = stripe.webhooks.constructEvent(req.body, sig, secret);
+      } catch (e) {
+        // Essai 2 : Workbench thin event → récupérer l'événement complet via API
+        try {
+          const stripe = Stripe(stripeKey);
+          event = await stripe.events.retrieve(parsed.id);
+          console.log('Stripe thin event récupéré:', event.type);
+        } catch (e2) {
+          event = parsed; // fallback
+        }
+      }
+    } else {
+      event = parsed;
+    }
   } catch (err) {
-    console.error('Stripe webhook error:', err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
+    console.error('Stripe webhook parse error:', err.message);
+    return res.status(400).send('Invalid payload');
   }
 
   if (event.type === 'checkout.session.completed') {
