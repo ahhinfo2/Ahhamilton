@@ -2262,6 +2262,59 @@ app.get('/api/debug/payments', (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
+// TÉMOIGNAGES
+// ══════════════════════════════════════════════════════════════════════════════
+app.get('/api/testimonials', (req, res) => {
+  res.json(db.prepare('SELECT * FROM testimonials WHERE actif=1 ORDER BY ordre, id').all());
+});
+app.post('/api/testimonials', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  const { prenom, nom, description, texte, ordre } = req.body;
+  if (!prenom || !texte) return res.status(400).json({ error: 'Prénom et texte requis' });
+  const r = db.prepare('INSERT INTO testimonials (prenom, nom, description, texte, ordre) VALUES (?,?,?,?,?)')
+    .run(prenom, nom||'', description||'', texte, ordre||0);
+  res.status(201).json({ id: r.lastInsertRowid });
+});
+app.put('/api/testimonials/:id', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  const { prenom, nom, description, texte, actif, ordre } = req.body;
+  db.prepare('UPDATE testimonials SET prenom=?, nom=?, description=?, texte=?, actif=?, ordre=? WHERE id=?')
+    .run(prenom, nom||'', description||'', texte, actif??1, ordre??0, req.params.id);
+  res.json({ message: 'Mis à jour' });
+});
+app.delete('/api/testimonials/:id', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  db.prepare('DELETE FROM testimonials WHERE id=?').run(req.params.id);
+  res.json({ message: 'Supprimé' });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// VIDÉOS
+// ══════════════════════════════════════════════════════════════════════════════
+function extractYoutubeId(url) {
+  const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^&\s?]+)/);
+  return m ? m[1] : null;
+}
+app.get('/api/videos', (req, res) => {
+  res.json(db.prepare('SELECT * FROM videos WHERE actif=1 ORDER BY date_creation DESC').all());
+});
+app.post('/api/videos', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  const { titre, description, youtube_url } = req.body;
+  if (!titre || !youtube_url) return res.status(400).json({ error: 'Titre et URL YouTube requis' });
+  if (!extractYoutubeId(youtube_url)) return res.status(400).json({ error: 'URL YouTube invalide' });
+  const r = db.prepare('INSERT INTO videos (titre, description, youtube_url) VALUES (?,?,?)')
+    .run(titre, description||'', youtube_url);
+  res.status(201).json({ id: r.lastInsertRowid });
+});
+app.put('/api/videos/:id', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  const { titre, description, youtube_url, actif } = req.body;
+  db.prepare('UPDATE videos SET titre=?, description=?, youtube_url=?, actif=? WHERE id=?')
+    .run(titre, description||'', youtube_url, actif??1, req.params.id);
+  res.json({ message: 'Mis à jour' });
+});
+app.delete('/api/videos/:id', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  db.prepare('DELETE FROM videos WHERE id=?').run(req.params.id);
+  res.json({ message: 'Supprimé' });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
 // 404 HANDLER
 // ══════════════════════════════════════════════════════════════════════════════
 

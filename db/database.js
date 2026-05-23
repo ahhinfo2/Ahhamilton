@@ -141,6 +141,26 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS annonce_photos (
   ordre INTEGER DEFAULT 0
 )`); } catch {}
 
+try { db.exec(`CREATE TABLE IF NOT EXISTS testimonials (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  prenom TEXT NOT NULL,
+  nom TEXT,
+  description TEXT,
+  texte TEXT NOT NULL,
+  actif INTEGER DEFAULT 1,
+  ordre INTEGER DEFAULT 0,
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
+try { db.exec(`CREATE TABLE IF NOT EXISTS videos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  titre TEXT NOT NULL,
+  description TEXT,
+  youtube_url TEXT NOT NULL,
+  actif INTEGER DEFAULT 1,
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
 function init() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -432,6 +452,19 @@ function init() {
     committee.forEach(u => addMember.run(committeeId, u.id));
 
     console.log('✅ Salons de chat créés (Général + Comité)');
+  }
+
+  // ── Témoignages par défaut ─────────────────────────────────────────────
+  const existingTestimonial = db.prepare('SELECT id FROM testimonials LIMIT 1').get();
+  if (!existingTestimonial) {
+    const insT = db.prepare(`INSERT INTO testimonials (prenom, nom, description, texte, ordre) VALUES (?,?,?,?,?)`);
+    insT.run('Marie-Claire', 'D.', 'Membre depuis 2022', "AHH m'a permis de trouver ma famille ici au Canada. Je me sens vraiment chez moi depuis que j'ai rejoint cette communauté.", 1);
+    insT.run('Jean-Baptiste', 'M.', 'Père de famille', "Les activités culturelles nous permettent de garder nos racines vivantes. Nos enfants sont fiers de leur identité haïtienne.", 2);
+    insT.run('Rose-Pétra', 'L.', 'Nouvelle arrivante', "Grâce à l'entraide de la communauté, mes premiers mois à Hamilton ont été tellement plus faciles. Merci à l'équipe d'AHH!", 3);
+    insT.run('Paul', 'D.', 'Membre actif', "Les programmes d'assistance ont été une bouée de sauvetage pour notre famille à notre arrivée à Hamilton.", 4);
+    insT.run('Sandra', 'E.', 'Bénévole', "Les événements d'AHH sont magnifiques. Ils renforcent notre identité collective et notre fierté haïtienne.", 5);
+    insT.run('Michel', 'J.', 'Entrepreneur', "Le réseau AHH m'a ouvert des portes extraordinaires. Une communauté vraiment soudée et bienveillante.", 6);
+    console.log('✅ Témoignages par défaut créés');
   }
 }
 

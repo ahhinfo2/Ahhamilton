@@ -181,10 +181,12 @@ function buildSidebar() {
     {
       label: 'Contenu',
       items: [
-        { id:'gallery_mgmt',  icon:'◎', label:'Galerie',          roles:['admin','secretaire'] },
-        { id:'talents_mgmt',  icon:'◈', label:'Talents',           roles:['admin','secretaire'] },
-        { id:'annonces_mgmt', icon:'◉', label:'Petites annonces',  roles:['admin','secretaire'] },
-        { id:'notes',         icon:'◇', label:'Notes de réunion',  roles:EXEC },
+        { id:'gallery_mgmt',       icon:'◎', label:'Galerie',          roles:['admin','secretaire'] },
+        { id:'talents_mgmt',       icon:'◈', label:'Talents',           roles:['admin','secretaire'] },
+        { id:'annonces_mgmt',      icon:'◉', label:'Petites annonces',  roles:['admin','secretaire'] },
+        { id:'testimonials_mgmt',  icon:'❝', label:'Témoignages',       roles:['admin','secretaire'] },
+        { id:'videos_mgmt',        icon:'▶', label:'Vidéos',            roles:['admin','secretaire'] },
+        { id:'notes',              icon:'◇', label:'Notes de réunion',  roles:EXEC },
       ]
     },
 
@@ -338,7 +340,7 @@ async function showView(viewId) {
     finance, invoices, messages, volunteer,
     notes, reports, letters, projects, alerts, profile,
     gallery_mgmt, annuaire, talents_mgmt, annonces_mgmt, mes_talents, mes_annonces,
-    inscriptions, paiements, recus, mon_paiement
+    inscriptions, paiements, recus, mon_paiement, testimonials_mgmt, videos_mgmt
   };
   try {
     await (views[viewId] || home)();
@@ -4338,6 +4340,158 @@ async function recus() {
 
 function imprimerRecu(id) {
   window.open(`http://localhost:3001/api/receipts/${id}/print?token=${TOKEN}`, '_blank');
+}
+
+// ══ TÉMOIGNAGES (admin/secrétaire) ══════════════════════════════════════════
+async function testimonials_mgmt() {
+  const data = await api('/testimonials');
+  setContent(`
+    <div class="page-header">
+      <div><h2>Témoignages</h2><p>Gérez les témoignages affichés sur le site public.</p></div>
+      <div class="page-actions">
+        <button class="btn btn-primary" onclick="openTestimonialForm()">+ Ajouter</button>
+      </div>
+    </div>
+    <div class="table-card">
+      <div class="table-wrapper"><table>
+        <thead><tr><th>Nom</th><th>Description</th><th>Texte</th><th>Actif</th><th>Actions</th></tr></thead>
+        <tbody>${data.length ? data.map(t => `<tr>
+          <td><strong>${t.prenom} ${t.nom||''}</strong></td>
+          <td>${t.description||'–'}</td>
+          <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.texte}</td>
+          <td>${t.actif ? pill('Actif','bp-green') : pill('Inactif','bp-red')}</td>
+          <td>
+            <button class="btn btn-sm btn-outline" onclick='openTestimonialForm(${JSON.stringify(t).replace(/'/g,"\\'")})'">✏️</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteTestimonial(${t.id})">🗑️</button>
+          </td>
+        </tr>`).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--muted)">Aucun témoignage</td></tr>'}
+        </tbody>
+      </table></div>
+    </div>
+  `);
+}
+
+function openTestimonialForm(t = null) {
+  const isEdit = !!(t && t.id);
+  openModal(isEdit ? 'Modifier le témoignage' : 'Ajouter un témoignage', `
+    <form id="testForm">
+      <div class="form-row">
+        <div class="form-group"><label>Prénom *</label><input id="tf_prenom" value="${t?.prenom||''}" required/></div>
+        <div class="form-group"><label>Nom</label><input id="tf_nom" value="${t?.nom||''}"/></div>
+      </div>
+      <div class="form-group"><label>Description</label><input id="tf_desc" value="${t?.description||''}" placeholder="ex: Membre depuis 2022"/></div>
+      <div class="form-group"><label>Témoignage *</label><textarea id="tf_texte" rows="4" required>${t?.texte||''}</textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label>Ordre</label><input type="number" id="tf_ordre" value="${t?.ordre||0}"/></div>
+        <div class="form-group"><label>Statut</label>
+          <select id="tf_actif">
+            <option value="1" ${(!t||t.actif)?'selected':''}>Actif</option>
+            <option value="0" ${(t&&!t.actif)?'selected':''}>Inactif</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">${isEdit?'Enregistrer':'Ajouter'}</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('testForm').onsubmit = async e => {
+    e.preventDefault();
+    const body = {
+      prenom: document.getElementById('tf_prenom').value,
+      nom:    document.getElementById('tf_nom').value,
+      description: document.getElementById('tf_desc').value,
+      texte:  document.getElementById('tf_texte').value,
+      ordre:  parseInt(document.getElementById('tf_ordre').value)||0,
+      actif:  parseInt(document.getElementById('tf_actif').value)
+    };
+    try {
+      if (isEdit) await api(`/testimonials/${t.id}`, { method:'PUT', body:JSON.stringify(body) });
+      else        await api('/testimonials', { method:'POST', body:JSON.stringify(body) });
+      closeModal(); toast('Témoignage sauvegardé'); testimonials_mgmt();
+    } catch(ex) { toast(ex.message,'error'); }
+  };
+}
+
+async function deleteTestimonial(id) {
+  if (!confirm('Supprimer ce témoignage ?')) return;
+  await api(`/testimonials/${id}`, { method:'DELETE' });
+  toast('Témoignage supprimé'); testimonials_mgmt();
+}
+
+// ══ VIDÉOS (admin/secrétaire) ════════════════════════════════════════════════
+async function videos_mgmt() {
+  const data = await api('/videos');
+  function ytId(url) { const m = url.match(/(?:youtu\.be\/|watch\?v=|embed\/|shorts\/)([^&\s?]+)/); return m?m[1]:null; }
+  setContent(`
+    <div class="page-header">
+      <div><h2>Vidéos</h2><p>Gérez les vidéos YouTube affichées sur le site public.</p></div>
+      <div class="page-actions">
+        <button class="btn btn-primary" onclick="openVideoForm()">+ Ajouter une vidéo</button>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px">
+      ${data.length ? data.map(v => {
+        const vid = ytId(v.youtube_url);
+        return `<div class="table-card" style="padding:16px">
+          ${vid ? `<div style="position:relative;padding-bottom:56.25%;border-radius:10px;overflow:hidden;margin-bottom:12px">
+            <iframe src="https://www.youtube.com/embed/${vid}" style="position:absolute;inset:0;width:100%;height:100%;border:none" allowfullscreen loading="lazy"></iframe>
+          </div>` : ''}
+          <h3 style="font-size:.95rem;font-weight:700;margin-bottom:4px">${v.titre}</h3>
+          <p style="font-size:.8rem;color:var(--muted);margin-bottom:12px">${v.description||''}</p>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-sm btn-outline" onclick='openVideoForm(${JSON.stringify(v).replace(/'/g,"\\'")})'">✏️ Modifier</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteVideo(${v.id})">🗑️</button>
+          </div>
+        </div>`;
+      }).join('') : '<p style="color:var(--muted);text-align:center;grid-column:1/-1">Aucune vidéo ajoutée</p>'}
+    </div>
+  `);
+}
+
+function openVideoForm(v = null) {
+  const isEdit = !!(v && v.id);
+  openModal(isEdit ? 'Modifier la vidéo' : 'Ajouter une vidéo YouTube', `
+    <form id="vidForm">
+      <div class="form-group"><label>Titre *</label><input id="vf_titre" value="${v?.titre||''}" required/></div>
+      <div class="form-group"><label>URL YouTube *</label>
+        <input id="vf_url" value="${v?.youtube_url||''}" placeholder="https://www.youtube.com/watch?v=..." required/>
+        <small style="color:var(--muted)">Accepte aussi youtu.be et YouTube Shorts</small>
+      </div>
+      <div class="form-group"><label>Description</label><textarea id="vf_desc" rows="2">${v?.description||''}</textarea></div>
+      ${isEdit ? `<div class="form-group"><label>Statut</label>
+        <select id="vf_actif">
+          <option value="1" ${v.actif?'selected':''}>Actif</option>
+          <option value="0" ${!v.actif?'selected':''}>Inactif</option>
+        </select>
+      </div>` : ''}
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">${isEdit?'Enregistrer':'Ajouter'}</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('vidForm').onsubmit = async e => {
+    e.preventDefault();
+    const body = {
+      titre:       document.getElementById('vf_titre').value,
+      youtube_url: document.getElementById('vf_url').value,
+      description: document.getElementById('vf_desc').value,
+      actif:       isEdit ? parseInt(document.getElementById('vf_actif').value) : 1
+    };
+    try {
+      if (isEdit) await api(`/videos/${v.id}`, { method:'PUT', body:JSON.stringify(body) });
+      else        await api('/videos', { method:'POST', body:JSON.stringify(body) });
+      closeModal(); toast('Vidéo sauvegardée'); videos_mgmt();
+    } catch(ex) { toast(ex.message,'error'); }
+  };
+}
+
+async function deleteVideo(id) {
+  if (!confirm('Supprimer cette vidéo ?')) return;
+  await api(`/videos/${id}`, { method:'DELETE' });
+  toast('Vidéo supprimée'); videos_mgmt();
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

@@ -96,7 +96,7 @@
     </div>
   </section>
 
-  <!-- ===== TEMOIGNAGES ===== -->
+  <!-- ===== TEMOIGNAGES (dynamiques) ===== -->
   <section class="testimonials">
     <div class="container">
       <div class="section-header" data-reveal>
@@ -105,60 +105,10 @@
       </div>
       <div class="carousel-wrapper" id="testimonialCarousel">
         <div class="carousel-slide">
-          <div class="testimonials-grid-carousel">
-            <div class="testimonial-card">
-              <div class="quote-icon">"</div>
-              <p>AHH m'a permis de trouver ma famille ici au Canada. Je me sens vraiment chez moi depuis que j'ai rejoint cette communauté.</p>
-              <div class="testimonial-author">
-                <div class="author-avatar">MC</div>
-                <div><strong>Marie-Claire D.</strong><span>Membre depuis 2022</span></div>
-              </div>
-            </div>
-            <div class="testimonial-card">
-              <div class="quote-icon">"</div>
-              <p>Les activités culturelles nous permettent de garder nos racines vivantes. Nos enfants sont fiers de leur identité haïtienne.</p>
-              <div class="testimonial-author">
-                <div class="author-avatar">JB</div>
-                <div><strong>Jean-Baptiste M.</strong><span>Père de famille</span></div>
-              </div>
-            </div>
-            <div class="testimonial-card">
-              <div class="quote-icon">"</div>
-              <p>Grâce à l'entraide de la communauté, mes premiers mois à Hamilton ont été tellement plus faciles. Merci à l'équipe d'AHH!</p>
-              <div class="testimonial-author">
-                <div class="author-avatar">RP</div>
-                <div><strong>Rose-Pétra L.</strong><span>Nouvelle arrivante</span></div>
-              </div>
-            </div>
-          </div>
+          <div class="testimonials-grid-carousel" id="testSlide1"></div>
         </div>
-        <div class="carousel-slide">
-          <div class="testimonials-grid-carousel">
-            <div class="testimonial-card">
-              <div class="quote-icon">"</div>
-              <p>Les programmes d'assistance ont été une bouée de sauvetage pour notre famille à notre arrivée à Hamilton.</p>
-              <div class="testimonial-author">
-                <div class="author-avatar">PD</div>
-                <div><strong>Paul D.</strong><span>Membre actif</span></div>
-              </div>
-            </div>
-            <div class="testimonial-card">
-              <div class="quote-icon">"</div>
-              <p>Les événements d'AHH sont magnifiques. Ils renforcent notre identité collective et notre fierté haïtienne.</p>
-              <div class="testimonial-author">
-                <div class="author-avatar">SE</div>
-                <div><strong>Sandra E.</strong><span>Bénévole</span></div>
-              </div>
-            </div>
-            <div class="testimonial-card">
-              <div class="quote-icon">"</div>
-              <p>Le réseau AHH m'a ouvert des portes extraordinaires. Une communauté vraiment soudée et bienveillante.</p>
-              <div class="testimonial-author">
-                <div class="author-avatar">MJ</div>
-                <div><strong>Michel J.</strong><span>Entrepreneur</span></div>
-              </div>
-            </div>
-          </div>
+        <div class="carousel-slide" id="testSlide2Wrap" style="display:none">
+          <div class="testimonials-grid-carousel" id="testSlide2"></div>
         </div>
       </div>
       <div class="carousel-controls">
@@ -234,6 +184,18 @@
     .team-mini-name { font-size:.88rem;font-weight:700;color:var(--text);margin-bottom:2px; }
     .team-mini-role { font-size:.75rem;color:var(--muted); }
   </style>
+
+  <!-- ===== VIDÉOS ===== -->
+  <section id="videos" style="padding:72px 0;background:#fff" id="videos-section">
+    <div class="container" id="videosSectionWrap" style="display:none">
+      <div class="section-header" data-reveal>
+        <span class="section-badge">Nos vidéos</span>
+        <h2>Revivez nos moments</h2>
+        <p>Découvrez nos événements et activités en vidéo.</p>
+      </div>
+      <div id="videosGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:24px;margin-top:32px"></div>
+    </div>
+  </section>
 
   <!-- ===== DON ===== -->
   <section class="donation" id="don">
@@ -378,11 +340,12 @@
   <script src="nav-auth.js"></script>
   <script src="casl-consent.js"></script>
   <script>
-  // Stats dynamiques — URL automatique (local ou Render)
+  var BASE_API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:3001/api' : '/api';
+
+  // Stats dynamiques
   (async function() {
-    var API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-      ? 'http://localhost:3001/api/stats/public'
-      : '/api/stats/public';
+    var API = BASE_API + '/stats/public';
     try {
       var r = await fetch(API);
       if (!r.ok) return;
@@ -399,6 +362,55 @@
         el.setAttribute('data-target', entry[1]);
         el.textContent = entry[1] + '+';
       });
+    } catch(e) {}
+  })();
+
+  // Témoignages dynamiques
+  (async function() {
+    try {
+      var r = await fetch(BASE_API + '/testimonials');
+      if (!r.ok) return;
+      var list = await r.json();
+      if (!list.length) return;
+      function card(t) {
+        var initials = (t.prenom[0] + (t.nom ? t.nom[0] : '')).toUpperCase();
+        return '<div class="testimonial-card"><div class="quote-icon">"</div><p>' + t.texte + '</p>' +
+          '<div class="testimonial-author"><div class="author-avatar">' + initials + '</div>' +
+          '<div><strong>' + t.prenom + ' ' + (t.nom||'') + '</strong><span>' + (t.description||'') + '</span></div></div></div>';
+      }
+      var s1 = document.getElementById('testSlide1');
+      var s2 = document.getElementById('testSlide2');
+      var wrap2 = document.getElementById('testSlide2Wrap');
+      if (s1) s1.innerHTML = list.slice(0, 3).map(card).join('');
+      if (s2 && list.length > 3) {
+        s2.innerHTML = list.slice(3, 6).map(card).join('');
+        if (wrap2) wrap2.style.display = '';
+      }
+      if (window._initCarousel) window._initCarousel();
+    } catch(e) {}
+  })();
+
+  // Vidéos dynamiques
+  (async function() {
+    try {
+      var r = await fetch(BASE_API + '/videos');
+      if (!r.ok) return;
+      var list = await r.json();
+      if (!list.length) return;
+      var grid = document.getElementById('videosGrid');
+      var wrap = document.getElementById('videosSectionWrap');
+      if (!grid || !wrap) return;
+      function ytId(url) { var m = url.match(/(?:youtu\.be\/|watch\?v=|embed\/|shorts\/)([^&\s?]+)/); return m ? m[1] : null; }
+      grid.innerHTML = list.map(function(v) {
+        var vid = ytId(v.youtube_url);
+        return '<div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 16px rgba(27,94,32,.1)">' +
+          (vid ? '<div style="position:relative;padding-bottom:56.25%"><iframe src="https://www.youtube.com/embed/' + vid +
+          '" style="position:absolute;inset:0;width:100%;height:100%;border:none" allowfullscreen loading="lazy"></iframe></div>' : '') +
+          '<div style="padding:14px"><h3 style="font-size:.95rem;font-weight:700;margin-bottom:4px">' + v.titre + '</h3>' +
+          (v.description ? '<p style="font-size:.82rem;color:#6a6a6a">' + v.description + '</p>' : '') +
+          '</div></div>';
+      }).join('');
+      wrap.style.display = '';
     } catch(e) {}
   })();
 
