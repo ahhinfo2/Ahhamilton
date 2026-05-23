@@ -1285,7 +1285,7 @@ async function invoices() {
       </div>
     </div>
     <div class="table-card"><div class="table-wrapper"><table>
-      <thead><tr><th>Titre</th><th>Fournisseur</th><th>Montant</th><th>Date</th><th>Ligne</th><th>Statut</th><th>Photo</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Titre</th><th>Fournisseur</th><th>Montant</th><th>Date</th><th>Activité / Projet</th><th>Statut</th><th>Photo</th><th>Actions</th></tr></thead>
       <tbody>${data.map(i=>`<tr>
         <td><strong>${i.titre}</strong></td>
         <td>${i.fournisseur||'–'}</td>
@@ -1293,7 +1293,7 @@ async function invoices() {
         <td>${fmt(i.date_facture)}</td>
         <td>${i.ligne||'–'}</td>
         <td>${statusPill(i.statut)}</td>
-        <td>${i.photo_path ? `<a href="' + BASE + '${i.photo_path}" target="_blank" class="btn btn-sm btn-ghost">📷 Voir</a>` : '–'}</td>
+        <td>${i.photo_path ? `<a href="${BASE}${i.photo_path}" target="_blank" class="btn btn-sm btn-ghost">📷 Voir</a>` : '–'}</td>
         <td>
           ${i.statut === 'en_attente' ? `<button class="btn btn-sm btn-primary" onclick="updateInvoiceStatus(${i.id},'approuve')">✅</button>
           <button class="btn btn-sm btn-accent" onclick="updateInvoiceStatus(${i.id},'paye')">💰 Payé</button>` : ''}
@@ -1304,6 +1304,14 @@ async function invoices() {
 }
 
 function openInvoiceForm(lines) {
+  const actLines = lines.filter(l => l.activite);
+  const prjLines = lines.filter(l => l.projet);
+  const otherLines = lines.filter(l => !l.activite && !l.projet);
+  const lineOptions = [
+    actLines.length ? `<optgroup label="Activités">${actLines.map(l=>`<option value="${l.id}">🗓 ${l.activite}</option>`).join('')}</optgroup>` : '',
+    prjLines.length ? `<optgroup label="Projets">${prjLines.map(l=>`<option value="${l.id}">◑ ${l.projet}</option>`).join('')}</optgroup>` : '',
+    otherLines.length ? `<optgroup label="Autres">${otherLines.map(l=>`<option value="${l.id}">${l.titre}</option>`).join('')}</optgroup>` : ''
+  ].join('');
   openModal('Nouvelle facture / reçu', `
     <form id="invForm" enctype="multipart/form-data">
       <div class="form-group"><label>Titre *</label><input id="inv_titre" required/></div>
@@ -1313,9 +1321,11 @@ function openInvoiceForm(lines) {
       </div>
       <div class="form-row">
         <div class="form-group"><label>Date facture</label><input type="date" id="inv_date"/></div>
-        <div class="form-group"><label>Ligne financière</label>
-          <select id="inv_line"><option value="">– Générale –</option>
-            ${lines.map(l=>`<option value="${l.id}">${l.activite||l.titre}</option>`).join('')}</select></div>
+        <div class="form-group"><label>Activité ou Projet *</label>
+          <select id="inv_line" required>
+            <option value="">– Choisir –</option>
+            ${lineOptions}
+          </select></div>
       </div>
       <div class="form-group"><label>Photo / Scan de la facture</label>
         <input type="file" id="inv_photo" accept="image/*,application/pdf"/></div>
@@ -1327,12 +1337,14 @@ function openInvoiceForm(lines) {
   `);
   document.getElementById('invForm').onsubmit = async e => {
     e.preventDefault();
+    const lineId = document.getElementById('inv_line').value;
+    if (!lineId) { toast('Veuillez choisir une activité ou un projet', 'error'); return; }
     const fd = new FormData();
     fd.append('titre', document.getElementById('inv_titre').value);
     fd.append('fournisseur', document.getElementById('inv_four').value);
     fd.append('montant', document.getElementById('inv_mont').value);
     fd.append('date_facture', document.getElementById('inv_date').value);
-    fd.append('financial_line_id', document.getElementById('inv_line').value);
+    fd.append('financial_line_id', lineId);
     const ph = document.getElementById('inv_photo').files[0];
     if (ph) fd.append('photo', ph);
     try { await apiForm('/finance/invoices', fd); closeModal(); toast('Facture enregistrée'); invoices(); }
@@ -2873,7 +2885,7 @@ document.addEventListener('click', e => {
 
 // ══ PROJECTS ═══════════════════════════════════════════════════════════════
 async function projects() {
-  const [data, allUsers] = await Promise.all([api('/projects'), api('/users')]);
+  const [data, allUsers, allLines] = await Promise.all([api('/projects'), api('/users'), api('/finance/lines')]);
   setContent(`
     <div class="page-header">
       <div><h2>Projets</h2><p>Suivi de l'avancement des projets</p></div>
@@ -2881,26 +2893,57 @@ async function projects() {
         ${can.admin() ? `<button class="btn btn-primary" onclick='openProjectForm(null,${JSON.stringify(allUsers)})'>+ Nouveau projet</button>` : ''}
       </div>
     </div>
-    ${data.map(p=>`
+    ${data.map(p=>{
+      const pLines = allLines.filter(l => l.project_id === p.id);
+      const totalDepenses = pLines.reduce((s,l) => s + (l.depenses||0), 0);
+      const totalRevenus  = pLines.reduce((s,l) => s + (l.revenus||0), 0);
+      const budget = p.budget_prevu || 0;
+      const pct = budget > 0 ? Math.min(100, Math.round(totalDepenses / budget * 100)) : 0;
+      return `
       <div class="table-card" style="margin-bottom:16px">
         <div class="table-card-header">
-          <div><h3>${p.nom}</h3><small style="color:var(--muted)">Responsable: ${p.responsable_nom||'–'} · ${p.date_debut?fmt(p.date_debut):'–'} → ${p.date_fin?fmt(p.date_fin):'–'}</small></div>
+          <div>
+            <h3>${p.nom}</h3>
+            <small style="color:var(--muted)">${p.responsable_nom ? 'Responsable: '+p.responsable_nom+' · ' : ''}${p.date_debut?fmt(p.date_debut):'–'} → ${p.date_fin?fmt(p.date_fin):'–'}</small>
+          </div>
           <div class="tc-actions">
             ${can.admin() ? `<button class="btn btn-sm btn-outline" onclick='openProjectForm(${JSON.stringify(p)},${JSON.stringify(allUsers)})'>✏️</button>` : ''}
           </div>
         </div>
         <div style="padding:14px 20px">
-          <p style="font-size:.88rem;color:var(--muted);margin-bottom:10px">${p.description||''}</p>
-          <div style="display:flex;align-items:center;gap:12px">
+          ${p.description ? `<p style="font-size:.88rem;color:var(--muted);margin-bottom:10px">${p.description}</p>` : ''}
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
             <div style="flex:1;height:8px;background:var(--border);border-radius:50px">
               <div style="height:100%;width:${p.progression}%;background:linear-gradient(90deg,var(--g2),var(--g3));border-radius:50px;transition:.5s"></div>
             </div>
             <span style="font-weight:700;color:var(--g2);font-size:.88rem">${p.progression}%</span>
             ${statusPill(p.statut)}
           </div>
+          ${budget > 0 ? `
+          <div style="display:flex;gap:16px;font-size:.82rem;flex-wrap:wrap;margin-bottom:${pLines.length?'12px':'0'}">
+            <span>💰 Budget: <strong>${fmtMoney(budget)}</strong></span>
+            <span>📤 Dépenses: <strong style="color:#c62828">${fmtMoney(totalDepenses)}</strong></span>
+            <span>📥 Revenus: <strong style="color:var(--g2)">${fmtMoney(totalRevenus)}</strong></span>
+            <span>📊 Utilisé: <strong>${pct}%</strong></span>
+          </div>` : ''}
+          ${pLines.length ? `
+          <details style="margin-top:8px">
+            <summary style="cursor:pointer;font-size:.82rem;color:var(--muted);font-weight:600">Lignes financières (${pLines.length})</summary>
+            <div class="table-wrapper" style="margin-top:8px">
+              <table style="font-size:.8rem">
+                <thead><tr><th>Ligne</th><th>Budget</th><th>Dépenses</th><th>Revenus</th></tr></thead>
+                <tbody>${pLines.map(l=>`<tr>
+                  <td>${l.titre}</td>
+                  <td>${fmtMoney(l.budget_alloue||0)}</td>
+                  <td style="color:#c62828">${fmtMoney(l.depenses||0)}</td>
+                  <td style="color:var(--g2)">${fmtMoney(l.revenus||0)}</td>
+                </tr>`).join('')}</tbody>
+              </table>
+            </div>
+          </details>` : ''}
         </div>
-      </div>
-    `).join('') || '<div class="empty-state"><div class="es-icon">🚀</div><p>Aucun projet créé</p></div>'}
+      </div>`;
+    }).join('') || '<div class="empty-state"><div class="es-icon">🚀</div><p>Aucun projet créé</p></div>'}
   `);
 }
 
@@ -2909,10 +2952,13 @@ function openProjectForm(p, allUsers) {
     <form id="prjForm">
       <div class="form-group"><label>Nom *</label><input id="prj_nom" value="${p?.nom||''}" required/></div>
       <div class="form-group"><label>Description</label><textarea id="prj_desc">${p?.description||''}</textarea></div>
-      <div class="form-group"><label>Responsable</label>
-        <select id="prj_resp"><option value="">– Aucun –</option>
-          ${allUsers.map(u=>`<option value="${u.id}" ${p?.responsable_id===u.id?'selected':''}>${u.prenom} ${u.nom}</option>`).join('')}
-        </select></div>
+      <div class="form-row">
+        <div class="form-group"><label>Budget prévu ($) *</label><input type="number" step="0.01" min="0" id="prj_budget" value="${p?.budget_prevu||''}" ${p?'':'required'}/></div>
+        <div class="form-group"><label>Responsable</label>
+          <select id="prj_resp"><option value="">– Aucun –</option>
+            ${allUsers.map(u=>`<option value="${u.id}" ${p?.responsable_id===u.id?'selected':''}>${u.prenom} ${u.nom}</option>`).join('')}
+          </select></div>
+      </div>
       <div class="form-row">
         <div class="form-group"><label>Date début</label><input type="date" id="prj_debut" value="${p?.date_debut||''}"/></div>
         <div class="form-group"><label>Date fin</label><input type="date" id="prj_fin" value="${p?.date_fin||''}"/></div>
@@ -2926,6 +2972,7 @@ function openProjectForm(p, allUsers) {
             <option value="suspendu" ${p.statut==='suspendu'?'selected':''}>Suspendu</option></select></div>
         <div class="form-group"><label>Progression (%)</label><input type="number" id="prj_prog" min="0" max="100" value="${p?.progression||0}"/></div>
       </div>` : ''}
+      <div class="form-group"><label>Notes</label><textarea id="prj_notes">${p?.notes||''}</textarea></div>
       <div class="form-actions">
         <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
         <button type="submit" class="btn btn-primary">${p ? 'Enregistrer' : 'Créer'}</button>
@@ -2934,9 +2981,15 @@ function openProjectForm(p, allUsers) {
   `);
   document.getElementById('prjForm').onsubmit = async e => {
     e.preventDefault();
-    const body = { nom:document.getElementById('prj_nom').value, description:document.getElementById('prj_desc').value,
-      responsable_id:parseInt(document.getElementById('prj_resp').value)||null,
-      date_debut:document.getElementById('prj_debut').value, date_fin:document.getElementById('prj_fin').value };
+    const body = {
+      nom: document.getElementById('prj_nom').value,
+      description: document.getElementById('prj_desc').value,
+      responsable_id: parseInt(document.getElementById('prj_resp').value)||null,
+      date_debut: document.getElementById('prj_debut').value,
+      date_fin: document.getElementById('prj_fin').value,
+      budget_prevu: parseFloat(document.getElementById('prj_budget').value)||0,
+      notes: document.getElementById('prj_notes').value
+    };
     if (p) { body.statut=document.getElementById('prj_statut').value; body.progression=parseInt(document.getElementById('prj_prog').value)||0; }
     try {
       if (p) await api(`/projects/${p.id}`, { method:'PUT', body:JSON.stringify(body) });
