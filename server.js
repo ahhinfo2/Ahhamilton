@@ -883,7 +883,7 @@ app.put('/api/projects/:id', authMiddleware, requireRole('admin'), (req, res) =>
   if (!prev) return res.status(404).json({ error: 'Projet introuvable' });
   db.prepare(`UPDATE projects SET nom=?, description=?, statut=?, progression=?, date_debut=?, date_fin=?, budget_prevu=?, notes=? WHERE id=?`)
     .run(nom||prev.nom, description??prev.description, statut||prev.statut, progression??prev.progression,
-         date_debut||prev.date_debut, date_fin||prev.date_fin, parseFloat(budget_prevu)||prev.budget_prevu||0, notes??prev.notes||'', req.params.id);
+         date_debut||prev.date_debut, date_fin||prev.date_fin, parseFloat(budget_prevu)||prev.budget_prevu||0, (notes!=null?notes:prev.notes)||'', req.params.id);
   // Mettre à jour la ligne financière si budget changé
   if (budget_prevu !== undefined) {
     db.prepare(`UPDATE financial_lines SET budget_alloue=? WHERE project_id=?`)
