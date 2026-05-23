@@ -372,6 +372,11 @@ app.post('/api/activities', authMiddleware, requireRole(...ACTIVITY_ROLES), (req
          budget_prevu||0, max_participants||null, req.user.id,
          parseFloat(prix)||0, paiement_requis?1:0,
          rabais_json||'{}', qr_token);
+  // Créer ligne financière immédiatement si budget prévu
+  if (budget_prevu && parseFloat(budget_prevu) > 0) {
+    db.prepare(`INSERT OR IGNORE INTO financial_lines (activity_id, titre, budget_alloue) VALUES (?, ?, ?)`)
+      .run(r.lastInsertRowid, `Budget – ${titre}`, parseFloat(budget_prevu));
+  }
   res.status(201).json({ id: r.lastInsertRowid, qr_token });
 });
 
@@ -442,10 +447,13 @@ app.get('/api/activities/:id/registrations', authMiddleware, (req, res) => {
 
 app.get('/api/finance/lines', authMiddleware, requireRole('admin', 'tresoriere'), (req, res) => {
   const rows = db.prepare(`
-    SELECT fl.*, a.titre AS activite,
+    SELECT fl.*, a.titre AS activite, p.nom AS projet,
       COALESCE((SELECT SUM(t.montant) FROM transactions t WHERE t.financial_line_id = fl.id AND t.type = 'depense'), 0) AS depenses,
       COALESCE((SELECT SUM(t.montant) FROM transactions t WHERE t.financial_line_id = fl.id AND t.type = 'revenu'), 0) AS revenus
-    FROM financial_lines fl LEFT JOIN activities a ON a.id = fl.activity_id ORDER BY fl.date_creation DESC
+    FROM financial_lines fl
+    LEFT JOIN activities a ON a.id = fl.activity_id
+    LEFT JOIN projects p ON p.id = fl.project_id
+    ORDER BY fl.date_creation DESC
   `).all();
   res.json(rows);
 });
@@ -519,7 +527,16 @@ app.post('/api/finance/invoices', authMiddleware, requireRole('tresoriere', 'adm
 
 app.put('/api/finance/invoices/:id', authMiddleware, requireRole('tresoriere', 'admin'), (req, res) => {
   const { statut } = req.body;
+  const invoice = db.prepare('SELECT * FROM invoices WHERE id = ?').get(req.params.id);
+  if (!invoice) return res.status(404).json({ error: 'Facture introuvable' });
   db.prepare('UPDATE invoices SET statut = ? WHERE id = ?').run(statut, req.params.id);
+  // Quand facture marquée payée → créer transaction automatiquement
+  if (statut === 'paye' && invoice.statut !== 'paye' && invoice.financial_line_id) {
+    db.prepare(`INSERT INTO transactions (financial_line_id, type, montant, description, methode, invoice_id, cree_par)
+      VALUES (?, 'depense', ?, ?, 'facture', ?, ?)`)
+      .run(invoice.financial_line_id, invoice.montant, `Paiement facture: ${invoice.titre}`, invoice.id, req.user.id);
+    db.prepare('UPDATE account_info SET solde = solde - ?, date_maj = CURRENT_TIMESTAMP WHERE id = 1').run(invoice.montant);
+  }
   res.json({ message: 'Mise à jour' });
 });
 
@@ -850,17 +867,28 @@ app.get('/api/projects', authMiddleware, (req, res) => {
 });
 
 app.post('/api/projects', authMiddleware, requireRole('admin'), (req, res) => {
-  const { nom, description, responsable_id, date_debut, date_fin } = req.body;
+  const { nom, description, responsable_id, date_debut, date_fin, budget_prevu, notes } = req.body;
   if (!nom) return res.status(400).json({ error: 'Nom requis' });
-  const r = db.prepare(`INSERT INTO projects (nom, description, responsable_id, date_debut, date_fin) VALUES (?, ?, ?, ?, ?)`)
-    .run(nom, description||'', responsable_id||null, date_debut||'', date_fin||'');
+  const r = db.prepare(`INSERT INTO projects (nom, description, responsable_id, date_debut, date_fin, budget_prevu, notes) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+    .run(nom, description||'', responsable_id||null, date_debut||'', date_fin||'', parseFloat(budget_prevu)||0, notes||'');
+  // Créer ligne financière pour le projet
+  db.prepare(`INSERT INTO financial_lines (project_id, titre, budget_alloue) VALUES (?, ?, ?)`)
+    .run(r.lastInsertRowid, `Budget – ${nom}`, parseFloat(budget_prevu)||0);
   res.status(201).json({ id: r.lastInsertRowid });
 });
 
 app.put('/api/projects/:id', authMiddleware, requireRole('admin'), (req, res) => {
-  const { nom, description, statut, progression, date_debut, date_fin } = req.body;
-  db.prepare(`UPDATE projects SET nom=?, description=?, statut=?, progression=?, date_debut=?, date_fin=? WHERE id=?`)
-    .run(nom||'', description||'', statut||'en_cours', progression||0, date_debut||'', date_fin||'', req.params.id);
+  const { nom, description, statut, progression, date_debut, date_fin, budget_prevu, notes } = req.body;
+  const prev = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
+  if (!prev) return res.status(404).json({ error: 'Projet introuvable' });
+  db.prepare(`UPDATE projects SET nom=?, description=?, statut=?, progression=?, date_debut=?, date_fin=?, budget_prevu=?, notes=? WHERE id=?`)
+    .run(nom||prev.nom, description??prev.description, statut||prev.statut, progression??prev.progression,
+         date_debut||prev.date_debut, date_fin||prev.date_fin, parseFloat(budget_prevu)||prev.budget_prevu||0, notes??prev.notes||'', req.params.id);
+  // Mettre à jour la ligne financière si budget changé
+  if (budget_prevu !== undefined) {
+    db.prepare(`UPDATE financial_lines SET budget_alloue=? WHERE project_id=?`)
+      .run(parseFloat(budget_prevu)||0, req.params.id);
+  }
   res.json({ message: 'Mis à jour' });
 });
 
