@@ -34,31 +34,38 @@ console.log(`Starting AHH server on PORT=${PORT}`);
 
 // ── Webhook Stripe (corps brut — AVANT express.json) ─────────────────────
 app.post('/api/stripe/webhook', express.raw({ type: '*/*' }), async (req, res) => {
-  // Répondre 200 immédiatement pour que Stripe ne réessaie pas
   res.json({ received: true });
+  console.log('=== STRIPE WEBHOOK REÇU ===');
 
   const stripeKey = (process.env.STRIPE_SECRET_KEY || '').trim();
+  console.log('STRIPE_KEY défini:', !!stripeKey, 'longueur:', stripeKey.length);
 
   let event;
   try {
     const bodyStr = req.body ? req.body.toString('utf8') : '{}';
-    const parsed  = JSON.parse(bodyStr);
+    console.log('Body (200 chars):', bodyStr.substring(0, 200));
+    const parsed = JSON.parse(bodyStr);
+    console.log('Event ID:', parsed.id, '| Type:', parsed.type, '| Has data.object:', !!(parsed.data && parsed.data.object));
 
-    // Thin event (Workbench) → récupérer l'événement complet via API Stripe
     if (stripeKey && parsed.id && (!parsed.data || !parsed.data.object)) {
+      console.log('Thin event — récupération via API Stripe...');
       try {
         const stripe = Stripe(stripeKey);
         event = await stripe.events.retrieve(parsed.id);
-        console.log('Stripe thin event récupéré:', event.id, event.type);
+        console.log('Event récupéré:', event.type, '| Session ID:', event.data?.object?.id);
       } catch (e) {
-        console.error('Impossible de récupérer l\'event Stripe:', e.message);
+        console.error('Erreur retrieve:', e.message);
         return;
       }
-    } else {
+    } else if (parsed.data && parsed.data.object) {
+      console.log('Event complet reçu directement');
       event = parsed;
+    } else {
+      console.error('Event invalide — ni thin ni complet, STRIPE_KEY manquant?');
+      return;
     }
   } catch (err) {
-    console.error('Stripe webhook parse error:', err.message);
+    console.error('Parse error:', err.message);
     return;
   }
 
