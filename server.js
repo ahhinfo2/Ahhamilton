@@ -1434,7 +1434,7 @@ app.get('/api/payments/my', authMiddleware, (req, res) => {
 // GET — tous les paiements (finance)
 app.get('/api/payments', authMiddleware, requireRole('admin','tresoriere'), (req, res) => {
   const rows = db.prepare(`SELECT p.*, u.prenom, u.nom, u.email, u.plan
-    FROM payments p JOIN users u ON u.id = p.user_id
+    FROM payments p LEFT JOIN users u ON u.id = p.user_id
     ORDER BY p.date_soumission DESC`).all();
   res.json(rows);
 });

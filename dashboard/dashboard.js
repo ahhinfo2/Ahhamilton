@@ -4270,10 +4270,11 @@ async function paiements() {
     '<div class="table-card"><div class="table-card-header"><h3>Historique</h3></div>' +
     '<div class="table-wrapper"><table>' +
     '<thead><tr><th>Membre</th><th>Type</th><th>Montant</th><th>Mois</th><th>Méthode</th><th>Statut</th><th>Date</th></tr></thead><tbody>' +
-    (data.map(p =>
-      '<tr><td>' + p.prenom + ' ' + p.nom + '</td><td>' + (TYPE_LABEL[p.type]||p.type) + '</td><td>$' + p.montant + '</td>' +
-      '<td>' + (p.mois||'–') + '</td><td>' + (p.methode||'–') + '</td><td>' + statusPill(p.statut) + '</td><td>' + fmt(p.date_soumission) + '</td></tr>'
-    ).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--muted)">Aucun paiement</td></tr>') +
+    (data.map(p => {
+      const nom = (p.prenom && p.nom) ? p.prenom + ' ' + p.nom : (p.note || p.email || '–');
+      return '<tr><td>' + nom + '</td><td>' + (TYPE_LABEL[p.type]||p.type) + '</td><td>$' + p.montant + '</td>' +
+      '<td>' + (p.mois||'–') + '</td><td>' + (p.methode||'–') + '</td><td>' + statusPill(p.statut) + '</td><td>' + fmt(p.date_soumission) + '</td></tr>';
+    }).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--muted)">Aucun paiement</td></tr>') +
     '</tbody></table></div></div>'
   );
 }
