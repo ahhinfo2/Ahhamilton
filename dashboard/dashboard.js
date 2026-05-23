@@ -1,5 +1,6 @@
 // ── CONFIG ─────────────────────────────────────────────────────────────────
-const API  = 'http://localhost:3001/api';
+const API  = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001/api' : '/api';
+const BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001' : '';
 let   USER = null;
 let   TOKEN = null;
 
@@ -1292,7 +1293,7 @@ async function invoices() {
         <td>${fmt(i.date_facture)}</td>
         <td>${i.ligne||'–'}</td>
         <td>${statusPill(i.statut)}</td>
-        <td>${i.photo_path ? `<a href="http://localhost:3001${i.photo_path}" target="_blank" class="btn btn-sm btn-ghost">📷 Voir</a>` : '–'}</td>
+        <td>${i.photo_path ? `<a href="' + BASE + '${i.photo_path}" target="_blank" class="btn btn-sm btn-ghost">📷 Voir</a>` : '–'}</td>
         <td>
           ${i.statut === 'en_attente' ? `<button class="btn btn-sm btn-primary" onclick="updateInvoiceStatus(${i.id},'approuve')">✅</button>
           <button class="btn btn-sm btn-accent" onclick="updateInvoiceStatus(${i.id},'paye')">💰 Payé</button>` : ''}
@@ -1763,7 +1764,7 @@ async function requestLetter() {
       }).catch(() => {});
 
       // Message ciblé aux admins seulement via contact API
-      await fetch('http://localhost:3001/api/contact', {
+      await fetch(BASE + '/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1838,7 +1839,7 @@ async function gallery_mgmt() {
           <div class="gallery-mgmt-grid">`;
         albumPhotos.forEach(p => {
           const idx = photos.indexOf(p);
-          const src = `http://localhost:3001${p.photo_path}`;
+          const src = `${BASE}${p.photo_path}`;
           catHtml += `
             <div class="gallery-mgmt-card" id="gmc-${p.id}" data-photoidx="${idx}">
               <div class="gmc-img" data-photoidx="${idx}" style="cursor:zoom-in">
@@ -2081,7 +2082,7 @@ function galLbUpdate() {
   const p = (window._galPhotos || [])[_galIdx];
   if (!p) return;
   const img = document.getElementById('_galLbImg');
-  if (img) img.src = `http://localhost:3001${p.photo_path}`;
+  if (img) img.src = `${BASE}${p.photo_path}`;
   const t = document.getElementById('_galLbTitle');
   if (t) t.textContent = p.titre || '(Sans titre)';
   const c = document.getElementById('_galLbCounter');
@@ -2987,7 +2988,7 @@ async function profile() {
   const totalH = vh.reduce((s,v) => v.statut==='approuve' ? s+v.heures : s, 0);
   const initials = `${u.prenom[0]}${u.nom[0]}`.toUpperCase();
   const avatarInner = u.photo_url
-    ? `<img src="http://localhost:3001${u.photo_url}" class="profile-avatar-img" alt="${initials}"/>`
+    ? `<img src="${BASE}${u.photo_url}" class="profile-avatar-img" alt="${initials}"/>`
     : `<span>${initials}</span>`;
 
   setContent(`
@@ -3039,7 +3040,7 @@ async function profile() {
     const fd = new FormData();
     fd.append('photo', file);
     try {
-      const res = await fetch(`http://localhost:3001/api/users/${u.id}/photo`, {
+      const res = await fetch(`${BASE}/api/users/${u.id}/photo`, {
         method: 'POST', headers: { Authorization: `Bearer ${TOKEN}` }, body: fd
       });
       if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Upload échoué'); }
@@ -3496,7 +3497,7 @@ async function talents_mgmt() {
               <div class="talent-mgmt-card">
                 <div class="tmc-photo" style="background:linear-gradient(135deg,var(--g1),var(--g2))">
                   ${t.photo_path
-                    ? `<img src="http://localhost:3001${t.photo_path}" style="width:100%;height:100%;object-fit:cover"/>`
+                    ? `<img src="${BASE}${t.photo_path}" style="width:100%;height:100%;object-fit:cover"/>`
                     : `<span style="font-size:2rem">${cat.emoji}</span>`}
                 </div>
                 <div class="tmc-body">
@@ -3563,7 +3564,7 @@ function openTalentForm(t) {
       <div class="form-group">
         <label>Photo professionnelle</label>
         <input type="file" id="tf_photo" accept="image/*"/>
-        ${t?.photo_path ? `<img src="http://localhost:3001${t.photo_path}" style="height:60px;border-radius:8px;margin-top:6px"/>` : ''}
+        ${t?.photo_path ? `<img src="${BASE}${t.photo_path}" style="height:60px;border-radius:8px;margin-top:6px"/>` : ''}
       </div>
       <div class="form-actions">
         <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
@@ -3732,7 +3733,7 @@ async function mes_talents() {
         const cat = TALENT_CATS.find(function(c) { return c.key === t.categorie; }) || { emoji:'✨', label: t.categorie };
         return '<div class="member-pub-card">' +
           '<div class="mpc-header">' +
-            (t.photo_path ? '<img src="http://localhost:3001' + t.photo_path + '" class="mpc-photo"/>' : '<div class="mpc-photo-placeholder">' + cat.emoji + '</div>') +
+            (t.photo_path ? '<img src="' + BASE + t.photo_path + '" class="mpc-photo"/>' : '<div class="mpc-photo-placeholder">' + cat.emoji + '</div>') +
             '<div class="mpc-info">' +
               '<div class="mpc-name">' + t.nom + '</div>' +
               '<div class="mpc-cat">' + cat.emoji + ' ' + cat.label + (t.specialite ? ' · ' + t.specialite : '') + '</div>' +
@@ -3800,7 +3801,7 @@ function openMemberTalentModify(t) {
       '</div>' +
       '<div class="form-group"><label>Adresse</label><input id="mod_addr" value="' + (t.adresse||'') + '"/></div>' +
       '<div class="form-group"><label>Nouvelle photo (optionnel)</label><input type="file" id="mod_photo" accept="image/*"/>' +
-        (t.photo_path ? '<img src="http://localhost:3001' + t.photo_path + '" style="height:50px;border-radius:6px;margin-top:6px;display:block"/>' : '') +
+        (t.photo_path ? '<img src="' + BASE + t.photo_path + '" style="height:50px;border-radius:6px;margin-top:6px;display:block"/>' : '') +
       '</div>' +
       '<div class="form-actions">' +
         '<button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>' +
@@ -4021,7 +4022,7 @@ function openMemberTalentForm(t) {
         '<input id="mt_addr" value="' + (t ? t.adresse||'' : '') + '" placeholder="Hamilton, ON"/></div>' +
       '<div class="form-group"><label>Photo professionnelle</label>' +
         '<input type="file" id="mt_photo" accept="image/*"/>' +
-        (t && t.photo_path ? '<img src="http://localhost:3001' + t.photo_path + '" style="height:60px;border-radius:8px;margin-top:8px;display:block"/>' : '') +
+        (t && t.photo_path ? '<img src="' + BASE + t.photo_path + '" style="height:60px;border-radius:8px;margin-top:8px;display:block"/>' : '') +
       '</div>' +
       '<div class="form-actions">' +
         '<button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>' +
@@ -4263,7 +4264,7 @@ async function paiements() {
         '<small style="color:var(--muted)">' + p.email + ' · Plan: ' + (p.plan||'–') + ' · $' + p.montant + ' · ' + (p.methode||'–') + ' · Mois: ' + (p.mois||'–') + '</small>' +
         (p.note ? '<br/><small style="color:var(--muted)">Note: ' + p.note + '</small>' : '') + '</div>' +
         '<div class="tc-actions">' +
-          (p.proof_path ? '<a class="btn btn-ghost btn-sm" href="http://localhost:3001' + p.proof_path + '" target="_blank">🧾 Preuve</a>' : '') +
+          (p.proof_path ? '<a class="btn btn-ghost btn-sm" href="' + BASE + p.proof_path + '" target="_blank">🧾 Preuve</a>' : '') +
           '<button class="btn btn-primary btn-sm" onclick="approuverPaiement(' + p.id + ')">✅ Approuver</button>' +
           '<button class="btn btn-danger btn-sm" onclick="rejeterPaiement(' + p.id + ')">❌ Rejeter</button>' +
         '</div></div></div>'
@@ -4339,7 +4340,7 @@ async function recus() {
 }
 
 function imprimerRecu(id) {
-  window.open(`http://localhost:3001/api/receipts/${id}/print?token=${TOKEN}`, '_blank');
+  window.open(`${BASE}/api/receipts/${id}/print?token=${TOKEN}`, '_blank');
 }
 
 // ══ TÉMOIGNAGES (admin/secrétaire) ══════════════════════════════════════════
@@ -4610,8 +4611,8 @@ async function viewActivityQR(id, titre, qrToken) {
   if (!qrToken) {
     try { const a = await api('/activities'); const found = (a||[]).find(x => x.id === id); qrToken = found?.qr_token || ''; } catch {}
   }
-  const qrUrl      = `http://localhost:3001/api/activities/${id}/qr`;
-  const checkoutUrl = `http://localhost:3001/activity-checkout.html?actid=${id}&token=${qrToken}`;
+  const qrUrl      = `${BASE}/api/activities/${id}/qr`;
+  const checkoutUrl = `${BASE}/activity-checkout.html?actid=${id}&token=${qrToken}`;
 
   openModal('📱 Code QR — ' + titre,
     '<div style="text-align:center;padding:8px">' +
