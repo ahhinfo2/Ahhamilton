@@ -2250,6 +2250,12 @@ app.get('/api/reports/membres', authMiddleware, requireRole(...REPORT_ROLES), (r
   res.json(rows.map(u => { const {password_hash,...safe}=u; return safe; }));
 });
 
+// ── Debug temporaire : voir tous les paiements (à supprimer après test) ───
+app.get('/api/debug/payments', (req, res) => {
+  const rows = db.prepare('SELECT * FROM payments ORDER BY date_soumission DESC LIMIT 20').all();
+  res.json(rows);
+});
+
 // ══════════════════════════════════════════════════════════════════════════════
 // 404 HANDLER
 // ══════════════════════════════════════════════════════════════════════════════
