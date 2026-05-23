@@ -103,8 +103,6 @@ app.post('/api/stripe/webhook', express.raw({ type: '*/*' }), async (req, res) =
 
     console.log(`✅ Stripe don enregistré : ${email} — $${montant}`);
   }
-
-  res.json({ received: true });
 });
 
 // ── Middleware ──────────────────────────────────────────────────────────────
