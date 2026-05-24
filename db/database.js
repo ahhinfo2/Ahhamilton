@@ -29,22 +29,20 @@ if (process.env.DB_PATH) {
   if (!fs2.existsSync(DB_DIR)) fs2.mkdirSync(DB_DIR, { recursive: true });
   DB_PATH = path.join(DB_DIR, 'ahh.db');
 }
-// Ouvrir la DB avec retry si elle est lockée au démarrage
-let db;
-for (let attempt = 1; attempt <= 10; attempt++) {
+// Nettoyer les fichiers WAL/SHM laissés par un crash précédent
+[DB_PATH + '-wal', DB_PATH + '-shm', DB_PATH + '.lock'].forEach(f => {
   try {
-    db = new Database(DB_PATH);
-    db.exec('PRAGMA journal_mode = WAL');
-    db.exec('PRAGMA busy_timeout = 10000');
-    break;
-  } catch (e) {
-    if (attempt === 10) throw e;
-    console.warn(`[DB] Tentative ${attempt}/10 — base verrouillée, attente 2s...`);
-    // Attente synchrone (on est au chargement du module, avant Express)
-    const t = Date.now(); while (Date.now() - t < 2000) {}
-  }
-}
+    const stat = fs2.statSync(f);
+    if (stat.isDirectory()) fs2.rmdirSync(f, { recursive: true });
+    else fs2.unlinkSync(f);
+    console.log(`[DB] Fichier verrou supprimé : ${f}`);
+  } catch {}
+});
 
+const db = new Database(DB_PATH);
+
+db.exec('PRAGMA journal_mode = DELETE'); // Pas de WAL — plus simple et sans fichiers résiduels
+db.exec('PRAGMA busy_timeout = 15000');  // Attendre jusqu'à 15s si la DB est occupée
 db.exec('PRAGMA foreign_keys = ON');
 // Migrations silencieuses
 try { db.exec('ALTER TABLE message_recipients ADD COLUMN supprime INTEGER DEFAULT 0'); } catch {}
