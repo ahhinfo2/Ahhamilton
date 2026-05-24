@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<title>Scanner billets — AHH</title>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --g1:#1b5e20;--g2:#2e7d32;--g3:#43a047;
+    --ok:#2e7d32;--warn:#e65100;--err:#c62828;--dup:#6a1a75;
+    --white:#fff;--off:#f4f8f4;--text:#1a2e1a;--border:#c8e6c9;
+  }
+  html,body{height:100%;overflow:hidden;background:#111;font-family:'Segoe UI',Arial,sans-serif}
+
+  /* ── HEADER ── */
+  .hdr{
+    background:linear-gradient(135deg,var(--g1),var(--g2));
+    padding:10px 16px;display:flex;align-items:center;justify-content:space-between;
+    box-shadow:0 2px 10px rgba(0,0,0,.3);z-index:10;position:relative;
+  }
+  .hdr-logo{display:flex;align-items:center;gap:10px}
+  .hdr-logo img{width:36px;height:36px;border-radius:8px;object-fit:cover;border:2px solid rgba(255,255,255,.3)}
+  .hdr-title{color:#fff;font-size:.95rem;font-weight:700;line-height:1.1}
+  .hdr-sub{color:rgba(255,255,255,.65);font-size:.68rem;font-weight:400}
+  .hdr-user{color:rgba(255,255,255,.8);font-size:.75rem;text-align:right}
+  .btn-logout{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);color:#fff;
+    padding:5px 12px;border-radius:20px;cursor:pointer;font-size:.72rem;margin-top:4px}
+  .btn-logout:hover{background:rgba(255,255,255,.25)}
+
+  /* ── MAIN LAYOUT ── */
+  .main{display:flex;height:calc(100vh - 58px);gap:0}
+
+  /* ── LEFT: CAMERA ── */
+  .cam-side{
+    flex:1;display:flex;flex-direction:column;background:#000;position:relative;min-width:0;
+  }
+  .cam-wrap{
+    flex:1;position:relative;overflow:hidden;
+    display:flex;align-items:center;justify-content:center;
+  }
+  #reader{width:100%;height:100%}
+  #reader video{width:100%!important;height:100%!important;object-fit:cover}
+
+  /* Viseur animé */
+  .viewfinder{
+    position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    width:220px;height:220px;pointer-events:none;z-index:5;
+  }
+  .vf-corner{position:absolute;width:36px;height:36px;border-color:#fff;border-style:solid;}
+  .vf-tl{top:0;left:0;border-width:4px 0 0 4px;border-radius:4px 0 0 0}
+  .vf-tr{top:0;right:0;border-width:4px 4px 0 0;border-radius:0 4px 0 0}
+  .vf-bl{bottom:0;left:0;border-width:0 0 4px 4px;border-radius:0 0 0 4px}
+  .vf-br{bottom:0;right:0;border-width:0 4px 4px 0;border-radius:0 0 4px 0}
+  .vf-scan{
+    position:absolute;left:4px;right:4px;height:2px;
+    background:linear-gradient(90deg,transparent,#4caf50,transparent);
+    animation:scan 2s linear infinite;
+  }
+  @keyframes scan{0%{top:4px}100%{top:calc(100% - 6px)}}
+  .cam-tip{
+    padding:10px 16px;background:#000;color:rgba(255,255,255,.6);
+    text-align:center;font-size:.75rem;
+  }
+
+  /* Filtre activité */
+  .act-filter{
+    padding:8px 12px;background:#111;
+    display:flex;align-items:center;gap:8px;border-top:1px solid #222;
+  }
+  .act-filter label{color:rgba(255,255,255,.6);font-size:.72rem;white-space:nowrap}
+  .act-filter select{
+    flex:1;background:#222;color:#fff;border:1px solid #444;border-radius:6px;
+    padding:5px 8px;font-size:.78rem;
+  }
+
+  /* ── RIGHT: RESULT ── */
+  .result-side{
+    width:340px;flex-shrink:0;background:#1a1a1a;
+    display:flex;flex-direction:column;border-left:1px solid #333;
+  }
+  .result-header{
+    padding:12px 16px;background:#111;border-bottom:1px solid #2a2a2a;
+    color:rgba(255,255,255,.5);font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;
+  }
+
+  /* Résultat principal */
+  .result-main{
+    flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:24px 20px;transition:.3s;
+  }
+  .result-main.ok   {background:rgba(46,125,50,.15)}
+  .result-main.warn {background:rgba(230,81,0,.15)}
+  .result-main.err  {background:rgba(198,40,40,.15)}
+  .result-main.dup  {background:rgba(106,26,117,.15)}
+
+  .result-icon{font-size:4rem;margin-bottom:12px;line-height:1}
+  .result-status{font-size:1rem;font-weight:700;letter-spacing:.05em;margin-bottom:20px;text-transform:uppercase}
+  .ok   .result-status{color:#66bb6a}
+  .warn .result-status{color:#ff9800}
+  .err  .result-status{color:#ef5350}
+  .dup  .result-status{color:#ce93d8}
+
+  .result-name{
+    font-size:2rem;font-weight:800;color:#fff;text-align:center;
+    line-height:1.2;margin-bottom:8px;
+  }
+  .result-table{
+    font-size:1.5rem;font-weight:700;color:#a5d6a7;margin-bottom:16px;
+  }
+  .result-badge{
+    background:rgba(255,255,255,.1);border-radius:20px;padding:6px 16px;
+    font-size:.82rem;color:rgba(255,255,255,.8);margin-bottom:6px;
+    display:flex;align-items:center;gap:6px;
+  }
+  .result-activity{font-size:.78rem;color:rgba(255,255,255,.45);margin-top:12px;text-align:center}
+
+  /* Historique */
+  .history{padding:0 12px 12px}
+  .history-title{font-size:.68rem;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.05em;padding:8px 4px 6px;font-weight:600}
+  .hist-item{
+    background:rgba(255,255,255,.06);border-radius:8px;padding:8px 10px;
+    margin-bottom:6px;display:flex;align-items:center;gap:10px;
+  }
+  .hist-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  .hist-dot.ok{background:#66bb6a}
+  .hist-dot.dup{background:#ce93d8}
+  .hist-dot.err{background:#ef5350}
+  .hist-info{flex:1;min-width:0}
+  .hist-name{font-size:.78rem;color:#fff;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hist-meta{font-size:.68rem;color:rgba(255,255,255,.45)}
+
+  /* Idle state */
+  .idle{text-align:center;color:rgba(255,255,255,.3)}
+  .idle-icon{font-size:3rem;margin-bottom:12px}
+  .idle p{font-size:.88rem}
+
+  /* Responsive tablette portrait */
+  @media(max-width:640px){
+    .main{flex-direction:column}
+    .result-side{width:100%;flex:none;height:260px}
+    .cam-side{flex:1}
+  }
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="hdr-logo">
+    <img src="Public/logo.jpg" alt="AHH"/>
+    <div>
+      <div class="hdr-title">Scanner de billets</div>
+      <div class="hdr-sub">Association Haïtienne de Hamilton</div>
+    </div>
+  </div>
+  <div class="hdr-user">
+    <div id="hdUser">–</div>
+    <button class="btn-logout" onclick="logout()">Déconnexion</button>
+  </div>
+</div>
+
+<div class="main">
+  <!-- Caméra -->
+  <div class="cam-side">
+    <div class="cam-wrap">
+      <div id="reader"></div>
+      <div class="viewfinder">
+        <div class="vf-corner vf-tl"></div>
+        <div class="vf-corner vf-tr"></div>
+        <div class="vf-corner vf-bl"></div>
+        <div class="vf-corner vf-br"></div>
+        <div class="vf-scan"></div>
+      </div>
+    </div>
+    <div class="act-filter">
+      <label>Activité :</label>
+      <select id="actSelect">
+        <option value="">Toutes les activités</option>
+      </select>
+    </div>
+    <div class="cam-tip">📱 Pointez la caméra vers le QR code du billet</div>
+  </div>
+
+  <!-- Résultat -->
+  <div class="result-side">
+    <div class="result-header">Dernier scan</div>
+    <div class="result-main idle" id="resultMain">
+      <div class="idle-icon">📷</div>
+      <p class="idle">En attente d'un scan…</p>
+    </div>
+    <div class="history" id="historyBox" style="display:none">
+      <div class="history-title">Historique de la session</div>
+      <div id="histList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Sons -->
+<audio id="sndOk"  src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=" preload="auto"></audio>
+<audio id="sndErr" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=" preload="auto"></audio>
+
+<script>
+const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? 'http://localhost:3001/api' : '/api';
+let TOKEN = localStorage.getItem('ahh_token');
+let USER  = null;
+let scanner = null;
+let scanning = false;
+let lastQR = '';
+let history = [];
+
+// ── Auth ────────────────────────────────────────────────────────────────────
+if (!TOKEN) { location.href = 'dashboard/login.html'; }
+
+(async function init() {
+  try {
+    const r = await fetch(API + '/auth/me', { headers: { Authorization: 'Bearer ' + TOKEN } });
+    if (!r.ok) { location.href = 'dashboard/login.html'; return; }
+    USER = await r.json();
+    const allowed = ['admin','delegue','secretaire','tresoriere'];
+    if (!allowed.includes(USER.role)) {
+      document.body.innerHTML = '<div style="color:#fff;text-align:center;padding:40px"><h2>Accès refusé</h2><p>Cette page est réservée aux membres du comité.</p></div>';
+      return;
+    }
+    document.getElementById('hdUser').textContent = USER.prenom + ' ' + USER.nom + ' · ' + USER.role;
+    await loadActivities();
+    startScanner();
+  } catch(e) {
+    location.href = 'dashboard/login.html';
+  }
+})();
+
+function logout() {
+  if (scanner) scanner.stop().catch(()=>{});
+  localStorage.removeItem('ahh_token');
+  localStorage.removeItem('ahh_user');
+  location.href = 'dashboard/login.html';
+}
+
+// ── Activités ────────────────────────────────────────────────────────────────
+async function loadActivities() {
+  try {
+    const r = await fetch(API + '/activities', { headers: { Authorization: 'Bearer ' + TOKEN } });
+    const acts = await r.json();
+    const sel = document.getElementById('actSelect');
+    acts.filter(a => a.statut !== 'terminee').forEach(a => {
+      const opt = document.createElement('option');
+      opt.value = a.id;
+      opt.textContent = a.titre + (a.date_debut ? ' — ' + new Date(a.date_debut).toLocaleDateString('fr-CA') : '');
+      sel.appendChild(opt);
+    });
+  } catch(e) {}
+}
+
+// ── Scanner ───────────────────────────────────────────────────────────────────
+function startScanner() {
+  scanner = new Html5Qrcode('reader');
+  const config = {
+    fps: 15,
+    qrbox: { width: 220, height: 220 },
+    aspectRatio: 1.0,
+    disableFlip: false,
+    experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+  };
+  scanner.start(
+    { facingMode: 'environment' },
+    config,
+    onQRDetected,
+    () => {}
+  ).catch(err => {
+    document.querySelector('.cam-tip').textContent = '⚠️ Impossible d\'accéder à la caméra. Vérifiez les permissions.';
+    document.querySelector('.cam-tip').style.color = '#ef5350';
+  });
+}
+
+// ── QR Détecté ───────────────────────────────────────────────────────────────
+async function onQRDetected(qrText) {
+  if (qrText === lastQR) return;
+  lastQR = qrText;
+  setTimeout(() => { lastQR = ''; }, 3000); // cooldown 3s
+
+  const actId = document.getElementById('actSelect').value || null;
+  const box = document.getElementById('resultMain');
+  box.innerHTML = '<div class="idle-icon" style="animation:spin .5s linear infinite">⏳</div>';
+
+  try {
+    const res = await fetch(API + '/tickets/checkin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + TOKEN },
+      body: JSON.stringify({ qr_data: qrText, activity_id: actId ? parseInt(actId) : undefined })
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      if (res.status === 409) showResult('warn', '⚠️', 'MAUVAISE ACTIVITÉ', data.error, null, null, null);
+      else showResult('err', '❌', 'BILLET INVALIDE', data.error || 'QR non reconnu', null, null, null);
+      playBeep(false);
+      addHistory('err', qrText.split('\n')[0] || 'Inconnu', data.error || 'Invalide');
+    } else if (data.already_checked_in) {
+      showResult('dup', '🔄', 'DÉJÀ ENTRÉ', data.nom, data.table_numero, data.vendeur_nom, data.activite, true);
+      playBeep(false);
+      addHistory('dup', data.nom, 'Déjà scanné — Table ' + (data.table_numero || '?'));
+    } else {
+      showResult('ok', '✅', 'BIENVENUE', data.nom, data.table_numero, data.vendeur_nom, data.activite, false);
+      playBeep(true);
+      addHistory('ok', data.nom, (data.table_numero ? 'Table ' + data.table_numero : '') + ' — ' + (data.vendu_en_ligne ? 'En ligne' : 'Vendu par ' + data.vendeur_nom));
+    }
+  } catch(e) {
+    showResult('err', '⚠️', 'ERREUR RÉSEAU', 'Vérifiez la connexion', null, null, null);
+    playBeep(false);
+  }
+}
+
+function showResult(cls, icon, status, nom, table, vendeur, activite, isdup) {
+  const box = document.getElementById('resultMain');
+  box.className = 'result-main ' + cls;
+  const achatInfo = vendeur
+    ? '<div class="result-badge">👤 Vendu par ' + vendeur + '</div>'
+    : '<div class="result-badge">🌐 Acheté en ligne</div>';
+
+  box.innerHTML =
+    '<div class="result-icon">' + icon + '</div>' +
+    '<div class="result-status">' + status + '</div>' +
+    '<div class="result-name">' + (nom || '–') + '</div>' +
+    (table ? '<div class="result-table">🪑 Table ' + table + '</div>' : '<div class="result-table" style="color:rgba(255,255,255,.4)">Table non assignée</div>') +
+    (nom !== status ? achatInfo : '') +
+    (activite ? '<div class="result-activity">' + activite + '</div>' : '') +
+    (isdup ? '<div class="result-badge" style="background:rgba(206,147,216,.2);margin-top:8px">⚠️ Ce billet a déjà été scanné</div>' : '');
+}
+
+// ── Historique ────────────────────────────────────────────────────────────────
+function addHistory(type, nom, meta) {
+  history.unshift({ type, nom, meta, time: new Date().toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'}) });
+  if (history.length > 10) history.pop();
+
+  const box = document.getElementById('historyBox');
+  const list = document.getElementById('histList');
+  box.style.display = 'block';
+  list.innerHTML = history.map(h =>
+    '<div class="hist-item">' +
+      '<div class="hist-dot ' + h.type + '"></div>' +
+      '<div class="hist-info">' +
+        '<div class="hist-name">' + h.nom + '</div>' +
+        '<div class="hist-meta">' + h.time + ' · ' + h.meta + '</div>' +
+      '</div>' +
+    '</div>'
+  ).join('');
+}
+
+// ── Son ───────────────────────────────────────────────────────────────────────
+function playBeep(success) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = success ? 880 : 300;
+    osc.type = success ? 'sine' : 'square';
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (success ? 0.3 : 0.5));
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + (success ? 0.3 : 0.5));
+    if (success) {
+      setTimeout(() => {
+        const o2 = ctx.createOscillator();
+        const g2 = ctx.createGain();
+        o2.connect(g2); g2.connect(ctx.destination);
+        o2.frequency.value = 1200; o2.type = 'sine';
+        g2.gain.setValueAtTime(0.2, ctx.currentTime);
+        g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+        o2.start(ctx.currentTime); o2.stop(ctx.currentTime + 0.25);
+      }, 150);
+    }
+  } catch(e) {}
+}
+
+// Vibration si supporté
+function vibrate(ok) {
+  if (navigator.vibrate) navigator.vibrate(ok ? [100] : [100, 50, 100]);
+}
+</script>
+</body>
+</html>

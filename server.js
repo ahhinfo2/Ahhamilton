@@ -2370,6 +2370,47 @@ app.get('/api/tickets/:id/qr', async (req, res) => {
   } catch(e) { res.status(500).send('Erreur QR'); }
 });
 
+// Check-in : scanner un QR billet et marquer l'entrée
+app.post('/api/tickets/checkin', authMiddleware, requireRole('admin','delegue','secretaire','tresoriere'), (req, res) => {
+  const { qr_data, activity_id } = req.body;
+  if (!qr_data) return res.status(400).json({ error: 'QR data manquant' });
+
+  const ticket = db.prepare(`
+    SELECT t.*, a.titre AS activite, a.id AS act_id,
+      at.numero AS table_numero,
+      v.prenom || ' ' || v.nom AS vendeur_nom,
+      b.prenom AS buyer_prenom, b.nom AS buyer_nom
+    FROM tickets t
+    LEFT JOIN activities a ON a.id = t.activity_id
+    LEFT JOIN activity_tables at ON at.id = t.table_id
+    LEFT JOIN users v ON v.id = t.vendu_par
+    LEFT JOIN users b ON b.id = t.user_id
+    WHERE t.qr_data = ? AND t.statut = 'actif'
+  `).get(qr_data);
+
+  if (!ticket) return res.status(404).json({ error: 'Billet introuvable — QR invalide ou annulé' });
+  if (activity_id && ticket.act_id !== parseInt(activity_id)) {
+    return res.status(409).json({ error: `Ce billet est pour l'activité : ${ticket.activite}` });
+  }
+
+  const alreadyIn = ticket.checked_in === 1;
+  if (!alreadyIn) {
+    db.prepare('UPDATE tickets SET checked_in=1, date_checkin=CURRENT_TIMESTAMP WHERE id=?').run(ticket.id);
+  }
+
+  res.json({
+    ok: true,
+    already_checked_in: alreadyIn,
+    nom: ticket.acheteur_nom || ((ticket.buyer_prenom||'') + ' ' + (ticket.buyer_nom||'')).trim(),
+    table_numero: ticket.table_numero,
+    activite: ticket.activite,
+    vendeur_nom: ticket.vendeur_nom,
+    vendu_en_ligne: !ticket.vendu_par,
+    prix: ticket.prix,
+    date_checkin: alreadyIn ? ticket.date_checkin : new Date().toISOString()
+  });
+});
+
 // Rapport ventes par membre comité pour une activité
 app.get('/api/activities/:id/tickets/report', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const act = db.prepare('SELECT titre FROM activities WHERE id = ?').get(req.params.id);

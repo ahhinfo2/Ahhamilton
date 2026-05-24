@@ -65,6 +65,9 @@ try { db.exec('ALTER TABLE activity_registrations ADD COLUMN paye INTEGER DEFAUL
 try { db.exec('ALTER TABLE activity_registrations ADD COLUMN montant_paye REAL DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE activity_registrations ADD COLUMN date_paiement TEXT'); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN plan_paid_month TEXT'); } catch {}  // 'YYYY-MM' du dernier paiement approuvé
+// Billets : champ check-in
+try { db.exec('ALTER TABLE tickets ADD COLUMN checked_in INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE tickets ADD COLUMN date_checkin TEXT'); } catch {}
 // Projets avec budget et ligne financière
 try { db.exec('ALTER TABLE projects ADD COLUMN budget_prevu REAL DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE projects ADD COLUMN notes TEXT'); } catch {}
