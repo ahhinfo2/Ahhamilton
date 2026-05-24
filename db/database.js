@@ -459,28 +459,27 @@ function init() {
     console.log('✅ Comptes initiaux créés (mot de passe: AHH2026!)');
   }
 
-  // ── Comptes membres mamb1–mamb7 ──────────────────────────────────────
-  const existingMamb = db.prepare("SELECT id FROM users WHERE email = 'mamb1@ahhamilton.ca'").get();
-  if (!existingMamb) {
-    const hashM = bcrypt.hashSync('mamb123456', 10);
-    const insertM = db.prepare(`INSERT INTO users (prenom, nom, email, password_hash, role) VALUES (?,?,?,?,'member')`);
-    const prénoms = ['Marie', 'Jean', 'Rose', 'Paul', 'Sandra', 'Michel'];
-    const noms    = ['Dupont', 'Pierre', 'Laurent', 'Dumont', 'Éloi', 'Joseph'];
-    for (let i = 1; i <= 6; i++) {
-      insertM.run(prénoms[i-1], noms[i-1], `mamb${i}@ahhamilton.ca`, hashM);
-    }
-    console.log('✅ Comptes mamb1–mamb6 créés (mot de passe: mamb123456)');
-  }
-  // mamb7 — compte de test plan bienfaiteur
-  const existingMamb7 = db.prepare("SELECT id FROM users WHERE email = 'mamb7@ahhamilton.ca'").get();
-  if (!existingMamb7) {
-    const hashM7 = bcrypt.hashSync('mamb123456', 10);
-    db.prepare(`INSERT INTO users (prenom, nom, email, password_hash, role, plan) VALUES (?,?,?,?,'member','bienfaiteur')`)
-      .run('Lesly', 'Rénovation', 'mamb7@ahhamilton.ca', hashM7);
-    console.log('✅ Compte mamb7 créé (bienfaiteur, mot de passe: mamb123456)');
-  }
-  // Mettre mamb6 en plan bienfaiteur pour les tests
-  db.prepare("UPDATE users SET plan = 'bienfaiteur' WHERE email = 'mamb6@ahhamilton.ca' AND plan = 'gratuit'").run();
+  // ── Comptes membres mamb1–mamb9 ──────────────────────────────────────
+  const MAMB_PWD = 'mam123456';
+  const hashMamb = bcrypt.hashSync(MAMB_PWD, 10);
+  const mambData = [
+    { i:1, prenom:'Marie',   nom:'Dupont',    plan:'gratuit'     },
+    { i:2, prenom:'Jean',    nom:'Pierre',    plan:'gratuit'     },
+    { i:3, prenom:'Rose',    nom:'Laurent',   plan:'gratuit'     },
+    { i:4, prenom:'Paul',    nom:'Dumont',    plan:'gratuit'     },
+    { i:5, prenom:'Sandra',  nom:'Éloi',      plan:'gratuit'     },
+    { i:6, prenom:'Michel',  nom:'Joseph',    plan:'bienfaiteur' },
+    { i:7, prenom:'Lesly',   nom:'Rénovation',plan:'bienfaiteur' },
+    { i:8, prenom:'Claire',  nom:'Baptiste',  plan:'gratuit'     },
+    { i:9, prenom:'Marc',    nom:'Henri',     plan:'gratuit'     },
+  ];
+  const insertM = db.prepare(`INSERT OR IGNORE INTO users (prenom, nom, email, password_hash, role, plan) VALUES (?,?,?,?,'member',?)`);
+  mambData.forEach(m => insertM.run(m.prenom, m.nom, `mamb${m.i}@ahhamilton.ca`, hashMamb, m.plan));
+  // Forcer le mot de passe correct sur tous les comptes mamb (corrige les anciens hashes)
+  mambData.forEach(m => {
+    db.prepare("UPDATE users SET password_hash = ? WHERE email = ?").run(hashMamb, `mamb${m.i}@ahhamilton.ca`);
+  });
+  console.log('✅ Comptes mamb1–mamb9 synchronisés (mot de passe: mam123456)');
 
   // ── Salons de chat par défaut ──────────────────────────────────────────
   const existingRoom = db.prepare("SELECT id FROM chat_rooms WHERE type = 'general'").get();
