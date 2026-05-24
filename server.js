@@ -270,8 +270,30 @@ app.patch('/api/inscriptions/:id/refuser', authMiddleware, requireRole('admin','
 app.get('/api/auth/me', authMiddleware, (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  const inSubcommittee = !!db.prepare('SELECT id FROM sub_committee_members WHERE user_id = ?').get(req.user.id);
   const { password_hash, ...safe } = user;
-  res.json(safe);
+  res.json({ ...safe, in_subcommittee: inSubcommittee });
+});
+
+// ── Calendrier membre ──────────────────────────────────────────────────────
+app.get('/api/activities/my-calendar', authMiddleware, (req, res) => {
+  const registered = db.prepare(`
+    SELECT a.id, a.titre, a.date_debut, a.lieu, a.type, 'inscrit' AS status
+    FROM activities a
+    JOIN activity_registrations ar ON ar.activity_id = a.id
+    WHERE ar.user_id = ? AND a.statut IN ('planifiee','en_cours','terminee')
+  `).all(req.user.id);
+
+  const registeredIds = registered.map(r => r.id);
+  const placeholders = registeredIds.length ? registeredIds.map(() => '?').join(',') : '0';
+  const publicActs = db.prepare(`
+    SELECT id, titre, date_debut, lieu, type, 'public' AS status
+    FROM activities
+    WHERE statut IN ('planifiee','en_cours') AND id NOT IN (${placeholders})
+    ORDER BY date_debut ASC LIMIT 30
+  `).all(...registeredIds);
+
+  res.json([...registered, ...publicActs]);
 });
 
 app.put('/api/auth/password', authMiddleware, (req, res) => {

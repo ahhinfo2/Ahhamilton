@@ -196,7 +196,7 @@ function buildSidebar() {
       label: 'Rapports',
       items: [
         { id:'reports', icon:'◆', label:'Rapports', roles:STAFF },
-        { id:'letters', icon:'◎', label:'Lettres',  roles:['admin','secretaire','member'] },
+        { id:'letters', icon:'◎', label:'Lettres',  roles:['admin','secretaire'] },
       ]
     },
 
@@ -230,6 +230,28 @@ function buildSidebar() {
     },
   ];
 
+  // Membres réguliers → sidebar épurée définie ici, sections ignorées
+  if (USER.role === 'member') {
+    const memberItems = [
+      { id:'home',         icon:'⊞', label:'Tableau de bord' },
+      { id:'mes_billets',  icon:'🎟', label:'Mes billets' },
+      USER.in_subcommittee ? { id:'subcommittees', icon:'◐', label:'Sous-comités' } : null,
+      ['bienfaiteur','partenaire'].includes(USER.plan) ? { id:'mes_talents',  icon:'◈', label:'Mon talent' }   : null,
+      ['bienfaiteur','partenaire'].includes(USER.plan) ? { id:'mes_annonces', icon:'◉', label:'Mes annonces' } : null,
+      { id:'annuaire',     icon:'✉️', label:'Courriel' },
+      { id:'profile',      icon:'◎', label:'Mon profil' },
+    ].filter(Boolean);
+
+    nav.innerHTML = memberItems.map(i => `
+      <div class="nav-item" data-view="${i.id}" onclick="showView('${i.id}')">
+        <span class="nav-icon">${i.icon}</span>
+        <span class="nav-label">${i.label}</span>
+      </div>`).join('');
+    if (window.AHH_LANG) AHH_LANG.apply();
+    return;
+  }
+
+  // Comité & admin → sidebar complète
   nav.innerHTML = sections.map(section => {
     const visibleItems = section.items.filter(i => {
       if (!i.roles.includes(USER.role)) return false;
@@ -265,7 +287,11 @@ function setActiveNav(viewId) {
 }
 
 function renderUserChip() {
-  document.getElementById('userChip').textContent = `${USER.prenom} · ${roleName(USER.role)}`;
+  const planLabel = { gratuit:'Gratuit', bienfaiteur:'Bienfaiteur', partenaire:'Partenaire' };
+  const chipText = USER.role === 'member'
+    ? `${USER.prenom} · ${planLabel[USER.plan] || 'Gratuit'}`
+    : `${USER.prenom} · ${roleName(USER.role)}`;
+  document.getElementById('userChip').textContent = chipText;
   const nameEl = document.getElementById('siteNavName');
   if (nameEl) nameEl.textContent = `${USER.prenom} ${USER.nom}`;
   const logoutStrip = document.getElementById('siteNavLogout');
@@ -362,6 +388,9 @@ async function showView(viewId) {
 
 // ══ HOME ════════════════════════════════════════════════════════════════════
 async function home() {
+  // Membres → afficher le calendrier personnalisé
+  if (USER.role === 'member') { await memberHome(); return; }
+
   const stats    = await api('/stats');
   const alerts   = await api('/alerts');
   const upcoming = stats.prochaines_activites || [];
@@ -373,7 +402,6 @@ async function home() {
     can.adminOrSec() ? { icon:'🤝', label:'Heures bénévolat', action:"showView('volunteer')" } : null,
     can.adminOrSec() ? { icon:'🖼️', label:'Gérer la galerie', action:"showView('gallery_mgmt')" } : null,
     can.adminOrTre() ? { icon:'💰', label:'Voir la finance', action:"showView('finance')" } : null,
-    { icon:'📝', label:'Prendre des notes', action:"showView('notes')" },
   ].filter(Boolean);
 
   setContent(`
@@ -470,6 +498,155 @@ async function home() {
         </tr>`).join('')}</tbody>
       </table></div>
     </div>` : ''}
+  `);
+}
+
+// ══ HOME MEMBRE ═══════════════════════════════════════════════════════════════
+async function memberHome() {
+  const [calActs, stats] = await Promise.all([
+    api('/activities/my-calendar'),
+    api('/stats')
+  ]);
+  const planLabel = { gratuit:'Gratuit', bienfaiteur:'Bienfaiteur', partenaire:'Partenaire' };
+
+  setContent(`
+    <div class="home-greeting">
+      <div class="home-greeting-text">
+        <h2>Bonjour, <span style="color:var(--g3)">${USER.prenom}</span> 👋</h2>
+        <p>Bienvenue dans votre espace AHH · <strong>${planLabel[USER.plan] || 'Gratuit'}</strong></p>
+      </div>
+      <div style="font-size:2.8rem">🌟</div>
+    </div>
+
+    <div class="cards-grid" style="margin-bottom:28px">
+      <div class="stat-card">
+        <div class="sc-icon">🎉</div>
+        <div class="sc-value">${calActs.filter(a=>a.status==='inscrit').length}</div>
+        <div class="sc-label">Mes activités</div>
+      </div>
+      <div class="stat-card ${stats.messages_non_lus > 0 ? 'has-notif' : ''}">
+        <div class="sc-icon">✉️</div>
+        <div class="sc-value">${stats.messages_non_lus}</div>
+        <div class="sc-label">Messages non lus</div>
+      </div>
+      <div class="stat-card">
+        <div class="sc-icon">🏷️</div>
+        <div class="sc-value">${planLabel[USER.plan] || 'Gratuit'}</div>
+        <div class="sc-label">Mon abonnement</div>
+      </div>
+    </div>
+
+    <div class="table-card" style="margin-bottom:20px">
+      <div class="table-card-header">
+        <h3>📅 Mon calendrier</h3>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-sm btn-ghost" onclick="calNav(-1)">‹</button>
+          <span id="calMonthLabel" style="font-weight:700;min-width:140px;text-align:center"></span>
+          <button class="btn btn-sm btn-ghost" onclick="calNav(1)">›</button>
+        </div>
+      </div>
+      <div id="memberCal" style="padding:16px"></div>
+      <div style="padding:8px 16px;display:flex;gap:16px;font-size:.75rem;color:var(--muted)">
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--g2);margin-right:4px"></span>Inscrit</span>
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#1565c0;margin-right:4px"></span>Disponible</span>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-card-header"><h3>🎟 Mes prochaines activités</h3></div>
+      <div style="padding:8px 16px">
+        ${calActs.filter(a=>a.status==='inscrit').length ? calActs.filter(a=>a.status==='inscrit').map(a=>`
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)">
+            <div style="width:38px;height:38px;border-radius:10px;background:var(--g2);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;flex-shrink:0;text-align:center;line-height:1.1">
+              ${a.date_debut ? new Date(a.date_debut).getDate()+'<br>'+new Date(a.date_debut).toLocaleDateString('fr-CA',{month:'short'}) : '–'}
+            </div>
+            <div><strong style="font-size:.88rem">${a.titre}</strong>${a.lieu?`<div style="font-size:.76rem;color:var(--muted)">📍 ${a.lieu}</div>`:''}</div>
+          </div>`).join('')
+        : '<div class="empty-state" style="padding:24px"><div class="es-icon">📅</div><p>Aucune activité inscrite</p></div>'}
+      </div>
+    </div>
+  `);
+
+  window._calActs = calActs;
+  window._calYear = new Date().getFullYear();
+  window._calMonth = new Date().getMonth();
+  renderMemberCal();
+}
+
+function calNav(dir) {
+  window._calMonth += dir;
+  if (window._calMonth < 0) { window._calMonth = 11; window._calYear--; }
+  if (window._calMonth > 11) { window._calMonth = 0; window._calYear++; }
+  renderMemberCal();
+}
+
+function renderMemberCal() {
+  const year = window._calYear, month = window._calMonth;
+  const acts = window._calActs || [];
+  const MOIS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  document.getElementById('calMonthLabel').textContent = `${MOIS[month]} ${year}`;
+
+  // Grouper activités par jour
+  const byDay = {};
+  acts.forEach(a => {
+    if (!a.date_debut) return;
+    const d = new Date(a.date_debut);
+    if (d.getFullYear() === year && d.getMonth() === month) {
+      const k = d.getDate();
+      if (!byDay[k]) byDay[k] = [];
+      byDay[k].push(a);
+    }
+  });
+
+  const firstDay = new Date(year, month, 1).getDay(); // 0=dim
+  const startOffset = (firstDay + 6) % 7; // Lundi=0
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const today = new Date();
+  const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
+
+  let html = '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">';
+  ['L','M','M','J','V','S','D'].forEach(d => {
+    html += `<div style="text-align:center;font-size:.7rem;font-weight:700;color:var(--muted);padding:4px 0">${d}</div>`;
+  });
+
+  for (let i = 0; i < startOffset; i++) html += '<div></div>';
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const isToday = isCurrentMonth && today.getDate() === day;
+    const dayActs = byDay[day] || [];
+    const dots = dayActs.slice(0, 3).map(a =>
+      `<div style="width:6px;height:6px;border-radius:50%;background:${a.status==='inscrit'?'var(--g2)':'#1565c0'};margin:0 1px;flex-shrink:0"></div>`
+    ).join('');
+    const onclick = dayActs.length ? `onclick="showCalDay(${day},${month},${year})"` : '';
+    html += `<div ${onclick} style="min-height:52px;border-radius:8px;padding:4px;background:${isToday?'var(--g2)':dayActs.length?'#f0f8f0':'var(--off)'};cursor:${dayActs.length?'pointer':'default'};border:1px solid ${isToday?'var(--g2)':dayActs.length?'var(--border)':'transparent'};transition:.15s" title="${dayActs.map(a=>a.titre).join(', ')}">
+      <div style="font-size:.78rem;font-weight:${isToday?'800':'600'};color:${isToday?'#fff':'var(--text)'};">${day}</div>
+      <div style="display:flex;flex-wrap:wrap;margin-top:3px">${dots}</div>
+    </div>`;
+  }
+  html += '</div>';
+  document.getElementById('memberCal').innerHTML = html;
+}
+
+function showCalDay(day, month, year) {
+  const acts = (window._calActs || []).filter(a => {
+    if (!a.date_debut) return false;
+    const d = new Date(a.date_debut);
+    return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day;
+  });
+  const MOIS = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
+  openModal(`📅 ${day} ${MOIS[month]} ${year}`, `
+    <div style="display:flex;flex-direction:column;gap:12px">
+      ${acts.map(a => `
+        <div style="padding:14px;border-radius:12px;border-left:4px solid ${a.status==='inscrit'?'var(--g2)':'#1565c0'};background:var(--off)">
+          <div style="font-weight:700;font-size:.92rem">${a.titre}</div>
+          ${a.lieu ? `<div style="font-size:.8rem;color:var(--muted);margin-top:4px">📍 ${a.lieu}</div>` : ''}
+          <div style="margin-top:6px">
+            <span style="font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:50px;background:${a.status==='inscrit'?'#e8f5e9':'#e3f2fd'};color:${a.status==='inscrit'?'var(--g2)':'#1565c0'}">
+              ${a.status === 'inscrit' ? '✓ Inscrit' : '• Disponible'}
+            </span>
+          </div>
+        </div>`).join('')}
+    </div>
   `);
 }
 
@@ -3137,7 +3314,9 @@ async function profile() {
       <div class="profile-info">
         <h3>${u.prenom} ${u.nom}</h3>
         <span class="role-tag">${roleName(u.role)}</span>
+        ${u.role === 'member' ? `<span class="role-tag" style="background:${u.plan==='partenaire'?'#1b5e20':u.plan==='bienfaiteur'?'#e65100':'#37474f'};margin-left:6px">${{gratuit:'Gratuit',bienfaiteur:'Bienfaiteur',partenaire:'Partenaire'}[u.plan]||'Gratuit'}</span>` : ''}
         <div class="info-grid">
+          ${u.role === 'member' ? `<div class="info-item"><label>Type d'adhésion</label><span><strong>${{gratuit:'Membre Gratuit',bienfaiteur:'Bienfaiteur',partenaire:'Partenaire'}[u.plan]||'Gratuit'}</strong></span></div>` : ''}
           <div class="info-item"><label>Email</label><span>${u.email}</span></div>
           <div class="info-item"><label>Téléphone</label><span>${u.telephone||'–'}</span></div>
           <div class="info-item"><label>Adresse</label><span>${u.adresse||'–'}</span></div>
