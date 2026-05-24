@@ -475,9 +475,15 @@ function init() {
   ];
   const insertM = db.prepare(`INSERT OR IGNORE INTO users (prenom, nom, email, password_hash, role, plan) VALUES (?,?,?,?,'member',?)`);
   mambData.forEach(m => insertM.run(m.prenom, m.nom, `mamb${m.i}@ahhamilton.ca`, hashMamb, m.plan));
-  // Forcer le mot de passe correct sur tous les comptes mamb (corrige les anciens hashes)
+  // Forcer le mot de passe ET actif=1 sur tous les comptes mamb (corrige anciens hashes et comptes désactivés)
   mambData.forEach(m => {
-    db.prepare("UPDATE users SET password_hash = ? WHERE email = ?").run(hashMamb, `mamb${m.i}@ahhamilton.ca`);
+    const existing = db.prepare("SELECT id FROM users WHERE email = ?").get(`mamb${m.i}@ahhamilton.ca`);
+    if (existing) {
+      db.prepare("UPDATE users SET password_hash = ?, actif = 1 WHERE email = ?").run(hashMamb, `mamb${m.i}@ahhamilton.ca`);
+      console.log(`  ↳ mamb${m.i} mis à jour`);
+    } else {
+      console.log(`  ↳ mamb${m.i} introuvable après INSERT, vérifier DB`);
+    }
   });
   console.log('✅ Comptes mamb1–mamb9 synchronisés (mot de passe: mam123456)');
 
