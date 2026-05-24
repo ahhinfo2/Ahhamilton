@@ -200,6 +200,14 @@ function buildSidebar() {
       ]
     },
 
+    // ── Événements ────────────────────────────────────────────────
+    {
+      label: 'Événements',
+      items: [
+        { id:'scanner', icon:'📷', label:'Scanner billets', roles:['admin','delegue','secretaire','tresoriere'] },
+      ]
+    },
+
     // ── Communication ─────────────────────────────────────────────
     {
       label: 'Communication',
@@ -342,7 +350,8 @@ async function showView(viewId) {
     finance, invoices, messages, volunteer,
     notes, reports, letters, projects, alerts, profile,
     gallery_mgmt, annuaire, talents_mgmt, annonces_mgmt, mes_talents, mes_annonces,
-    inscriptions, paiements, recus, mon_paiement, mes_billets, testimonials_mgmt, videos_mgmt
+    inscriptions, paiements, recus, mon_paiement, mes_billets, testimonials_mgmt, videos_mgmt,
+    scanner
   };
   try {
     await (views[viewId] || home)();
@@ -505,6 +514,7 @@ async function activities() {
                 ${a.statut === 'planifiee' && can.adminOrSec() ? `<button class="btn btn-sm btn-primary" onclick="launchActivity(${a.id},'${a.titre}')">🚀 Lancer</button>` : ''}
                 ${a.paiement_requis ? `<button class="btn btn-sm btn-accent" onclick="viewActivityQR(${a.id},'${a.titre.replace(/'/g,"\\'")}','${a.qr_token||''}')">📱 QR</button>` : ''}
                 <button class="btn btn-sm btn-ghost" title="Tables & Billets" onclick="managerTables(${a.id},'${a.titre.replace(/'/g,"\\'")}')">🪑 Tables</button>
+                <button class="btn btn-sm btn-ghost" title="Scanner les billets" onclick="openScanner(${a.id})">📷 Scanner</button>
                 <button class="btn btn-sm btn-ghost" onclick="viewRegistrations(${a.id},'${a.titre}')">👥</button>
                 <button class="btn btn-sm btn-ghost" onclick="showActivityReport(${a.id})">📊</button>
               ` : ''}
@@ -5083,4 +5093,49 @@ function renderPlanRows(membres, filter) {
 function filterPlansMois() {
   const filter = document.getElementById('planMoisFilter').value;
   document.getElementById('planBody').innerHTML = renderPlanRows(window._plansData || [], filter);
+}
+
+// ══ SCANNER DE BILLETS ══════════════════════════════════════════════════════
+
+async function scanner() {
+  const acts = await api('/activities');
+  const upcoming = acts.filter(a => a.statut !== 'annulee').slice(0, 10);
+  setContent(`
+    <div class="page-header">
+      <div><h2>📷 Scanner les billets</h2><p>Ouvrez la page de scan sur une tablette pour accueillir les participants</p></div>
+    </div>
+    <div style="max-width:560px;margin:0 auto;text-align:center">
+      <div style="background:var(--off);border:1px solid var(--border);border-radius:20px;padding:40px 32px;margin-bottom:24px">
+        <div style="font-size:4rem;margin-bottom:16px">📱</div>
+        <h3 style="font-size:1.2rem;margin-bottom:10px">Page de scan tablette</h3>
+        <p style="color:var(--muted);font-size:.88rem;margin-bottom:24px;line-height:1.7">
+          La page de scan s'ouvre en plein écran sur la tablette.<br>
+          Plusieurs membres du comité peuvent scanner simultanément<br>
+          depuis leur propre appareil.
+        </p>
+        <a href="../scan.html" target="_blank" class="btn btn-primary" style="font-size:1rem;padding:14px 32px">
+          📷 Ouvrir le scanner
+        </a>
+      </div>
+      <div style="background:#fff;border:1px solid var(--border);border-radius:16px;padding:24px 20px">
+        <h4 style="font-size:.95rem;margin-bottom:14px;text-align:left">Ouvrir le scanner pour une activité</h4>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          ${upcoming.map(a => `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--off);border-radius:10px">
+              <div style="text-align:left">
+                <strong style="font-size:.88rem">${a.titre}</strong>
+                <div style="font-size:.76rem;color:var(--muted)">${a.date_debut ? new Date(a.date_debut).toLocaleDateString('fr-CA') : '–'}</div>
+              </div>
+              <a href="../scan.html?activity_id=${a.id}" target="_blank" class="btn btn-sm btn-outline">📷 Scanner</a>
+            </div>
+          `).join('') || '<p style="color:var(--muted);font-size:.85rem">Aucune activité disponible</p>'}
+        </div>
+      </div>
+    </div>
+  `);
+}
+
+function openScanner(actId) {
+  const BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001' : '';
+  window.open(`${BASE_URL}/scan.html?activity_id=${actId}`, '_blank');
 }

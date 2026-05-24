@@ -252,6 +252,9 @@ async function loadActivities() {
       opt.textContent = a.titre + (a.date_debut ? ' — ' + new Date(a.date_debut).toLocaleDateString('fr-CA') : '');
       sel.appendChild(opt);
     });
+    // Auto-select activity from URL param
+    const urlActId = new URLSearchParams(window.location.search).get('activity_id');
+    if (urlActId) sel.value = urlActId;
   } catch(e) {}
 }
 
