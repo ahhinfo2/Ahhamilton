@@ -21,7 +21,7 @@ const Stripe   = require('stripe');
 
 // Créer les dossiers uploads au démarrage
 ['uploads','uploads/gallery','uploads/profiles','uploads/invoices',
- 'uploads/payments','uploads/talents','uploads/annonces','uploads/attachments']
+ 'uploads/payments','uploads/talents','uploads/annonces','uploads/attachments','uploads/activities']
   .forEach(d => { const p = path.join(__dirname, d); if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true }); });
 
 const db = require('./db/database');
@@ -101,6 +101,21 @@ app.post('/api/stripe/webhook', express.raw({ type: '*/*' }), async (req, res) =
       mailer.sendPaiementApprouve(membre, montant, mois).catch(() => {});
     }
 
+    // Auto-générer un reçu fiscal si le montant est >= $1 et le membre est connu
+    if (membre && montant >= 1) {
+      const annee = new Date().getFullYear();
+      const adminId2 = db.prepare("SELECT id FROM users WHERE role='admin' LIMIT 1").get()?.id || 1;
+      // Calculer total annuel incluant ce paiement
+      const totalAnnuel = (db.prepare(`
+        SELECT COALESCE(SUM(montant),0) AS total FROM payments
+        WHERE user_id = ? AND statut = 'approuve' AND strftime('%Y', date_soumission) = ?
+      `).get(membre.id, String(annee))?.total || 0);
+      const contenu = `REÇU FISCAL ${annee}\nAssociation Haïtienne de Hamilton\n231 Fernwood Crescent, Hamilton, ON L8T 3L7\n\nRemis à : ${membre.prenom} ${membre.nom}\nCourriel : ${membre.email}\n\nDons et cotisations approuvés pour ${annee} : $${totalAnnuel.toFixed(2)}\n\nRéférence Stripe : ${ref}\n\nCe reçu confirme les contributions à l'Association Haïtienne de Hamilton pour l'année fiscale ${annee}.`;
+      db.prepare(`INSERT INTO tax_receipts (user_id, annee, montant_total, genere_par, contenu, mode_emission, stripe_payment_id)
+        VALUES (?,?,?,?,?,'stripe',?)`).run(membre.id, annee, totalAnnuel, adminId2, contenu, ref);
+      createAlert(membre.id, 'paiement', `🧾 Reçu fiscal ${annee} disponible`, `Don Stripe $${montant.toFixed(2)} — Total annuel : $${totalAnnuel.toFixed(2)}`);
+    }
+
     console.log(`✅ Stripe don enregistré : ${email} — $${montant}`);
   }
 });
@@ -125,6 +140,17 @@ const galleryStorage = multer.diskStorage({
   filename:    (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
 });
 const uploadGallery = multer({ storage: galleryStorage, limits: { fileSize: 15 * 1024 * 1024 } });
+
+// ── Multer : activity photos ─────────────────────────────────────────────────
+const activityPhotoStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, 'uploads', 'activities', String(req.params.id || 'tmp'));
+    require('fs').mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
+});
+const uploadActivityPhoto = multer({ storage: activityPhotoStorage, limits: { fileSize: 15 * 1024 * 1024 } });
 
 // ── Helper ──────────────────────────────────────────────────────────────────
 function createAlert(destinataireId, type, titre, contenu, sourceId = null) {
@@ -1209,12 +1235,47 @@ app.post('/api/auth/reset-password', (req, res) => {
 
 app.get('/api/activities/public', (req, res) => {
   const rows = db.prepare(`
-    SELECT id, titre, description, type, date_debut, date_fin, lieu, max_participants, statut,
-    (SELECT COUNT(*) FROM activity_registrations WHERE activity_id = activities.id) AS nb_inscrits
+    SELECT id, titre, description, type, date_debut, date_fin, lieu, max_participants, statut, prix, paiement_requis,
+    (SELECT COUNT(*) FROM activity_registrations WHERE activity_id = activities.id) AS nb_inscrits,
+    (SELECT photo_path FROM activity_photos WHERE activity_id = activities.id ORDER BY ordre ASC, id ASC LIMIT 1) AS thumbnail
     FROM activities WHERE statut IN ('planifiee','en_cours')
     ORDER BY date_debut ASC
   `).all();
   res.json(rows);
+});
+
+// ── Activity Photos ───────────────────────────────────────────────────────────
+app.get('/api/activities/:id/photos', (req, res) => {
+  const photos = db.prepare(
+    'SELECT * FROM activity_photos WHERE activity_id = ? ORDER BY ordre ASC, id ASC'
+  ).all(parseInt(req.params.id));
+  res.json(photos);
+});
+
+app.post('/api/activities/:id/photos', authMiddleware, requireRole('admin','secretaire','delegue','tresoriere'),
+  uploadActivityPhoto.array('photos', 20), (req, res) => {
+  const actId = parseInt(req.params.id);
+  const act = db.prepare('SELECT id FROM activities WHERE id = ?').get(actId);
+  if (!act) return res.status(404).json({ error: 'Activité introuvable' });
+  const inserted = [];
+  (req.files || []).forEach((f, i) => {
+    const photoPath = `/uploads/activities/${actId}/${f.filename}`;
+    const r = db.prepare('INSERT INTO activity_photos (activity_id, photo_path, ordre, cree_par) VALUES (?,?,?,?)')
+      .run(actId, photoPath, i, req.user.id);
+    inserted.push({ id: r.lastInsertRowid, photo_path: photoPath });
+  });
+  res.status(201).json(inserted);
+});
+
+app.delete('/api/activity-photos/:id', authMiddleware, requireRole('admin','secretaire','delegue','tresoriere'), (req, res) => {
+  const photo = db.prepare('SELECT * FROM activity_photos WHERE id = ?').get(parseInt(req.params.id));
+  if (!photo) return res.status(404).json({ error: 'Photo introuvable' });
+  try {
+    const fullPath = path.join(__dirname, photo.photo_path);
+    if (require('fs').existsSync(fullPath)) require('fs').unlinkSync(fullPath);
+  } catch {}
+  db.prepare('DELETE FROM activity_photos WHERE id = ?').run(photo.id);
+  res.json({ ok: true });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════

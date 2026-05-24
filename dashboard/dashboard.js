@@ -513,6 +513,7 @@ async function activities() {
                 <button class="btn btn-sm btn-outline" onclick='openActivityForm(${JSON.stringify(a)})'>✏️</button>
                 ${a.statut === 'planifiee' && can.adminOrSec() ? `<button class="btn btn-sm btn-primary" onclick="launchActivity(${a.id},'${a.titre}')">🚀 Lancer</button>` : ''}
                 ${a.paiement_requis ? `<button class="btn btn-sm btn-accent" onclick="viewActivityQR(${a.id},'${a.titre.replace(/'/g,"\\'")}','${a.qr_token||''}')">📱 QR</button>` : ''}
+                <button class="btn btn-sm btn-ghost" title="Photos" onclick="manageActivityPhotos(${a.id},'${a.titre.replace(/'/g,"\\'")}')">🖼</button>
                 <button class="btn btn-sm btn-ghost" title="Tables & Billets" onclick="managerTables(${a.id},'${a.titre.replace(/'/g,"\\'")}')">🪑 Tables</button>
                 <button class="btn btn-sm btn-ghost" title="Scanner les billets" onclick="openScanner(${a.id})">📷 Scanner</button>
                 <button class="btn btn-sm btn-ghost" onclick="viewRegistrations(${a.id},'${a.titre}')">👥</button>
@@ -5138,4 +5139,80 @@ async function scanner() {
 function openScanner(actId) {
   const BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001' : '';
   window.open(`${BASE_URL}/scan.html?activity_id=${actId}`, '_blank');
+}
+
+// ══ PHOTOS PAR ACTIVITÉ ════════════════════════════════════════════════════════
+
+async function manageActivityPhotos(actId, actTitre) {
+  const photos = await api(`/activities/${actId}/photos`);
+
+  function renderPhotos(list) {
+    if (!list.length) return '<p style="color:var(--muted);font-size:.85rem;text-align:center;padding:20px 0">Aucune photo — uploadez votre première photo ci-dessous.</p>';
+    return '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:20px">' +
+      list.map(p => `
+        <div style="position:relative;border-radius:10px;overflow:hidden;aspect-ratio:1;background:#f0f0f0">
+          <img src="${BASE}${p.photo_path}" style="width:100%;height:100%;object-fit:cover" loading="lazy"/>
+          <button onclick="deleteActivityPhoto(${p.id},${actId},'${actTitre.replace(/'/g,"\\'")}',this)"
+            style="position:absolute;top:5px;right:5px;background:rgba(200,0,0,.8);color:#fff;border:none;border-radius:50%;width:26px;height:26px;font-size:.75rem;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>
+        </div>`).join('') +
+    '</div>';
+  }
+
+  openModal(`🖼 Photos — ${actTitre}`, `
+    <div id="actPhotoGrid">${renderPhotos(photos)}</div>
+    <div style="border:2px dashed var(--border);border-radius:12px;padding:24px;text-align:center">
+      <p style="color:var(--muted);font-size:.83rem;margin-bottom:14px">Sélectionnez une ou plusieurs photos (JPG, PNG, max 15 Mo chacune)</p>
+      <input type="file" id="actPhotoInput" accept="image/*" multiple style="display:none"/>
+      <label for="actPhotoInput" class="btn btn-outline" style="cursor:pointer">📁 Choisir des photos</label>
+      <div id="actPhotoPreview" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;justify-content:center"></div>
+      <button id="actPhotoUploadBtn" class="btn btn-primary" style="margin-top:14px;display:none" onclick="uploadActivityPhotos(${actId},'${actTitre.replace(/'/g,"\\'")}')">⬆ Uploader</button>
+    </div>
+  `);
+
+  document.getElementById('actPhotoInput').addEventListener('change', function() {
+    const prev = document.getElementById('actPhotoPreview');
+    const btn  = document.getElementById('actPhotoUploadBtn');
+    prev.innerHTML = '';
+    Array.from(this.files).forEach(f => {
+      const img = document.createElement('img');
+      img.src = URL.createObjectURL(f);
+      img.style.cssText = 'width:80px;height:80px;object-fit:cover;border-radius:8px;border:2px solid var(--border)';
+      prev.appendChild(img);
+    });
+    btn.style.display = this.files.length ? 'inline-flex' : 'none';
+  });
+}
+
+async function uploadActivityPhotos(actId, actTitre) {
+  const input = document.getElementById('actPhotoInput');
+  const btn = document.getElementById('actPhotoUploadBtn');
+  if (!input.files.length) return;
+  btn.disabled = true; btn.textContent = 'Upload en cours…';
+  const fd = new FormData();
+  Array.from(input.files).forEach(f => fd.append('photos', f));
+  try {
+    await fetch(`${API}/activities/${actId}/photos`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${TOKEN}` },
+      body: fd
+    });
+    toast('Photos uploadées !');
+    manageActivityPhotos(actId, actTitre);
+  } catch(e) {
+    toast('Erreur lors de l\'upload', true);
+    btn.disabled = false; btn.textContent = '⬆ Uploader';
+  }
+}
+
+async function deleteActivityPhoto(photoId, actId, actTitre, btn) {
+  if (!confirm('Supprimer cette photo ?')) return;
+  btn.disabled = true;
+  try {
+    await api(`/activity-photos/${photoId}`, { method: 'DELETE' });
+    toast('Photo supprimée');
+    manageActivityPhotos(actId, actTitre);
+  } catch(e) {
+    toast('Erreur', true);
+    btn.disabled = false;
+  }
 }

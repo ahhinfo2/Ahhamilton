@@ -169,6 +169,18 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS videos (
   date_creation TEXT DEFAULT CURRENT_TIMESTAMP
 )`); } catch {}
 
+try { db.exec(`CREATE TABLE IF NOT EXISTS activity_photos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  activity_id INTEGER NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+  photo_path TEXT NOT NULL,
+  ordre INTEGER DEFAULT 0,
+  cree_par INTEGER REFERENCES users(id),
+  date_upload TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
+try { db.exec('ALTER TABLE tax_receipts ADD COLUMN mode_emission TEXT DEFAULT \'manuel\''); } catch {}
+try { db.exec('ALTER TABLE tax_receipts ADD COLUMN stripe_payment_id TEXT'); } catch {}
+
 function init() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (

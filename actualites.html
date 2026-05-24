@@ -57,6 +57,20 @@
     .events-empty { text-align: center; padding: 48px; }
     .events-empty .ee-icon { font-size: 3rem; margin-bottom: 12px; }
     @media(max-width:600px){ .events-grid { grid-template-columns: 1fr; } }
+    /* ── Activity photo thumbnail ── */
+    .event-thumb { width:100%; height:160px; object-fit:cover; display:block; cursor:pointer; }
+    .event-thumb-placeholder { height:140px; display:flex; align-items:center; justify-content:center; font-size:3.5rem; position:relative; }
+    /* ── Lightbox ── */
+    #actLightbox { display:none; position:fixed; inset:0; background:rgba(0,0,0,.92); z-index:9999; align-items:center; justify-content:center; flex-direction:column; }
+    #actLightbox.open { display:flex; }
+    #actLbImg { max-width:92vw; max-height:80vh; border-radius:10px; object-fit:contain; box-shadow:0 8px 40px rgba(0,0,0,.5); }
+    .lb-close { position:absolute; top:18px; right:24px; font-size:2rem; color:#fff; cursor:pointer; z-index:10; line-height:1; }
+    .lb-nav { position:absolute; top:50%; transform:translateY(-50%); font-size:2.5rem; color:#fff; cursor:pointer; background:rgba(0,0,0,.35); border-radius:50%; width:52px; height:52px; display:flex; align-items:center; justify-content:center; user-select:none; transition:.2s; }
+    .lb-nav:hover { background:rgba(0,0,0,.6); }
+    #lbPrev { left:16px; }
+    #lbNext { right:16px; }
+    #lbCounter { color:rgba(255,255,255,.6); font-size:.82rem; margin-top:10px; }
+    #lbCaption { color:#fff; font-size:.88rem; margin-top:6px; font-weight:600; }
   </style>
 </head>
 <body>
@@ -144,6 +158,16 @@
     </div>
   </section>
 
+  <!-- Lightbox activité -->
+  <div id="actLightbox">
+    <span class="lb-close" onclick="closeLightbox()">✕</span>
+    <div class="lb-nav" id="lbPrev" onclick="lbNav(-1)">‹</div>
+    <img id="actLbImg" src="" alt="Photo activité"/>
+    <div class="lb-nav" id="lbNext" onclick="lbNav(1)">›</div>
+    <div id="lbCounter"></div>
+    <div id="lbCaption"></div>
+  </div>
+
   <script src="script.js"></script>
   <script src="_lang.js"></script>
   <script src="_nav.js"></script>
@@ -151,6 +175,7 @@
   <script src="casl-consent.js"></script>
   <script>
     const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001/api' : '/api';
+    const BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001' : '';
 
     const TYPE_ICONS = {
       culturel:  { icon: '🌺', gradient: 'linear-gradient(135deg,#1b5e20,#43a047)', emoji: '🇭🇹' },
@@ -172,6 +197,52 @@
       };
     }
 
+    // activityPhotos cache: { [actId]: [ {id, photo_path}, ... ] }
+    var activityPhotos = {};
+    var lbPhotos = [];
+    var lbIdx = 0;
+
+    function openLightbox(photos, idx, titre) {
+      lbPhotos = photos;
+      lbIdx = idx;
+      showLbPhoto(titre);
+      document.getElementById('actLightbox').classList.add('open');
+    }
+    function closeLightbox() {
+      document.getElementById('actLightbox').classList.remove('open');
+    }
+    function showLbPhoto(titre) {
+      document.getElementById('actLbImg').src = BASE_URL + lbPhotos[lbIdx].photo_path;
+      document.getElementById('lbCounter').textContent = (lbIdx + 1) + ' / ' + lbPhotos.length;
+      document.getElementById('lbCaption').textContent = titre || '';
+      document.getElementById('lbPrev').style.display = lbPhotos.length > 1 ? 'flex' : 'none';
+      document.getElementById('lbNext').style.display = lbPhotos.length > 1 ? 'flex' : 'none';
+    }
+    function lbNav(dir) {
+      lbIdx = (lbIdx + dir + lbPhotos.length) % lbPhotos.length;
+      var cap = document.getElementById('lbCaption').textContent;
+      showLbPhoto(cap);
+    }
+    document.addEventListener('keydown', function(e) {
+      var lb = document.getElementById('actLightbox');
+      if (!lb.classList.contains('open')) return;
+      if (e.key === 'ArrowLeft') lbNav(-1);
+      if (e.key === 'ArrowRight') lbNav(1);
+      if (e.key === 'Escape') closeLightbox();
+    });
+    document.getElementById('actLightbox').addEventListener('click', function(e) {
+      if (e.target === this) closeLightbox();
+    });
+
+    async function loadActivityPhotos(actId) {
+      if (activityPhotos[actId] !== undefined) return activityPhotos[actId];
+      try {
+        var r = await fetch(API_URL + '/activities/' + actId + '/photos');
+        activityPhotos[actId] = await r.json();
+      } catch(e) { activityPhotos[actId] = []; }
+      return activityPhotos[actId];
+    }
+
     function renderCard(ev) {
       const t = TYPE_ICONS[ev.type] || TYPE_ICONS.general;
       const d = formatDate(ev.date_debut);
@@ -187,27 +258,51 @@
       const dateStr  = ev.date_debut ? '📅 ' + new Date(ev.date_debut).toLocaleDateString('fr-CA') : '';
       const lieuStr  = ev.lieu ? '📍 ' + ev.lieu : '';
       const desc     = ev.description || 'Rejoignez-nous pour cet événement communautaire.';
+      const prixStr  = ev.paiement_requis && ev.prix > 0 ? '<span>💳 ' + ev.prix.toFixed(2) + ' $</span>' : '';
 
-      return '<div class="event-card" data-type="' + ev.type + '" data-reveal>' +
-        '<div class="event-header" style="background:' + t.gradient + '">' +
+      // Header: photo thumbnail if available, otherwise emoji gradient
+      var headerHtml;
+      if (ev.thumbnail) {
+        headerHtml = '<div class="event-thumb-wrap" style="position:relative;cursor:pointer" onclick="openActPhotos(' + ev.id + ',\'' + (ev.titre||'').replace(/'/g,"\\'") + '\')">' +
+          '<img class="event-thumb" src="' + BASE_URL + ev.thumbnail + '" alt="' + (ev.titre||'') + '" loading="lazy"/>' +
+          '<span class="event-cat-tag">' + t.icon + ' ' + typeLabel + '</span>' +
+          '<div class="event-date-badge">' +
+            '<div class="day">' + d.day + '</div>' +
+            '<div class="month">' + d.month + '</div>' +
+          '</div>' +
+          '<div style="position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,.5);color:#fff;font-size:.7rem;padding:3px 8px;border-radius:50px">🖼 Photos</div>' +
+        '</div>';
+      } else {
+        headerHtml = '<div class="event-header" style="background:' + t.gradient + '">' +
           t.emoji +
           '<span class="event-cat-tag">' + t.icon + ' ' + typeLabel + '</span>' +
           '<div class="event-date-badge">' +
             '<div class="day">' + d.day + '</div>' +
             '<div class="month">' + d.month + '</div>' +
           '</div>' +
-        '</div>' +
+        '</div>';
+      }
+
+      return '<div class="event-card" data-type="' + ev.type + '" data-reveal>' +
+        headerHtml +
         '<div class="event-body">' +
           '<h3>' + ev.titre + '</h3>' +
           '<div class="event-meta">' +
             (dateStr ? '<span>' + dateStr + '</span>' : '') +
             (lieuStr ? '<span>' + lieuStr + '</span>' : '') +
             '<span>' + spots + '</span>' +
+            prixStr +
           '</div>' +
           '<p>' + desc + '</p>' +
           btnHtml +
         '</div>' +
       '</div>';
+    }
+
+    async function openActPhotos(actId, titre) {
+      const photos = await loadActivityPhotos(actId);
+      if (!photos || !photos.length) return;
+      openLightbox(photos, 0, titre);
     }
 
     function renderGrid() {
