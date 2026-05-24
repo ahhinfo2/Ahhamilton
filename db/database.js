@@ -29,7 +29,21 @@ if (process.env.DB_PATH) {
   if (!fs2.existsSync(DB_DIR)) fs2.mkdirSync(DB_DIR, { recursive: true });
   DB_PATH = path.join(DB_DIR, 'ahh.db');
 }
-const db = new Database(DB_PATH);
+// Ouvrir la DB avec retry si elle est lockée au démarrage
+let db;
+for (let attempt = 1; attempt <= 10; attempt++) {
+  try {
+    db = new Database(DB_PATH);
+    db.exec('PRAGMA journal_mode = WAL');
+    db.exec('PRAGMA busy_timeout = 10000');
+    break;
+  } catch (e) {
+    if (attempt === 10) throw e;
+    console.warn(`[DB] Tentative ${attempt}/10 — base verrouillée, attente 2s...`);
+    // Attente synchrone (on est au chargement du module, avant Express)
+    const t = Date.now(); while (Date.now() - t < 2000) {}
+  }
+}
 
 db.exec('PRAGMA foreign_keys = ON');
 // Migrations silencieuses

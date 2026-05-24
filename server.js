@@ -2616,6 +2616,15 @@ app.use((req, res) => {
   res.status(404).sendFile(path.join(__dirname, '404.html'));
 });
 
+// ── Fermeture propre de la DB à l'arrêt ────────────────────────────────────
+function gracefulShutdown(signal) {
+  console.log(`\n[${signal}] Fermeture propre en cours...`);
+  try { db.close(); console.log('[DB] Base de données fermée.'); } catch {}
+  process.exit(0);
+}
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
+
 // ── Start ───────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`\n✅ AHH Server démarré sur http://localhost:${PORT}`);
