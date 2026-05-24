@@ -223,7 +223,8 @@
 
   (async function loadGallery() {
     try {
-      var res = await fetch('http://localhost:3001/api/gallery');
+      var BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001' : '';
+      var res = await fetch(BASE + '/api/gallery');
       if (!res.ok) return;
       var photos = await res.json();
       if (!photos.length) return;
@@ -232,7 +233,7 @@
 
       // Construire la liste pour le lightbox des photos récentes
       var recentPhotos = photos.map(function(p) {
-        return { src: 'http://localhost:3001' + p.photo_path, caption: p.titre || '' };
+        return { src: BASE + p.photo_path, caption: p.titre || '' };
       });
 
       // Grouper : catégorie → album (titre) → photos
@@ -264,7 +265,7 @@
           '</div>';
           html += '<div class="gal-album-grid">';
           albumPhotos.forEach(function(p) {
-            var src = 'http://localhost:3001' + p.photo_path;
+            var src = BASE + p.photo_path;
             var cap = (p.titre || '').replace(/'/g, "\\'");
             html += '<div class="gallery-item gal-recent-item" data-src="' + src + '" data-cap="' + cap + '" ' +
               'style="height:200px;border-radius:14px;overflow:hidden;position:relative;cursor:zoom-in;background:#1b5e20">' +

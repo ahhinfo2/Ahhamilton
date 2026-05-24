@@ -172,7 +172,7 @@
     navLinks.querySelectorAll('a').forEach(a => a.addEventListener('click', closeMenu));
   </script>
   <script>
-    const API = 'http://localhost:3001/api';
+    const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001/api' : '/api';
     document.getElementById('regForm').addEventListener('submit', async e => {
       e.preventDefault();
       const btn = document.getElementById('regBtn');

@@ -108,7 +108,8 @@
   <script src="nav-auth.js"></script>
   <script src="casl-consent.js"></script>
   <script>
-    const API = 'http://localhost:3001/api';
+    const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001/api' : '/api';
+    const BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001' : '';
 
     const CAT_META = {
       construction: { label:'Construction & Rénovation', emoji:'🔨' },
@@ -130,7 +131,7 @@
     function renderTalent(t) {
       const cat = CAT_META[t.categorie] || { emoji: '✨', label: t.categorie };
       const photoHtml = t.photo_path
-        ? '<img src="http://localhost:3001' + t.photo_path + '" alt="' + t.nom + '" onerror="this.style.display=\'none\'"/>'
+        ? '<img src="' + BASE + t.photo_path + '" alt="' + t.nom + '" onerror="this.style.display=\'none\'"/>'
         : '<span>' + cat.emoji + '</span>';
 
       return '<div class="tal-card">' +

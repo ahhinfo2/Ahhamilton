@@ -248,7 +248,8 @@
         const msg = 'Type : ' + document.getElementById('adh_type').value + '\n' +
           'Source : ' + document.getElementById('adh_source').value + '\n\n' +
           (document.getElementById('adh_msg').value || '');
-        await fetch('http://localhost:3001/api/contact', {
+        const _API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001/api' : '/api';
+        await fetch(_API + '/contact', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

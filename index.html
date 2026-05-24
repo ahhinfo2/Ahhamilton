@@ -436,7 +436,7 @@
       btn.disabled = true; btn.textContent = 'Envoi en cours…';
       msg.style.display = 'none';
       try {
-        var res = await fetch('http://localhost:3001/api/contact', {
+        var res = await fetch(BASE_API + '/contact', {
           method: 'POST', headers: {'Content-Type':'application/json'},
           body: JSON.stringify({ nom: nom, email: email, sujet: sujet, message: message })
         });

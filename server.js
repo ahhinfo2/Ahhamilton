@@ -449,7 +449,8 @@ app.get('/api/finance/lines', authMiddleware, requireRole('admin', 'tresoriere')
   const rows = db.prepare(`
     SELECT fl.*, a.titre AS activite, p.nom AS projet,
       COALESCE((SELECT SUM(t.montant) FROM transactions t WHERE t.financial_line_id = fl.id AND t.type = 'depense'), 0) AS depenses,
-      COALESCE((SELECT SUM(t.montant) FROM transactions t WHERE t.financial_line_id = fl.id AND t.type = 'revenu'), 0) AS revenus
+      COALESCE((SELECT SUM(t.montant) FROM transactions t WHERE t.financial_line_id = fl.id AND t.type = 'revenu'), 0) AS revenus,
+      COALESCE((SELECT SUM(i.montant) FROM invoices i WHERE i.financial_line_id = fl.id AND i.statut NOT IN ('paye','refuse')), 0) AS depenses_en_attente
     FROM financial_lines fl
     LEFT JOIN activities a ON a.id = fl.activity_id
     LEFT JOIN projects p ON p.id = fl.project_id

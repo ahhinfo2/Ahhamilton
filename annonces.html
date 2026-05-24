@@ -132,7 +132,8 @@
   <script src="nav-auth.js"></script>
   <script src="casl-consent.js"></script>
   <script>
-    const API = 'http://localhost:3001/api';
+    const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001/api' : '/api';
+    const BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001' : '';
     let allAnnonces = [];
     let activeFilter = 'tous';
     let searchQuery = '';
@@ -150,7 +151,7 @@
 
       let photoHtml = '';
       if (hasPhotos) {
-        photoHtml = '<img id="ann-ph-' + idx + '" src="http://localhost:3001' + photos[0] +
+        photoHtml = '<img id="ann-ph-' + idx + '" src="' + BASE + photos[0] +
           '" alt="' + a.titre + '" onerror="this.style.display=\'none\'" ' +
           'onclick="annLbOpen(' + JSON.stringify(photos).replace(/"/g,'&quot;') + ',0)"/>';
         if (photos.length > 1) {
@@ -211,7 +212,7 @@
       cardPhotoIdx[cardIdx] = (cardPhotoIdx[cardIdx] + dir + photos.length) % photos.length;
       const idx = cardPhotoIdx[cardIdx];
       const img = document.getElementById('ann-ph-' + cardIdx);
-      if (img) img.src = 'http://localhost:3001' + photos[idx];
+      if (img) img.src = BASE + photos[idx];
       const cnt = document.querySelector('#annp-' + cardIdx + ' .ann-photo-count');
       if (cnt) cnt.textContent = (idx + 1) + ' / ' + photos.length;
     }
@@ -219,7 +220,7 @@
     // Lightbox
     function annLbOpen(photos, startIdx) {
       lbPhotos = photos; lbIdx = startIdx;
-      document.getElementById('annLbImg').src = 'http://localhost:3001' + photos[startIdx];
+      document.getElementById('annLbImg').src = BASE + photos[startIdx];
       document.getElementById('annLb').classList.add('open');
       document.body.style.overflow = 'hidden';
     }
@@ -229,7 +230,7 @@
     }
     function annLbNav(dir) {
       lbIdx = (lbIdx + dir + lbPhotos.length) % lbPhotos.length;
-      document.getElementById('annLbImg').src = 'http://localhost:3001' + lbPhotos[lbIdx];
+      document.getElementById('annLbImg').src = BASE + lbPhotos[lbIdx];
     }
     document.getElementById('annLb').addEventListener('click', function(e) { if (e.target === this) annLbClose(); });
     document.addEventListener('keydown', function(e) {

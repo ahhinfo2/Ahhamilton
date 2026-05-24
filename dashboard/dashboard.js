@@ -1157,16 +1157,19 @@ function scFilterPicker(q) {
 // ══ FINANCE ════════════════════════════════════════════════════════════════
 async function finance() {
   const [lines, rep] = await Promise.all([api('/finance/lines'), api('/finance/account')]);
+  window._finLines = lines;
+  window._finRep   = rep;
   const totalBudget  = lines.reduce((s,l) => s + (l.budget_alloue||0), 0);
   const totalDep     = lines.reduce((s,l) => s + (l.depenses||0), 0);
   const totalRev     = lines.reduce((s,l) => s + (l.revenus||0), 0);
+  const totalPending = lines.reduce((s,l) => s + (l.depenses_en_attente||0), 0);
 
   setContent(`
     <div class="page-header">
       <div><h2>Finance</h2><p>Gestion des fonds et lignes budgétaires</p></div>
       <div class="page-actions">
-        <button class="btn btn-primary" onclick="openTransactionForm(null,${JSON.stringify(lines)})">+ Transaction</button>
-        <button class="btn btn-outline" onclick="openAccountForm(${JSON.stringify(rep)})">⚙️ Compte</button>
+        <button class="btn btn-primary" onclick="openTransactionForm(null,window._finLines)">+ Transaction</button>
+        <button class="btn btn-outline" onclick="openAccountForm(window._finRep)">⚙️ Compte</button>
       </div>
     </div>
     <div class="finance-summary">
@@ -1176,19 +1179,21 @@ async function finance() {
       <div class="fin-card"><div class="fc-val">${fmtMoney(totalRev)}</div><div class="fc-label">Total revenus</div></div>
     </div>
     <div class="table-card">
-      <div class="table-card-header"><h3>Lignes financières par activité</h3></div>
+      <div class="table-card-header"><h3>Lignes financières</h3></div>
       <div class="table-wrapper"><table>
-        <thead><tr><th>Activité</th><th>Budget alloué</th><th>Dépenses</th><th>Revenus</th><th>Solde ligne</th><th>Statut</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Activité / Projet</th><th>Budget alloué</th><th>Dépenses</th><th>En attente</th><th>Revenus</th><th>Solde ligne</th><th>Statut</th><th>Actions</th></tr></thead>
         <tbody>${lines.map(l => {
           const solde = (l.budget_alloue||0) - (l.depenses||0) + (l.revenus||0);
+          const pending = l.depenses_en_attente||0;
           return `<tr>
-            <td><strong>${l.activite||l.titre}</strong></td>
+            <td><strong>${l.activite||l.projet||l.titre}</strong></td>
             <td>${fmtMoney(l.budget_alloue)}</td>
-            <td class="fc-val" style="color:var(--red);font-size:.86rem">${fmtMoney(l.depenses)}</td>
+            <td style="color:var(--red);font-size:.86rem">${fmtMoney(l.depenses)}</td>
+            <td style="color:#e65100;font-size:.86rem">${pending>0?'⏳ '+fmtMoney(pending):'–'}</td>
             <td style="color:var(--g2);font-size:.86rem">${fmtMoney(l.revenus)}</td>
             <td><strong style="color:${solde<0?'var(--red)':'var(--g2)'}">${fmtMoney(solde)}</strong></td>
             <td>${statusPill(l.statut)}</td>
-            <td><button class="btn btn-sm btn-ghost" onclick="viewTransactions(${l.id},'${l.titre}')">Voir transactions</button></td>
+            <td><button class="btn btn-sm btn-ghost" onclick="viewTransactions(${l.id},'${l.titre.replace(/'/g,"\\'")}')">Voir transactions</button></td>
           </tr>`;
         }).join('')}</tbody>
       </table></div>
