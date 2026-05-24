@@ -215,6 +215,7 @@ function buildSidebar() {
         { id:'mes_talents',  icon:'◈', label:'Mon talent',   roles:['member','delegue'], planMin:['bienfaiteur','partenaire'] },
         { id:'mes_annonces', icon:'◉', label:'Mes annonces', roles:['member','delegue'], planMin:['bienfaiteur','partenaire'] },
         { id:'mon_paiement', icon:'◆', label:'Mon paiement', roles:['member','delegue'], planMin:['bienfaiteur','partenaire'] },
+        { id:'mes_billets',  icon:'🎟', label:'Mes billets',  roles: ALL },
         { id:'alerts',       icon:'◇', label:'Alertes',      roles:['admin','tresoriere'] },
         { id:'profile',      icon:'◎', label:'Mon profil',   roles: ALL },
       ]
@@ -341,7 +342,7 @@ async function showView(viewId) {
     finance, invoices, messages, volunteer,
     notes, reports, letters, projects, alerts, profile,
     gallery_mgmt, annuaire, talents_mgmt, annonces_mgmt, mes_talents, mes_annonces,
-    inscriptions, paiements, recus, mon_paiement, testimonials_mgmt, videos_mgmt
+    inscriptions, paiements, recus, mon_paiement, mes_billets, testimonials_mgmt, videos_mgmt
   };
   try {
     await (views[viewId] || home)();
@@ -503,6 +504,7 @@ async function activities() {
                 <button class="btn btn-sm btn-outline" onclick='openActivityForm(${JSON.stringify(a)})'>✏️</button>
                 ${a.statut === 'planifiee' && can.adminOrSec() ? `<button class="btn btn-sm btn-primary" onclick="launchActivity(${a.id},'${a.titre}')">🚀 Lancer</button>` : ''}
                 ${a.paiement_requis ? `<button class="btn btn-sm btn-accent" onclick="viewActivityQR(${a.id},'${a.titre.replace(/'/g,"\\'")}','${a.qr_token||''}')">📱 QR</button>` : ''}
+                <button class="btn btn-sm btn-ghost" title="Tables & Billets" onclick="managerTables(${a.id},'${a.titre.replace(/'/g,"\\'")}')">🪑 Tables</button>
                 <button class="btn btn-sm btn-ghost" onclick="viewRegistrations(${a.id},'${a.titre}')">👥</button>
                 <button class="btn btn-sm btn-ghost" onclick="showActivityReport(${a.id})">📊</button>
               ` : ''}
@@ -4616,6 +4618,45 @@ async function deleteVideo(id) {
 // MON PAIEMENT (membre bienfaiteur+)
 // ══════════════════════════════════════════════════════════════════════════════
 
+// ══ MES BILLETS ════════════════════════════════════════════════════════════════
+async function mes_billets() {
+  const tickets = await api('/tickets/my');
+  setContent(`
+    <div class="page-header">
+      <div><h2>🎟 Mes billets</h2><p>Vos billets et QR codes pour les activités</p></div>
+    </div>
+    ${tickets.length ? `
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px">
+      ${tickets.map(t => `
+        <div class="table-card" style="overflow:hidden">
+          <div style="background:linear-gradient(135deg,var(--g1),var(--g2));padding:16px 20px;color:#fff">
+            <div style="font-weight:700;font-size:1rem">${t.activite}</div>
+            <div style="font-size:.78rem;opacity:.8;margin-top:4px">📅 ${fmt(t.date_debut)} · 📍 ${t.lieu||'–'}</div>
+          </div>
+          <div style="padding:16px;display:flex;gap:16px;align-items:center">
+            <img src="${BASE}/api/tickets/${t.id}/qr" alt="QR" style="width:110px;height:110px;border:2px solid var(--border);border-radius:8px"/>
+            <div>
+              <div style="font-size:.82rem;color:var(--muted);margin-bottom:6px">
+                ${t.table_numero ? `🪑 Table ${t.table_numero}` : '🪑 Table à confirmer'}<br/>
+                ${t.vendeur_nom ? `👤 Vendu par ${t.vendeur_nom}` : '🌐 Acheté en ligne'}<br/>
+                💰 $${(t.prix||0).toFixed(2)}
+              </div>
+              <button class="btn btn-sm btn-outline" onclick="window.open('${BASE}/api/tickets/${t.id}/qr','_blank')">📥 Télécharger QR</button>
+            </div>
+          </div>
+          <div style="background:var(--off);padding:10px 16px;font-size:.72rem;color:var(--muted);font-family:monospace;border-top:1px solid var(--border)">
+            ${t.qr_data ? t.qr_data.replace(/\n/g,'<br/>') : '–'}
+          </div>
+        </div>
+      `).join('')}
+    </div>` : `
+    <div class="empty-state">
+      <div class="es-icon">🎟</div>
+      <p>Vous n'avez pas encore de billet.<br/>Inscrivez-vous à une activité pour obtenir votre QR code.</p>
+    </div>`}
+  `);
+}
+
 async function mon_paiement() {
   const [myPays, myRecus, me] = await Promise.all([api('/payments/my'), api('/receipts/my'), api('/auth/me')]);
   const PLAN_PRIX = { bienfaiteur:10, partenaire:20 };
@@ -4784,6 +4825,156 @@ async function showActivityReport(actId) {
       '</div>' +
     '</div>'
   );
+}
+
+// ══ GESTION DES TABLES & BILLETS ══════════════════════════════════════════════
+
+async function managerTables(actId, actTitre) {
+  const [tables, allUsers] = await Promise.all([
+    api(`/activities/${actId}/tables`),
+    api('/users')
+  ]);
+  const comiteUsers = allUsers.filter(u => ['admin','delegue','secretaire','tresoriere'].includes(u.role));
+
+  openModal(`🪑 Tables — ${actTitre}`, `
+    <div style="max-height:75vh;overflow-y:auto">
+
+      ${can.admin() ? `
+      <div style="background:var(--off);border-radius:10px;padding:14px;margin-bottom:18px">
+        <strong style="font-size:.88rem">Configurer les tables</strong>
+        <div style="display:flex;gap:8px;margin-top:8px;align-items:flex-end;flex-wrap:wrap">
+          <div class="form-group" style="margin:0;flex:1;min-width:120px">
+            <label style="font-size:.72rem">Nombre de tables</label>
+            <input type="number" id="nb_tables_input" min="1" max="100" value="${tables.length||10}" style="width:100%"/>
+          </div>
+          <div class="form-group" style="margin:0;flex:1;min-width:120px">
+            <label style="font-size:.72rem">Places / table</label>
+            <input type="number" id="cap_tables_input" min="1" max="20" value="10" style="width:100%"/>
+          </div>
+          <button class="btn btn-primary" onclick="setupTables(${actId})">Créer</button>
+        </div>
+      </div>` : ''}
+
+      ${tables.length ? `
+      <div style="margin-bottom:18px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <strong>${tables.length} table${tables.length>1?'s':''}</strong>
+          <button class="btn btn-sm btn-primary" onclick="openSellTicketForm(${actId},'${actTitre.replace(/'/g,"\\'")}')">💳 Vendre un billet</button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px">
+          ${tables.map(t => {
+            const pct = Math.round(t.places_vendues / t.capacite_max * 100);
+            const color = pct >= 100 ? '#c62828' : pct >= 70 ? '#e65100' : '#1b5e20';
+            return `
+            <div style="border:1.5px solid var(--border);border-radius:10px;padding:12px">
+              <div style="font-weight:700;font-size:1rem;color:var(--text)">Table ${t.numero}</div>
+              <div style="font-size:.78rem;color:${color};margin:4px 0">${t.places_vendues}/${t.capacite_max} places</div>
+              <div style="height:5px;background:var(--border);border-radius:50px;margin-bottom:8px">
+                <div style="height:100%;width:${pct}%;background:${color};border-radius:50px"></div>
+              </div>
+              <div style="font-size:.72rem;color:var(--muted);margin-bottom:6px">
+                ${t.membre_nom ? '👤 Réservée: '+t.membre_nom : '🌐 Libre (en ligne)'}
+              </div>
+              ${can.admin() ? `
+              <select style="width:100%;font-size:.72rem;padding:3px;border-radius:5px;border:1px solid var(--border)" onchange="assignTable(${t.id},this.value)">
+                <option value="">🌐 Libre</option>
+                ${comiteUsers.map(u=>`<option value="${u.id}" ${t.membre_attribue===u.id?'selected':''}>${u.prenom} ${u.nom}</option>`).join('')}
+              </select>` : ''}
+            </div>`;
+          }).join('')}
+        </div>
+      </div>` : `<div style="text-align:center;color:var(--muted);padding:24px">Aucune table configurée — créez des tables ci-dessus</div>`}
+
+      <details style="margin-top:12px">
+        <summary style="cursor:pointer;font-size:.82rem;font-weight:600;color:var(--muted)">📋 Tous les billets vendus</summary>
+        <div id="ticketsList" style="margin-top:10px">
+          <button class="btn btn-sm btn-ghost" onclick="loadTicketsList(${actId})">Charger les billets</button>
+        </div>
+      </details>
+    </div>
+  `);
+}
+
+async function setupTables(actId) {
+  const nb = parseInt(document.getElementById('nb_tables_input').value);
+  const cap = parseInt(document.getElementById('cap_tables_input').value) || 10;
+  if (!nb || nb < 1) return toast('Entrez un nombre de tables valide', 'error');
+  await api(`/activities/${actId}/tables/setup`, { method:'POST', body: JSON.stringify({ nb_tables: nb, capacite_max: cap }) });
+  toast(`${nb} tables configurées`);
+  // Re-ouvrir le modal avec les données fraîches
+  const act = (await api('/activities')).find(a => a.id === actId);
+  if (act) managerTables(actId, act.titre);
+}
+
+async function assignTable(tableId, membreId) {
+  await api(`/activity-tables/${tableId}/assign`, { method:'PUT', body: JSON.stringify({ membre_id: parseInt(membreId)||null }) });
+  toast('Table mise à jour');
+}
+
+async function loadTicketsList(actId) {
+  const tickets = await api(`/activities/${actId}/tickets`);
+  document.getElementById('ticketsList').innerHTML = tickets.length ? `
+    <table style="width:100%;font-size:.78rem;border-collapse:collapse">
+      <thead><tr style="background:var(--off)"><th style="padding:5px">Acheteur</th><th>Table</th><th>Vendeur</th><th>Méthode</th><th>Prix</th><th>QR</th></tr></thead>
+      <tbody>${tickets.map(t=>`<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:5px"><strong>${t.acheteur_nom}</strong><br/><small>${t.acheteur_email||'–'}</small></td>
+        <td style="padding:5px;text-align:center">Table ${t.table_numero||'–'}</td>
+        <td style="padding:5px">${t.vendeur_nom||'En ligne'}</td>
+        <td style="padding:5px">${t.methode_paiement||'–'}</td>
+        <td style="padding:5px">$${(t.prix||0).toFixed(2)}</td>
+        <td style="padding:5px"><button class="btn btn-sm btn-ghost" onclick="window.open('${BASE}/api/tickets/${t.id}/qr','_blank')">📱</button></td>
+      </tr>`).join('')}</tbody>
+    </table>` : '<p style="color:var(--muted);font-size:.82rem">Aucun billet vendu</p>';
+}
+
+function openSellTicketForm(actId, actTitre) {
+  openModal(`💳 Vendre un billet — ${actTitre}`, `
+    <form id="sellForm">
+      <div class="form-group"><label>Nom de l'acheteur *</label><input id="sell_nom" required/></div>
+      <div class="form-row">
+        <div class="form-group"><label>Courriel</label><input type="email" id="sell_email"/></div>
+        <div class="form-group"><label>Téléphone</label><input id="sell_tel"/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Prix ($)</label><input type="number" step="0.01" min="0" id="sell_prix"/></div>
+        <div class="form-group"><label>Méthode</label>
+          <select id="sell_methode">
+            <option value="cash">Comptant</option>
+            <option value="cheque">Chèque</option>
+            <option value="virement">Virement</option>
+            <option value="carte">Carte</option>
+          </select></div>
+      </div>
+      <div class="form-group"><label>Quantité</label><input type="number" min="1" max="10" value="1" id="sell_qty"/></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Enregistrer & Générer QR</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('sellForm').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      const r = await api(`/activities/${actId}/tickets/sell`, { method:'POST', body: JSON.stringify({
+        acheteur_nom: document.getElementById('sell_nom').value,
+        acheteur_email: document.getElementById('sell_email').value,
+        acheteur_telephone: document.getElementById('sell_tel').value,
+        prix: parseFloat(document.getElementById('sell_prix').value)||0,
+        methode_paiement: document.getElementById('sell_methode').value,
+        quantite: parseInt(document.getElementById('sell_qty').value)||1
+      })});
+      closeModal();
+      toast(`Billet vendu — Table ${r.table_numero}`);
+      // Afficher le QR code du billet
+      openModal('📱 QR Code du billet', `
+        <div style="text-align:center;padding:20px">
+          <img src="${BASE}/api/tickets/${r.id}/qr" style="width:220px;height:220px" alt="QR"/>
+          <pre style="background:var(--off);padding:12px;border-radius:8px;font-size:.82rem;margin-top:14px;text-align:left">${r.qr_data}</pre>
+          <button class="btn btn-outline" style="margin-top:12px" onclick="window.open('${BASE}/api/tickets/${r.id}/qr','_blank')">🖨️ Télécharger QR</button>
+        </div>
+      `);
+    } catch(ex) { toast(ex.message,'error'); }
+  };
 }
 
 // ── Rapport global activités ──────────────────────────────────────────────────

@@ -392,6 +392,33 @@ function init() {
       content TEXT NOT NULL,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS activity_tables (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      activity_id INTEGER NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+      numero INTEGER NOT NULL,
+      capacite_max INTEGER DEFAULT 10,
+      membre_attribue INTEGER REFERENCES users(id),
+      UNIQUE(activity_id, numero)
+    );
+
+    CREATE TABLE IF NOT EXISTS tickets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      activity_id INTEGER NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+      table_id INTEGER REFERENCES activity_tables(id),
+      user_id INTEGER REFERENCES users(id),
+      acheteur_nom TEXT NOT NULL,
+      acheteur_email TEXT DEFAULT '',
+      acheteur_telephone TEXT DEFAULT '',
+      vendu_par INTEGER REFERENCES users(id),
+      qr_data TEXT,
+      prix REAL DEFAULT 0,
+      methode_paiement TEXT DEFAULT 'stripe',
+      statut TEXT DEFAULT 'actif',
+      date_vente TEXT DEFAULT CURRENT_TIMESTAMP,
+      payment_intent_id TEXT,
+      quantite INTEGER DEFAULT 1
+    );
   `);
 
   // Seed initial admin accounts

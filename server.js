@@ -2183,12 +2183,27 @@ app.post('/api/activities/:id/pay', authMiddleware, (req, res) => {
       .run(act.id, user.id, 'inscrit', montant);
   }
 
+  // Créer un billet avec QR "Acheté en ligne" et assigner une table libre
+  const existingTicket = db.prepare('SELECT id FROM tickets WHERE activity_id=? AND user_id=? AND statut="actif"').get(act.id, user.id);
+  if (!existingTicket) {
+    const freeTable = db.prepare(`
+      SELECT at.* FROM activity_tables at
+      WHERE at.activity_id = ? AND at.membre_attribue IS NULL
+        AND (SELECT COUNT(*) FROM tickets t WHERE t.table_id = at.id AND t.statut = 'actif') < at.capacite_max
+      ORDER BY at.numero LIMIT 1
+    `).get(act.id);
+    const qrText = `Acheté en ligne\n${freeTable ? 'Table ' + freeTable.numero : 'Aucune table'}\n${act.titre}`;
+    db.prepare(`INSERT INTO tickets (activity_id, table_id, user_id, acheteur_nom, acheteur_email, qr_data, prix, methode_paiement)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(act.id, freeTable?.id || null, user.id, `${user.prenom} ${user.nom}`, user.email, qrText, montant, methode || 'qr');
+  }
+
   // Message de confirmation au membre
   const adminId = db.prepare("SELECT id FROM users WHERE role='admin' LIMIT 1").get()?.id || 1;
   const msgR = db.prepare("INSERT INTO messages (expediteur_id, sujet, contenu, type) VALUES (?,?,?,'individuel')")
     .run(adminId,
       `✅ Paiement confirmé — ${act.titre}`,
-      `Bonjour ${user.prenom},\n\nVotre paiement pour l'activité « ${act.titre} » a été enregistré.\n\nMontant : $${montant.toFixed(2)}\nDate de l'activité : ${act.date_debut}\nLieu : ${act.lieu||'–'}\n\nMerci de votre participation !`);
+      `Bonjour ${user.prenom},\n\nVotre paiement pour l'activité « ${act.titre} » a été enregistré.\n\nMontant : $${montant.toFixed(2)}\nDate de l'activité : ${act.date_debut}\nLieu : ${act.lieu||'–'}\n\nVotre billet est disponible dans votre espace membre.\n\nMerci de votre participation !`);
   db.prepare('INSERT INTO message_recipients (message_id, destinataire_id) VALUES (?,?)').run(msgR.lastInsertRowid, user.id);
   createAlert(user.id, 'activite', `✅ Paiement confirmé : ${act.titre}`, `$${montant.toFixed(2)}`);
 
@@ -2226,6 +2241,152 @@ app.get('/api/activities/:id/inscrits', authMiddleware, requireRole('admin','tre
     WHERE ar.activity_id = ? ORDER BY ar.date_inscription
   `).all(req.params.id);
   res.json(rows);
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TABLES & BILLETS (système de places)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Configurer N tables pour une activité
+app.post('/api/activities/:id/tables/setup', authMiddleware, requireRole('admin','delegue','secretaire'), (req, res) => {
+  const { nb_tables, capacite_max = 10 } = req.body;
+  if (!nb_tables || nb_tables < 1) return res.status(400).json({ error: 'Nombre de tables requis' });
+  const actId = parseInt(req.params.id);
+  const existing = db.prepare('SELECT COUNT(*) as cnt FROM activity_tables WHERE activity_id = ?').get(actId);
+  for (let i = existing.cnt + 1; i <= nb_tables; i++) {
+    try { db.prepare('INSERT INTO activity_tables (activity_id, numero, capacite_max) VALUES (?, ?, ?)').run(actId, i, capacite_max); } catch {}
+  }
+  res.json({ message: `Tables 1–${nb_tables} configurées` });
+});
+
+// Lister les tables d'une activité avec occupancy
+app.get('/api/activities/:id/tables', authMiddleware, (req, res) => {
+  const rows = db.prepare(`
+    SELECT at.*, u.prenom || ' ' || u.nom AS membre_nom,
+      (SELECT COUNT(*) FROM tickets t WHERE t.table_id = at.id AND t.statut = 'actif') AS places_vendues
+    FROM activity_tables at
+    LEFT JOIN users u ON u.id = at.membre_attribue
+    WHERE at.activity_id = ?
+    ORDER BY at.numero
+  `).all(req.params.id);
+  res.json(rows);
+});
+
+// Assigner/désassigner une table à un membre comité
+app.put('/api/activity-tables/:id/assign', authMiddleware, requireRole('admin'), (req, res) => {
+  const { membre_id } = req.body;
+  db.prepare('UPDATE activity_tables SET membre_attribue = ? WHERE id = ?').run(membre_id || null, req.params.id);
+  res.json({ message: 'Table mise à jour' });
+});
+
+// Vente physique d'un ou plusieurs billets par un membre comité
+app.post('/api/activities/:id/tickets/sell', authMiddleware, requireRole('admin','delegue','secretaire','tresoriere'), (req, res) => {
+  const { acheteur_nom, acheteur_email, acheteur_telephone, prix, methode_paiement = 'cash', quantite = 1 } = req.body;
+  if (!acheteur_nom) return res.status(400).json({ error: 'Nom de l\'acheteur requis' });
+  const actId = parseInt(req.params.id);
+  const act = db.prepare('SELECT * FROM activities WHERE id = ?').get(actId);
+  if (!act) return res.status(404).json({ error: 'Activité introuvable' });
+
+  // Chercher la table réservée pour ce membre, sinon une table libre avec de la place
+  let table = db.prepare(`
+    SELECT at.*, (SELECT COUNT(*) FROM tickets t WHERE t.table_id = at.id AND t.statut = 'actif') AS places_vendues
+    FROM activity_tables at WHERE at.activity_id = ? AND at.membre_attribue = ?
+  `).get(actId, req.user.id);
+
+  if (!table || table.places_vendues >= table.capacite_max) {
+    table = db.prepare(`
+      SELECT at.*, (SELECT COUNT(*) FROM tickets t WHERE t.table_id = at.id AND t.statut = 'actif') AS places_vendues
+      FROM activity_tables at
+      WHERE at.activity_id = ? AND at.membre_attribue IS NULL
+        AND (SELECT COUNT(*) FROM tickets t WHERE t.table_id = at.id AND t.statut = 'actif') < at.capacite_max
+      ORDER BY at.numero LIMIT 1
+    `).get(actId);
+  }
+  if (!table) return res.status(400).json({ error: 'Aucune table disponible — ajoutez des tables d\'abord' });
+
+  const vendeur = db.prepare('SELECT prenom, nom FROM users WHERE id = ?').get(req.user.id);
+  const prixUnit = parseFloat(prix) || act.prix || 0;
+  const qrData = `Vendu par ${vendeur.prenom} ${vendeur.nom}\nTable ${table.numero}\n${act.titre}`;
+
+  const r = db.prepare(`INSERT INTO tickets (activity_id, table_id, acheteur_nom, acheteur_email, acheteur_telephone, vendu_par, qr_data, prix, methode_paiement, quantite)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(actId, table.id, acheteur_nom, acheteur_email || '', acheteur_telephone || '', req.user.id, qrData, prixUnit, methode_paiement, parseInt(quantite));
+
+  // Enregistrer le revenu dans la ligne financière
+  if (prixUnit > 0) {
+    const line = db.prepare('SELECT id FROM financial_lines WHERE activity_id = ? LIMIT 1').get(actId);
+    if (line) {
+      db.prepare(`INSERT INTO transactions (financial_line_id, type, montant, description, methode, cree_par)
+        VALUES (?, 'revenu', ?, ?, ?, ?)`)
+        .run(line.id, prixUnit * parseInt(quantite), `Vente billet: ${acheteur_nom}`, methode_paiement, req.user.id);
+      db.prepare('UPDATE account_info SET solde = solde + ?, date_maj = CURRENT_TIMESTAMP WHERE id = 1').run(prixUnit * parseInt(quantite));
+    }
+  }
+
+  res.status(201).json({ id: r.lastInsertRowid, qr_data: qrData, table_numero: table.numero });
+});
+
+// Tous les billets d'une activité (comité)
+app.get('/api/activities/:id/tickets', authMiddleware, requireRole('admin','delegue','secretaire','tresoriere'), (req, res) => {
+  const rows = db.prepare(`
+    SELECT t.*, at.numero AS table_numero, at.capacite_max,
+      u.prenom || ' ' || u.nom AS vendeur_nom
+    FROM tickets t
+    LEFT JOIN activity_tables at ON at.id = t.table_id
+    LEFT JOIN users u ON u.id = t.vendu_par
+    WHERE t.activity_id = ?
+    ORDER BY at.numero, t.date_vente
+  `).all(req.params.id);
+  res.json(rows);
+});
+
+// Mes billets (membre connecté)
+app.get('/api/tickets/my', authMiddleware, (req, res) => {
+  const rows = db.prepare(`
+    SELECT t.*, a.titre AS activite, a.date_debut, a.lieu,
+      at.numero AS table_numero, u.prenom || ' ' || u.nom AS vendeur_nom
+    FROM tickets t
+    JOIN activities a ON a.id = t.activity_id
+    LEFT JOIN activity_tables at ON at.id = t.table_id
+    LEFT JOIN users u ON u.id = t.vendu_par
+    WHERE t.user_id = ? AND t.statut = 'actif'
+    ORDER BY a.date_debut DESC
+  `).all(req.user.id);
+  res.json(rows);
+});
+
+// QR code d'un billet (route publique avec token)
+app.get('/api/tickets/:id/qr', async (req, res) => {
+  const ticket = db.prepare('SELECT * FROM tickets WHERE id = ?').get(req.params.id);
+  if (!ticket) return res.status(404).send('Billet introuvable');
+  try {
+    const svgRaw = await QRCode.toString(ticket.qr_data || String(ticket.id), {
+      type: 'svg', width: 260, margin: 2,
+      color: { dark: '#1b5e20', light: '#ffffff' }
+    });
+    res.set('Content-Type', 'image/svg+xml');
+    res.set('Cache-Control', 'no-cache');
+    res.send(svgRaw);
+  } catch(e) { res.status(500).send('Erreur QR'); }
+});
+
+// Rapport ventes par membre comité pour une activité
+app.get('/api/activities/:id/tickets/report', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  const act = db.prepare('SELECT titre FROM activities WHERE id = ?').get(req.params.id);
+  if (!act) return res.status(404).json({ error: 'Introuvable' });
+  const byMembre = db.prepare(`
+    SELECT u.prenom || ' ' || u.nom AS vendeur, u.id AS vendeur_id,
+      COUNT(t.id) AS nb_billets, SUM(t.prix * t.quantite) AS total_ventes,
+      GROUP_CONCAT(at.numero) AS tables_utilisees
+    FROM tickets t
+    LEFT JOIN users u ON u.id = t.vendu_par
+    LEFT JOIN activity_tables at ON at.id = t.table_id
+    WHERE t.activity_id = ? AND t.statut = 'actif'
+    GROUP BY t.vendu_par
+    ORDER BY nb_billets DESC
+  `).all(req.params.id);
+  const online = db.prepare(`SELECT COUNT(*) AS cnt, SUM(prix*quantite) AS total FROM tickets WHERE activity_id = ? AND vendu_par IS NULL AND statut = 'actif'`).get(req.params.id);
+  res.json({ activite: act.titre, par_membre: byMembre, en_ligne: online });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
