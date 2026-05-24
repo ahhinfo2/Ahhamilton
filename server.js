@@ -200,8 +200,8 @@ app.post('/api/auth/register', (req, res) => {
     .run(prenom, nom, email, telephone||'', adresse||'', date_naissance||'', hash,
          plan||'gratuit', message||'', source||'');
 
-  // Notifier tous les exécutifs
-  const staff = db.prepare("SELECT id FROM users WHERE role IN ('admin','tresoriere','secretaire','delegue') AND actif=1").all();
+  // Notifier tous les exécutifs (message interne + email externe)
+  const staff = db.prepare("SELECT * FROM users WHERE role IN ('admin','tresoriere','secretaire','delegue') AND actif=1").all();
   if (staff.length) {
     const adminId = staff[0].id;
     const msgR = db.prepare("INSERT INTO messages (expediteur_id, sujet, contenu, type) VALUES (?,?,?,'individuel')")
@@ -211,6 +211,8 @@ app.post('/api/auth/register', (req, res) => {
     staff.forEach(s => {
       ins.run(msgR.lastInsertRowid, s.id);
       createAlert(s.id, 'inscription', `📋 Adhésion en attente : ${prenom} ${nom}`, `Plan souhaité: ${plan||'gratuit'}`);
+      // Email externe à chaque membre du comité
+      mailer.sendNouvelleAdhesion(s.email, { prenom, nom, email, telephone, plan, message }).catch(() => {});
     });
   }
   res.status(201).json({ message: 'Demande envoyée. Vous recevrez un courriel après approbation.' });
@@ -590,6 +592,23 @@ app.put('/api/finance/invoices/:id', authMiddleware, requireRole('tresoriere', '
   res.json({ message: 'Mise à jour' });
 });
 
+// Supprimer une facture (annule l'effet sur la ligne financière)
+app.delete('/api/finance/invoices/:id', authMiddleware, requireRole('tresoriere', 'admin'), (req, res) => {
+  const invoice = db.prepare('SELECT * FROM invoices WHERE id = ?').get(req.params.id);
+  if (!invoice) return res.status(404).json({ error: 'Facture introuvable' });
+  // Si facture approuvée, inverser la transaction associée
+  if (invoice.statut === 'approuve' && invoice.financial_line_id) {
+    db.prepare('DELETE FROM transactions WHERE invoice_id = ?').run(invoice.id);
+    db.prepare('UPDATE account_info SET solde = solde + ?, date_maj = CURRENT_TIMESTAMP WHERE id = 1').run(invoice.montant);
+  }
+  // Supprimer le fichier photo si présent
+  if (invoice.photo_path) {
+    try { require('fs').unlinkSync(require('path').join(__dirname, invoice.photo_path)); } catch {}
+  }
+  db.prepare('DELETE FROM invoices WHERE id = ?').run(invoice.id);
+  res.json({ ok: true });
+});
+
 // ══════════════════════════════════════════════════════════════════════════════
 // MESSAGES
 // ══════════════════════════════════════════════════════════════════════════════
@@ -710,8 +729,17 @@ app.post('/api/volunteer', authMiddleware, requireRole('admin', 'secretaire'), (
 
 app.put('/api/volunteer/:id/approve', authMiddleware, requireRole('admin', 'secretaire'), (req, res) => {
   const { statut } = req.body;
+  const vh = db.prepare('SELECT * FROM volunteer_hours WHERE id = ?').get(req.params.id);
   db.prepare(`UPDATE volunteer_hours SET statut = ?, approuve_par = ?, date_approbation = CURRENT_TIMESTAMP WHERE id = ?`)
     .run(statut, req.user.id, req.params.id);
+  // Email au membre si heures approuvées
+  if (statut === 'approuve' && vh) {
+    const membre = db.prepare('SELECT * FROM users WHERE id = ?').get(vh.user_id);
+    if (membre) {
+      mailer.sendHeuresBenevolat(membre, vh.heures, vh.description, vh.date_service).catch(() => {});
+      createAlert(membre.id, 'benevolat', `✅ ${vh.heures}h de bénévolat approuvées`, vh.description || '');
+    }
+  }
   res.json({ message: 'Statut mis à jour' });
 });
 

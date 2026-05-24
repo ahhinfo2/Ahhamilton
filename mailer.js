@@ -197,8 +197,41 @@ async function sendInscriptionActivite(user, activite) {
   });
 }
 
+async function sendNouvelleAdhesion(staffEmail, candidat) {
+  await sendMail({
+    to: staffEmail,
+    subject: `📋 Nouvelle demande d'adhésion — ${candidat.prenom} ${candidat.nom}`,
+    html: wrap('Nouvelle demande d\'adhésion', `
+      <p>Une nouvelle demande d'adhésion a été soumise et attend votre approbation.</p>
+      <table style="width:100%;border-collapse:collapse;font-size:.88rem;margin:16px 0">
+        <tr><td style="padding:6px 0;color:#888">Nom</td><td><strong>${candidat.prenom} ${candidat.nom}</strong></td></tr>
+        <tr><td style="padding:6px 0;color:#888">Courriel</td><td>${candidat.email}</td></tr>
+        <tr><td style="padding:6px 0;color:#888">Téléphone</td><td>${candidat.telephone || '–'}</td></tr>
+        <tr><td style="padding:6px 0;color:#888">Plan souhaité</td><td>${candidat.plan || 'gratuit'}</td></tr>
+        ${candidat.message ? `<tr><td style="padding:6px 0;color:#888">Message</td><td>${candidat.message}</td></tr>` : ''}
+      </table>
+      <a href="${siteUrl}/dashboard/app.html" class="btn">Approuver ou refuser</a>
+    `)
+  });
+}
+
+async function sendHeuresBenevolat(user, heures, description, date) {
+  await sendMail({
+    to: user.email,
+    subject: `✅ ${heures}h de bénévolat ajoutées à votre compte — AHH`,
+    html: wrap('Heures de bénévolat confirmées', `
+      <p>Bonjour <strong>${user.prenom} ${user.nom}</strong>,</p>
+      <p><strong>${heures} heure${heures > 1 ? 's' : ''}</strong> de bénévolat ont été ajoutées à votre compte.</p>
+      ${description ? `<p><strong>Description :</strong> ${description}</p>` : ''}
+      ${date ? `<p><strong>Date :</strong> ${new Date(date).toLocaleDateString('fr-CA', { dateStyle:'long' })}</p>` : ''}
+      <p>Consultez le total de vos heures dans votre profil :</p>
+      <a href="${siteUrl}/dashboard/app.html" class="btn">Mon profil</a>
+    `)
+  });
+}
+
 module.exports = {
   sendMail, sendBienvenue, sendInscriptionRefusee, sendResetPassword,
   sendContact, sendRappelPaiement, sendPaiementApprouve,
-  sendRecuFiscal, sendInscriptionActivite
+  sendRecuFiscal, sendInscriptionActivite, sendNouvelleAdhesion, sendHeuresBenevolat
 };

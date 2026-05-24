@@ -1494,6 +1494,7 @@ async function invoices() {
             <button class="btn btn-sm btn-primary" onclick="updateInvoiceStatus(${i.id},'approuve')" title="Approuver et enregistrer la dépense">✅ Approuver</button>
             <button class="btn btn-sm btn-ghost" onclick="updateInvoiceStatus(${i.id},'refuse')" style="color:var(--red)">✗ Refuser</button>` : ''}
           ${i.statut === 'approuve' ? `<button class="btn btn-sm btn-accent" onclick="updateInvoiceStatus(${i.id},'paye')" title="Marquer comme payé">💰 Payé</button>` : ''}
+          <button class="btn btn-sm btn-ghost" onclick="deleteInvoice(${i.id})" style="color:var(--red)" title="Supprimer et annuler les effets financiers">🗑</button>
         </td>
       </tr>`).join('')}</tbody>
     </table></div></div>
@@ -1552,6 +1553,17 @@ function openInvoiceForm(lines) {
 async function updateInvoiceStatus(id, statut) {
   await api(`/finance/invoices/${id}`, { method:'PUT', body: JSON.stringify({ statut }) });
   toast('Statut mis à jour'); invoices();
+}
+
+async function deleteInvoice(id) {
+  if (!confirm('Supprimer cette facture ? Si elle était approuvée, son effet sur le solde sera annulé.')) return;
+  try {
+    await api(`/finance/invoices/${id}`, { method: 'DELETE' });
+    toast('Facture supprimée');
+    invoices();
+  } catch (ex) {
+    toast(ex.message, 'error');
+  }
 }
 
 // ══ MESSAGES ═══════════════════════════════════════════════════════════════
