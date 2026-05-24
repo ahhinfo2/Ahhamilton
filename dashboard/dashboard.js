@@ -106,7 +106,8 @@ function fmtMoney(n) { return '$' + (+n || 0).toFixed(2); }
 function pill(label, cls) { return `<span class="badge-pill ${cls}">${label}</span>`; }
 function statusPill(s) {
   const m = { planifiee:'bp-blue', en_cours:'bp-green', terminee:'bp-gray', annulee:'bp-red',
-    actif:'bp-green', inactif:'bp-gray', approuve:'bp-green', en_attente:'bp-orange', rejete:'bp-red',
+    archivee:'bp-gray', planifie:'bp-blue', termine:'bp-gray', suspendu:'bp-orange',
+    actif:'bp-green', inactif:'bp-gray', approuve:'bp-green', en_attente:'bp-orange', rejete:'bp-red', refuse:'bp-red',
     demande:'bp-orange', genere:'bp-blue', signe:'bp-green', paye:'bp-green', en_attente2:'bp-orange' };
   return pill(s || '–', m[s] || 'bp-gray');
 }
@@ -653,57 +654,132 @@ function showCalDay(day, month, year) {
 // ══ ACTIVITIES ═══════════════════════════════════════════════════════════════
 async function activities() {
   const data = await api('/activities');
+  window._activitiesData = data;
 
   setContent(`
     <div class="page-header">
       <div><h2>Activités</h2><p>Toutes les activités communautaires</p></div>
       <div class="page-actions">
+        ${canCreateActivity() ? '<button class="btn btn-primary" onclick=\'openActivityForm(null)\'>+ Nouvelle</button>' : ''}
         <button class="btn btn-ghost" onclick="activityCalendar()">🗓️ Calendrier</button>
         <button class="btn btn-outline" onclick="printSection('Activités')">🖨️ Imprimer</button>
       </div>
     </div>
+    <div class="members-toolbar">
+      <input id="actSearch" type="text" class="members-search" placeholder="🔍 Rechercher par titre, lieu, type…" oninput="filterActivities()"/>
+      <select id="actStatut" class="members-filter" onchange="filterActivities()">
+        <option value="">Tous les statuts</option>
+        <option value="planifiee">Planifiée</option>
+        <option value="en_cours">En cours</option>
+        <option value="terminee">Terminée</option>
+        <option value="archivee">Archivée</option>
+        <option value="annulee">Annulée</option>
+      </select>
+      <select id="actType" class="members-filter" onchange="filterActivities()">
+        <option value="">Tous les types</option>
+        <option value="general">Général</option>
+        <option value="culturel">Culturel</option>
+        <option value="benevolat">Bénévolat</option>
+        <option value="reunion">Réunion</option>
+        <option value="social">Social</option>
+      </select>
+      <button class="btn btn-ghost btn-sm" onclick="resetActivitiesFilter()">✕ Effacer</button>
+    </div>
     <div class="table-card">
-      <div class="table-wrapper"><table>
+      <div class="table-wrapper"><table id="activitiesTable">
         <thead><tr><th>Titre</th><th>Type</th><th>Date</th><th>Lieu</th><th>Participants</th><th>Statut</th><th>Actions</th></tr></thead>
-        <tbody>
-          ${data.length ? data.map(a => {
-            const isMember = USER.role === 'member' || USER.role === 'delegue';
-            const isRegistered = a.user_registered > 0;
-            const canRegister = isMember && a.statut === 'planifiee';
-            let memberBtn = '';
-            if (canRegister) {
-              if (isRegistered) {
-                memberBtn = '<span class="registered-badge">✅ Prêt(e)</span>';
-              } else {
-                memberBtn = `<button class="btn btn-sm btn-accent" onclick="registerActivity(${a.id})">S'inscrire</button>`;
-              }
-            }
-            return `<tr>
-            <td><strong>${a.titre}</strong></td>
-            <td>${a.type}</td>
-            <td>${fmt(a.date_debut)}</td>
-            <td>${a.lieu||'–'}</td>
-            <td>${a.nb_inscrits}${a.max_participants ? '/' + a.max_participants : ''}</td>
-            <td>${statusPill(a.statut)}</td>
-            <td>
-              ${canCreateActivity() ? `
-                <button class="btn btn-sm btn-outline" onclick='openActivityForm(${JSON.stringify(a)})'>✏️</button>
-                ${a.statut === 'planifiee' && can.adminOrSec() ? `<button class="btn btn-sm btn-primary" onclick="launchActivity(${a.id},'${a.titre}')">🚀 Lancer</button>` : ''}
-                ${a.paiement_requis ? `<button class="btn btn-sm btn-accent" onclick="viewActivityQR(${a.id},'${a.titre.replace(/'/g,"\\'")}','${a.qr_token||''}')">📱 QR</button>` : ''}
-                <button class="btn btn-sm btn-ghost" title="Photos" onclick="manageActivityPhotos(${a.id},'${a.titre.replace(/'/g,"\\'")}')">🖼</button>
-                <button class="btn btn-sm btn-ghost" title="Tables & Billets" onclick="managerTables(${a.id},'${a.titre.replace(/'/g,"\\'")}')">🪑 Tables</button>
-                <button class="btn btn-sm btn-ghost" title="Scanner les billets" onclick="openScanner(${a.id})">📷 Scanner</button>
-                <button class="btn btn-sm btn-ghost" onclick="viewRegistrations(${a.id},'${a.titre}')">👥</button>
-                <button class="btn btn-sm btn-ghost" onclick="showActivityReport(${a.id})">📊</button>
-              ` : ''}
-              ${memberBtn}
-            </td>
-          </tr>`;
-          }).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted)">Aucune activité</td></tr>'}
-        </tbody>
+        <tbody id="activitiesBody"></tbody>
       </table></div>
     </div>
   `);
+
+  filterActivities();
+}
+
+function filterActivities() {
+  const q      = (document.getElementById('actSearch')?.value || '').toLowerCase().trim();
+  const statut = document.getElementById('actStatut')?.value || '';
+  const type   = document.getElementById('actType')?.value   || '';
+  const data   = window._activitiesData || [];
+
+  const filtered = data.filter(a => {
+    if (q && !`${a.titre} ${a.lieu||''} ${a.type}`.toLowerCase().includes(q)) return false;
+    if (statut && a.statut !== statut) return false;
+    if (type   && a.type  !== type)   return false;
+    return true;
+  });
+
+  renderActivitiesTable(filtered);
+}
+
+function resetActivitiesFilter() {
+  ['actSearch','actStatut','actType'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  filterActivities();
+}
+
+function renderActivitiesTable(data) {
+  const tbody = document.getElementById('activitiesBody');
+  if (!tbody) return;
+  if (!data.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:40px">Aucune activité trouvée</td></tr>';
+    return;
+  }
+  const isMember = USER.role === 'member' || USER.role === 'delegue';
+  tbody.innerHTML = data.map(a => {
+    const isRegistered = a.user_registered > 0;
+    const canRegister  = isMember && a.statut === 'planifiee';
+    let memberBtn = '';
+    if (canRegister) {
+      memberBtn = isRegistered
+        ? '<span class="registered-badge">✅ Prêt(e)</span>'
+        : `<button class="btn btn-sm btn-accent" onclick="registerActivity(${a.id})">S'inscrire</button>`;
+    }
+    const isArchived = a.statut === 'archivee';
+    return `<tr>
+      <td><strong>${a.titre}</strong></td>
+      <td>${a.type}</td>
+      <td>${fmt(a.date_debut)}</td>
+      <td>${a.lieu||'–'}</td>
+      <td>${a.nb_inscrits}${a.max_participants ? '/'+a.max_participants : ''}</td>
+      <td>${statusPill(a.statut)}</td>
+      <td>
+        ${canCreateActivity() ? `
+          <button class="btn btn-sm btn-outline" onclick='openActivityForm(${JSON.stringify(a).replace(/'/g,"&#39;")})' title="Modifier">✏️</button>
+          ${!isArchived && a.statut === 'planifiee' && can.adminOrSec() ? `<button class="btn btn-sm btn-primary" onclick="launchActivity(${a.id},'${a.titre.replace(/'/g,"\\'")}')">🚀</button>` : ''}
+          ${a.paiement_requis ? `<button class="btn btn-sm btn-accent" onclick="viewActivityQR(${a.id},'${a.titre.replace(/'/g,"\\'")}','${a.qr_token||''}')">📱</button>` : ''}
+          <button class="btn btn-sm btn-ghost" title="Photos" onclick="manageActivityPhotos(${a.id},'${a.titre.replace(/'/g,"\\'")}')">🖼</button>
+          <button class="btn btn-sm btn-ghost" title="Tables" onclick="managerTables(${a.id},'${a.titre.replace(/'/g,"\\'")}')">🪑</button>
+          <button class="btn btn-sm btn-ghost" title="Scanner" onclick="openScanner(${a.id})">📷</button>
+          <button class="btn btn-sm btn-ghost" onclick="viewRegistrations(${a.id},'${a.titre.replace(/'/g,"\\'")}')">👥</button>
+          <button class="btn btn-sm btn-ghost" onclick="showActivityReport(${a.id})">📊</button>
+          ${isArchived
+            ? `<button class="btn btn-sm btn-ghost" onclick="unarchiveActivity(${a.id})" title="Restaurer" style="color:var(--g2)">↩️</button>`
+            : `<button class="btn btn-sm btn-ghost" onclick="archiveActivity(${a.id})" title="Archiver" style="color:#888">📦</button>`}
+          ${can.admin() ? `<button class="btn btn-sm btn-ghost" onclick="deleteActivity(${a.id})" style="color:var(--red)" title="Supprimer définitivement">🗑</button>` : ''}
+        ` : ''}
+        ${memberBtn}
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function archiveActivity(id) {
+  const a = (window._activitiesData || []).find(x => x.id === id);
+  if (!confirm(`Archiver "${a?.titre || '#'+id}" ? Elle sera retirée des finances mais ses données seront conservées.`)) return;
+  try { await api(`/activities/${id}/archive`, { method: 'PATCH' }); toast('Activité archivée'); activities(); }
+  catch(ex) { toast(ex.message, 'error'); }
+}
+
+async function unarchiveActivity(id) {
+  try { await api(`/activities/${id}/unarchive`, { method: 'PATCH' }); toast('Activité restaurée'); activities(); }
+  catch(ex) { toast(ex.message, 'error'); }
+}
+
+async function deleteActivity(id) {
+  const a = (window._activitiesData || []).find(x => x.id === id);
+  if (!confirm(`Supprimer définitivement "${a?.titre || '#'+id}" ?\nSes transactions et inscriptions seront également supprimées. Action irréversible.`)) return;
+  try { await api(`/activities/${id}`, { method: 'DELETE' }); toast('Activité supprimée'); activities(); }
+  catch(ex) { toast(ex.message, 'error'); }
 }
 
 // Rôles autorisés à créer des activités
@@ -995,8 +1071,9 @@ function renderMembersTable(filtered, q) {
       ${can.admin() ? `
         <button class="btn btn-sm btn-outline" onclick='openMemberForm(${JSON.stringify(u).replace(/'/g,"\\'")})'>✏️</button>
         ${u.actif
-          ? `<button class="btn btn-sm btn-danger" onclick="toggleMember(${u.id},0)">🚫</button>`
-          : `<button class="btn btn-sm btn-ghost"  onclick="toggleMember(${u.id},1)">✅</button>`}` : ''}
+          ? `<button class="btn btn-sm btn-danger" onclick="toggleMember(${u.id},0)" title="Désactiver">🚫</button>`
+          : `<button class="btn btn-sm btn-ghost"  onclick="toggleMember(${u.id},1)" title="Activer">✅</button>`}
+        <button class="btn btn-sm btn-ghost" onclick="deleteMember(${u.id})" style="color:var(--red)" title="Supprimer définitivement">🗑</button>` : ''}
       ${can.adminOrSec() ? `<button class="btn btn-sm btn-ghost" onclick="showVolunteerFor(${u.id},'${u.prenom} ${u.nom}')">🤝</button>` : ''}
     </td>
   </tr>`).join('');
@@ -1054,6 +1131,17 @@ async function toggleMember(id, actif) {
     filterMembers();
     toast(actif ? 'Membre activé' : 'Membre désactivé');
   } catch(ex) { toast(ex.message, 'error'); }
+}
+
+async function deleteMember(id) {
+  const u = (window._membersData || []).find(m => m.id === id);
+  const nom = u ? `${u.prenom} ${u.nom}` : `#${id}`;
+  if (!confirm(`Supprimer définitivement ${nom} ?\nToutes ses données (inscriptions, heures, paiements) seront effacées. Action irréversible.`)) return;
+  try {
+    await api(`/users/${id}`, { method: 'DELETE' });
+    toast(`${nom} supprimé`);
+    members();
+  } catch (ex) { toast(ex.message, 'error'); }
 }
 
 async function changePlan(id, plan) {
@@ -1346,13 +1434,14 @@ function scFilterPicker(q) {
 
 // ══ FINANCE ════════════════════════════════════════════════════════════════
 async function finance() {
-  const [lines, rep] = await Promise.all([api('/finance/lines'), api('/finance/account')]);
+  const [lines, rep, summary] = await Promise.all([api('/finance/lines'), api('/finance/account'), api('/finance/summary').catch(() => ({}))]);
   window._finLines = lines;
   window._finRep   = rep;
-  const totalBudget  = lines.reduce((s,l) => s + (l.budget_alloue||0), 0);
-  const totalDep     = lines.reduce((s,l) => s + (l.depenses||0), 0);
-  const totalRev     = lines.reduce((s,l) => s + (l.revenus||0), 0);
-  const totalPending = lines.reduce((s,l) => s + (l.depenses_en_attente||0), 0);
+  window._finAllLines = lines;
+  const totalBudget = lines.reduce((s,l) => s + (l.budget_alloue||0), 0);
+  const totalDep    = lines.reduce((s,l) => s + (l.depenses||0), 0);
+  const totalRev    = lines.reduce((s,l) => s + (l.revenus||0), 0);
+  const totalComm   = lines.reduce((s,l) => s + (l.commanditaires||0), 0);
 
   setContent(`
     <div class="page-header">
@@ -1364,32 +1453,70 @@ async function finance() {
     </div>
     <div class="finance-summary">
       <div class="fin-card"><div class="fc-val">${fmtMoney(rep?.solde)}</div><div class="fc-label">Solde actuel</div></div>
+      <div class="fin-card"><div class="fc-val">${summary?.projets_en_cours ?? '–'}</div><div class="fc-label">Projets en cours</div></div>
       <div class="fin-card"><div class="fc-val">${fmtMoney(totalBudget)}</div><div class="fc-label">Budget total alloué</div></div>
       <div class="fin-card"><div class="fc-val negative">${fmtMoney(totalDep)}</div><div class="fc-label">Total dépenses</div></div>
       <div class="fin-card"><div class="fc-val">${fmtMoney(totalRev)}</div><div class="fc-label">Total revenus</div></div>
+      ${totalComm > 0 ? `<div class="fin-card"><div class="fc-val" style="color:#0277bd">${fmtMoney(totalComm)}</div><div class="fc-label">Commanditaires</div></div>` : ''}
     </div>
     <div class="table-card">
-      <div class="table-card-header"><h3>Lignes financières</h3></div>
+      <div class="table-card-header" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <h3 style="margin:0">Lignes financières</h3>
+        <input id="finSearch" type="text" class="members-search" style="max-width:260px;margin:0"
+          placeholder="🔍 Rechercher…" oninput="filterFinLines()"/>
+        <select id="finStatut" class="members-filter" onchange="filterFinLines()" style="margin:0">
+          <option value="">Tous les statuts</option>
+          <option value="actif">Actif</option>
+          <option value="termine">Terminé</option>
+          <option value="archive">Archivé</option>
+        </select>
+      </div>
       <div class="table-wrapper"><table>
-        <thead><tr><th>Activité / Projet</th><th>Budget alloué</th><th>Dépenses</th><th>En attente</th><th>Revenus</th><th>Solde ligne</th><th>Statut</th><th>Actions</th></tr></thead>
-        <tbody>${lines.map(l => {
-          const solde = (l.budget_alloue||0) - (l.depenses||0) + (l.revenus||0);
-          const pending = l.depenses_en_attente||0;
-          return `<tr>
-            <td><strong>${l.activite||l.projet||l.titre}</strong></td>
-            <td>${fmtMoney(l.budget_alloue)}</td>
-            <td style="color:var(--red);font-size:.86rem">${fmtMoney(l.depenses)}</td>
-            <td style="color:#e65100;font-size:.86rem">${pending>0?'⏳ '+fmtMoney(pending):'–'}</td>
-            <td style="color:var(--g2);font-size:.86rem">${fmtMoney(l.revenus)}</td>
-            <td><strong style="color:${solde<0?'var(--red)':'var(--g2)'}">${fmtMoney(solde)}</strong></td>
-            <td>${statusPill(l.statut)}</td>
-            <td><button class="btn btn-sm btn-ghost" onclick="viewTransactions(${l.id},'${l.titre.replace(/'/g,"\\'")}')">Voir transactions</button></td>
-          </tr>`;
-        }).join('')}</tbody>
+        <thead><tr><th>Titre / Activité</th><th>Budget alloué</th><th>Dépenses</th><th>En attente</th><th>Revenus</th><th>Commanditaires</th><th>Solde</th><th>Solde total</th><th>Statut</th><th>Actions</th></tr></thead>
+        <tbody id="finLinesBody"></tbody>
       </table></div>
     </div>
     <p style="font-size:.78rem;color:var(--muted);margin-top:-8px">Institution: ${rep?.institution||'–'} · Compte: ${rep?.numero_compte||'–'} · Titulaire: ${rep?.nom_titulaire||'–'}</p>
   `);
+  filterFinLines();
+}
+
+function filterFinLines() {
+  const q      = (document.getElementById('finSearch')?.value || '').toLowerCase().trim();
+  const statut = document.getElementById('finStatut')?.value || '';
+  const lines  = window._finAllLines || [];
+  const filtered = lines.filter(l => {
+    if (q && !`${l.titre} ${l.activite||''} ${l.projet||''}`.toLowerCase().includes(q)) return false;
+    if (statut && l.statut !== statut) return false;
+    return true;
+  });
+  renderFinLines(filtered);
+}
+
+function renderFinLines(lines) {
+  const tbody = document.getElementById('finLinesBody');
+  if (!tbody) return;
+  if (!lines.length) {
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:32px">Aucune ligne financière</td></tr>';
+    return;
+  }
+  tbody.innerHTML = lines.map(l => {
+    const solde      = (l.budget_alloue||0) - (l.depenses||0) + (l.revenus||0);
+    const soldeTotal = solde + (l.commanditaires||0);
+    const pending    = l.depenses_en_attente||0;
+    return `<tr>
+      <td><strong>${l.activite||l.projet||l.titre}</strong><br><span style="font-size:.74rem;color:var(--muted)">${l.titre}</span></td>
+      <td>${fmtMoney(l.budget_alloue)}</td>
+      <td style="color:var(--red);font-size:.86rem">${fmtMoney(l.depenses)}</td>
+      <td style="color:#e65100;font-size:.86rem">${pending>0?'⏳ '+fmtMoney(pending):'–'}</td>
+      <td style="color:var(--g2);font-size:.86rem">${fmtMoney(l.revenus)}</td>
+      <td style="color:#0277bd;font-size:.86rem">${(l.commanditaires||0)>0?fmtMoney(l.commanditaires):'–'}</td>
+      <td><strong style="color:${solde<0?'var(--red)':'var(--g2)'}">${fmtMoney(solde)}</strong></td>
+      <td><strong style="color:${soldeTotal<0?'var(--red)':'#0277bd'}">${fmtMoney(soldeTotal)}</strong></td>
+      <td>${statusPill(l.statut)}</td>
+      <td><button class="btn btn-sm btn-ghost" onclick="viewTransactions(${l.id},'${l.titre.replace(/'/g,"\\'")}')">Transactions</button></td>
+    </tr>`;
+  }).join('');
 }
 
 async function viewTransactions(lineId, titre) {

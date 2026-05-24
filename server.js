@@ -202,6 +202,7 @@ app.post('/api/auth/register', (req, res) => {
 
   // Notifier tous les exécutifs (message interne + email externe)
   const staff = db.prepare("SELECT * FROM users WHERE role IN ('admin','tresoriere','secretaire','delegue') AND actif=1").all();
+  const candidat = { prenom, nom, email, telephone, plan, message };
   if (staff.length) {
     const adminId = staff[0].id;
     const msgR = db.prepare("INSERT INTO messages (expediteur_id, sujet, contenu, type) VALUES (?,?,?,'individuel')")
@@ -211,10 +212,12 @@ app.post('/api/auth/register', (req, res) => {
     staff.forEach(s => {
       ins.run(msgR.lastInsertRowid, s.id);
       createAlert(s.id, 'inscription', `📋 Adhésion en attente : ${prenom} ${nom}`, `Plan souhaité: ${plan||'gratuit'}`);
-      // Email externe à chaque membre du comité
-      mailer.sendNouvelleAdhesion(s.email, { prenom, nom, email, telephone, plan, message }).catch(() => {});
+      mailer.sendNouvelleAdhesion(s.email, candidat).catch(() => {});
     });
   }
+  // Also notify extra addresses from env (e.g. president/VP personal email)
+  const extraEmails = (process.env.NOTIFY_EMAILS || '').split(',').map(e => e.trim()).filter(Boolean);
+  extraEmails.forEach(addr => mailer.sendNouvelleAdhesion(addr, candidat).catch(() => {}));
   res.status(201).json({ message: 'Demande envoyée. Vous recevrez un courriel après approbation.' });
 });
 
@@ -384,8 +387,15 @@ app.post('/api/users/:id/photo', authMiddleware, uploadProfile.single('photo'), 
 app.use('/uploads/profiles', express.static(path.join(__dirname, 'uploads', 'profiles')));
 
 app.delete('/api/users/:id', authMiddleware, requireRole('admin'), (req, res) => {
-  db.prepare('UPDATE users SET actif = 0 WHERE id = ?').run(req.params.id);
-  res.json({ message: 'Membre désactivé' });
+  const uid = parseInt(req.params.id);
+  if (uid === req.user.id) return res.status(400).json({ error: 'Vous ne pouvez pas vous supprimer vous-même' });
+  db.prepare('DELETE FROM message_recipients WHERE destinataire_id = ?').run(uid);
+  db.prepare('DELETE FROM volunteer_hours WHERE user_id = ?').run(uid);
+  db.prepare('DELETE FROM activity_registrations WHERE user_id = ?').run(uid);
+  db.prepare('DELETE FROM payments WHERE user_id = ?').run(uid);
+  db.prepare('DELETE FROM alerts WHERE user_id = ?').run(uid);
+  db.prepare('DELETE FROM users WHERE id = ?').run(uid);
+  res.json({ message: 'Membre supprimé' });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -462,9 +472,39 @@ app.put('/api/activities/:id', authMiddleware, requireRole(...ACTIVITY_ROLES), (
   res.json({ message: 'Activité mise à jour' });
 });
 
-app.delete('/api/activities/:id', authMiddleware, requireRole('admin'), (req, res) => {
-  db.prepare('UPDATE activities SET statut = ? WHERE id = ?').run('annulee', req.params.id);
-  res.json({ message: 'Activité annulée' });
+app.delete('/api/activities/:id', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  const actId = parseInt(req.params.id);
+  const act = db.prepare('SELECT * FROM activities WHERE id = ?').get(actId);
+  if (!act) return res.status(404).json({ error: 'Activité introuvable' });
+  // Reverse any financial transactions linked to this activity's financial line
+  const line = act.financial_line_id
+    ? db.prepare('SELECT * FROM financial_lines WHERE id = ?').get(act.financial_line_id) : null;
+  if (line) {
+    const txRows = db.prepare("SELECT * FROM transactions WHERE financial_line_id = ?").all(line.id);
+    txRows.forEach(t => {
+      if (t.type === 'depense')
+        db.prepare('UPDATE account_info SET solde = solde + ?, date_maj = CURRENT_TIMESTAMP WHERE id = 1').run(t.montant);
+      else if (t.type === 'revenu')
+        db.prepare('UPDATE account_info SET solde = solde - ?, date_maj = CURRENT_TIMESTAMP WHERE id = 1').run(t.montant);
+    });
+    db.prepare('DELETE FROM transactions WHERE financial_line_id = ?').run(line.id);
+    db.prepare('DELETE FROM invoices WHERE financial_line_id = ?').run(line.id);
+    db.prepare('DELETE FROM financial_lines WHERE id = ?').run(line.id);
+  }
+  db.prepare('DELETE FROM activity_registrations WHERE activity_id = ?').run(actId);
+  db.prepare('DELETE FROM activity_photos WHERE activity_id = ?').run(actId);
+  db.prepare('DELETE FROM activities WHERE id = ?').run(actId);
+  res.json({ message: 'Activité supprimée' });
+});
+
+app.patch('/api/activities/:id/archive', authMiddleware, requireRole('admin','secretaire','tresoriere'), (req, res) => {
+  db.prepare("UPDATE activities SET statut = 'archivee' WHERE id = ?").run(req.params.id);
+  res.json({ message: 'Activité archivée' });
+});
+
+app.patch('/api/activities/:id/unarchive', authMiddleware, requireRole('admin','secretaire','tresoriere'), (req, res) => {
+  db.prepare("UPDATE activities SET statut = 'terminee' WHERE id = ?").run(req.params.id);
+  res.json({ message: 'Activité restaurée' });
 });
 
 app.post('/api/activities/:id/register', authMiddleware, (req, res) => {
@@ -500,13 +540,21 @@ app.get('/api/finance/lines', authMiddleware, requireRole('admin', 'tresoriere')
     SELECT fl.*, a.titre AS activite, p.nom AS projet,
       COALESCE((SELECT SUM(t.montant) FROM transactions t WHERE t.financial_line_id = fl.id AND t.type = 'depense'), 0) AS depenses,
       COALESCE((SELECT SUM(t.montant) FROM transactions t WHERE t.financial_line_id = fl.id AND t.type = 'revenu'), 0) AS revenus,
-      COALESCE((SELECT SUM(i.montant) FROM invoices i WHERE i.financial_line_id = fl.id AND i.statut = 'en_attente'), 0) AS depenses_en_attente
+      COALESCE((SELECT SUM(i.montant) FROM invoices i WHERE i.financial_line_id = fl.id AND i.statut = 'en_attente'), 0) AS depenses_en_attente,
+      COALESCE(fl.commanditaires, 0) AS commanditaires
     FROM financial_lines fl
     LEFT JOIN activities a ON a.id = fl.activity_id
     LEFT JOIN projects p ON p.id = fl.project_id
     ORDER BY fl.date_creation DESC
   `).all();
   res.json(rows);
+});
+
+app.get('/api/finance/summary', authMiddleware, requireRole('admin', 'tresoriere'), (req, res) => {
+  const account = db.prepare('SELECT * FROM account_info WHERE id = 1').get() || {};
+  const actCount = db.prepare("SELECT COUNT(*) AS cnt FROM activities WHERE statut IN ('planifiee','en_cours')").get().cnt;
+  const projCount = db.prepare("SELECT COUNT(*) AS cnt FROM projects WHERE statut IN ('en_cours','planifie')").get().cnt;
+  res.json({ solde: account.solde || 0, projets_en_cours: actCount + projCount });
 });
 
 app.get('/api/finance/transactions', authMiddleware, requireRole('admin', 'tresoriere'), (req, res) => {

@@ -246,6 +246,9 @@
         byCat[cat][album].push(p);
       });
 
+      // Registre des albums par clé unique pour le lightbox
+      var albumRegistry = {}; // key → [ { src, caption } ]
+
       var html = '';
       Object.entries(byCat).forEach(function(catEntry) {
         var catKey = catEntry[0];
@@ -255,43 +258,52 @@
         html += '<div class="gal-cat-block" style="margin-bottom:48px">';
         html += '<h3 class="gallery-cat-title">' + catInfo.emoji + ' ' + catInfo.label + '</h3>';
 
+        // Grille des albums (un thumbnail par album)
+        html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:20px">';
+
         Object.entries(albums).forEach(function(albEntry) {
           var albumName = albEntry[0];
           var albumPhotos = albEntry[1];
-          html += '<div class="gal-album-block">';
-          html += '<div class="gal-album-header">' +
-            '<span class="gal-album-name">📁 ' + albumName + '</span>' +
-            '<span class="gal-album-count">' + albumPhotos.length + ' photo' + (albumPhotos.length > 1 ? 's' : '') + '</span>' +
-          '</div>';
-          html += '<div class="gal-album-grid">';
-          albumPhotos.forEach(function(p) {
-            var src = BASE + p.photo_path;
-            var cap = (p.titre || '').replace(/'/g, "\\'");
-            html += '<div class="gallery-item gal-recent-item" data-src="' + src + '" data-cap="' + cap + '" ' +
-              'style="height:200px;border-radius:14px;overflow:hidden;position:relative;cursor:zoom-in;background:#1b5e20">' +
-              '<img src="' + src + '" alt="' + (p.titre || '') + '" ' +
-                'style="width:100%;height:100%;object-fit:cover;transition:.3s" ' +
-                'onerror="this.style.display=\'none\'"/>' +
-              '<div class="gallery-overlay"><span>' + (p.titre || catInfo.emoji) + '</span></div>' +
-            '</div>';
+          var albumKey = catKey + '__' + albumName;
+          var albumList = albumPhotos.map(function(p) {
+            return { src: BASE + p.photo_path, caption: albumName };
           });
-          html += '</div></div>';
+          albumRegistry[albumKey] = albumList;
+
+          var thumb = BASE + albumPhotos[0].photo_path;
+          var count = albumPhotos.length;
+          html += '<div class="gal-album-thumb" data-album-key="' + albumKey.replace(/"/g,'&quot;') + '" ' +
+            'style="position:relative;height:220px;border-radius:16px;overflow:hidden;cursor:zoom-in;background:#1b5e20;box-shadow:0 4px 16px rgba(0,0,0,.15)">' +
+            '<img src="' + thumb + '" alt="' + albumName + '" ' +
+              'style="width:100%;height:100%;object-fit:cover;transition:.4s" ' +
+              'onerror="this.style.display=\'none\'"/>' +
+            '<div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.7) 0%,transparent 55%)">' +
+              '<div style="position:absolute;bottom:14px;left:14px;right:14px">' +
+                '<div style="color:#fff;font-weight:700;font-size:.9rem;margin-bottom:4px">' + albumName + '</div>' +
+                '<div style="color:rgba(255,255,255,.7);font-size:.75rem">' + count + ' photo' + (count>1?'s':'') + ' — cliquer pour voir</div>' +
+              '</div>' +
+              (count > 1 ? '<div style="position:absolute;top:12px;right:12px;background:rgba(0,0,0,.5);color:#fff;font-size:.72rem;padding:3px 9px;border-radius:50px">' + count + ' 📷</div>' : '') +
+            '</div>' +
+          '</div>';
         });
 
-        html += '</div>';
+        html += '</div></div>';
       });
 
       container.innerHTML = html;
 
-      // Attacher lightbox aux photos récentes avec navigation
-      container.querySelectorAll('.gal-recent-item').forEach(function(item) {
+      // Attacher lightbox par album
+      container.querySelectorAll('.gal-album-thumb').forEach(function(item) {
         item.addEventListener('click', function() {
-          _lbPhotos = recentPhotos;
-          var src = item.dataset.src;
-          var idx = recentPhotos.findIndex(function(p){ return p.src === src; });
-          _lbIdx = idx >= 0 ? idx : 0;
+          var key = item.dataset.albumKey;
+          if (!key || !albumRegistry[key] || !albumRegistry[key].length) return;
+          _lbPhotos = albumRegistry[key];
+          _lbIdx = 0;
           _lbShow();
         });
+        // Zoom au survol
+        item.addEventListener('mouseenter', function() { var img = item.querySelector('img'); if (img) img.style.transform='scale(1.04)'; });
+        item.addEventListener('mouseleave', function() { var img = item.querySelector('img'); if (img) img.style.transform='scale(1)'; });
       });
 
       // Afficher le header "Photos récentes" et le séparateur archives
