@@ -1635,19 +1635,30 @@ async function reports() {
   `);
 }
 
+async function printVolReport() {
+  const userId = document.getElementById('rep_user')?.value;
+  const data = await api('/reports/volunteer' + (userId ? `?user_id=${userId}` : ''));
+  const tableHtml = `<table>
+    <thead><tr><th>Membre</th><th>Email</th><th>Activité</th><th>Heures</th><th>Date</th></tr></thead>
+    <tbody>${data.rows.map(r=>`<tr><td>${r.prenom} ${r.nom}</td><td>${r.email}</td><td>${r.activite||'–'}</td><td>${r.heures}h</td><td>${fmt(r.date_service)}</td></tr>`).join('') || '<tr><td colspan="5" style="text-align:center">Aucun résultat</td></tr>'}</tbody>
+  </table>`;
+  printAHHReport(`Rapport bénévolat — ${data.total_heures}h approuvées`, tableHtml);
+}
+
 async function genVolReport() {
   const userId = document.getElementById('rep_user')?.value;
   const data = await api('/reports/volunteer' + (userId ? `?user_id=${userId}` : ''));
+  const tableHtml = `<table>
+    <thead><tr><th>Membre</th><th>Email</th><th>Activité</th><th>Heures</th><th>Date</th></tr></thead>
+    <tbody>${data.rows.map(r=>`<tr><td>${r.prenom} ${r.nom}</td><td>${r.email}</td><td>${r.activite||'–'}</td><td>${r.heures}h</td><td>${fmt(r.date_service)}</td></tr>`).join('') || '<tr><td colspan="5" style="text-align:center">Aucun résultat</td></tr>'}</tbody>
+  </table>`;
   document.getElementById('reportResult').innerHTML = `
     <div class="table-card">
       <div class="table-card-header">
         <h3>Rapport bénévolat — Total: <strong>${data.total_heures}h approuvées</strong></h3>
-        <button class="btn btn-sm btn-outline" onclick="window.print()">🖨️ Imprimer</button>
+        <button class="btn btn-sm btn-outline" onclick="printAHHReport('Rapport bénévolat',document.querySelector('#reportResult table').outerHTML)">🖨️ Imprimer</button>
       </div>
-      <div class="table-wrapper"><table>
-        <thead><tr><th>Membre</th><th>Email</th><th>Activité</th><th>Heures</th><th>Date</th></tr></thead>
-        <tbody>${data.rows.map(r=>`<tr><td>${r.prenom} ${r.nom}</td><td>${r.email}</td><td>${r.activite||'–'}</td><td>${r.heures}h</td><td>${fmt(r.date_service)}</td></tr>`).join('') || '<tr><td colspan="5" style="text-align:center">Aucun résultat</td></tr>'}</tbody>
-      </table></div>
+      <div class="table-wrapper">${tableHtml}</div>
     </div>`;
 }
 
@@ -1655,22 +1666,35 @@ async function genFinReport() {
   const data = await api('/reports/finance');
   const totalDep = data.lines.reduce((s,l)=>s+(l.depenses||0),0);
   const totalRev = data.lines.reduce((s,l)=>s+(l.revenus||0),0);
+  const tableHtml = `<table>
+    <thead><tr><th>Activité / Projet</th><th>Budget alloué</th><th>Dépenses</th><th>En attente</th><th>Revenus</th><th>Solde</th></tr></thead>
+    <tbody>${data.lines.map(l=>{
+      const s = (l.budget_alloue||0)-(l.depenses||0)+(l.revenus||0);
+      return `<tr><td>${l.activite||l.projet||l.titre}</td><td>${fmtMoney(l.budget_alloue)}</td><td>${fmtMoney(l.depenses)}</td><td>${fmtMoney(l.depenses_en_attente||0)}</td><td>${fmtMoney(l.revenus)}</td><td><strong>${fmtMoney(s)}</strong></td></tr>`;
+    }).join('')}
+    <tr style="font-weight:700"><td>TOTAUX</td><td>–</td><td>${fmtMoney(totalDep)}</td><td>–</td><td>${fmtMoney(totalRev)}</td><td><strong>${fmtMoney(totalRev-totalDep)}</strong></td></tr>
+    </tbody></table>`;
   document.getElementById('reportResult').innerHTML = `
     <div class="table-card">
       <div class="table-card-header">
         <h3>Rapport financier global — Solde: <strong>${fmtMoney(data.account?.solde)}</strong></h3>
-        <button class="btn btn-sm btn-outline" onclick="window.print()">🖨️ Imprimer</button>
+        <button class="btn btn-sm btn-outline" onclick="printAHHReport('Rapport financier',document.querySelector('#reportResult table').outerHTML)">🖨️ Imprimer</button>
       </div>
-      <div class="table-wrapper"><table>
-        <thead><tr><th>Activité</th><th>Budget alloué</th><th>Dépenses</th><th>Revenus</th><th>Solde</th></tr></thead>
-        <tbody>${data.lines.map(l=>{
-          const s = (l.budget_alloue||0)-(l.depenses||0)+(l.revenus||0);
-          return `<tr><td>${l.activite||l.titre}</td><td>${fmtMoney(l.budget_alloue)}</td><td style="color:var(--red)">${fmtMoney(l.depenses)}</td><td style="color:var(--g2)">${fmtMoney(l.revenus)}</td><td style="color:${s<0?'var(--red)':'var(--g2)'}"><strong>${fmtMoney(s)}</strong></td></tr>`;
-        }).join('')}
-        <tr style="font-weight:700;background:var(--off)"><td>TOTAUX</td><td>–</td><td style="color:var(--red)">${fmtMoney(totalDep)}</td><td style="color:var(--g2)">${fmtMoney(totalRev)}</td><td style="color:${(totalRev-totalDep)<0?'var(--red)':'var(--g2)'}"><strong>${fmtMoney(totalRev-totalDep)}</strong></td></tr>
-        </tbody>
-      </table></div>
+      <div class="table-wrapper">${tableHtml}</div>
     </div>`;
+}
+
+function printAHHReport(title, tableHtml) {
+  const w = window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/><title>${title} – AHH</title>
+    ${ahhPrintStyles()}</head><body>
+    <div class="noprint"><button class="btn-print" onclick="window.print()">🖨️ Imprimer / Sauvegarder en PDF</button></div>
+    ${ahhPrintHeader()}
+    <h2 style="font-size:1.1rem;font-weight:700;color:#1b5e20;margin-bottom:4px">${title}</h2>
+    <p style="color:#5a7a5a;font-size:.78rem;margin-bottom:20px">Imprimé le ${new Date().toLocaleDateString('fr-CA')}</p>
+    ${tableHtml}
+    </body></html>`);
+  w.document.close(); w.print();
 }
 
 // ══ LETTERS ════════════════════════════════════════════════════════════════
@@ -1743,11 +1767,48 @@ function previewLetter(id, nom, contenu) {
     </div>`);
 }
 
+function ahhPrintHeader() {
+  return `
+    <div style="display:flex;align-items:center;gap:20px;border-bottom:3px solid #1b5e20;padding-bottom:18px;margin-bottom:24px">
+      <img src="/Public/logo.jpg" alt="AHH" style="width:70px;height:70px;border-radius:8px;object-fit:cover;flex-shrink:0"/>
+      <div>
+        <div style="font-size:1.3rem;font-weight:800;color:#1b5e20">Association Haïtienne de Hamilton</div>
+        <div style="font-size:.82rem;color:#555;margin-top:2px">231 Fernwood Crescent, Hamilton, ON  L8T 3L7</div>
+        <div style="font-size:.78rem;color:#777;margin-top:1px">Tél : 905-818-8269 &nbsp;|&nbsp; info@ahhamilton.ca &nbsp;|&nbsp; ahhamilton.ca</div>
+      </div>
+    </div>`;
+}
+
+function ahhPrintStyles() {
+  return `<style>
+    @page{size:letter;margin:2cm}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;background:#fff;padding:32px}
+    table{width:100%;border-collapse:collapse;margin:12px 0}
+    th{background:#e8f5e9;padding:8px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+    td{padding:7px 8px;border-bottom:1px solid #e8f5e9;font-size:12px}
+    .btn-print{background:#1b5e20;color:#fff;border:none;padding:10px 24px;border-radius:8px;font-size:.95rem;cursor:pointer;margin-bottom:24px}
+    @media print{.noprint{display:none}}
+  </style>`;
+}
+
 function printLetter(contenu, nom) {
   const w = window.open('','_blank');
-  w.document.write(`<html><head><title>Lettre – ${nom}</title>
-    <style>body{font-family:Georgia,serif;max-width:700px;margin:60px auto;font-size:14px;line-height:1.9;color:#111}h1{font-size:18px;text-align:center;margin-bottom:40px}pre{white-space:pre-wrap;font-family:Georgia,serif}</style></head>
-    <body><pre>${contenu}</pre></body></html>`);
+  w.document.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/><title>Lettre – ${nom}</title>
+    ${ahhPrintStyles()}
+    <style>pre{white-space:pre-wrap;font-family:Georgia,serif;font-size:13px;line-height:1.9;color:#111}</style>
+    </head><body>
+    <div class="noprint"><button class="btn-print" onclick="window.print()">🖨️ Imprimer / Sauvegarder en PDF</button></div>
+    ${ahhPrintHeader()}
+    <h2 style="font-size:1.1rem;font-weight:700;color:#1b5e20;margin-bottom:6px">Lettre de recommandation</h2>
+    <p style="font-size:.78rem;color:#888;margin-bottom:24px">Émise le ${new Date().toLocaleDateString('fr-CA')} · ${nom}</p>
+    <pre>${contenu}</pre>
+    <div style="margin-top:60px;display:flex;justify-content:flex-end">
+      <div style="border-top:1px solid #333;width:220px;padding-top:6px;font-size:.8rem;color:#555;text-align:center">
+        Signature — Secrétaire / Président(e)<br/>Association Haïtienne de Hamilton
+      </div>
+    </div>
+    </body></html>`);
   w.document.close(); w.print();
 }
 
@@ -3223,24 +3284,20 @@ function renderSearchResults(data, q) {
 function printSection(title) {
   const content = document.getElementById('mainContent').innerHTML;
   const w = window.open('', '_blank');
-  w.document.write('<!DOCTYPE html><html><head>' +
+  w.document.write('<!DOCTYPE html><html lang="fr"><head>' +
     '<meta charset="UTF-8"/><title>' + title + ' – AHH</title>' +
-    '<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet"/>' +
+    ahhPrintStyles() +
     '<style>' +
-    'body{font-family:\'Poppins\',sans-serif;padding:24px;font-size:12px;color:#1a2e1a}' +
-    'h1{font-size:18px;margin-bottom:16px;color:#1b5e20}' +
-    'table{width:100%;border-collapse:collapse;margin:12px 0}' +
-    'th{background:#e8f5e9;padding:8px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase}' +
-    'td{padding:7px 8px;border-bottom:1px solid #e8f5e9;font-size:11px}' +
-    '.btn,.icon-btn,.page-actions{display:none!important}' +
+    '.btn,.icon-btn,.page-actions,.page-header .page-actions button{display:none!important}' +
     '.stat-card{border:1px solid #c8e6c9;border-radius:8px;padding:12px;margin:8px;display:inline-block}' +
     '.sc-value{font-size:24px;font-weight:700;color:#1b5e20}' +
     '.badge-pill{padding:2px 8px;border-radius:50px;font-size:10px;font-weight:600}' +
     '.bp-green{background:#e8f5e9;color:#1b5e20}.bp-orange{background:#fff3e0;color:#e65100}' +
     '.bp-blue{background:#e3f2fd;color:#0d47a1}.bp-red{background:#ffebee;color:#b71c1c}.bp-gray{background:#f5f5f5;color:#455a64}' +
     '</style></head><body>' +
-    '<h1>📄 ' + title + '</h1>' +
-    '<p style="color:#5a7a5a;font-size:11px;margin-bottom:16px">AHH — Imprimé le ' + new Date().toLocaleDateString('fr-CA') + '</p>' +
+    ahhPrintHeader() +
+    '<h2 style="font-size:1.1rem;font-weight:700;color:#1b5e20;margin-bottom:4px">' + title + '</h2>' +
+    '<p style="color:#5a7a5a;font-size:.78rem;margin-bottom:20px">Imprimé le ' + new Date().toLocaleDateString('fr-CA') + '</p>' +
     content + '</body></html>');
   w.document.close();
   w.focus();
