@@ -1299,9 +1299,11 @@ async function invoices() {
         <td>${i.ligne||'–'}</td>
         <td>${statusPill(i.statut)}</td>
         <td>${i.photo_path ? `<a href="${BASE}${i.photo_path}" target="_blank" class="btn btn-sm btn-ghost">📷 Voir</a>` : '–'}</td>
-        <td>
-          ${i.statut === 'en_attente' ? `<button class="btn btn-sm btn-primary" onclick="updateInvoiceStatus(${i.id},'approuve')">✅</button>
-          <button class="btn btn-sm btn-accent" onclick="updateInvoiceStatus(${i.id},'paye')">💰 Payé</button>` : ''}
+        <td style="white-space:nowrap">
+          ${i.statut === 'en_attente' ? `
+            <button class="btn btn-sm btn-primary" onclick="updateInvoiceStatus(${i.id},'approuve')" title="Approuver et enregistrer la dépense">✅ Approuver</button>
+            <button class="btn btn-sm btn-ghost" onclick="updateInvoiceStatus(${i.id},'refuse')" style="color:var(--red)">✗ Refuser</button>` : ''}
+          ${i.statut === 'approuve' ? `<button class="btn btn-sm btn-accent" onclick="updateInvoiceStatus(${i.id},'paye')" title="Marquer comme payé">💰 Payé</button>` : ''}
         </td>
       </tr>`).join('')}</tbody>
     </table></div></div>

@@ -450,7 +450,7 @@ app.get('/api/finance/lines', authMiddleware, requireRole('admin', 'tresoriere')
     SELECT fl.*, a.titre AS activite, p.nom AS projet,
       COALESCE((SELECT SUM(t.montant) FROM transactions t WHERE t.financial_line_id = fl.id AND t.type = 'depense'), 0) AS depenses,
       COALESCE((SELECT SUM(t.montant) FROM transactions t WHERE t.financial_line_id = fl.id AND t.type = 'revenu'), 0) AS revenus,
-      COALESCE((SELECT SUM(i.montant) FROM invoices i WHERE i.financial_line_id = fl.id AND i.statut NOT IN ('paye','refuse')), 0) AS depenses_en_attente
+      COALESCE((SELECT SUM(i.montant) FROM invoices i WHERE i.financial_line_id = fl.id AND i.statut = 'en_attente'), 0) AS depenses_en_attente
     FROM financial_lines fl
     LEFT JOIN activities a ON a.id = fl.activity_id
     LEFT JOIN projects p ON p.id = fl.project_id
@@ -531,11 +531,12 @@ app.put('/api/finance/invoices/:id', authMiddleware, requireRole('tresoriere', '
   const invoice = db.prepare('SELECT * FROM invoices WHERE id = ?').get(req.params.id);
   if (!invoice) return res.status(404).json({ error: 'Facture introuvable' });
   db.prepare('UPDATE invoices SET statut = ? WHERE id = ?').run(statut, req.params.id);
-  // Quand facture marquée payée → créer transaction automatiquement
-  if (statut === 'paye' && invoice.statut !== 'paye' && invoice.financial_line_id) {
+  // Dès qu'une facture est approuvée → enregistrer la dépense dans la ligne financière
+  const wasAlreadyApprovedOrPaid = ['approuve','paye'].includes(invoice.statut);
+  if (statut === 'approuve' && !wasAlreadyApprovedOrPaid && invoice.financial_line_id) {
     db.prepare(`INSERT INTO transactions (financial_line_id, type, montant, description, methode, invoice_id, cree_par)
       VALUES (?, 'depense', ?, ?, 'facture', ?, ?)`)
-      .run(invoice.financial_line_id, invoice.montant, `Paiement facture: ${invoice.titre}`, invoice.id, req.user.id);
+      .run(invoice.financial_line_id, invoice.montant, `Facture approuvée: ${invoice.titre}`, invoice.id, req.user.id);
     db.prepare('UPDATE account_info SET solde = solde - ?, date_maj = CURRENT_TIMESTAMP WHERE id = 1').run(invoice.montant);
   }
   res.json({ message: 'Mise à jour' });
