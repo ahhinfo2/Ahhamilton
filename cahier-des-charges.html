@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cahier des charges — Plateforme numérique AHH Hamilton</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
+    @page { margin: 2.2cm 2cm; }
+
+    *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family: 'Poppins', sans-serif; font-size: 11pt; color: #1a2e1a; line-height: 1.65; background: #fff; }
+
+    /* ── Cover page ── */
+    .cover {
+      height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;
+      text-align: center; page-break-after: always;
+      background: linear-gradient(160deg, #1b5e20 0%, #2e7d32 60%, #43a047 100%);
+      color: #fff; padding: 60px;
+    }
+    .cover-logo { width: 90px; height: 90px; border-radius: 20px; border: 3px solid rgba(255,255,255,.4); margin-bottom: 28px; background: #fff url('Public/logo.jpg') center/cover; }
+    .cover h1 { font-size: 26pt; font-weight: 800; letter-spacing: -.5px; margin-bottom: 10px; }
+    .cover .subtitle { font-size: 14pt; font-weight: 300; opacity: .85; margin-bottom: 36px; }
+    .cover .meta-block { background: rgba(255,255,255,.12); border-radius: 14px; padding: 20px 36px; display: inline-block; }
+    .cover .meta-block p { font-size: 10pt; opacity: .9; margin: 4px 0; }
+    .cover .meta-block strong { font-weight: 700; }
+    .cover-badge { margin-top: 28px; background: #f9a825; color: #1a2e1a; font-weight: 700; font-size: 9pt; padding: 6px 20px; border-radius: 50px; display: inline-block; }
+
+    /* ── Page structure ── */
+    .page-break { page-break-after: always; }
+    .section { margin-bottom: 32px; }
+
+    /* ── Headers ── */
+    h1.section-title {
+      font-size: 16pt; font-weight: 800; color: #1b5e20;
+      border-bottom: 3px solid #1b5e20; padding-bottom: 8px; margin-bottom: 20px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    h2.sub-title {
+      font-size: 12pt; font-weight: 700; color: #2e7d32;
+      margin: 22px 0 10px; padding-left: 12px;
+      border-left: 4px solid #43a047;
+    }
+    h3.item-title {
+      font-size: 10.5pt; font-weight: 700; color: #1a2e1a; margin: 14px 0 6px;
+    }
+
+    /* ── TOC ── */
+    .toc { background: #f0f7f0; border-radius: 12px; padding: 24px 28px; margin-bottom: 36px; }
+    .toc h2 { font-size: 12pt; font-weight: 800; color: #1b5e20; margin-bottom: 14px; }
+    .toc ol { padding-left: 20px; }
+    .toc li { font-size: 10pt; margin: 5px 0; color: #2e7d32; }
+    .toc li span { color: #1a2e1a; }
+
+    /* ── Info box ── */
+    .info-box {
+      background: #e8f5e9; border-left: 4px solid #1b5e20; border-radius: 8px;
+      padding: 14px 18px; margin: 14px 0; font-size: 10pt;
+    }
+    .warn-box {
+      background: #fff8e1; border-left: 4px solid #f9a825; border-radius: 8px;
+      padding: 14px 18px; margin: 14px 0; font-size: 10pt;
+    }
+
+    /* ── Table ── */
+    table { width: 100%; border-collapse: collapse; font-size: 10pt; margin: 14px 0; }
+    th { background: #1b5e20; color: #fff; padding: 9px 12px; text-align: left; font-weight: 600; }
+    td { padding: 8px 12px; border-bottom: 1px solid #d0e8d0; vertical-align: top; }
+    tr:nth-child(even) td { background: #f0f7f0; }
+
+    /* ── Feature cards ── */
+    .feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
+    .feature-card {
+      border: 1.5px solid #c8e6c9; border-radius: 10px; padding: 14px;
+      break-inside: avoid;
+    }
+    .feature-card .fc-header { display: flex; align-items: center; gap: 10px; margin-bottom: 7px; }
+    .feature-card .fc-icon { font-size: 18pt; }
+    .feature-card .fc-title { font-weight: 700; font-size: 10.5pt; color: #1b5e20; }
+    .feature-card p { font-size: 9.5pt; color: #3a3a3a; line-height: 1.55; }
+    .feature-card ul { padding-left: 16px; font-size: 9.5pt; color: #3a3a3a; line-height: 1.7; }
+
+    /* ── Pill badges ── */
+    .badge { display: inline-block; padding: 2px 10px; border-radius: 50px; font-size: 8.5pt; font-weight: 700; margin: 2px; }
+    .badge-green  { background: #e8f5e9; color: #1b5e20; }
+    .badge-blue   { background: #e3f2fd; color: #0277bd; }
+    .badge-orange { background: #fff3e0; color: #e65100; }
+    .badge-gray   { background: #f5f5f5; color: #546e7a; }
+
+    /* ── Timeline ── */
+    .timeline { margin: 14px 0; }
+    .timeline-item { display: flex; gap: 14px; margin-bottom: 14px; }
+    .timeline-dot { width: 12px; height: 12px; background: #1b5e20; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+    .timeline-line { width: 2px; background: #c8e6c9; margin: 17px 0 0 5px; }
+    .timeline-content { flex: 1; }
+    .timeline-content strong { font-size: 10.5pt; color: #1b5e20; display: block; margin-bottom: 3px; }
+    .timeline-content p { font-size: 9.5pt; color: #3a3a3a; }
+
+    /* ── Signature block ── */
+    .signature-block { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 40px; }
+    .sig-line { border-top: 1.5px solid #1b5e20; padding-top: 8px; font-size: 9.5pt; color: #555; }
+
+    /* ── Utility ── */
+    p { margin-bottom: 8px; }
+    ul, ol { padding-left: 20px; margin: 8px 0; font-size: 10.5pt; line-height: 1.75; }
+    li { margin-bottom: 3px; }
+    strong { color: #1b5e20; }
+
+    /* Print media */
+    @media print {
+      .cover { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .info-box, .warn-box, th, tr:nth-child(even) td, .feature-card, .badge, .toc {
+        -webkit-print-color-adjust: exact; print-color-adjust: exact;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════ COVER -->
+<div class="cover">
+  <div class="cover-logo"></div>
+  <h1>Cahier des charges</h1>
+  <div class="subtitle">Plateforme numérique de gestion<br/>Association Haïtienne de Hamilton</div>
+  <div class="meta-block">
+    <p><strong>Organisation :</strong> Association Haïtienne de Hamilton (AHH)</p>
+    <p><strong>Adresse :</strong> 231 Fernwood Crescent, Hamilton, ON L8T 3L7</p>
+    <p><strong>Site web :</strong> ahhamilton.ca</p>
+    <p><strong>Version du document :</strong> 1.0</p>
+    <p><strong>Date :</strong> Mai 2026</p>
+    <p><strong>Préparé par :</strong> Comité numérique AHH</p>
+  </div>
+  <div class="cover-badge">Document confidentiel — Usage interne</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ TABLE DES MATIÈRES -->
+<div class="section">
+  <div class="toc">
+    <h2>📑 Table des matières</h2>
+    <ol>
+      <li><span>Présentation et contexte</span></li>
+      <li><span>Objectifs de la plateforme</span></li>
+      <li><span>Architecture technique</span></li>
+      <li><span>Modules fonctionnels — État actuel</span></li>
+      <li><span>Gestion des membres</span></li>
+      <li><span>Activités et événements</span></li>
+      <li><span>Billetterie en ligne</span></li>
+      <li><span>Finance et comptabilité</span></li>
+      <li><span>Communication</span></li>
+      <li><span>Galerie et contenu</span></li>
+      <li><span>Sécurité et accès</span></li>
+      <li><span>Modules à développer</span></li>
+      <li><span>Calendrier de développement</span></li>
+      <li><span>Ressources et coûts</span></li>
+      <li><span>Approbation du comité</span></li>
+    </ol>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 1. PRÉSENTATION -->
+<div class="section page-break">
+  <h1 class="section-title">1 &nbsp;Présentation et contexte</h1>
+
+  <p>L'<strong>Association Haïtienne de Hamilton (AHH)</strong> est un organisme communautaire à but non lucratif dont la mission est de rassembler, soutenir et valoriser la communauté haïtienne dans la région de Hamilton, Ontario.</p>
+
+  <p>Face à la croissance de ses activités, de son membership et de ses besoins de coordination interne, l'AHH a entrepris en 2025 le développement d'une <strong>plateforme numérique intégrée</strong> pour centraliser la gestion de l'association.</p>
+
+  <h2 class="sub-title">Problèmes résolus par la plateforme</h2>
+  <ul>
+    <li>Gestion manuelle et fragmentée des membres (feuilles Excel, courriels dispersés)</li>
+    <li>Aucun suivi centralisé des inscriptions aux activités</li>
+    <li>Billetterie uniquement physique — aucune vente en ligne possible</li>
+    <li>Suivi financier difficile sans outil dédié</li>
+    <li>Communication inefficace entre les membres du comité</li>
+    <li>Aucune gestion des bénévoles ni des heures de bénévolat</li>
+  </ul>
+
+  <h2 class="sub-title">Parties prenantes</h2>
+  <table>
+    <tr><th>Rôle</th><th>Responsabilités sur la plateforme</th></tr>
+    <tr><td><span class="badge badge-green">Présidence (Admin)</span></td><td>Accès complet — gestion des membres, approbations, paramètres</td></tr>
+    <tr><td><span class="badge badge-green">Secrétaire</span></td><td>Inscriptions, notes de réunion, gestion du contenu</td></tr>
+    <tr><td><span class="badge badge-green">Trésorière</span></td><td>Finance, paiements, reçus fiscaux, confirmations de billets</td></tr>
+    <tr><td><span class="badge badge-blue">Délégués</span></td><td>Activités, billets, scan à l'entrée</td></tr>
+    <tr><td><span class="badge badge-gray">Membres</span></td><td>Profil, inscriptions, billets, courriel communautaire</td></tr>
+    <tr><td><span class="badge badge-orange">Public (non-membre)</span></td><td>Achat de billets en ligne, formulaire d'adhésion</td></tr>
+  </table>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 2. OBJECTIFS -->
+<div class="section page-break">
+  <h1 class="section-title">2 &nbsp;Objectifs de la plateforme</h1>
+
+  <h2 class="sub-title">Objectifs principaux</h2>
+  <ul>
+    <li><strong>Centraliser</strong> toute la gestion de l'association dans un seul outil accessible en ligne</li>
+    <li><strong>Automatiser</strong> les tâches répétitives (envoi de courriels, rappels, reçus fiscaux)</li>
+    <li><strong>Sécuriser</strong> les données des membres et les transactions financières</li>
+    <li><strong>Simplifier</strong> la vente de billets pour les activités (adultes, enfants, VIP)</li>
+    <li><strong>Améliorer</strong> la communication entre le comité et les membres</li>
+    <li><strong>Offrir</strong> une présence web professionnelle ouverte au public</li>
+  </ul>
+
+  <h2 class="sub-title">Critères de succès</h2>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="fc-header"><div class="fc-icon">👥</div><div class="fc-title">Adoption des membres</div></div>
+      <p>≥ 80 % des membres actifs utilisent la plateforme pour consulter les activités et gérer leur profil.</p>
+    </div>
+    <div class="feature-card">
+      <div class="fc-header"><div class="fc-icon">💳</div><div class="fc-title">Billetterie en ligne</div></div>
+      <p>≥ 50 % des billets d'activités vendus via la plateforme d'ici 12 mois.</p>
+    </div>
+    <div class="feature-card">
+      <div class="fc-header"><div class="fc-icon">⏱</div><div class="fc-title">Gain de temps</div></div>
+      <p>Réduction de 60 % du temps consacré aux tâches administratives manuelles.</p>
+    </div>
+    <div class="feature-card">
+      <div class="fc-header"><div class="fc-icon">💰</div><div class="fc-title">Transparence financière</div></div>
+      <p>Toutes les transactions enregistrées et accessibles à la trésorière en temps réel.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 3. ARCHITECTURE -->
+<div class="section page-break">
+  <h1 class="section-title">3 &nbsp;Architecture technique</h1>
+
+  <h2 class="sub-title">Technologies utilisées</h2>
+  <table>
+    <tr><th>Composante</th><th>Technologie</th><th>Justification</th></tr>
+    <tr><td>Serveur web</td><td>Node.js + Express.js</td><td>Performant, léger, large communauté</td></tr>
+    <tr><td>Base de données</td><td>SQLite (node-sqlite3-wasm)</td><td>Simple, sans serveur externe, fiable pour PME/OSBL</td></tr>
+    <tr><td>Authentification</td><td>JWT (JSON Web Token)</td><td>Sécurisé, sans état côté serveur</td></tr>
+    <tr><td>Mots de passe</td><td>bcryptjs (hachage sécurisé)</td><td>Standard de l'industrie</td></tr>
+    <tr><td>Paiements</td><td>Stripe + Interac (manuel)</td><td>Flexibilité canadienne</td></tr>
+    <tr><td>Courriels</td><td>Nodemailer + SMTP</td><td>Templates HTML personnalisés</td></tr>
+    <tr><td>QR codes</td><td>Librairie QRCode.js (PNG + SVG)</td><td>Génération serveur, haute résolution</td></tr>
+    <tr><td>Hébergement</td><td>VPS Linux (PM2)</td><td>Contrôle total, coût raisonnable</td></tr>
+    <tr><td>Scan caméra</td><td>html5-qrcode (CDN)</td><td>Scan via navigateur mobile, sans application</td></tr>
+  </table>
+
+  <h2 class="sub-title">Rôles et permissions</h2>
+  <table>
+    <tr><th>Fonctionnalité</th><th>Admin</th><th>Secrétaire</th><th>Trésorière</th><th>Délégué</th><th>Membre</th><th>Public</th></tr>
+    <tr><td>Tableau de bord</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>—</td></tr>
+    <tr><td>Gestion membres</td><td>✅</td><td>✅</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+    <tr><td>Activités</td><td>✅</td><td>✅</td><td>—</td><td>✅</td><td>Voir</td><td>Voir</td></tr>
+    <tr><td>Billetterie (vendre)</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>Acheter</td><td>Acheter</td></tr>
+    <tr><td>Scanner QR</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>—</td><td>—</td></tr>
+    <tr><td>Finance</td><td>✅</td><td>—</td><td>✅</td><td>—</td><td>—</td><td>—</td></tr>
+    <tr><td>Courriels internes</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>—</td></tr>
+    <tr><td>Galerie / Contenu</td><td>✅</td><td>✅</td><td>—</td><td>—</td><td>Voir</td><td>Voir</td></tr>
+  </table>
+
+  <div class="info-box">
+    <strong>Sécurité :</strong> Toutes les communications sont chiffrées (HTTPS/TLS). Les mots de passe sont hachés avec bcrypt. Les tokens JWT expirent automatiquement. La base de données est sauvegardée quotidiennement.
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 4. MODULES ACTUELS -->
+<div class="section page-break">
+  <h1 class="section-title">4 &nbsp;Modules fonctionnels — État actuel</h1>
+
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="fc-header"><div class="fc-icon">👥</div><div class="fc-title">Gestion des membres</div></div>
+      <ul>
+        <li>Annuaire complet avec photo</li>
+        <li>Plans : gratuit, bienfaiteur, partenaire</li>
+        <li>Approbation des nouvelles demandes</li>
+        <li>Suppression définitive avec cascade</li>
+        <li>Synchronisation du profil en temps réel</li>
+      </ul>
+    </div>
+    <div class="feature-card">
+      <div class="fc-header"><div class="fc-icon">🎉</div><div class="fc-title">Activités et événements</div></div>
+      <ul>
+        <li>Calendrier avec statuts (planifié, en cours, terminé, archivé)</li>
+        <li>Inscriptions en ligne des membres</li>
+        <li>Gestion des présences en direct (📍)</li>
+        <li>Rapport d'activité complet</li>
+        <li>QR code d'invitation (PNG haute résolution)</li>
+      </ul>
+    </div>
+    <div class="feature-card">
+      <div class="fc-header"><div class="fc-icon">🎟</div><div class="fc-title">Billetterie en ligne</div></div>
+      <ul>
+        <li>Types de billets multiples (Adulte, Enfant, VIP…)</li>
+        <li>Vente publique sans compte requis</li>
+        <li>Paiement Interac ou Stripe (carte)</li>
+        <li>QR code unique par billet envoyé par courriel</li>
+        <li>Scan anti-fraude à l'entrée</li>
+      </ul>
+    </div>
+    <div class="feature-card">
+      <div class="fc-header"><div class="fc-icon">💰</div><div class="fc-title">Finance</div></div>
+      <ul>
+        <li>Lignes budgétaires par activité/projet</li>
+        <li>Suivi dépenses, revenus, commanditaires</li>
+        <li>Solde du compte en temps réel</li>
+        <li>Factures avec statuts et suppression</li>
+        <li>Reçus fiscaux automatiques</li>
+      </ul>
+    </div>
+    <div class="feature-card">
+      <div class="fc-header"><div class="fc-icon">✉️</div><div class="fc-title">Communication</div></div>
+      <ul>
+        <li>Messagerie interne entre membres</li>
+        <li>Notifications et alertes en temps réel</li>
+        <li>Courriels automatiques (bienvenue, paiement, billet)</li>
+        <li>Annonces et actualités publiques</li>
+        <li>Formulaire de contact public</li>
+      </ul>
+    </div>
+    <div class="feature-card">
+      <div class="fc-header"><div class="fc-icon">🖼</div><div class="fc-title">Galerie et contenu</div></div>
+      <ul>
+        <li>Galerie photo par activité/album</li>
+        <li>Lightbox avec navigation précédent/suivant</li>
+        <li>Vidéos et témoignages membres</li>
+        <li>Petites annonces pour membres bienfaiteurs</li>
+        <li>Répertoire de talents communautaires</li>
+      </ul>
+    </div>
+    <div class="feature-card">
+      <div class="fc-header"><div class="fc-icon">🤝</div><div class="fc-title">Bénévolat</div></div>
+      <ul>
+        <li>Enregistrement des heures par membre</li>
+        <li>Approbation par le comité</li>
+        <li>Courriel de confirmation automatique</li>
+        <li>Rapport de bénévolat annuel</li>
+      </ul>
+    </div>
+    <div class="feature-card">
+      <div class="fc-header"><div class="fc-icon">📊</div><div class="fc-title">Rapports et lettres</div></div>
+      <ul>
+        <li>Rapports de bénévolat par membre/période</li>
+        <li>Rapports financiers exportables</li>
+        <li>Lettres de recommandation avec IA</li>
+        <li>Notes de réunion avec correction automatique (FR/EN/Créole)</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 5. BILLETTERIE DÉTAIL -->
+<div class="section page-break">
+  <h1 class="section-title">5 &nbsp;Billetterie en ligne — Fonctionnement détaillé</h1>
+
+  <h2 class="sub-title">Flux pour l'acheteur</h2>
+  <div class="timeline">
+    <div class="timeline-item">
+      <div><div class="timeline-dot"></div></div>
+      <div class="timeline-content">
+        <strong>1. Page publique de vente (ahhamilton.ca/billets.html?id=X)</strong>
+        <p>Accessible à tous sans compte. L'acheteur choisit son type de billet (ex : 2 Adultes $40 + 1 Enfant $15) et entre ses coordonnées (prénom, nom, courriel).</p>
+      </div>
+    </div>
+    <div class="timeline-item">
+      <div><div class="timeline-dot"></div></div>
+      <div class="timeline-content">
+        <strong>2. Paiement : Interac ou Stripe</strong>
+        <p><strong>Interac :</strong> L'acheteur reçoit les instructions de virement (adresse + référence). Sa place est réservée. La trésorière confirme dans le tableau de bord.<br/>
+        <strong>Stripe :</strong> Paiement immédiat par carte Visa/Mastercard. Confirmation automatique.</p>
+      </div>
+    </div>
+    <div class="timeline-item">
+      <div><div class="timeline-dot"></div></div>
+      <div class="timeline-content">
+        <strong>3. Réception du code QR par courriel</strong>
+        <p>Chaque billet génère un code QR unique. Impossible de dupliquer — le système détecte si le même code est scanné deux fois.</p>
+      </div>
+    </div>
+    <div class="timeline-item">
+      <div><div class="timeline-dot"></div></div>
+      <div class="timeline-content">
+        <strong>4. Entrée à l'événement — Scan à la porte</strong>
+        <p>Un délégué scanne avec son téléphone via le navigateur. Le nom s'affiche immédiatement et la personne apparaît dans la vue « Présents en direct ».</p>
+      </div>
+    </div>
+  </div>
+
+  <h2 class="sub-title">Types de billets configurables</h2>
+  <table>
+    <tr><th>Type</th><th>Prix exemple</th><th>Capacité</th><th>Description</th></tr>
+    <tr><td>🧑 Adulte</td><td>$40.00</td><td>200 places</td><td>13 ans et plus</td></tr>
+    <tr><td>👶 Enfant</td><td>$15.00</td><td>100 places</td><td>4 à 12 ans</td></tr>
+    <tr><td>⭐ VIP</td><td>$75.00</td><td>20 places</td><td>Accès prioritaire + repas inclus</td></tr>
+    <tr><td>🎓 Étudiant</td><td>$25.00</td><td>50 places</td><td>Sur présentation d'une carte</td></tr>
+    <tr><td>🎁 Gratuit</td><td>$0.00</td><td>Illimité</td><td>Invités spéciaux / bénévoles</td></tr>
+  </table>
+
+  <div class="info-box">
+    <strong>Note :</strong> Pour une même activité, plusieurs types de billets peuvent coexister avec des prix et capacités différentes. La plateforme gère automatiquement les places disponibles et bloque la vente lorsque la capacité est atteinte.
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 6. PRÉSENTS EN DIRECT -->
+<div class="section page-break">
+  <h1 class="section-title">6 &nbsp;Gestion des présences en direct</h1>
+
+  <p>La vue <strong>« Présents en direct »</strong> permet au comité de suivre en temps réel l'affluence lors d'un événement.</p>
+
+  <h2 class="sub-title">Fonctionnalités</h2>
+  <ul>
+    <li>Actualisation automatique toutes les <strong>10 secondes</strong></li>
+    <li>Tableau de bord en temps réel : billets vendus / arrivés / en attente / revenu</li>
+    <li>Barre de progression de présence (ex : 87 personnes sur 120 = 72 %)</li>
+    <li>Liste des arrivés avec heure d'entrée, type de billet, prix</li>
+    <li>Liste des personnes attendues (billets non encore scannés)</li>
+    <li>Détection des tentatives de double entrée avec le même QR</li>
+  </ul>
+
+  <h2 class="sub-title">Protection anti-fraude</h2>
+  <div class="warn-box">
+    Chaque code QR est unique et lié à un seul billet. Lors du scan, le système vérifie :<br/>
+    1. La validité du code (token unique en base de données)<br/>
+    2. Si le billet n'a pas déjà été scanné (checked_in = 0)<br/>
+    3. Le statut du paiement (actif/en attente)<br/>
+    Si une fraude est détectée, le scanner affiche « ❌ Billet déjà utilisé » et n'accorde pas l'entrée.
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 7. FINANCE -->
+<div class="section page-break">
+  <h1 class="section-title">7 &nbsp;Finance et comptabilité</h1>
+
+  <h2 class="sub-title">Structure financière</h2>
+  <p>Chaque activité lancée génère automatiquement une <strong>ligne budgétaire</strong> avec suivi des dépenses, revenus et commanditaires. Le solde du compte est mis à jour en temps réel.</p>
+
+  <table>
+    <tr><th>Élément</th><th>Description</th></tr>
+    <tr><td>Lignes financières</td><td>Budget alloué, dépenses réelles, revenus, commanditaires, solde</td></tr>
+    <tr><td>Transactions</td><td>Chaque entrée/sortie d'argent est enregistrée avec date, méthode, référence</td></tr>
+    <tr><td>Factures</td><td>Créées pour les dépenses, avec statuts : en attente, payée, refusée</td></tr>
+    <tr><td>Reçus fiscaux</td><td>Générés automatiquement pour les dons Stripe ≥ $1</td></tr>
+    <tr><td>Solde total</td><td>Inclut le solde des lignes + les commanditaires</td></tr>
+    <tr><td>Nombre de projets</td><td>Carte de statistique sur le tableau de bord finance</td></tr>
+  </table>
+
+  <h2 class="sub-title">Méthodes de paiement acceptées</h2>
+  <ul>
+    <li><strong>Stripe :</strong> Carte Visa/Mastercard — confirmation automatique, reçu fiscal automatique</li>
+    <li><strong>Interac :</strong> Virement bancaire — confirmation manuelle par la trésorière</li>
+    <li><strong>Argent comptant :</strong> Enregistré manuellement par le comité</li>
+    <li><strong>Chèque :</strong> Enregistré manuellement avec référence</li>
+  </ul>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 8. MODULES À DÉVELOPPER -->
+<div class="section page-break">
+  <h1 class="section-title">8 &nbsp;Modules à développer — Prochaines priorités</h1>
+
+  <div class="warn-box">
+    Les modules ci-dessous représentent les améliorations identifiées. Leur priorisation sera soumise à l'approbation du comité lors de la présente réunion.
+  </div>
+
+  <table>
+    <tr><th>Priorité</th><th>Module</th><th>Description</th><th>Impact</th></tr>
+    <tr>
+      <td><span class="badge badge-green">Haute</span></td>
+      <td>Cotisations automatiques</td>
+      <td>Rappels mensuels automatiques, historique complet, tableau de bord des impayés</td>
+      <td>Trésorière, membres</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-green">Haute</span></td>
+      <td>Application mobile (PWA)</td>
+      <td>Version installable sur téléphone sans passer par un app store</td>
+      <td>Tous les membres</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-blue">Moyenne</span></td>
+      <td>Sondages et votes</td>
+      <td>Sondages internes pour décisions du comité, votes en ligne lors des AG</td>
+      <td>Comité, membres</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-blue">Moyenne</span></td>
+      <td>Calendrier public enrichi</td>
+      <td>Page publique avec tous les événements, inscription directe pour non-membres</td>
+      <td>Public, membres</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-blue">Moyenne</span></td>
+      <td>Plan de table interactif</td>
+      <td>Placement visuel des invités à une table lors des banquets, exportable en PDF</td>
+      <td>Délégués, comité</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-orange">Basse</span></td>
+      <td>Intégration Google Calendar</td>
+      <td>Synchronisation automatique des activités avec Google / Apple Calendar</td>
+      <td>Membres</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-orange">Basse</span></td>
+      <td>Statistiques avancées</td>
+      <td>Tableaux de bord analytiques : tendances de croissance, revenus par saison</td>
+      <td>Présidence</td>
+    </tr>
+  </table>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 9. CALENDRIER -->
+<div class="section page-break">
+  <h1 class="section-title">9 &nbsp;Calendrier de développement</h1>
+
+  <table>
+    <tr><th>Phase</th><th>Période</th><th>Contenu</th><th>Statut</th></tr>
+    <tr>
+      <td><strong>Phase 1</strong><br/>Fondation</td>
+      <td>Oct 2025 – Jan 2026</td>
+      <td>Membres, authentification, activités, messagerie, galerie, paiements de base</td>
+      <td><span class="badge badge-green">✅ Complété</span></td>
+    </tr>
+    <tr>
+      <td><strong>Phase 2</strong><br/>Finance & Billets</td>
+      <td>Fév 2026 – Mai 2026</td>
+      <td>Lignes financières, factures, billets QR, scan entrée, types de billets, vente publique, Stripe</td>
+      <td><span class="badge badge-green">✅ Complété</span></td>
+    </tr>
+    <tr>
+      <td><strong>Phase 3</strong><br/>Automatisation</td>
+      <td>Juin 2026 – Sep 2026</td>
+      <td>Cotisations automatiques, PWA mobile, sondages, calendrier public</td>
+      <td><span class="badge badge-blue">🔵 Planifié</span></td>
+    </tr>
+    <tr>
+      <td><strong>Phase 4</strong><br/>Enrichissement</td>
+      <td>Oct 2026 – Déc 2026</td>
+      <td>Plan de table interactif, Google Calendar, statistiques avancées</td>
+      <td><span class="badge badge-orange">🟡 À confirmer</span></td>
+    </tr>
+  </table>
+
+  <div class="info-box">
+    <strong>Méthodologie :</strong> Le développement est itératif — chaque nouvelle fonctionnalité est déployée, testée en conditions réelles, puis ajustée selon les retours du comité avant de passer à la suivante.
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 10. RESSOURCES ET COÛTS -->
+<div class="section page-break">
+  <h1 class="section-title">10 &nbsp;Ressources et coûts</h1>
+
+  <h2 class="sub-title">Coûts d'infrastructure actuels</h2>
+  <table>
+    <tr><th>Service</th><th>Fournisseur</th><th>Coût estimé / mois</th><th>Note</th></tr>
+    <tr><td>Serveur VPS (hébergement)</td><td>Hostinger / OVH</td><td>~$8 – $15 CAD</td><td>Toute la plateforme hébergée ici</td></tr>
+    <tr><td>Nom de domaine</td><td>ahhamilton.ca</td><td>~$2 CAD</td><td>Renouvellement annuel ~$25</td></tr>
+    <tr><td>Courriel SMTP</td><td>Gmail / SendGrid</td><td>Gratuit</td><td>Jusqu'à 500 courriels/jour</td></tr>
+    <tr><td>Paiements Stripe</td><td>Stripe Canada</td><td>2.9% + $0.30 / transaction</td><td>Aucun frais fixe mensuel</td></tr>
+    <tr><td><strong>Total mensuel estimé</strong></td><td></td><td><strong>~$10 – $18 CAD</strong></td><td></td></tr>
+  </table>
+
+  <h2 class="sub-title">Coût total de développement</h2>
+  <div class="info-box">
+    La plateforme a été entièrement développée bénévolement par des membres du comité numérique de l'AHH. Le coût de développement en heures de travail est évalué à plus de <strong>300 heures cumulées</strong>, représentant une valeur marchande estimée à <strong>$15 000 – $25 000 CAD</strong> si externalisé à une agence web.
+  </div>
+
+  <h2 class="sub-title">Ressources humaines nécessaires</h2>
+  <table>
+    <tr><th>Rôle</th><th>Temps estimé</th><th>Responsabilité</th></tr>
+    <tr><td>Responsable technique</td><td>4–8 h/mois</td><td>Maintenance, mises à jour, déploiements</td></tr>
+    <tr><td>Administrateur (Président)</td><td>2–3 h/mois</td><td>Approbations, paramètres généraux</td></tr>
+    <tr><td>Trésorière</td><td>3–5 h/mois</td><td>Suivi financier, confirmation paiements</td></tr>
+    <tr><td>Secrétaire</td><td>2–4 h/mois</td><td>Membres, inscriptions, contenu</td></tr>
+  </table>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 11. APPROBATION -->
+<div class="section">
+  <h1 class="section-title">11 &nbsp;Approbation du comité</h1>
+
+  <p>Ce cahier des charges est soumis au comité de l'Association Haïtienne de Hamilton pour examen, discussion et approbation lors de la réunion du <strong>___________________</strong>.</p>
+
+  <h2 class="sub-title">Points à approuver</h2>
+  <ul>
+    <li>☐ &nbsp;Adoption officielle de la plateforme numérique comme outil principal de gestion</li>
+    <li>☐ &nbsp;Validation du budget d'infrastructure mensuel (~$15 CAD/mois)</li>
+    <li>☐ &nbsp;Priorisation des modules de la Phase 3 (cotisations automatiques, PWA mobile)</li>
+    <li>☐ &nbsp;Désignation d'un responsable technique au sein du comité</li>
+    <li>☐ &nbsp;Politique de gestion des données personnelles des membres (conformité LPRPDE)</li>
+  </ul>
+
+  <div class="signature-block">
+    <div>
+      <div class="sig-line">Présidence<br/><br/>Nom : ___________________________<br/>Date : ___________________________</div>
+    </div>
+    <div>
+      <div class="sig-line">Secrétaire<br/><br/>Nom : ___________________________<br/>Date : ___________________________</div>
+    </div>
+    <div>
+      <div class="sig-line">Trésorière<br/><br/>Nom : ___________________________<br/>Date : ___________________________</div>
+    </div>
+    <div>
+      <div class="sig-line">Responsable technique<br/><br/>Nom : ___________________________<br/>Date : ___________________________</div>
+    </div>
+  </div>
+
+  <p style="margin-top:32px;font-size:9pt;color:#888;text-align:center">
+    Association Haïtienne de Hamilton · 231 Fernwood Crescent, Hamilton, ON L8T 3L7<br/>
+    ahhamilton.ca · contact@ahhamilton.ca · Document généré en mai 2026
+  </p>
+</div>
+
+</body>
+</html>
