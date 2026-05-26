@@ -84,20 +84,6 @@ try { db.exec('ALTER TABLE tickets ADD COLUMN date_checkin TEXT'); } catch {}
 try { db.exec('ALTER TABLE activity_registrations ADD COLUMN checked_in INTEGER DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE activity_registrations ADD COLUMN date_checkin TEXT'); } catch {}
 try { db.exec('ALTER TABLE financial_lines ADD COLUMN commanditaires REAL DEFAULT 0'); } catch {}
-// Cahier unifié (journal, PV, notes perso, communauté)
-try { db.exec(`CREATE TABLE IF NOT EXISTS cahier_entries (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  type TEXT NOT NULL DEFAULT 'journal',
-  titre TEXT NOT NULL DEFAULT 'Sans titre',
-  contenu TEXT DEFAULT '',
-  auteur_id INTEGER REFERENCES users(id),
-  visibilite TEXT DEFAULT 'comite',
-  date_entree TEXT DEFAULT CURRENT_TIMESTAMP,
-  tags TEXT DEFAULT '',
-  epingle INTEGER DEFAULT 0,
-  date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
-  date_modification TEXT DEFAULT CURRENT_TIMESTAMP
-)`); } catch {}
 // Types de billets par activité (adulte, enfant, VIP, etc.)
 try { db.exec(`CREATE TABLE IF NOT EXISTS activity_ticket_types (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

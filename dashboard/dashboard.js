@@ -183,7 +183,6 @@ function buildSidebar() {
     {
       label: 'Contenu',
       items: [
-        { id:'cahier',             icon:'📓', label:'Cahier',           roles: ALL },
         { id:'gallery_mgmt',       icon:'◎', label:'Galerie',          roles:['admin','secretaire'] },
         { id:'talents_mgmt',       icon:'◈', label:'Talents',           roles:['admin','secretaire'] },
         { id:'annonces_mgmt',      icon:'◉', label:'Petites annonces',  roles:['admin','secretaire'] },
@@ -237,7 +236,6 @@ function buildSidebar() {
   if (USER.role === 'member') {
     const memberItems = [
       { id:'home',         icon:'⊞', label:'Tableau de bord' },
-      { id:'cahier',       icon:'📓', label:'Cahier' },
       { id:'mes_billets',  icon:'🎟', label:'Mes billets' },
       USER.in_subcommittee ? { id:'subcommittees', icon:'◐', label:'Sous-comités' } : null,
       ['bienfaiteur','partenaire'].includes(USER.plan) ? { id:'mes_talents',  icon:'◈', label:'Mon talent' }   : null,
@@ -381,7 +379,7 @@ async function showView(viewId) {
     notes, reports, letters, projects, alerts, profile,
     gallery_mgmt, annuaire, talents_mgmt, annonces_mgmt, mes_talents, mes_annonces,
     inscriptions, paiements, recus, mon_paiement, mes_billets, testimonials_mgmt, videos_mgmt,
-    scanner, cahier
+    scanner
   };
   const extViews = { 'pending-orders': pendingOrders };
   if (extViews[viewId]) {
@@ -1942,226 +1940,6 @@ async function deleteNote(id) {
   if (!confirm('Supprimer cette note?')) return;
   await api(`/notes/${id}`, { method:'DELETE' });
   toast('Note supprimée'); notes();
-}
-
-// ══ CAHIER UNIFIÉ ══════════════════════════════════════════════════════════
-
-const CAHIER_TYPES = {
-  journal:     { label:'Journal de bord', icon:'📖', color:'#1b5e20', desc:'Décisions, événements, chronique de l\'association', roles:['admin','tresoriere','secretaire','delegue'] },
-  pv:          { label:'Procès-verbaux',  icon:'📋', color:'#0277bd', desc:'Comptes rendus officiels des réunions et assemblées',  roles:['admin','tresoriere','secretaire','delegue'] },
-  personnel:   { label:'Notes perso',     icon:'🔒', color:'#6a1b9a', desc:'Notes privées — visibles uniquement par vous',         roles:['admin','tresoriere','secretaire','delegue','member'] },
-  communaute:  { label:'Communauté',      icon:'🌍', color:'#e65100', desc:'Contributions ouvertes à tous les membres',            roles:['admin','tresoriere','secretaire','delegue','member'] },
-};
-
-let _cahierTab = 'journal';
-
-async function cahier() {
-  const isComite = ['admin','tresoriere','secretaire','delegue'].includes(USER.role);
-  if (!isComite) _cahierTab = 'communaute';
-
-  setContent(buildCahierShell());
-  await loadCahierTab(_cahierTab);
-}
-
-function buildCahierShell() {
-  const isComite = ['admin','tresoriere','secretaire','delegue'].includes(USER.role);
-  const tabs = Object.entries(CAHIER_TYPES)
-    .filter(([,t]) => t.roles.includes(USER.role))
-    .map(([key, t]) => {
-      const active = key === _cahierTab;
-      return '<button class="cahier-tab' + (active ? ' active' : '') + '" ' +
-        'style="border-bottom:3px solid ' + (active ? t.color : 'transparent') + ';color:' + (active ? t.color : 'var(--muted)') + '" ' +
-        'onclick="switchCahierTab(\'' + key + '\')">' +
-        t.icon + ' ' + t.label + '</button>';
-    }).join('');
-
-  return '<div class="page-header">' +
-    '<div><h2>📓 Cahier</h2><p>Journal · Procès-verbaux · Notes perso · Communauté</p></div>' +
-    '<div class="page-actions"><button class="btn btn-primary" onclick="openCahierForm(null)">+ Nouvelle entrée</button></div>' +
-    '</div>' +
-    '<div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:20px;overflow-x:auto">' + tabs + '</div>' +
-    '<div id="cahier-content"><div style="text-align:center;padding:30px;color:var(--muted)">Chargement…</div></div>';
-}
-
-async function switchCahierTab(tab) {
-  _cahierTab = tab;
-  document.querySelectorAll('.cahier-tab').forEach(el => {
-    const key = el.getAttribute('onclick').replace("switchCahierTab('", '').replace("')", '');
-    const t = CAHIER_TYPES[key];
-    const active = key === tab;
-    el.classList.toggle('active', active);
-    el.style.borderBottom = '3px solid ' + (active ? t.color : 'transparent');
-    el.style.color = active ? t.color : 'var(--muted)';
-  });
-  await loadCahierTab(tab);
-}
-
-async function loadCahierTab(type) {
-  const wrap = document.getElementById('cahier-content');
-  if (!wrap) return;
-  wrap.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">Chargement…</div>';
-
-  const entries = await api('/cahier?type=' + type).catch(() => []);
-  const t = CAHIER_TYPES[type];
-
-  if (!entries.length) {
-    wrap.innerHTML = '<div class="empty-state">' +
-      '<div class="es-icon">' + t.icon + '</div>' +
-      '<p>Aucune entrée — ' + t.desc + '</p>' +
-      '<button class="btn btn-primary" style="margin-top:12px" onclick="openCahierForm(\'' + type + '\')">+ Créer la première entrée</button>' +
-      '</div>';
-    return;
-  }
-
-  const canEdit = function(e) {
-    return e.auteur_id === USER.id || USER.role === 'admin';
-  };
-
-  wrap.innerHTML = entries.map(function(e) {
-    const color = (CAHIER_TYPES[e.type] || t).color;
-    const dateStr = e.date_entree ? e.date_entree.substring(0,10) : '';
-    const tags = e.tags ? e.tags.split(',').filter(Boolean).map(function(tg) {
-      return '<span style="background:' + color + '22;color:' + color + ';font-size:.72rem;padding:2px 8px;border-radius:20px;margin-right:4px">' + tg.trim() + '</span>';
-    }).join('') : '';
-    const pinBtn = can.admin() || e.auteur_id === USER.id
-      ? '<button class="btn btn-sm btn-ghost" title="' + (e.epingle ? 'Désépingler' : 'Épingler') + '" onclick="toggleEpingle(' + e.id + ')" style="color:' + (e.epingle ? '#f9a825' : 'var(--muted)') + '">📌</button>'
-      : '';
-    const editBtn = canEdit(e) ? '<button class="btn btn-sm btn-outline" onclick="openCahierForm(\'' + e.type + '\',' + e.id + ')">✏️ Modifier</button>' : '';
-    const delBtn  = canEdit(e) ? '<button class="btn btn-sm btn-danger" onclick="deleteCahierEntry(' + e.id + ')">🗑</button>' : '';
-
-    return '<div class="table-card" style="margin-bottom:14px;border-left:4px solid ' + color + '">' +
-      '<div class="table-card-header">' +
-        '<div style="flex:1">' +
-          (e.epingle ? '<span style="color:#f9a825;font-size:.8rem">📌 </span>' : '') +
-          '<strong style="font-size:1rem">' + e.titre + '</strong>' +
-          '<div style="font-size:.78rem;color:var(--muted);margin-top:3px">' +
-            e.auteur_nom + ' · ' + dateStr +
-            (tags ? ' · ' + tags : '') +
-          '</div>' +
-        '</div>' +
-        '<div class="tc-actions">' + pinBtn + editBtn + delBtn + '</div>' +
-      '</div>' +
-      '<div style="padding:14px 20px;white-space:pre-wrap;font-size:.88rem;color:var(--text);max-height:200px;overflow-y:auto;line-height:1.75">' +
-        (e.contenu || '<em style="color:var(--muted)">Aucun contenu</em>') +
-      '</div>' +
-    '</div>';
-  }).join('');
-}
-
-function openCahierForm(typeHint, entryId) {
-  const isComite = ['admin','tresoriere','secretaire','delegue'].includes(USER.role);
-  const availableTypes = Object.entries(CAHIER_TYPES).filter(([,t]) => t.roles.includes(USER.role));
-  const defaultType = typeHint || _cahierTab || 'journal';
-
-  let entry = null;
-  if (entryId) {
-    // We'll fetch async below — for now show loading
-  }
-
-  const typeOptions = availableTypes.map(function(kv) {
-    const key = kv[0]; const t = kv[1];
-    return '<option value="' + key + '" ' + (key === defaultType ? 'selected' : '') + '>' + t.icon + ' ' + t.label + '</option>';
-  }).join('');
-
-  openModal(entryId ? '✏️ Modifier l\'entrée' : '+ Nouvelle entrée', `
-    <div style="display:grid;gap:12px">
-      <div class="form-group" style="margin:0">
-        <label>Type</label>
-        <select id="ce-type" onchange="updateCahierTypeHint()">${typeOptions}</select>
-      </div>
-      <div class="form-group" style="margin:0">
-        <label>Titre *</label>
-        <input id="ce-titre" placeholder="Titre de l'entrée…"/>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div class="form-group" style="margin:0">
-          <label>Date</label>
-          <input type="date" id="ce-date" value="${new Date().toISOString().substring(0,10)}"/>
-        </div>
-        <div class="form-group" style="margin:0">
-          <label>Tags (virgule)</label>
-          <input id="ce-tags" placeholder="décision, finances…"/>
-        </div>
-      </div>
-      <div class="form-group" style="margin:0">
-        <label>Contenu</label>
-        <textarea id="ce-contenu" style="min-height:200px;font-family:inherit;font-size:.88rem;line-height:1.7;width:100%;padding:10px;border:1.5px solid var(--border);border-radius:10px;resize:vertical" placeholder="Écrivez ici…"></textarea>
-      </div>
-      <div id="ce-type-hint" style="font-size:.78rem;color:var(--muted);font-style:italic"></div>
-      <div class="form-actions">
-        <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
-        <button class="btn btn-primary" onclick="saveCahierEntry(${entryId || 'null'})">Enregistrer</button>
-      </div>
-    </div>
-  `);
-
-  updateCahierTypeHint();
-
-  if (entryId) {
-    api('/cahier?type=' + defaultType).then(function(all) {
-      const e = all ? all.find(function(x) { return x.id === entryId; }) : null;
-      if (!e) return;
-      const sel = document.getElementById('ce-type');
-      if (sel) sel.value = e.type;
-      const titre = document.getElementById('ce-titre');
-      if (titre) titre.value = e.titre;
-      const dt = document.getElementById('ce-date');
-      if (dt) dt.value = (e.date_entree || '').substring(0,10);
-      const tg = document.getElementById('ce-tags');
-      if (tg) tg.value = e.tags || '';
-      const ct = document.getElementById('ce-contenu');
-      if (ct) ct.value = e.contenu || '';
-      updateCahierTypeHint();
-    }).catch(function() {});
-  }
-}
-
-function updateCahierTypeHint() {
-  const sel = document.getElementById('ce-type');
-  const hint = document.getElementById('ce-type-hint');
-  if (!sel || !hint) return;
-  const t = CAHIER_TYPES[sel.value];
-  if (t) hint.textContent = t.icon + ' ' + t.desc;
-}
-
-async function saveCahierEntry(entryId) {
-  const type    = document.getElementById('ce-type').value;
-  const titre   = document.getElementById('ce-titre').value.trim();
-  const date    = document.getElementById('ce-date').value;
-  const tags    = document.getElementById('ce-tags').value.trim();
-  const contenu = document.getElementById('ce-contenu').value;
-
-  if (!titre) { toast('Titre requis', 'error'); return; }
-
-  const body = JSON.stringify({ type, titre, contenu, date_entree: date, tags });
-  try {
-    if (entryId) {
-      await api('/cahier/' + entryId, { method: 'PUT', body });
-      toast('Entrée modifiée');
-    } else {
-      await api('/cahier', { method: 'POST', body });
-      toast('Entrée ajoutée');
-    }
-    closeModal();
-    _cahierTab = type;
-    await cahier();
-  } catch (ex) { toast(ex.message, 'error'); }
-}
-
-async function deleteCahierEntry(id) {
-  if (!confirm('Supprimer cette entrée ?')) return;
-  try {
-    await api('/cahier/' + id, { method: 'DELETE' });
-    toast('Entrée supprimée');
-    await loadCahierTab(_cahierTab);
-  } catch (ex) { toast(ex.message, 'error'); }
-}
-
-async function toggleEpingle(id) {
-  try {
-    await api('/cahier/' + id + '/epingle', { method: 'PATCH' });
-    await loadCahierTab(_cahierTab);
-  } catch (ex) { toast(ex.message, 'error'); }
 }
 
 // ══ REPORTS ════════════════════════════════════════════════════════════════
