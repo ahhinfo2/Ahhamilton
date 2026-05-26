@@ -752,6 +752,7 @@ function renderActivitiesTable(data) {
           <button class="btn btn-sm btn-ghost" title="Scanner" onclick="openScanner(${a.id})">📷</button>
           <button class="btn btn-sm btn-ghost" onclick="viewRegistrations(${a.id},'${a.titre.replace(/'/g,"\\'")}')">👥</button>
           <button class="btn btn-sm btn-ghost" onclick="showActivityReport(${a.id})">📊</button>
+          <button class="btn btn-sm btn-ghost" title="Présents en direct" onclick="liveAttendance(${a.id})">📍</button>
           ${isArchived
             ? `<button class="btn btn-sm btn-ghost" onclick="unarchiveActivity(${a.id})" title="Restaurer" style="color:var(--g2)">↩️</button>`
             : `<button class="btn btn-sm btn-ghost" onclick="archiveActivity(${a.id})" title="Archiver" style="color:#888">📦</button>`}
@@ -5166,6 +5167,123 @@ async function showActivityReport(actId) {
       '</div>' +
     '</div>'
   );
+}
+
+// ══ PRÉSENTS EN DIRECT ════════════════════════════════════════════════════════
+
+let _liveInterval = null;
+
+async function liveAttendance(actId) {
+  closeModal();
+  if (_liveInterval) { clearInterval(_liveInterval); _liveInterval = null; }
+
+  async function refresh() {
+    let r;
+    try { r = await api('/activities/' + actId + '/live'); } catch(e) { return; }
+    const { activite: act, stats, presents, attente, inscrits } = r;
+
+    const container = document.getElementById('live-container');
+    if (!container) return;
+
+    const pct = stats.nbTickets > 0 ? Math.round(stats.nbPresents / stats.nbTickets * 100) : 0;
+
+    container.innerHTML =
+      '<div class="cards-grid" style="grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px">' +
+        '<div class="stat-card"><div class="sc-icon">🎟</div><div class="sc-value">' + stats.nbTickets + '</div><div class="sc-label">Billets vendus</div></div>' +
+        '<div class="stat-card" style="border-color:#1b5e20"><div class="sc-icon">✅</div><div class="sc-value" style="color:#1b5e20">' + stats.nbPresents + '</div><div class="sc-label">Arrivés</div></div>' +
+        '<div class="stat-card"><div class="sc-icon">⏳</div><div class="sc-value">' + stats.nbAbsents + '</div><div class="sc-label">En attente</div></div>' +
+        '<div class="stat-card accent"><div class="sc-icon">💰</div><div class="sc-value">$' + (stats.totalRevenu||0).toFixed(2) + '</div><div class="sc-label">Revenu billets</div></div>' +
+      '</div>' +
+
+      '<div style="margin-bottom:16px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">' +
+          '<span style="font-size:.82rem;color:var(--muted)">Présence</span>' +
+          '<span style="font-size:.82rem;font-weight:700;color:#1b5e20">' + pct + '%</span>' +
+        '</div>' +
+        '<div style="height:8px;background:var(--border);border-radius:50px">' +
+          '<div style="height:100%;width:' + pct + '%;background:#1b5e20;border-radius:50px;transition:width .4s"></div>' +
+        '</div>' +
+      '</div>' +
+
+      (presents.length ? (
+        '<h4 style="margin:0 0 8px;font-size:.88rem;color:#1b5e20">✅ Arrivés (' + presents.length + ')</h4>' +
+        '<div style="overflow-x:auto;margin-bottom:18px">' +
+        '<table style="width:100%;border-collapse:collapse;font-size:.8rem">' +
+          '<thead><tr style="background:var(--off)">' +
+            '<th style="padding:6px 8px;text-align:left">Nom</th>' +
+            '<th style="padding:6px 8px;text-align:left">Table</th>' +
+            '<th style="padding:6px 8px;text-align:left">Prix</th>' +
+            '<th style="padding:6px 8px;text-align:left">Arrivée</th>' +
+          '</tr></thead><tbody>' +
+          presents.map(p =>
+            '<tr style="border-bottom:1px solid var(--border)">' +
+              '<td style="padding:6px 8px">' + (p.nom||'—') + '<br/><small style="color:var(--muted)">' + (p.email||'') + '</small></td>' +
+              '<td style="padding:6px 8px">' + (p.table ? 'Table ' + p.table : '—') + '</td>' +
+              '<td style="padding:6px 8px">$' + (p.prix||0).toFixed(2) + '</td>' +
+              '<td style="padding:6px 8px">' + (p.heure ? p.heure.replace('T',' ').substring(0,16) : '—') + '</td>' +
+            '</tr>'
+          ).join('') +
+          '</tbody></table></div>'
+      ) : '<p style="color:var(--muted);font-size:.84rem;margin-bottom:16px">Personne n\'est encore arrivé.</p>') +
+
+      (attente.length ? (
+        '<h4 style="margin:0 0 8px;font-size:.88rem;color:var(--muted)">⏳ En attente (' + attente.length + ')</h4>' +
+        '<div style="overflow-x:auto;margin-bottom:18px">' +
+        '<table style="width:100%;border-collapse:collapse;font-size:.8rem">' +
+          '<thead><tr style="background:var(--off)">' +
+            '<th style="padding:6px 8px;text-align:left">Nom</th>' +
+            '<th style="padding:6px 8px;text-align:left">Table</th>' +
+            '<th style="padding:6px 8px;text-align:left">Prix</th>' +
+          '</tr></thead><tbody>' +
+          attente.map(p =>
+            '<tr style="border-bottom:1px solid var(--border)">' +
+              '<td style="padding:6px 8px">' + (p.nom||'—') + '<br/><small style="color:var(--muted)">' + (p.email||'') + '</small></td>' +
+              '<td style="padding:6px 8px">' + (p.table ? 'Table ' + p.table : '—') + '</td>' +
+              '<td style="padding:6px 8px">$' + (p.prix||0).toFixed(2) + '</td>' +
+            '</tr>'
+          ).join('') +
+          '</tbody></table></div>'
+      ) : '') +
+
+      (inscrits.length ? (
+        '<h4 style="margin:0 0 8px;font-size:.88rem">👥 Inscrits (sans billet) (' + inscrits.length + ')</h4>' +
+        '<div style="overflow-x:auto">' +
+        '<table style="width:100%;border-collapse:collapse;font-size:.8rem">' +
+          '<thead><tr style="background:var(--off)">' +
+            '<th style="padding:6px 8px;text-align:left">Nom</th>' +
+            '<th style="padding:6px 8px;text-align:left">Présent</th>' +
+          '</tr></thead><tbody>' +
+          inscrits.map(p =>
+            '<tr style="border-bottom:1px solid var(--border)">' +
+              '<td style="padding:6px 8px">' + (p.nom||'—') + '</td>' +
+              '<td style="padding:6px 8px">' + (p.checked_in ? '✅' : '—') + '</td>' +
+            '</tr>'
+          ).join('') +
+          '</tbody></table></div>'
+      ) : '');
+  }
+
+  openModal('📍 Présents en direct', `
+    <div style="max-height:75vh;overflow-y:auto;padding-right:4px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+        <span id="live-dot" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#1b5e20;animation:pulse 1.5s infinite"></span>
+        <span style="font-size:.82rem;color:var(--muted)">Actualisation automatique toutes les 10 secondes</span>
+        <button class="btn btn-sm btn-outline" style="margin-left:auto" onclick="liveAttendance(${actId})">🔄 Rafraîchir</button>
+      </div>
+      <div id="live-container">
+        <div style="text-align:center;padding:30px;color:var(--muted)">Chargement…</div>
+      </div>
+    </div>
+  `);
+
+  document.head.insertAdjacentHTML('beforeend', '<style>@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}</style>');
+
+  await refresh();
+  _liveInterval = setInterval(refresh, 10000);
+
+  document.getElementById('modal-overlay').addEventListener('click', function stopLive(e) {
+    if (e.target.id === 'modal-overlay') { clearInterval(_liveInterval); _liveInterval = null; this.removeEventListener('click', stopLive); }
+  });
 }
 
 // ══ GESTION DES TABLES & BILLETS ══════════════════════════════════════════════

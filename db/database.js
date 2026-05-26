@@ -80,6 +80,9 @@ try { db.exec('ALTER TABLE users ADD COLUMN plan_paid_month TEXT'); } catch {}  
 // Billets : champ check-in
 try { db.exec('ALTER TABLE tickets ADD COLUMN checked_in INTEGER DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE tickets ADD COLUMN date_checkin TEXT'); } catch {}
+// Check-in pour inscriptions sans billet
+try { db.exec('ALTER TABLE activity_registrations ADD COLUMN checked_in INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE activity_registrations ADD COLUMN date_checkin TEXT'); } catch {}
 try { db.exec('ALTER TABLE financial_lines ADD COLUMN commanditaires REAL DEFAULT 0'); } catch {}
 // Projets avec budget et ligne financière
 try { db.exec('ALTER TABLE projects ADD COLUMN budget_prevu REAL DEFAULT 0'); } catch {}

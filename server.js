@@ -2549,6 +2549,70 @@ app.get('/api/tickets/:id/qr', async (req, res) => {
   } catch(e) { res.status(500).send('Erreur QR'); }
 });
 
+// Présents en direct pour une activité
+app.get('/api/activities/:id/live', authMiddleware, requireRole('admin','delegue','secretaire','tresoriere'), (req, res) => {
+  const actId = parseInt(req.params.id);
+  const act = db.prepare('SELECT id, titre, date_debut, lieu, max_participants FROM activities WHERE id = ?').get(actId);
+  if (!act) return res.status(404).json({ error: 'Activité introuvable' });
+
+  const tickets = db.prepare(`
+    SELECT t.id, t.acheteur_nom, t.acheteur_email, t.prix, t.checked_in, t.date_checkin, t.statut,
+      at.numero AS table_numero,
+      v.prenom || ' ' || v.nom AS vendeur_nom,
+      u.prenom AS buyer_prenom, u.nom AS buyer_nom
+    FROM tickets t
+    LEFT JOIN activity_tables at ON at.id = t.table_id
+    LEFT JOIN users v ON v.id = t.vendu_par
+    LEFT JOIN users u ON u.id = t.user_id
+    WHERE t.activity_id = ? AND t.statut = 'actif'
+    ORDER BY t.date_checkin DESC, t.date_vente ASC
+  `).all(actId);
+
+  // Inscriptions sans billet (activités non-payantes)
+  const registrations = db.prepare(`
+    SELECT ar.user_id, ar.date_inscription, ar.checked_in, ar.date_checkin,
+      u.prenom, u.nom, u.email, u.plan
+    FROM activity_registrations ar
+    JOIN users u ON u.id = ar.user_id
+    WHERE ar.activity_id = ?
+    ORDER BY ar.date_checkin DESC, ar.date_inscription ASC
+  `).all(actId);
+
+  const nbTickets     = tickets.length;
+  const nbPresents    = tickets.filter(t => t.checked_in).length;
+  const nbAbsents     = nbTickets - nbPresents;
+  const totalRevenu   = tickets.reduce((s, t) => s + (t.prix || 0), 0);
+  const nbReg         = registrations.length;
+  const nbRegPresents = registrations.filter(r => r.checked_in).length;
+
+  res.json({
+    activite: act,
+    stats: { nbTickets, nbPresents, nbAbsents, totalRevenu, nbReg, nbRegPresents },
+    presents: tickets.filter(t => t.checked_in).map(t => ({
+      id: t.id, type: 'ticket',
+      nom: t.acheteur_nom || `${t.buyer_prenom||''} ${t.buyer_nom||''}`.trim(),
+      email: t.acheteur_email,
+      table: t.table_numero,
+      prix: t.prix,
+      heure: t.date_checkin,
+      vendeur: t.vendeur_nom
+    })),
+    attente: tickets.filter(t => !t.checked_in).map(t => ({
+      id: t.id, type: 'ticket',
+      nom: t.acheteur_nom || `${t.buyer_prenom||''} ${t.buyer_nom||''}`.trim(),
+      email: t.acheteur_email,
+      table: t.table_numero,
+      prix: t.prix,
+      vendeur: t.vendeur_nom
+    })),
+    inscrits: registrations.map(r => ({
+      id: r.user_id, type: 'inscription',
+      nom: `${r.prenom} ${r.nom}`, email: r.email, plan: r.plan,
+      checked_in: r.checked_in, heure: r.date_checkin
+    }))
+  });
+});
+
 // Check-in : scanner un QR billet et marquer l'entrée
 app.post('/api/tickets/checkin', authMiddleware, requireRole('admin','delegue','secretaire','tresoriere'), (req, res) => {
   const { qr_data, activity_id } = req.body;
