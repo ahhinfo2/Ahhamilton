@@ -2976,6 +2976,76 @@ app.post('/api/activities/:id/buy', async (req, res) => {
   res.json({ order_token: orderToken, interac: { email: interacEmail, montant: montantTotal, reference: orderRef } });
 });
 
+// ══ CAHIER UNIFIÉ ═════════════════════════════════════════════════════════════
+
+const COMITE_ROLES = ['admin','tresoriere','secretaire','delegue'];
+
+app.get('/api/cahier', authMiddleware, (req, res) => {
+  const { type } = req.query;
+  const isComite = COMITE_ROLES.includes(req.user.role);
+
+  let where = 'WHERE c.type IS NOT NULL';
+  const params = [];
+
+  if (type) { where += ' AND c.type = ?'; params.push(type); }
+
+  if (type === 'personnel') {
+    // Notes personnelles : toujours uniquement les siennes
+    where += ' AND c.auteur_id = ?'; params.push(req.user.id);
+  } else if (!isComite) {
+    // Membres : uniquement communauté + leurs propres notes
+    where += ' AND (c.visibilite = "tous" OR (c.visibilite = "prive" AND c.auteur_id = ?))';
+    params.push(req.user.id);
+  }
+
+  const rows = db.prepare(`
+    SELECT c.*, u.prenom || ' ' || u.nom AS auteur_nom, u.role AS auteur_role
+    FROM cahier_entries c
+    LEFT JOIN users u ON u.id = c.auteur_id
+    ${where}
+    ORDER BY c.epingle DESC, c.date_entree DESC, c.date_creation DESC
+  `).all(...params);
+  res.json(rows);
+});
+
+app.post('/api/cahier', authMiddleware, (req, res) => {
+  const { type, titre, contenu, date_entree, tags, visibilite } = req.body;
+  if (!titre) return res.status(400).json({ error: 'Titre requis' });
+  const vis = visibilite || (type === 'communaute' ? 'tous' : type === 'personnel' ? 'prive' : 'comite');
+  const r = db.prepare(`INSERT INTO cahier_entries (type, titre, contenu, auteur_id, visibilite, date_entree, tags)
+    VALUES (?,?,?,?,?,?,?)`)
+    .run(type||'journal', titre, contenu||'', req.user.id, vis, date_entree||new Date().toISOString().substring(0,10), tags||'');
+  res.status(201).json({ id: r.lastInsertRowid });
+});
+
+app.put('/api/cahier/:id', authMiddleware, (req, res) => {
+  const entry = db.prepare('SELECT * FROM cahier_entries WHERE id=?').get(req.params.id);
+  if (!entry) return res.status(404).json({ error: 'Introuvable' });
+  if (entry.auteur_id !== req.user.id && req.user.role !== 'admin')
+    return res.status(403).json({ error: 'Accès refusé' });
+  const { titre, contenu, date_entree, tags, epingle } = req.body;
+  db.prepare(`UPDATE cahier_entries SET titre=?, contenu=?, date_entree=?, tags=?, epingle=?,
+    date_modification=CURRENT_TIMESTAMP WHERE id=?`)
+    .run(titre||entry.titre, contenu||'', date_entree||entry.date_entree, tags||'', epingle!=null?epingle:entry.epingle, req.params.id);
+  res.json({ ok: true });
+});
+
+app.delete('/api/cahier/:id', authMiddleware, (req, res) => {
+  const entry = db.prepare('SELECT * FROM cahier_entries WHERE id=?').get(req.params.id);
+  if (!entry) return res.status(404).json({ error: 'Introuvable' });
+  if (entry.auteur_id !== req.user.id && req.user.role !== 'admin')
+    return res.status(403).json({ error: 'Accès refusé' });
+  db.prepare('DELETE FROM cahier_entries WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+app.patch('/api/cahier/:id/epingle', authMiddleware, (req, res) => {
+  const entry = db.prepare('SELECT epingle FROM cahier_entries WHERE id=?').get(req.params.id);
+  if (!entry) return res.status(404).json({ error: 'Introuvable' });
+  db.prepare('UPDATE cahier_entries SET epingle=? WHERE id=?').run(entry.epingle ? 0 : 1, req.params.id);
+  res.json({ epingle: !entry.epingle });
+});
+
 // Admin: liste des commandes en attente (doit être avant /:orderToken)
 app.get('/api/orders/pending', authMiddleware, requireRole('admin', 'tresoriere', 'secretaire'), (req, res) => {
   const orders = db.prepare(`
