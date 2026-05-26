@@ -205,7 +205,8 @@ function buildSidebar() {
     {
       label: 'Événements',
       items: [
-        { id:'scanner', icon:'📷', label:'Scanner billets', roles:['admin','delegue','secretaire','tresoriere'] },
+        { id:'scanner',        icon:'📷', label:'Scanner billets',    roles:['admin','delegue','secretaire','tresoriere'] },
+        { id:'pending-orders', icon:'🎟', label:'Commandes en attente', roles:['admin','tresoriere','secretaire'] },
       ]
     },
 
@@ -380,6 +381,11 @@ async function showView(viewId) {
     inscriptions, paiements, recus, mon_paiement, mes_billets, testimonials_mgmt, videos_mgmt,
     scanner
   };
+  const extViews = { 'pending-orders': pendingOrders };
+  if (extViews[viewId]) {
+    try { await extViews[viewId](); } catch(e) { setContent(`<div class="empty-state"><div class="es-icon">⚠️</div><p>${e.message}</p></div>`); }
+    return;
+  }
   try {
     await (views[viewId] || home)();
   } catch(e) {
@@ -753,6 +759,7 @@ function renderActivitiesTable(data) {
           <button class="btn btn-sm btn-ghost" onclick="viewRegistrations(${a.id},'${a.titre.replace(/'/g,"\\'")}')">👥</button>
           <button class="btn btn-sm btn-ghost" onclick="showActivityReport(${a.id})">📊</button>
           <button class="btn btn-sm btn-ghost" title="Présents en direct" onclick="liveAttendance(${a.id})">📍</button>
+          <button class="btn btn-sm btn-ghost" title="Types de billets" onclick="manageTicketTypes(${a.id})">🎟</button>
           ${isArchived
             ? `<button class="btn btn-sm btn-ghost" onclick="unarchiveActivity(${a.id})" title="Restaurer" style="color:var(--g2)">↩️</button>`
             : `<button class="btn btn-sm btn-ghost" onclick="archiveActivity(${a.id})" title="Archiver" style="color:#888">📦</button>`}
@@ -5284,6 +5291,208 @@ async function liveAttendance(actId) {
   document.getElementById('modal-overlay').addEventListener('click', function stopLive(e) {
     if (e.target.id === 'modal-overlay') { clearInterval(_liveInterval); _liveInterval = null; this.removeEventListener('click', stopLive); }
   });
+}
+
+// ══ TYPES DE BILLETS ══════════════════════════════════════════════════════════
+
+async function manageTicketTypes(actId) {
+  closeModal();
+  async function reload() {
+    const types = await api(`/activities/${actId}/ticket-types`);
+    const tbody = document.getElementById('tt-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = types.length ? types.map(tt => `
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px">${tt.nom}</td>
+        <td style="padding:8px">${tt.description||'—'}</td>
+        <td style="padding:8px;text-align:right">$${(tt.prix||0).toFixed(2)}</td>
+        <td style="padding:8px;text-align:center">${tt.capacite_max > 0 ? tt.capacite_max : '∞'}</td>
+        <td style="padding:8px;text-align:center">${tt.nb_vendus}</td>
+        <td style="padding:8px;text-align:center">
+          ${tt.actif ? '<span style="color:var(--g2)">✅</span>' : '<span style="color:var(--muted)">⏸</span>'}
+        </td>
+        <td style="padding:8px;text-align:center">
+          <button class="btn btn-sm btn-ghost" onclick="editTicketType(${actId},${tt.id},'${tt.nom.replace(/'/g,"\\'")}',${tt.prix},${tt.capacite_max},'${(tt.description||'').replace(/'/g,"\\'")}')">✏️</button>
+          <button class="btn btn-sm btn-ghost" onclick="toggleTicketType(${actId},${tt.id},${tt.actif})" style="color:${tt.actif ? '#888' : 'var(--g2)'}">
+            ${tt.actif ? '⏸' : '▶️'}
+          </button>
+          <button class="btn btn-sm btn-ghost" onclick="deleteTicketType(${actId},${tt.id})" style="color:var(--red)">🗑</button>
+        </td>
+      </tr>
+    `).join('') : '<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted)">Aucun type de billet</td></tr>';
+
+    // Lien public
+    const linkEl = document.getElementById('tt-public-link');
+    if (linkEl) {
+      const base = window.location.hostname === 'localhost' ? 'http://localhost:3001' : 'https://ahhamilton.ca';
+      linkEl.href = `${base}/billets.html?id=${actId}`;
+      linkEl.textContent = `${base}/billets.html?id=${actId}`;
+    }
+  }
+
+  openModal('🎟 Types de billets', `
+    <div style="max-height:75vh;overflow-y:auto">
+      <div style="background:var(--off);border-radius:10px;padding:14px;margin-bottom:16px">
+        <strong style="font-size:.88rem">Ajouter un type de billet</strong>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
+          <div class="form-group" style="margin:0;grid-column:1/-1">
+            <label style="font-size:.72rem">Nom du billet *</label>
+            <input id="tt-nom" placeholder="Adulte, Enfant, VIP…"/>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="font-size:.72rem">Prix (CAD)</label>
+            <input id="tt-prix" type="number" min="0" step="0.01" placeholder="0.00"/>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="font-size:.72rem">Capacité max (0 = illimité)</label>
+            <input id="tt-cap" type="number" min="0" value="0"/>
+          </div>
+          <div class="form-group" style="margin:0;grid-column:1/-1">
+            <label style="font-size:.72rem">Description (optionnel)</label>
+            <input id="tt-desc" placeholder="ex: 12 ans et plus"/>
+          </div>
+        </div>
+        <button class="btn btn-primary" style="margin-top:10px;width:auto;padding:8px 20px" onclick="addTicketType(${actId})">+ Ajouter</button>
+      </div>
+
+      <table style="width:100%;border-collapse:collapse;font-size:.82rem;margin-bottom:16px">
+        <thead><tr style="background:var(--off)">
+          <th style="padding:8px;text-align:left">Nom</th>
+          <th style="padding:8px;text-align:left">Description</th>
+          <th style="padding:8px;text-align:right">Prix</th>
+          <th style="padding:8px;text-align:center">Cap.</th>
+          <th style="padding:8px;text-align:center">Vendus</th>
+          <th style="padding:8px;text-align:center">Actif</th>
+          <th style="padding:8px;text-align:center">Actions</th>
+        </tr></thead>
+        <tbody id="tt-tbody"><tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted)">Chargement…</td></tr></tbody>
+      </table>
+
+      <div style="background:var(--off);border-radius:10px;padding:12px">
+        <div style="font-size:.75rem;font-weight:700;margin-bottom:6px">🔗 Lien de vente public</div>
+        <a id="tt-public-link" href="#" target="_blank" style="font-size:.78rem;color:var(--g2);word-break:break-all"></a>
+        <button class="btn btn-sm btn-outline" style="margin-top:8px;width:auto;padding:6px 14px" onclick="navigator.clipboard.writeText(document.getElementById('tt-public-link').href).then(()=>toast('Lien copié !'))">📋 Copier le lien</button>
+      </div>
+    </div>
+  `);
+  reload();
+  window._reloadTicketTypes = reload;
+}
+
+async function addTicketType(actId) {
+  const nom  = document.getElementById('tt-nom').value.trim();
+  const prix = parseFloat(document.getElementById('tt-prix').value) || 0;
+  const cap  = parseInt(document.getElementById('tt-cap').value) || 0;
+  const desc = document.getElementById('tt-desc').value.trim();
+  if (!nom) { toast('Nom requis', 'error'); return; }
+  try {
+    await api(`/activities/${actId}/ticket-types`, { method: 'POST', body: JSON.stringify({ nom, prix, capacite_max: cap, description: desc }) });
+    document.getElementById('tt-nom').value = '';
+    document.getElementById('tt-prix').value = '';
+    document.getElementById('tt-cap').value = '0';
+    document.getElementById('tt-desc').value = '';
+    toast('Type ajouté');
+    window._reloadTicketTypes && window._reloadTicketTypes();
+  } catch (ex) { toast(ex.message, 'error'); }
+}
+
+async function editTicketType(actId, ttId, nom, prix, cap, desc) {
+  const newNom  = prompt('Nom :', nom);
+  if (!newNom) return;
+  const newPrix = parseFloat(prompt('Prix :', prix)) || 0;
+  const newCap  = parseInt(prompt('Capacité max (0 = illimité) :', cap)) || 0;
+  const newDesc = prompt('Description :', desc) || '';
+  try {
+    await api(`/activities/ticket-types/${ttId}`, { method: 'PUT', body: JSON.stringify({ nom: newNom, prix: newPrix, capacite_max: newCap, description: newDesc, actif: true }) });
+    toast('Modifié');
+    window._reloadTicketTypes && window._reloadTicketTypes();
+  } catch (ex) { toast(ex.message, 'error'); }
+}
+
+async function toggleTicketType(actId, ttId, currentActif) {
+  try {
+    await api(`/activities/ticket-types/${ttId}`, { method: 'PUT', body: JSON.stringify({ actif: !currentActif }) });
+    toast(currentActif ? 'Type désactivé' : 'Type activé');
+    window._reloadTicketTypes && window._reloadTicketTypes();
+  } catch (ex) { toast(ex.message, 'error'); }
+}
+
+async function deleteTicketType(actId, ttId) {
+  if (!confirm('Supprimer ce type de billet ?')) return;
+  try {
+    await api(`/activities/ticket-types/${ttId}`, { method: 'DELETE' });
+    toast('Supprimé');
+    window._reloadTicketTypes && window._reloadTicketTypes();
+  } catch (ex) { toast(ex.message, 'error'); }
+}
+
+// ══ COMMANDES DE BILLETS EN ATTENTE ══════════════════════════════════════════
+
+async function pendingOrders() {
+  const orders = await api('/orders/pending').catch(() => []);
+
+  if (!orders.length) {
+    setContent(`
+      <div style="padding:40px;text-align:center">
+        <div style="font-size:3rem;margin-bottom:12px">✅</div>
+        <div style="color:var(--muted)">Aucune commande en attente de paiement</div>
+      </div>`);
+    return;
+  }
+
+  setContent(`
+    <div style="padding:20px">
+      <h2 style="margin-bottom:18px">Commandes en attente (${orders.length})</h2>
+      <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.84rem">
+        <thead><tr style="background:var(--off)">
+          <th style="padding:10px;text-align:left">Acheteur</th>
+          <th style="padding:10px;text-align:left">Activité</th>
+          <th style="padding:10px;text-align:center">Billets</th>
+          <th style="padding:10px;text-align:right">Montant</th>
+          <th style="padding:10px;text-align:left">Méthode</th>
+          <th style="padding:10px;text-align:left">Date</th>
+          <th style="padding:10px;text-align:center">Actions</th>
+        </tr></thead>
+        <tbody>
+          ${orders.map(o => `
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:9px 10px">
+              <strong>${o.acheteur_nom}</strong><br/>
+              <small style="color:var(--muted)">${o.acheteur_email}</small>
+            </td>
+            <td style="padding:9px 10px">${o.activite}</td>
+            <td style="padding:9px 10px;text-align:center">${o.nb_billets}</td>
+            <td style="padding:9px 10px;text-align:right;font-weight:700;color:var(--g2)">$${(o.montant_total||0).toFixed(2)}</td>
+            <td style="padding:9px 10px">${o.methode_paiement === 'interac' ? '🏦 Interac' : '💳 Carte'}</td>
+            <td style="padding:9px 10px;font-size:.78rem;color:var(--muted)">${(o.date_commande||'').substring(0,16).replace('T',' ')}</td>
+            <td style="padding:9px 10px;text-align:center">
+              <button class="btn btn-sm btn-primary" onclick="confirmOrder('${o.order_token}')">✅ Confirmer</button>
+              <button class="btn btn-sm btn-ghost" onclick="cancelOrder('${o.order_token}')" style="color:var(--red)">✖ Annuler</button>
+            </td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      </div>
+    </div>`;
+}
+
+async function confirmOrder(orderToken) {
+  if (!confirm('Confirmer le paiement et envoyer les codes QR par courriel ?')) return;
+  try {
+    const r = await api(`/orders/${orderToken}/confirm`, { method: 'POST' });
+    toast(`✅ Confirmé — ${r.nb} billet(s), codes QR envoyés`);
+    pendingOrders();
+  } catch (ex) { toast(ex.message, 'error'); }
+}
+
+async function cancelOrder(orderToken) {
+  if (!confirm('Annuler cette commande ? Les places seront libérées.')) return;
+  try {
+    await api(`/orders/${orderToken}/cancel`, { method: 'POST' });
+    toast('Commande annulée');
+    pendingOrders();
+  } catch (ex) { toast(ex.message, 'error'); }
 }
 
 // ══ GESTION DES TABLES & BILLETS ══════════════════════════════════════════════

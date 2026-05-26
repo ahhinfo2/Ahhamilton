@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Acheter des billets — AHH Hamilton</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--g1:#1b5e20;--g2:#2e7d32;--g3:#43a047;--accent:#f9a825;--white:#fff;--text:#1a2e1a;--muted:#5a7a5a;--border:#c8e6c9;--off:#f0f7f0}
+    body{font-family:'Poppins',sans-serif;background:linear-gradient(160deg,#1b5e20 0%,#2e7d32 40%,#e8f5e9 100%);min-height:100vh;padding:24px 16px}
+    .page{max-width:560px;margin:0 auto}
+    .logo-bar{display:flex;align-items:center;gap:12px;margin-bottom:24px}
+    .logo-bar img{width:48px;height:48px;border-radius:12px;border:2px solid rgba(255,255,255,.4)}
+    .logo-bar span{color:#fff;font-weight:700;font-size:1rem;opacity:.9}
+    .card{background:#fff;border-radius:20px;padding:28px 24px;margin-bottom:16px;box-shadow:0 10px 40px rgba(0,0,0,.12)}
+    .act-title{font-size:1.3rem;font-weight:800;color:var(--text);margin-bottom:6px}
+    .act-meta{font-size:.83rem;color:var(--muted);line-height:1.8}
+    .section-label{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:10px}
+    .ticket-type{border:2px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;transition:.2s}
+    .ticket-type.has-qty{border-color:var(--g2);background:var(--off)}
+    .tt-info{flex:1}
+    .tt-nom{font-weight:700;font-size:.95rem;color:var(--text)}
+    .tt-desc{font-size:.78rem;color:var(--muted);margin-top:2px}
+    .tt-prix{font-size:1.1rem;font-weight:800;color:var(--g2)}
+    .tt-dispo{font-size:.72rem;color:var(--muted);margin-top:2px}
+    .qty-ctrl{display:flex;align-items:center;gap:8px}
+    .qty-btn{width:32px;height:32px;border-radius:50%;border:2px solid var(--g2);background:#fff;color:var(--g2);font-size:1.1rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s}
+    .qty-btn:hover{background:var(--g2);color:#fff}
+    .qty-val{font-size:1.1rem;font-weight:700;color:var(--text);min-width:24px;text-align:center}
+    .form-group{margin-bottom:14px}
+    label{display:block;font-size:.73rem;font-weight:700;color:var(--text);margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em}
+    input,select{width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:10px;font-family:'Poppins',sans-serif;font-size:.88rem;color:var(--text);outline:none;transition:.2s}
+    input:focus,select:focus{border-color:var(--g2);box-shadow:0 0 0 3px rgba(46,125,50,.1)}
+    .pay-method{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}
+    .pay-opt{border:2px solid var(--border);border-radius:12px;padding:14px 12px;cursor:pointer;text-align:center;transition:.2s}
+    .pay-opt:hover{border-color:var(--g2)}
+    .pay-opt.selected{border-color:var(--g2);background:var(--off)}
+    .pay-opt .icon{font-size:1.6rem;margin-bottom:4px}
+    .pay-opt .label{font-size:.82rem;font-weight:700;color:var(--text)}
+    .pay-opt .sub{font-size:.72rem;color:var(--muted);margin-top:2px}
+    .total-bar{background:var(--g2);color:#fff;border-radius:12px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+    .total-label{font-size:.82rem;opacity:.85}
+    .total-val{font-size:1.5rem;font-weight:800}
+    .btn{width:100%;padding:14px;background:linear-gradient(135deg,var(--g2),var(--g3));color:#fff;border:none;border-radius:12px;font-family:'Poppins',sans-serif;font-size:1rem;font-weight:700;cursor:pointer;transition:.25s}
+    .btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(46,125,50,.35)}
+    .btn:disabled{opacity:.6;cursor:not-allowed;transform:none}
+    .msg{padding:14px 16px;border-radius:12px;font-size:.85rem;margin-bottom:14px}
+    .msg.ok{background:#e8f5e9;color:#1b5e20;border-left:3px solid var(--g2)}
+    .msg.err{background:#fdecea;color:#c62828;border-left:3px solid #c62828}
+    .msg.info{background:#fff8e1;color:#e65100;border-left:3px solid var(--accent)}
+    .interac-box{background:#fff3cd;border:1.5px solid var(--accent);border-radius:14px;padding:20px}
+    .interac-box h3{color:#e65100;margin-bottom:10px;font-size:.95rem}
+    .interac-box ol{margin-left:18px;font-size:.85rem;line-height:2;color:var(--text)}
+    .interac-box .ref{font-size:1.1rem;font-weight:800;color:var(--g2);background:var(--off);padding:8px 14px;border-radius:8px;display:inline-block;margin:8px 0}
+    .success-icon{font-size:3rem;text-align:center;margin-bottom:10px}
+    .no-types{text-align:center;padding:30px;color:var(--muted)}
+    #loadWrap{text-align:center;color:#fff;padding:60px;font-size:1.1rem}
+  </style>
+</head>
+<body>
+<div class="page">
+  <div class="logo-bar">
+    <img src="Public/logo.jpg" alt="AHH"/>
+    <span>Association Haïtienne de Hamilton</span>
+  </div>
+
+  <div id="loadWrap">⏳ Chargement…</div>
+  <div id="mainPage" style="display:none">
+
+    <!-- Infos activité -->
+    <div class="card">
+      <div class="act-title" id="actTitle"></div>
+      <div class="act-meta" id="actMeta"></div>
+    </div>
+
+    <!-- Étape 1 : choisir billets -->
+    <div class="card" id="stepTickets">
+      <div class="section-label">1 — Choisir les billets</div>
+      <div id="ticketTypes"></div>
+    </div>
+
+    <!-- Étape 2 : infos acheteur -->
+    <div class="card" id="stepInfo">
+      <div class="section-label">2 — Vos informations</div>
+      <div class="form-group">
+        <label>Prénom *</label>
+        <input id="prenom" placeholder="Jean"/>
+      </div>
+      <div class="form-group">
+        <label>Nom *</label>
+        <input id="nom" placeholder="Dupont"/>
+      </div>
+      <div class="form-group">
+        <label>Courriel *</label>
+        <input id="email" type="email" placeholder="jean@example.com"/>
+      </div>
+      <div class="form-group">
+        <label>Téléphone</label>
+        <input id="telephone" type="tel" placeholder="905-555-1234"/>
+      </div>
+    </div>
+
+    <!-- Étape 3 : paiement -->
+    <div class="card" id="stepPay">
+      <div class="section-label">3 — Mode de paiement</div>
+      <div class="pay-method">
+        <div class="pay-opt selected" id="optInterac" onclick="selectPay('interac')">
+          <div class="icon">🏦</div>
+          <div class="label">Interac</div>
+          <div class="sub">Virement bancaire</div>
+        </div>
+        <div class="pay-opt" id="optStripe" onclick="selectPay('stripe')">
+          <div class="icon">💳</div>
+          <div class="label">Carte</div>
+          <div class="sub">Visa / Mastercard</div>
+        </div>
+      </div>
+
+      <div id="msgBox" class="msg" style="display:none"></div>
+
+      <div class="total-bar">
+        <span class="total-label">Total à payer</span>
+        <span class="total-val" id="totalVal">$0.00</span>
+      </div>
+      <button class="btn" id="payBtn" onclick="submitOrder()">Continuer →</button>
+    </div>
+
+    <!-- Confirmation Interac -->
+    <div class="card" id="stepInterac" style="display:none">
+      <div class="success-icon">✅</div>
+      <h2 style="color:var(--g2);font-size:1.1rem;margin-bottom:10px">Réservation confirmée !</h2>
+      <p style="font-size:.85rem;color:var(--muted);margin-bottom:18px">Vos billets sont réservés. Complétez le paiement par Interac pour recevoir vos codes QR par courriel.</p>
+      <div class="interac-box">
+        <h3>💳 Instructions Interac</h3>
+        <ol>
+          <li>Ouvrez votre application bancaire</li>
+          <li>Envoyez <strong id="intMontant"></strong> à <strong id="intEmail"></strong></li>
+          <li>Inscrivez cette référence :<br/><span class="ref" id="intRef"></span></li>
+          <li>Vos codes QR arriveront par courriel après confirmation</li>
+        </ol>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001/api' : '/api';
+  const params = new URLSearchParams(location.search);
+  const actId = params.get('id');
+  const orderToken = params.get('order');
+  const successFlag = params.get('success');
+  const cancelledFlag = params.get('cancelled');
+
+  let act = null;
+  let payMethod = 'interac';
+  const quantities = {};
+
+  function fmt(n) { return '$' + (n || 0).toFixed(2); }
+
+  async function init() {
+    // Cas succès Stripe
+    if (successFlag && orderToken) {
+      document.getElementById('loadWrap').style.display = 'none';
+      document.getElementById('mainPage').style.display = 'block';
+      document.getElementById('stepTickets').style.display = 'none';
+      document.getElementById('stepInfo').style.display = 'none';
+      document.getElementById('stepPay').style.display = 'none';
+      document.getElementById('actTitle').textContent = 'Paiement confirmé !';
+      document.getElementById('actMeta').innerHTML = '✅ Votre paiement par carte a été accepté. Vos codes QR vous seront envoyés par courriel dans quelques instants.';
+      return;
+    }
+
+    if (cancelledFlag && actId) {
+      location.href = `/billets.html?id=${actId}`;
+      return;
+    }
+
+    if (!actId) {
+      document.getElementById('loadWrap').textContent = 'Lien invalide.';
+      return;
+    }
+
+    try {
+      const r = await fetch(`${API}/activities/${actId}/public`);
+      if (!r.ok) { document.getElementById('loadWrap').textContent = 'Activité introuvable.'; return; }
+      act = await r.json();
+    } catch (e) { document.getElementById('loadWrap').textContent = 'Erreur de chargement.'; return; }
+
+    document.getElementById('loadWrap').style.display = 'none';
+    document.getElementById('mainPage').style.display = 'block';
+
+    document.getElementById('actTitle').textContent = act.titre;
+    const d = act.date_debut ? new Date(act.date_debut).toLocaleDateString('fr-CA', { weekday:'long', year:'numeric', month:'long', day:'numeric' }) : '';
+    document.getElementById('actMeta').innerHTML =
+      (d ? '📅 ' + d + '<br/>' : '') +
+      (act.lieu ? '📍 ' + act.lieu : '');
+
+    if (!act.ticket_types || !act.ticket_types.length) {
+      document.getElementById('ticketTypes').innerHTML = '<div class="no-types">Aucun billet disponible pour cette activité.</div>';
+      document.getElementById('stepInfo').style.display = 'none';
+      document.getElementById('stepPay').style.display = 'none';
+      return;
+    }
+
+    act.ticket_types.forEach(tt => { quantities[tt.id] = 0; });
+    renderTypes();
+    updateTotal();
+  }
+
+  function renderTypes() {
+    const el = document.getElementById('ticketTypes');
+    el.innerHTML = act.ticket_types.map(tt => {
+      const qty = quantities[tt.id] || 0;
+      const dispo = tt.capacite_max > 0 ? tt.capacite_max - tt.nb_vendus : null;
+      const sold_out = dispo !== null && dispo <= 0;
+      return `
+        <div class="ticket-type ${qty > 0 ? 'has-qty' : ''}" id="tt-${tt.id}">
+          <div class="tt-info">
+            <div class="tt-nom">${tt.nom}</div>
+            ${tt.description ? `<div class="tt-desc">${tt.description}</div>` : ''}
+            <div class="tt-prix">${tt.prix > 0 ? fmt(tt.prix) : 'Gratuit'}</div>
+            ${dispo !== null ? `<div class="tt-dispo">${sold_out ? '⛔ Épuisé' : dispo + ' place' + (dispo > 1 ? 's' : '') + ' disponible' + (dispo > 1 ? 's' : '')}</div>` : ''}
+          </div>
+          ${sold_out ? '' : `
+          <div class="qty-ctrl">
+            <button class="qty-btn" onclick="changeQty(${tt.id}, -1)">−</button>
+            <span class="qty-val">${qty}</span>
+            <button class="qty-btn" onclick="changeQty(${tt.id}, 1)">+</button>
+          </div>`}
+        </div>
+      `;
+    }).join('');
+  }
+
+  function changeQty(ttId, delta) {
+    const tt = act.ticket_types.find(t => t.id === ttId);
+    if (!tt) return;
+    const dispo = tt.capacite_max > 0 ? tt.capacite_max - tt.nb_vendus : 999;
+    const cur = quantities[ttId] || 0;
+    quantities[ttId] = Math.max(0, Math.min(dispo, cur + delta));
+    renderTypes();
+    updateTotal();
+  }
+
+  function updateTotal() {
+    let total = 0;
+    act.ticket_types.forEach(tt => { total += (quantities[tt.id] || 0) * tt.prix; });
+    document.getElementById('totalVal').textContent = fmt(total);
+    const btn = document.getElementById('payBtn');
+    if (total === 0) {
+      btn.textContent = total === 0 && Object.values(quantities).some(q => q > 0) ? 'Réserver gratuitement →' : 'Continuer →';
+      document.getElementById('optInterac').style.display = 'none';
+      document.getElementById('optStripe').style.display = 'none';
+    } else {
+      document.getElementById('optInterac').style.display = 'block';
+      document.getElementById('optStripe').style.display = 'block';
+      btn.textContent = payMethod === 'stripe' ? '💳 Payer par carte →' : '🏦 Réserver et payer par Interac →';
+    }
+  }
+
+  function selectPay(method) {
+    payMethod = method;
+    document.getElementById('optInterac').classList.toggle('selected', method === 'interac');
+    document.getElementById('optStripe').classList.toggle('selected', method === 'stripe');
+    updateTotal();
+  }
+
+  function showMsg(txt, type) {
+    const el = document.getElementById('msgBox');
+    el.className = 'msg ' + type;
+    el.textContent = txt;
+    el.style.display = 'block';
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  async function submitOrder() {
+    const items = Object.entries(quantities)
+      .filter(([, qty]) => qty > 0)
+      .map(([ticket_type_id, quantity]) => ({ ticket_type_id: parseInt(ticket_type_id), quantity }));
+
+    if (!items.length) { showMsg('Sélectionnez au moins un billet.', 'err'); return; }
+
+    const prenom = document.getElementById('prenom').value.trim();
+    const nom    = document.getElementById('nom').value.trim();
+    const email  = document.getElementById('email').value.trim();
+    const tel    = document.getElementById('telephone').value.trim();
+
+    if (!prenom || !nom || !email) { showMsg('Prénom, nom et courriel sont requis.', 'err'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showMsg('Courriel invalide.', 'err'); return; }
+
+    const total = act.ticket_types.reduce((s, tt) => s + (quantities[tt.id] || 0) * tt.prix, 0);
+    const method = total === 0 ? 'gratuit' : payMethod;
+
+    const btn = document.getElementById('payBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Traitement…';
+
+    try {
+      const r = await fetch(`${API}/activities/${actId}/buy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prenom, nom, email, telephone: tel, items, payment_method: method })
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error);
+
+      if (d.checkout_url) {
+        // Stripe redirect
+        location.href = d.checkout_url;
+        return;
+      }
+
+      // Interac ou gratuit
+      document.getElementById('stepTickets').style.display = 'none';
+      document.getElementById('stepInfo').style.display = 'none';
+      document.getElementById('stepPay').style.display = 'none';
+      document.getElementById('stepInterac').style.display = 'block';
+
+      if (d.interac) {
+        document.getElementById('intMontant').textContent = fmt(d.interac.montant);
+        document.getElementById('intEmail').textContent = d.interac.email;
+        document.getElementById('intRef').textContent = d.interac.reference;
+      } else {
+        document.getElementById('stepInterac').innerHTML =
+          '<div class="success-icon">✅</div>' +
+          '<h2 style="color:var(--g2)">Billets réservés !</h2>' +
+          '<p style="font-size:.85rem;color:var(--muted);margin-top:10px">Vos codes QR ont été envoyés à <strong>' + email + '</strong>.</p>';
+      }
+    } catch (ex) {
+      showMsg(ex.message || 'Erreur inattendue.', 'err');
+      btn.disabled = false;
+      updateTotal();
+    }
+  }
+
+  init();
+</script>
+</body>
+</html>

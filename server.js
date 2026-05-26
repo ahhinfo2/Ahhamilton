@@ -71,10 +71,42 @@ app.post('/api/stripe/webhook', express.raw({ type: '*/*' }), async (req, res) =
 
   if (event.type === 'checkout.session.completed') {
     const session  = event.data.object;
-    const email    = session.customer_details?.email || '';
+    const email    = session.customer_details?.email || session.metadata?.acheteur_email || '';
     const montant  = (session.amount_total || 0) / 100;
     const ref      = session.payment_intent || session.id;
     const mois     = new Date().toISOString().substring(0, 7);
+
+    // ── Achat de billets ───────────────────────────────────────────────
+    if (session.metadata?.type === 'billet' && session.metadata?.order_token) {
+      const orderToken = session.metadata.order_token;
+      const actId = parseInt(session.metadata.activity_id);
+      db.prepare('UPDATE tickets SET statut="actif", payment_status="paid" WHERE order_token=?').run(orderToken);
+      const tickets = db.prepare('SELECT * FROM tickets WHERE order_token=?').all(orderToken);
+      const act = db.prepare('SELECT * FROM activities WHERE id=?').get(actId);
+      const prenom = session.metadata.acheteur_prenom || email;
+      for (const t of tickets) {
+        const ticketToken = (t.qr_data || '').replace('TICKET:', '');
+        try {
+          const qrUrl = `${process.env.SITE_URL || 'https://ahhamilton.ca'}/scan.html?t=${ticketToken}`;
+          const qrBuf = await QRCode.toBuffer(qrUrl, { type: 'png', width: 300, margin: 2 });
+          const typeNom = t.ticket_type_id ? (db.prepare('SELECT nom FROM activity_ticket_types WHERE id=?').get(t.ticket_type_id)?.nom || '') : '';
+          mailer.sendBilletQR(t.acheteur_email, prenom, act, { ...t, nom: typeNom, token: ticketToken }, qrBuf.toString('base64')).catch(() => {});
+        } catch (e) { console.error('Stripe QR error:', e.message); }
+      }
+      // Enregistrer le revenu
+      if (montant > 0) {
+        const line = db.prepare('SELECT id FROM financial_lines WHERE activity_id=? LIMIT 1').get(actId);
+        if (line) {
+          const adminId3 = db.prepare("SELECT id FROM users WHERE role='admin' LIMIT 1").get()?.id || 1;
+          db.prepare("INSERT INTO transactions (financial_line_id, type, montant, description, methode, cree_par) VALUES (?, 'revenu', ?, ?, 'stripe', ?)")
+            .run(line.id, montant, `Billets Stripe — ${email}`, adminId3);
+          db.prepare('UPDATE account_info SET solde = solde + ?, date_maj = CURRENT_TIMESTAMP WHERE id = 1').run(montant);
+        }
+      }
+      console.log(`✅ Stripe billets activés : ${email} — ${tickets.length} billet(s) — $${montant}`);
+      return;
+    }
+    // ──────────────────────────────────────────────────────────────────
 
     // Trouver le membre par courriel
     const membre = email ? db.prepare('SELECT * FROM users WHERE email = ?').get(email) : null;
@@ -2796,6 +2828,225 @@ app.delete('/api/videos/:id', authMiddleware, requireRole('admin','secretaire'),
 app.use((req, res) => {
   if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Route introuvable' });
   res.status(404).sendFile(path.join(__dirname, '404.html'));
+});
+
+// ══ TYPES DE BILLETS ══════════════════════════════════════════════════════════
+
+// Public: infos activité + types de billets (sans auth)
+app.get('/api/activities/:id/public', (req, res) => {
+  const act = db.prepare(`SELECT id, titre, date_debut, date_fin, lieu, description, paiement_requis, prix
+    FROM activities WHERE id = ? AND statut NOT IN ('archivee','brouillon')`).get(req.params.id);
+  if (!act) return res.status(404).json({ error: 'Activité introuvable' });
+  const types = db.prepare('SELECT * FROM activity_ticket_types WHERE activity_id = ? AND actif = 1 ORDER BY ordre, id').all(req.params.id);
+  res.json({ ...act, ticket_types: types });
+});
+
+// Public: liste des types de billets
+app.get('/api/activities/:id/ticket-types', (req, res) => {
+  const types = db.prepare('SELECT * FROM activity_ticket_types WHERE activity_id = ? AND actif = 1 ORDER BY ordre, id').all(req.params.id);
+  res.json(types);
+});
+
+// Admin: créer un type de billet
+app.post('/api/activities/:id/ticket-types', authMiddleware, requireRole('admin', 'secretaire'), (req, res) => {
+  const { nom, description, prix, capacite_max, ordre } = req.body;
+  if (!nom) return res.status(400).json({ error: 'Nom requis' });
+  const r = db.prepare('INSERT INTO activity_ticket_types (activity_id, nom, description, prix, capacite_max, ordre) VALUES (?,?,?,?,?,?)')
+    .run(req.params.id, nom, description || '', parseFloat(prix) || 0, parseInt(capacite_max) || 0, parseInt(ordre) || 0);
+  res.status(201).json({ id: r.lastInsertRowid });
+});
+
+// Admin: modifier un type de billet
+app.put('/api/activities/ticket-types/:id', authMiddleware, requireRole('admin', 'secretaire'), (req, res) => {
+  const { nom, description, prix, capacite_max, ordre, actif } = req.body;
+  db.prepare('UPDATE activity_ticket_types SET nom=?, description=?, prix=?, capacite_max=?, ordre=?, actif=? WHERE id=?')
+    .run(nom, description || '', parseFloat(prix) || 0, parseInt(capacite_max) || 0, parseInt(ordre) || 0, actif === false ? 0 : 1, req.params.id);
+  res.json({ ok: true });
+});
+
+// Admin: supprimer un type de billet (seulement si aucun billet vendu)
+app.delete('/api/activities/ticket-types/:id', authMiddleware, requireRole('admin', 'secretaire'), (req, res) => {
+  const tt = db.prepare('SELECT nb_vendus FROM activity_ticket_types WHERE id=?').get(req.params.id);
+  if (!tt) return res.status(404).json({ error: 'Introuvable' });
+  if (tt.nb_vendus > 0) return res.status(400).json({ error: 'Des billets ont été vendus — désactivez plutôt ce type.' });
+  db.prepare('DELETE FROM activity_ticket_types WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// Public: acheter des billets en ligne (Interac ou Stripe)
+app.post('/api/activities/:id/buy', async (req, res) => {
+  const actId = parseInt(req.params.id);
+  const { prenom, nom, email, telephone, items, payment_method } = req.body;
+  if (!prenom || !nom || !email) return res.status(400).json({ error: 'Prénom, nom et courriel requis' });
+  if (!items || !items.length) return res.status(400).json({ error: 'Aucun billet sélectionné' });
+
+  const act = db.prepare('SELECT * FROM activities WHERE id=?').get(actId);
+  if (!act) return res.status(404).json({ error: 'Activité introuvable' });
+
+  // Valider types et calculer total
+  let montantTotal = 0;
+  const lineItems = [];
+  for (const item of items) {
+    const qty = parseInt(item.quantity) || 0;
+    if (qty < 1) continue;
+    const tt = db.prepare('SELECT * FROM activity_ticket_types WHERE id=? AND activity_id=? AND actif=1').get(item.ticket_type_id, actId);
+    if (!tt) return res.status(400).json({ error: 'Type de billet invalide' });
+    if (tt.capacite_max > 0 && tt.nb_vendus + qty > tt.capacite_max) {
+      return res.status(400).json({ error: `Plus assez de places pour "${tt.nom}"` });
+    }
+    montantTotal += tt.prix * qty;
+    lineItems.push({ tt, qty });
+  }
+  if (!lineItems.length) return res.status(400).json({ error: 'Aucun billet sélectionné' });
+
+  const orderToken = require('crypto').randomUUID();
+  const acheteurNom = `${prenom} ${nom}`;
+  const paymentStatus = montantTotal === 0 ? 'paid' : 'pending';
+  const ticketStatut = paymentStatus === 'paid' ? 'actif' : 'en_attente';
+
+  // Créer les billets
+  const insertedTickets = [];
+  for (const { tt, qty } of lineItems) {
+    for (let i = 0; i < qty; i++) {
+      const ticketToken = require('crypto').randomUUID();
+      const r = db.prepare(`INSERT INTO tickets
+        (activity_id, ticket_type_id, acheteur_nom, acheteur_email, acheteur_telephone,
+         qr_data, prix, methode_paiement, payment_status, order_token, statut)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
+        .run(actId, tt.id, acheteurNom, email, telephone || '',
+          `TICKET:${ticketToken}`, tt.prix, payment_method || 'interac',
+          paymentStatus, orderToken, ticketStatut);
+      db.prepare('UPDATE activity_ticket_types SET nb_vendus = nb_vendus + 1 WHERE id=?').run(tt.id);
+      insertedTickets.push({ id: r.lastInsertRowid, token: ticketToken, nom: tt.nom, prix: tt.prix });
+    }
+  }
+
+  if (montantTotal === 0) {
+    // Billets gratuits → envoyer QR immédiatement
+    try {
+      for (const t of insertedTickets) {
+        const qrUrl = `${process.env.SITE_URL || 'https://ahhamilton.ca'}/scan.html?t=${t.token}`;
+        const qrBuf = await QRCode.toBuffer(qrUrl, { type: 'png', width: 300, margin: 2 });
+        mailer.sendBilletQR(email, prenom, act, t, qrBuf.toString('base64')).catch(() => {});
+      }
+    } catch (e) { console.error('QR gratuit:', e.message); }
+    return res.json({ order_token: orderToken, statut: 'paid' });
+  }
+
+  if (payment_method === 'stripe') {
+    const stripeKey = (process.env.STRIPE_SECRET_KEY || '').trim();
+    if (!stripeKey) {
+      // Rollback
+      insertedTickets.forEach(t => db.prepare('DELETE FROM tickets WHERE id=?').run(t.id));
+      lineItems.forEach(({ tt, qty }) => db.prepare('UPDATE activity_ticket_types SET nb_vendus = nb_vendus - ? WHERE id=?').run(qty, tt.id));
+      return res.status(500).json({ error: 'Paiement Stripe non configuré — utilisez Interac.' });
+    }
+    try {
+      const stripe = Stripe(stripeKey);
+      const siteBase = process.env.SITE_URL || 'https://ahhamilton.ca';
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        mode: 'payment',
+        customer_email: email,
+        line_items: lineItems.map(({ tt, qty }) => ({
+          price_data: {
+            currency: 'cad',
+            product_data: { name: `${tt.nom} — ${act.titre}` },
+            unit_amount: Math.round(tt.prix * 100),
+          },
+          quantity: qty,
+        })),
+        metadata: { type: 'billet', order_token: orderToken, activity_id: String(actId), acheteur_email: email, acheteur_prenom: prenom },
+        success_url: `${siteBase}/billets.html?order=${orderToken}&success=1`,
+        cancel_url: `${siteBase}/billets.html?id=${actId}&cancelled=1`,
+      });
+      return res.json({ checkout_url: session.url, order_token: orderToken });
+    } catch (err) {
+      insertedTickets.forEach(t => db.prepare('DELETE FROM tickets WHERE id=?').run(t.id));
+      lineItems.forEach(({ tt, qty }) => db.prepare('UPDATE activity_ticket_types SET nb_vendus = nb_vendus - ? WHERE id=?').run(qty, tt.id));
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
+  // Interac : envoyer instructions par courriel
+  const interacEmail = process.env.INTERAC_EMAIL || process.env.SMTP_USER || 'tresoriere@ahhamilton.ca';
+  const orderRef = `BILLET-${orderToken.substring(0, 8).toUpperCase()}`;
+  mailer.sendBilletInterac(email, prenom, act, insertedTickets, orderRef, interacEmail, montantTotal).catch(() => {});
+  mailer.sendNouvelleCommandeBillet(act, acheteurNom, email, montantTotal, insertedTickets, orderRef).catch(() => {});
+  res.json({ order_token: orderToken, interac: { email: interacEmail, montant: montantTotal, reference: orderRef } });
+});
+
+// Admin: liste des commandes en attente (doit être avant /:orderToken)
+app.get('/api/orders/pending', authMiddleware, requireRole('admin', 'tresoriere', 'secretaire'), (req, res) => {
+  const orders = db.prepare(`
+    SELECT t.order_token, t.acheteur_nom, t.acheteur_email, t.methode_paiement, t.payment_status,
+      a.titre AS activite, a.id AS activity_id,
+      COUNT(t.id) AS nb_billets, SUM(t.prix) AS montant_total, MIN(t.date_vente) AS date_commande
+    FROM tickets t
+    JOIN activities a ON a.id = t.activity_id
+    WHERE t.payment_status = 'pending' AND t.order_token IS NOT NULL
+    GROUP BY t.order_token
+    ORDER BY date_commande DESC
+  `).all();
+  res.json(orders);
+});
+
+// Public: voir l'état d'une commande
+app.get('/api/orders/:orderToken', (req, res) => {
+  const tickets = db.prepare(`
+    SELECT t.*, att.nom AS type_nom, a.titre AS activite, a.date_debut, a.lieu
+    FROM tickets t
+    JOIN activities a ON a.id = t.activity_id
+    LEFT JOIN activity_ticket_types att ON att.id = t.ticket_type_id
+    WHERE t.order_token = ?
+    ORDER BY t.id
+  `).all(req.params.orderToken);
+  if (!tickets.length) return res.status(404).json({ error: 'Commande introuvable' });
+  res.json({ tickets, statut: tickets[0].payment_status });
+});
+
+// Admin: confirmer paiement Interac → activer billets + envoyer QR
+app.post('/api/orders/:orderToken/confirm', authMiddleware, requireRole('admin', 'tresoriere', 'secretaire'), async (req, res) => {
+  const { orderToken } = req.params;
+  const tickets = db.prepare('SELECT * FROM tickets WHERE order_token=? AND payment_status="pending"').all(orderToken);
+  if (!tickets.length) return res.status(404).json({ error: 'Commande introuvable ou déjà confirmée' });
+
+  db.prepare('UPDATE tickets SET statut="actif", payment_status="paid" WHERE order_token=?').run(orderToken);
+
+  const act = db.prepare('SELECT * FROM activities WHERE id=?').get(tickets[0].activity_id);
+  for (const t of tickets) {
+    const ticketToken = (t.qr_data || '').replace('TICKET:', '');
+    try {
+      const qrUrl = `${process.env.SITE_URL || 'https://ahhamilton.ca'}/scan.html?t=${ticketToken}`;
+      const qrBuf = await QRCode.toBuffer(qrUrl, { type: 'png', width: 300, margin: 2 });
+      const typeNom = t.ticket_type_id ? (db.prepare('SELECT nom FROM activity_ticket_types WHERE id=?').get(t.ticket_type_id)?.nom || '') : '';
+      mailer.sendBilletQR(t.acheteur_email, t.acheteur_nom.split(' ')[0], act, { ...t, nom: typeNom, token: ticketToken }, qrBuf.toString('base64')).catch(() => {});
+    } catch (e) { console.error('QR confirm error:', e.message); }
+  }
+
+  // Enregistrer le revenu financier
+  const montantTotal = tickets.reduce((s, t) => s + (t.prix || 0), 0);
+  if (montantTotal > 0) {
+    const line = db.prepare('SELECT id FROM financial_lines WHERE activity_id=? LIMIT 1').get(tickets[0].activity_id);
+    if (line) {
+      db.prepare("INSERT INTO transactions (financial_line_id, type, montant, description, methode, cree_par) VALUES (?, 'revenu', ?, ?, ?, ?)")
+        .run(line.id, montantTotal, `Billets en ligne — ${tickets[0].acheteur_nom}`, 'interac', req.user.id);
+      db.prepare('UPDATE account_info SET solde = solde + ?, date_maj = CURRENT_TIMESTAMP WHERE id = 1').run(montantTotal);
+    }
+  }
+
+  res.json({ ok: true, nb: tickets.length });
+});
+
+// Admin: annuler une commande en attente
+app.post('/api/orders/:orderToken/cancel', authMiddleware, requireRole('admin', 'tresoriere', 'secretaire'), (req, res) => {
+  const tickets = db.prepare('SELECT * FROM tickets WHERE order_token=?').all(req.params.orderToken);
+  if (!tickets.length) return res.status(404).json({ error: 'Commande introuvable' });
+  db.prepare('UPDATE tickets SET statut="annule", payment_status="cancelled" WHERE order_token=?').run(req.params.orderToken);
+  tickets.forEach(t => {
+    if (t.ticket_type_id) db.prepare('UPDATE activity_ticket_types SET nb_vendus = MAX(0, nb_vendus - 1) WHERE id=?').run(t.ticket_type_id);
+  });
+  res.json({ ok: true });
 });
 
 // ── Fermeture propre de la DB à l'arrêt ────────────────────────────────────

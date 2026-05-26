@@ -230,8 +230,80 @@ async function sendHeuresBenevolat(user, heures, description, date) {
   });
 }
 
+// ── Billets en ligne ─────────────────────────────────────────────────────────
+
+async function sendBilletInterac(email, prenom, activite, billets, orderRef, interacEmail, montantTotal) {
+  const dateAct = activite.date_debut ? new Date(activite.date_debut).toLocaleDateString('fr-CA', { dateStyle: 'long' }) : '';
+  await sendMail({
+    to: email,
+    subject: `🎟 Réservation confirmée — ${activite.titre} — AHH`,
+    html: wrap('Votre réservation de billets', `
+      <p>Bonjour <strong>${prenom}</strong>,</p>
+      <p>Votre réservation pour <strong>${activite.titre}</strong> est bien reçue !</p>
+      ${dateAct ? `<p>📅 <strong>${dateAct}</strong>${activite.lieu ? ' — 📍 ' + activite.lieu : ''}</p>` : ''}
+      <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:.88rem">
+        <thead><tr style="background:#e8f5e9"><th style="padding:8px;text-align:left">Billet</th><th style="padding:8px;text-align:right">Prix</th></tr></thead>
+        <tbody>
+          ${billets.map(b => `<tr style="border-bottom:1px solid #e0ede0"><td style="padding:7px 8px">${b.nom || 'Billet'}</td><td style="padding:7px 8px;text-align:right">$${(b.prix || 0).toFixed(2)}</td></tr>`).join('')}
+          <tr style="background:#e8f5e9;font-weight:700"><td style="padding:8px">Total</td><td style="padding:8px;text-align:right">$${montantTotal.toFixed(2)}</td></tr>
+        </tbody>
+      </table>
+      <div style="background:#fff3e0;border-left:4px solid #f9a825;border-radius:8px;padding:16px;margin:16px 0">
+        <strong style="color:#e65100">💳 Comment payer par virement Interac :</strong>
+        <ol style="margin:10px 0 0 16px;color:#3a3a3a;font-size:.88rem;line-height:1.8">
+          <li>Ouvrez votre application bancaire</li>
+          <li>Envoyez <strong>$${montantTotal.toFixed(2)} CAD</strong> à : <strong>${interacEmail}</strong></li>
+          <li>Inscrivez comme message/référence : <strong>${orderRef}</strong></li>
+          <li>Une fois votre paiement reçu, vos codes QR vous seront envoyés par courriel</li>
+        </ol>
+      </div>
+      <p style="font-size:.82rem;color:#888">Référence de commande : <strong>${orderRef}</strong> — conservez ce courriel.</p>
+    `)
+  });
+}
+
+async function sendBilletQR(email, prenom, activite, billet, qrBase64) {
+  const dateAct = activite.date_debut ? new Date(activite.date_debut).toLocaleDateString('fr-CA', { dateStyle: 'long' }) : '';
+  await sendMail({
+    to: email,
+    subject: `🎫 Votre billet — ${activite.titre} — AHH`,
+    html: wrap('Votre billet est prêt !', `
+      <p>Bonjour <strong>${prenom}</strong>,</p>
+      <p>Votre paiement a été confirmé. Voici votre billet pour <strong>${activite.titre}</strong>.</p>
+      ${dateAct ? `<p>📅 <strong>${dateAct}</strong>${activite.lieu ? ' — 📍 ' + activite.lieu : ''}</p>` : ''}
+      ${billet.nom ? `<p>Type : <strong>${billet.nom}</strong></p>` : ''}
+      <div style="text-align:center;margin:24px 0">
+        <img src="data:image/png;base64,${qrBase64}" alt="Code QR" style="width:200px;height:200px;border:6px solid #1b5e20;border-radius:12px"/>
+        <p style="font-size:.78rem;color:#888;margin-top:8px">Présentez ce code QR à l'entrée</p>
+      </div>
+      <div style="background:#e8f5e9;border-radius:8px;padding:12px;text-align:center;font-size:.82rem;color:#1b5e20">
+        ⚠️ Ce billet est <strong>personnel et non transférable</strong>. Chaque billet ne peut être scanné qu'une seule fois.
+      </div>
+    `)
+  });
+}
+
+async function sendNouvelleCommandeBillet(activite, acheteurNom, email, montantTotal, billets, orderRef) {
+  const adminEmails = process.env.NOTIFY_EMAILS ? process.env.NOTIFY_EMAILS.split(',').map(e => e.trim()) : [];
+  const to = process.env.SMTP_USER;
+  if (!to) return;
+  await sendMail({
+    to: [to, ...adminEmails].join(','),
+    subject: `🎟 Nouvelle commande de billets — ${activite.titre}`,
+    html: wrap('Nouvelle commande de billets', `
+      <p><strong>Acheteur :</strong> ${acheteurNom} (${email})</p>
+      <p><strong>Activité :</strong> ${activite.titre}</p>
+      <p><strong>Billets :</strong> ${billets.length} billet(s) — Total : <strong>$${montantTotal.toFixed(2)}</strong></p>
+      <p><strong>Référence :</strong> ${orderRef}</p>
+      <p>Confirmez le paiement dans le tableau de bord pour envoyer les codes QR.</p>
+      <a href="${siteUrl}/dashboard/app.html" class="btn">Tableau de bord</a>
+    `)
+  });
+}
+
 module.exports = {
   sendMail, sendBienvenue, sendInscriptionRefusee, sendResetPassword,
   sendContact, sendRappelPaiement, sendPaiementApprouve,
-  sendRecuFiscal, sendInscriptionActivite, sendNouvelleAdhesion, sendHeuresBenevolat
+  sendRecuFiscal, sendInscriptionActivite, sendNouvelleAdhesion, sendHeuresBenevolat,
+  sendBilletInterac, sendBilletQR, sendNouvelleCommandeBillet
 };
