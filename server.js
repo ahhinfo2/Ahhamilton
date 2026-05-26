@@ -476,24 +476,36 @@ app.delete('/api/activities/:id', authMiddleware, requireRole('admin','secretair
   const actId = parseInt(req.params.id);
   const act = db.prepare('SELECT * FROM activities WHERE id = ?').get(actId);
   if (!act) return res.status(404).json({ error: 'Activité introuvable' });
-  // Reverse financial transactions linked to this activity's financial line
-  const line = db.prepare('SELECT * FROM financial_lines WHERE activity_id = ?').get(actId);
-  if (line) {
-    const txRows = db.prepare('SELECT * FROM transactions WHERE financial_line_id = ?').all(line.id);
-    txRows.forEach(t => {
-      if (t.type === 'depense')
-        db.prepare('UPDATE account_info SET solde = solde + ?, date_maj = CURRENT_TIMESTAMP WHERE id = 1').run(t.montant);
-      else if (t.type === 'revenu')
-        db.prepare('UPDATE account_info SET solde = solde - ?, date_maj = CURRENT_TIMESTAMP WHERE id = 1').run(t.montant);
+  try {
+    // Disable FK checks for the duration of this cascaded delete
+    db.exec('PRAGMA foreign_keys = OFF');
+
+    // Clean up all financial lines linked to this activity
+    const lines = db.prepare('SELECT * FROM financial_lines WHERE activity_id = ?').all(actId);
+    lines.forEach(line => {
+      const txRows = db.prepare('SELECT * FROM transactions WHERE financial_line_id = ?').all(line.id);
+      txRows.forEach(t => {
+        if (t.type === 'depense')
+          db.prepare('UPDATE account_info SET solde = solde + ?, date_maj = CURRENT_TIMESTAMP WHERE id = 1').run(t.montant);
+        else if (t.type === 'revenu')
+          db.prepare('UPDATE account_info SET solde = solde - ?, date_maj = CURRENT_TIMESTAMP WHERE id = 1').run(t.montant);
+      });
+      db.prepare('DELETE FROM transactions WHERE financial_line_id = ?').run(line.id);
+      db.prepare('DELETE FROM invoices WHERE financial_line_id = ?').run(line.id);
+      db.prepare('DELETE FROM financial_lines WHERE id = ?').run(line.id);
     });
-    db.prepare('DELETE FROM transactions WHERE financial_line_id = ?').run(line.id);
-    db.prepare('DELETE FROM invoices WHERE financial_line_id = ?').run(line.id);
-    db.prepare('DELETE FROM financial_lines WHERE id = ?').run(line.id);
+
+    db.prepare('DELETE FROM activity_registrations WHERE activity_id = ?').run(actId);
+    db.prepare('DELETE FROM activity_photos WHERE activity_id = ?').run(actId);
+    db.prepare('DELETE FROM activities WHERE id = ?').run(actId);
+
+    res.json({ message: 'Activité supprimée' });
+  } catch (err) {
+    console.error('Delete activity error:', err.message);
+    res.status(500).json({ error: err.message });
+  } finally {
+    db.exec('PRAGMA foreign_keys = ON');
   }
-  db.prepare('DELETE FROM activity_registrations WHERE activity_id = ?').run(actId);
-  db.prepare('DELETE FROM activity_photos WHERE activity_id = ?').run(actId);
-  db.prepare('DELETE FROM activities WHERE id = ?').run(actId);
-  res.json({ message: 'Activité supprimée' });
 });
 
 app.patch('/api/activities/:id/archive', authMiddleware, requireRole('admin','secretaire','tresoriere'), (req, res) => {
