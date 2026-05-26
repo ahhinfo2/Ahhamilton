@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Dashboard – AHH</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="icon" type="image/jpeg" href="../Public/logo.jpg"/>
+  <link rel="manifest" href="/manifest.json"/>
+  <meta name="theme-color" content="#1b5e20"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="AHH"/>
+  <link rel="apple-touch-icon" href="../Public/logo.jpg"/>
   <link rel="stylesheet" href="dashboard.css"/>
 </head>
 <body>
@@ -97,5 +104,6 @@
 
 <script src="lang.js"></script>
 <script src="dashboard.js"></script>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
 </body>
 </html>

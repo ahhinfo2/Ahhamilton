@@ -1,0 +1,40 @@
+{
+  "name": "Association Haïtienne de Hamilton",
+  "short_name": "AHH",
+  "description": "Plateforme numérique de l'Association Haïtienne de Hamilton — membres, activités, billetterie.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#1b5e20",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "/Public/logo.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/Public/logo.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Mon espace",
+      "short_name": "Dashboard",
+      "url": "/dashboard/app.html",
+      "icons": [{ "src": "/Public/logo.jpg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Activités",
+      "short_name": "Activités",
+      "url": "/activites.html",
+      "icons": [{ "src": "/Public/logo.jpg", "sizes": "192x192" }]
+    }
+  ]
+}
