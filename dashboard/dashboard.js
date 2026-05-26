@@ -5432,49 +5432,42 @@ async function pendingOrders() {
   const orders = await api('/orders/pending').catch(() => []);
 
   if (!orders.length) {
-    setContent(`
-      <div style="padding:40px;text-align:center">
-        <div style="font-size:3rem;margin-bottom:12px">✅</div>
-        <div style="color:var(--muted)">Aucune commande en attente de paiement</div>
-      </div>`);
+    setContent('<div style="padding:40px;text-align:center"><div style="font-size:3rem;margin-bottom:12px">✅</div><div style="color:var(--muted)">Aucune commande en attente de paiement</div></div>');
     return;
   }
 
-  setContent(`
-    <div style="padding:20px">
-      <h2 style="margin-bottom:18px">Commandes en attente (${orders.length})</h2>
-      <div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:.84rem">
-        <thead><tr style="background:var(--off)">
-          <th style="padding:10px;text-align:left">Acheteur</th>
-          <th style="padding:10px;text-align:left">Activité</th>
-          <th style="padding:10px;text-align:center">Billets</th>
-          <th style="padding:10px;text-align:right">Montant</th>
-          <th style="padding:10px;text-align:left">Méthode</th>
-          <th style="padding:10px;text-align:left">Date</th>
-          <th style="padding:10px;text-align:center">Actions</th>
-        </tr></thead>
-        <tbody>
-          ${orders.map(o => `
-          <tr style="border-bottom:1px solid var(--border)">
-            <td style="padding:9px 10px">
-              <strong>${o.acheteur_nom}</strong><br/>
-              <small style="color:var(--muted)">${o.acheteur_email}</small>
-            </td>
-            <td style="padding:9px 10px">${o.activite}</td>
-            <td style="padding:9px 10px;text-align:center">${o.nb_billets}</td>
-            <td style="padding:9px 10px;text-align:right;font-weight:700;color:var(--g2)">$${(o.montant_total||0).toFixed(2)}</td>
-            <td style="padding:9px 10px">${o.methode_paiement === 'interac' ? '🏦 Interac' : '💳 Carte'}</td>
-            <td style="padding:9px 10px;font-size:.78rem;color:var(--muted)">${(o.date_commande||'').substring(0,16).replace('T',' ')}</td>
-            <td style="padding:9px 10px;text-align:center">
-              <button class="btn btn-sm btn-primary" onclick="confirmOrder('${o.order_token}')">✅ Confirmer</button>
-              <button class="btn btn-sm btn-ghost" onclick="cancelOrder('${o.order_token}')" style="color:var(--red)">✖ Annuler</button>
-            </td>
-          </tr>`).join('')}
-        </tbody>
-      </table>
-      </div>
-    </div>`;
+  const rows = orders.map(function(o) {
+    const methode = o.methode_paiement === 'interac' ? '🏦 Interac' : '💳 Carte';
+    const date = (o.date_commande || '').substring(0, 16).replace('T', ' ');
+    const montant = '$' + (o.montant_total || 0).toFixed(2);
+    return '<tr style="border-bottom:1px solid var(--border)">' +
+      '<td style="padding:9px 10px"><strong>' + o.acheteur_nom + '</strong><br/><small style="color:var(--muted)">' + o.acheteur_email + '</small></td>' +
+      '<td style="padding:9px 10px">' + o.activite + '</td>' +
+      '<td style="padding:9px 10px;text-align:center">' + o.nb_billets + '</td>' +
+      '<td style="padding:9px 10px;text-align:right;font-weight:700;color:var(--g2)">' + montant + '</td>' +
+      '<td style="padding:9px 10px">' + methode + '</td>' +
+      '<td style="padding:9px 10px;font-size:.78rem;color:var(--muted)">' + date + '</td>' +
+      '<td style="padding:9px 10px;text-align:center">' +
+        '<button class="btn btn-sm btn-primary" onclick="confirmOrder(\'' + o.order_token + '\')">✅ Confirmer</button> ' +
+        '<button class="btn btn-sm btn-ghost" onclick="cancelOrder(\'' + o.order_token + '\')" style="color:var(--red)">✖ Annuler</button>' +
+      '</td></tr>';
+  }).join('');
+
+  setContent(
+    '<div style="padding:20px">' +
+    '<h2 style="margin-bottom:18px">Commandes en attente (' + orders.length + ')</h2>' +
+    '<div style="overflow-x:auto">' +
+    '<table style="width:100%;border-collapse:collapse;font-size:.84rem">' +
+    '<thead><tr style="background:var(--off)">' +
+    '<th style="padding:10px;text-align:left">Acheteur</th>' +
+    '<th style="padding:10px;text-align:left">Activité</th>' +
+    '<th style="padding:10px;text-align:center">Billets</th>' +
+    '<th style="padding:10px;text-align:right">Montant</th>' +
+    '<th style="padding:10px;text-align:left">Méthode</th>' +
+    '<th style="padding:10px;text-align:left">Date</th>' +
+    '<th style="padding:10px;text-align:center">Actions</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table></div></div>'
+  );
 }
 
 async function confirmOrder(orderToken) {
