@@ -3312,7 +3312,8 @@ async function projects() {
             <small style="color:var(--muted)">${p.responsable_nom ? 'Responsable: '+p.responsable_nom+' · ' : ''}${p.date_debut?fmt(p.date_debut):'–'} → ${p.date_fin?fmt(p.date_fin):'–'}</small>
           </div>
           <div class="tc-actions">
-            ${can.admin() ? `<button class="btn btn-sm btn-outline" onclick='openProjectForm(${JSON.stringify(p)},${JSON.stringify(allUsers)})'>✏️</button>` : ''}
+            ${can.admin() ? `<button class="btn btn-sm btn-outline" onclick='openProjectForm(${JSON.stringify(p)},${JSON.stringify(allUsers)})'>✏️</button>
+            <button class="btn btn-sm btn-danger" onclick='deleteProject(${p.id},"${p.nom.replace(/"/g,'&quot;')}")'>🗑</button>` : ''}
           </div>
         </div>
         <div style="padding:14px 20px">
@@ -3402,6 +3403,15 @@ function openProjectForm(p, allUsers) {
       closeModal(); toast('Projet enregistré'); projects();
     } catch(ex) { toast(ex.message,'error'); }
   };
+}
+
+async function deleteProject(id, nom) {
+  if (!confirm('Supprimer le projet « ' + nom + ' » ?\n\nSes lignes financières seront aussi supprimées.')) return;
+  try {
+    await api('/projects/' + id, { method: 'DELETE' });
+    toast('Projet supprimé');
+    projects();
+  } catch(ex) { toast(ex.message, 'error'); }
 }
 
 // ══ ALERTS ═════════════════════════════════════════════════════════════════

@@ -1061,6 +1061,14 @@ app.put('/api/projects/:id', authMiddleware, requireRole('admin'), (req, res) =>
   res.json({ message: 'Mis à jour' });
 });
 
+app.delete('/api/projects/:id', authMiddleware, requireRole('admin'), (req, res) => {
+  const prev = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
+  if (!prev) return res.status(404).json({ error: 'Projet introuvable' });
+  db.prepare('DELETE FROM financial_lines WHERE project_id = ?').run(req.params.id);
+  db.prepare('DELETE FROM projects WHERE id = ?').run(req.params.id);
+  res.json({ message: 'Projet supprimé' });
+});
+
 // ══════════════════════════════════════════════════════════════════════════════
 // REPORTS
 // ══════════════════════════════════════════════════════════════════════════════
