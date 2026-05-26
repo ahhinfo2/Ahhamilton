@@ -133,13 +133,13 @@
   </section>
 
   <!-- ===== LIGHTBOX avec prev/next ===== -->
-  <div id="lightbox" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;align-items:center;justify-content:center;flex-direction:column">
+  <div id="galLightbox" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;align-items:center;justify-content:center;flex-direction:column">
     <button onclick="closeLightbox()" style="position:absolute;top:20px;right:24px;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:1.6rem;width:44px;height:44px;border-radius:50%;cursor:pointer">✕</button>
-    <button id="lbPrev" onclick="lbNav(-1)" style="position:absolute;left:16px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.15);border:none;color:#fff;font-size:1.8rem;width:48px;height:48px;border-radius:50%;cursor:pointer">‹</button>
-    <button id="lbNext" onclick="lbNav(1)"  style="position:absolute;right:16px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.15);border:none;color:#fff;font-size:1.8rem;width:48px;height:48px;border-radius:50%;cursor:pointer">›</button>
-    <img id="lbImg" src="" alt="" style="max-width:88vw;max-height:80vh;border-radius:12px;object-fit:contain"/>
-    <div id="lbCaption" style="color:rgba(255,255,255,.75);font-size:.85rem;margin-top:14px;text-align:center"></div>
-    <div id="lbCounter" style="color:rgba(255,255,255,.4);font-size:.75rem;margin-top:4px"></div>
+    <button id="galLbPrev" onclick="lbNav(-1)" style="position:absolute;left:16px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.15);border:none;color:#fff;font-size:1.8rem;width:48px;height:48px;border-radius:50%;cursor:pointer">‹</button>
+    <button id="galLbNext" onclick="lbNav(1)"  style="position:absolute;right:16px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.15);border:none;color:#fff;font-size:1.8rem;width:48px;height:48px;border-radius:50%;cursor:pointer">›</button>
+    <img id="galLbImg" src="" alt="" style="max-width:88vw;max-height:80vh;border-radius:12px;object-fit:contain"/>
+    <div id="galLbCaption" style="color:rgba(255,255,255,.75);font-size:.85rem;margin-top:14px;text-align:center"></div>
+    <div id="galLbCounter" style="color:rgba(255,255,255,.4);font-size:.75rem;margin-top:4px"></div>
   </div>
 
   <script src="script.js"></script>
@@ -171,13 +171,13 @@
 
   function _lbShow() {
     var p = _lbPhotos[_lbIdx];
-    document.getElementById('lbImg').src = p.src;
-    document.getElementById('lbCaption').textContent = p.caption || '';
-    document.getElementById('lbCounter').textContent = (_lbPhotos.length > 1)
+    document.getElementById('galLbImg').src = p.src;
+    document.getElementById('galLbCaption').textContent = p.caption || '';
+    document.getElementById('galLbCounter').textContent = (_lbPhotos.length > 1)
       ? (_lbIdx + 1) + ' / ' + _lbPhotos.length : '';
-    document.getElementById('lbPrev').style.display = _lbPhotos.length > 1 ? 'flex' : 'none';
-    document.getElementById('lbNext').style.display = _lbPhotos.length > 1 ? 'flex' : 'none';
-    var lb = document.getElementById('lightbox');
+    document.getElementById('galLbPrev').style.display = _lbPhotos.length > 1 ? 'flex' : 'none';
+    document.getElementById('galLbNext').style.display = _lbPhotos.length > 1 ? 'flex' : 'none';
+    var lb = document.getElementById('galLightbox');
     lb.style.display = 'flex';
     document.body.style.overflow = 'hidden';
   }
@@ -188,11 +188,11 @@
   }
 
   function closeLightbox() {
-    document.getElementById('lightbox').style.display = 'none';
+    document.getElementById('galLightbox').style.display = 'none';
     document.body.style.overflow = '';
   }
 
-  document.getElementById('lightbox').addEventListener('click', function(e) {
+  document.getElementById('galLightbox').addEventListener('click', function(e) {
     if (e.target === this) closeLightbox();
   });
   document.addEventListener('keydown', function(e) {
