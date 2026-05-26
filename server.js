@@ -1064,9 +1064,20 @@ app.put('/api/projects/:id', authMiddleware, requireRole('admin'), (req, res) =>
 app.delete('/api/projects/:id', authMiddleware, requireRole('admin'), (req, res) => {
   const prev = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
   if (!prev) return res.status(404).json({ error: 'Projet introuvable' });
-  db.prepare('DELETE FROM financial_lines WHERE project_id = ?').run(req.params.id);
-  db.prepare('DELETE FROM projects WHERE id = ?').run(req.params.id);
-  res.json({ message: 'Projet supprimé' });
+  try {
+    const lineIds = db.prepare('SELECT id FROM financial_lines WHERE project_id = ?').all(req.params.id).map(l => l.id);
+    if (lineIds.length) {
+      const placeholders = lineIds.map(() => '?').join(',');
+      db.prepare('DELETE FROM transactions WHERE financial_line_id IN (' + placeholders + ')').run(...lineIds);
+      db.prepare('DELETE FROM invoices WHERE financial_line_id IN (' + placeholders + ')').run(...lineIds);
+      db.prepare('DELETE FROM financial_lines WHERE project_id = ?').run(req.params.id);
+    }
+    db.prepare('DELETE FROM projects WHERE id = ?').run(req.params.id);
+    res.json({ message: 'Projet supprimé' });
+  } catch(e) {
+    console.error('deleteProject:', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
