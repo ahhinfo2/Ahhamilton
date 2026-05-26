@@ -5101,18 +5101,30 @@ async function viewActivityQR(id, titre, qrToken) {
   const qrUrl      = `${BASE}/api/activities/${id}/qr`;
   const checkoutUrl = `${BASE}/activity-checkout.html?actid=${id}&token=${qrToken}`;
 
+  const pngUrl = `${BASE}/api/activities/${id}/qr?format=png&size=1200`;
+
   openModal('📱 Code QR — ' + titre,
     '<div style="text-align:center;padding:8px">' +
-      '<p style="font-size:.82rem;color:var(--muted);margin-bottom:16px">Partagez ce QR code avec les membres pour qu\'ils paient ou valident leur présence.</p>' +
+      '<p style="font-size:.82rem;color:var(--muted);margin-bottom:16px">Les participants scannent ce code avec leur téléphone pour s\'enregistrer ou payer.</p>' +
       '<div style="width:240px;height:240px;margin:0 auto;border-radius:16px;border:1px solid var(--border);overflow:hidden;background:#fff;display:flex;align-items:center;justify-content:center">' +
-        '<img id="qrImgModal" src="' + qrUrl + '?t=' + Date.now() + '" style="width:220px;height:220px;display:block" onerror="this.parentElement.innerHTML=\'<span style=\\\'font-size:.8rem;color:var(--muted)\\\'>Erreur QR — rechargez</span>\'"/>' +
+        '<img id="qrImgModal" src="' + qrUrl + '?t=' + Date.now() + '" style="width:220px;height:220px;display:block" onerror="this.parentElement.innerHTML=\'<span style=\\\'font-size:.8rem;color:var(--muted)\\\'>Erreur QR</span>\'"/>' +
       '</div>' +
-      '<div style="margin-top:12px;background:var(--off);border-radius:8px;padding:8px 10px;font-size:.72rem;color:var(--muted);word-break:break-all;text-align:left">' +
-        '🔗 <a href="' + checkoutUrl + '" target="_blank" style="color:var(--g2)">' + checkoutUrl + '</a>' +
+
+      '<div style="margin-top:16px;background:var(--off);border-radius:10px;padding:12px 14px;text-align:left">' +
+        '<div style="font-size:.75rem;font-weight:700;color:var(--g2);margin-bottom:6px">📐 Pour Canva / CorelDraw / impression</div>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+          '<a href="' + pngUrl + '" download class="btn btn-primary btn-sm">⬇️ PNG haute résolution (1200px)</a>' +
+          '<a href="' + qrUrl + '" target="_blank" class="btn btn-outline btn-sm">⬇️ SVG vectoriel</a>' +
+        '</div>' +
+        '<div style="font-size:.7rem;color:var(--muted);margin-top:8px">💡 PNG pour Canva · SVG pour CorelDraw/Illustrator · Imprimez à minimum 3×3 cm</div>' +
       '</div>' +
-      '<div style="display:flex;gap:8px;justify-content:center;margin-top:14px;flex-wrap:wrap">' +
-        '<button class="btn btn-outline btn-sm" onclick="window.open(\'' + qrUrl + '\',\'_blank\')">⬇️ Télécharger QR</button>' +
+
+      '<div style="margin-top:10px;background:var(--off);border-radius:8px;padding:8px 10px;font-size:.72rem;color:var(--muted);word-break:break-all;text-align:left">' +
+        '🔗 Lien direct : <a href="' + checkoutUrl + '" target="_blank" style="color:var(--g2)">' + checkoutUrl + '</a>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap">' +
         '<button class="btn btn-ghost btn-sm" onclick="navigator.clipboard&&navigator.clipboard.writeText(\'' + checkoutUrl + '\').then(()=>toast(\'Lien copié !\'))">📋 Copier lien</button>' +
+        '<button class="btn btn-ghost btn-sm" onclick="navigator.clipboard&&navigator.clipboard.writeText(\'' + pngUrl + '\').then(()=>toast(\'URL PNG copié — collez dans Canva !\'))">🔗 URL PNG pour Canva</button>' +
         '<button class="btn btn-ghost btn-sm" onclick="closeModal();showActivityReport(' + id + ')">📊 Rapport</button>' +
       '</div>' +
     '</div>'

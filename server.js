@@ -2265,35 +2265,45 @@ app.use('/uploads/annonces', express.static(path.join(__dirname, 'uploads', 'ann
 // QR CODE ACTIVITÉ
 // ══════════════════════════════════════════════════════════════════════════════
 
-// Génère le QR code SVG avec logo centré — route PUBLIQUE (img tag ne peut pas envoyer auth header)
+// Génère le QR code — route PUBLIQUE — ?format=png&size=800 pour haute résolution
 app.get('/api/activities/:id/qr', async (req, res) => {
   const act = db.prepare('SELECT id, titre, qr_token FROM activities WHERE id = ?').get(req.params.id);
   if (!act || !act.qr_token) return res.status(404).send('QR non disponible');
 
   const baseUrl = `${req.protocol}://${req.get('host')}`;
   const url     = `${baseUrl}/activity-checkout.html?actid=${act.id}&token=${act.qr_token}`;
-  const logoPath = path.join(__dirname, 'Public', 'logo1.png');
+  const format  = req.query.format === 'png' ? 'png' : 'svg';
+  const size    = Math.min(Math.max(parseInt(req.query.size) || (format === 'png' ? 800 : 300), 200), 2000);
 
   try {
-    // Générer QR en SVG avec couleur verte AHH
+    if (format === 'png') {
+      const buf = await QRCode.toBuffer(url, {
+        type: 'png', width: size, margin: 2,
+        color: { dark: '#1b5e20', light: '#ffffff' }
+      });
+      const filename = `QR-${act.titre.replace(/[^a-zA-Z0-9]/g,'-').substring(0,30)}.png`;
+      res.set('Content-Type', 'image/png');
+      res.set('Content-Disposition', `attachment; filename="${filename}"`);
+      res.set('Cache-Control', 'no-cache');
+      return res.send(buf);
+    }
+
+    // SVG avec logo centré
     const svgRaw = await QRCode.toString(url, {
-      type: 'svg', width: 300, margin: 2,
+      type: 'svg', width: size, margin: 2,
       color: { dark: '#1b5e20', light: '#ffffff' }
     });
-
-    // Extraire la taille réelle du viewBox
     const vbMatch = svgRaw.match(/viewBox="0 0 (\d+) (\d+)"/);
     const vbSize  = vbMatch ? parseInt(vbMatch[1]) : 37;
 
     let svgFinal = svgRaw;
+    const logoPath = path.join(__dirname, 'Public', 'logo1.png');
     if (fs.existsSync(logoPath)) {
       const logo64   = fs.readFileSync(logoPath).toString('base64');
-      const logoSize = Math.round(vbSize * 0.22);  // 22% de la taille du QR
+      const logoSize = Math.round(vbSize * 0.22);
       const pad      = Math.round(vbSize * 0.035);
       const x        = Math.round((vbSize - logoSize) / 2);
       const y        = Math.round((vbSize - logoSize) / 2);
-
-      // Ajouter xmlns:xlink pour compatibilité SVG maximale
       svgFinal = svgRaw
         .replace('<svg ', '<svg xmlns:xlink="http://www.w3.org/1999/xlink" ')
         .replace('</svg>',
@@ -2302,7 +2312,6 @@ app.get('/api/activities/:id/qr', async (req, res) => {
             `x="${x}" y="${y}" width="${logoSize}" height="${logoSize}" preserveAspectRatio="xMidYMid meet"/>` +
           `</svg>`);
     }
-
     res.set('Content-Type', 'image/svg+xml');
     res.set('Cache-Control', 'no-cache');
     res.send(svgFinal);
