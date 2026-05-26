@@ -476,11 +476,10 @@ app.delete('/api/activities/:id', authMiddleware, requireRole('admin','secretair
   const actId = parseInt(req.params.id);
   const act = db.prepare('SELECT * FROM activities WHERE id = ?').get(actId);
   if (!act) return res.status(404).json({ error: 'Activité introuvable' });
-  // Reverse any financial transactions linked to this activity's financial line
-  const line = act.financial_line_id
-    ? db.prepare('SELECT * FROM financial_lines WHERE id = ?').get(act.financial_line_id) : null;
+  // Reverse financial transactions linked to this activity's financial line
+  const line = db.prepare('SELECT * FROM financial_lines WHERE activity_id = ?').get(actId);
   if (line) {
-    const txRows = db.prepare("SELECT * FROM transactions WHERE financial_line_id = ?").all(line.id);
+    const txRows = db.prepare('SELECT * FROM transactions WHERE financial_line_id = ?').all(line.id);
     txRows.forEach(t => {
       if (t.type === 'depense')
         db.prepare('UPDATE account_info SET solde = solde + ?, date_maj = CURRENT_TIMESTAMP WHERE id = 1').run(t.montant);
