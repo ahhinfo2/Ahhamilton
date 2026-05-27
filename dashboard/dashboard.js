@@ -207,7 +207,6 @@ function buildSidebar() {
       items: [
         { id:'scanner',        icon:'📷', label:'Scanner billets',    roles:['admin','delegue','secretaire','tresoriere'] },
         { id:'pending-orders', icon:'🎟', label:'Commandes en attente', roles:['admin','tresoriere','secretaire'] },
-        { id:'external-email', icon:'📤', label:'Courriel externe',      roles:['admin','tresoriere','secretaire','delegue'] },
       ]
     },
 
@@ -382,7 +381,7 @@ async function showView(viewId) {
     inscriptions, paiements, recus, mon_paiement, mes_billets, testimonials_mgmt, videos_mgmt,
     scanner
   };
-  const extViews = { 'pending-orders': pendingOrders, 'external-email': externalEmail };
+  const extViews = { 'pending-orders': pendingOrders };
   if (extViews[viewId]) {
     try { await extViews[viewId](); } catch(e) { setContent(`<div class="empty-state"><div class="es-icon">⚠️</div><p>${e.message}</p></div>`); }
     return;
@@ -2787,7 +2786,7 @@ function gmCompose(pre = {}) {
       <div class="gm-cfield"><label>À :</label>
         <div class="gm-chips-wrap">
           <div class="gm-chips" id="mc-to-chips"></div>
-          <input id="mc-to" class="gm-field-input" placeholder="Destinataire…" autocomplete="off"
+          <input id="mc-to" class="gm-field-input" placeholder="Membre ou adresse externe (gmail, etc.)…" autocomplete="off"
             oninput="gmSuggest('to')" onkeydown="gmKey(event,'to')"/>
           <div class="gm-suggest" id="mc-to-sg"></div>
         </div>
