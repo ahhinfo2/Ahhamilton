@@ -1,4 +1,4 @@
-const CACHE = 'ahh-v1';
+const CACHE = 'ahh-v2';
 const STATIC = [
   '/',
   '/index.html',
@@ -34,6 +34,9 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
+  // Ignorer les requêtes non-http (extensions, etc.)
+  if (!e.request.url.startsWith('http')) return;
+
   const url = new URL(e.request.url);
 
   // API calls : toujours réseau (pas de cache)

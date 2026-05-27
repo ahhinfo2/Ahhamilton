@@ -463,6 +463,7 @@
   <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
   <script>
   fetch('/api/hero-images').then(function(r){ return r.json(); }).then(function(images) {
+    console.log('Hero images:', images);
     if (!images || images.length === 0) return;
 
     var hero = document.querySelector('.hero');
