@@ -461,5 +461,44 @@
   });
   </script>
   <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+  <script>
+  (async function initHeroSlideshow() {
+    try {
+      var hero = document.querySelector('.hero');
+      if (!hero) return;
+
+      var res = await fetch('/api/hero-images');
+      var images = await res.json();
+      if (!images.length) return;
+
+      // Supprimer le fond statique existant
+      var old = hero.querySelector('.hero-photo-bg');
+      if (old) old.remove();
+
+      // Créer un div par image, empilés dans le héros
+      var overlay = hero.querySelector('.hero-overlay');
+      var divs = images.map(function(src) {
+        var d = document.createElement('div');
+        d.className = 'hero-photo-bg';
+        d.style.backgroundImage = "url('" + src + "')";
+        hero.insertBefore(d, overlay || hero.firstChild);
+        return d;
+      });
+
+      var current = 0;
+      divs[0].classList.add('active');
+
+      if (divs.length > 1) {
+        setInterval(function() {
+          divs[current].classList.remove('active');
+          current = (current + 1) % divs.length;
+          divs[current].classList.add('active');
+        }, 5000);
+      }
+    } catch(e) {
+      // Fallback : fond statique déjà en place via CSS
+    }
+  })();
+  </script>
 </body>
 </html>

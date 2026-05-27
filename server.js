@@ -1153,6 +1153,19 @@ app.get('/api/stats', authMiddleware, (req, res) => {
 // GALLERY PHOTOS (gestion par admin + secrétaire)
 // ══════════════════════════════════════════════════════════════════════════════
 
+app.get('/api/hero-images', (req, res) => {
+  const dir = path.join(__dirname, 'Public', 'Fond');
+  const exts = ['.jpg', '.jpeg', '.png', '.webp'];
+  try {
+    const files = fs.readdirSync(dir)
+      .filter(f => exts.includes(path.extname(f).toLowerCase()))
+      .map(f => '/Public/Fond/' + encodeURIComponent(f));
+    res.json(files.length ? files : ['/Public/fond.jpg']);
+  } catch(e) {
+    res.json(['/Public/fond.jpg']);
+  }
+});
+
 app.get('/api/gallery', (req, res) => {
   const rows = db.prepare(`
     SELECT gp.*, u.prenom || ' ' || u.nom AS uploadeur
