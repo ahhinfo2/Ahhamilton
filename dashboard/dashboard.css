@@ -167,7 +167,7 @@ img{display:block;max-width:100%}
 .user-chip{background:linear-gradient(135deg,var(--g2),var(--g3));color:#fff;padding:5px 12px;border-radius:50px;font-size:.8rem;font-weight:600}
 
 /* ── CONTENT ───────────────────────────────────────────────────────────── */
-.content{flex:1;padding:24px;max-width:1200px;width:100%;margin:0 auto}
+.content{flex:1;padding:24px;width:100%;min-width:0}
 
 /* Page header */
 .page-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:12px}

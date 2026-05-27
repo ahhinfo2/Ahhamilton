@@ -301,9 +301,25 @@ async function sendNouvelleCommandeBillet(activite, acheteurNom, email, montantT
   });
 }
 
+// ── Courriel externe depuis le comité ────────────────────────────────────
+async function sendExternalEmail({ to, subject, bodyHtml, senderName, senderEmail }) {
+  const replyTo = senderEmail ? `"${senderName}" <${senderEmail}>` : FROM;
+  const html = wrap(subject,
+    `<p>Bonjour,</p>
+     ${bodyHtml}
+     <hr class="divider"/>
+     <p style="font-size:.8rem;color:#888">
+       Ce message vous a été envoyé par <strong>${senderName}</strong>
+       au nom de l'<strong>Association Haïtienne de Hamilton</strong>.<br/>
+       Pour répondre, écrivez à : <a href="mailto:${senderEmail || 'contact@ahhamilton.ca'}">${senderEmail || 'contact@ahhamilton.ca'}</a>
+     </p>`
+  );
+  return sendMail({ to, subject, html, replyTo });
+}
+
 module.exports = {
   sendMail, sendBienvenue, sendInscriptionRefusee, sendResetPassword,
   sendContact, sendRappelPaiement, sendPaiementApprouve,
   sendRecuFiscal, sendInscriptionActivite, sendNouvelleAdhesion, sendHeuresBenevolat,
-  sendBilletInterac, sendBilletQR, sendNouvelleCommandeBillet
+  sendBilletInterac, sendBilletQR, sendNouvelleCommandeBillet, sendExternalEmail
 };

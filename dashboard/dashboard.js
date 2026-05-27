@@ -207,6 +207,7 @@ function buildSidebar() {
       items: [
         { id:'scanner',        icon:'📷', label:'Scanner billets',    roles:['admin','delegue','secretaire','tresoriere'] },
         { id:'pending-orders', icon:'🎟', label:'Commandes en attente', roles:['admin','tresoriere','secretaire'] },
+        { id:'external-email', icon:'📤', label:'Courriel externe',      roles:['admin','tresoriere','secretaire','delegue'] },
       ]
     },
 
@@ -381,7 +382,7 @@ async function showView(viewId) {
     inscriptions, paiements, recus, mon_paiement, mes_billets, testimonials_mgmt, videos_mgmt,
     scanner
   };
-  const extViews = { 'pending-orders': pendingOrders };
+  const extViews = { 'pending-orders': pendingOrders, 'external-email': externalEmail };
   if (extViews[viewId]) {
     try { await extViews[viewId](); } catch(e) { setContent(`<div class="empty-state"><div class="es-icon">⚠️</div><p>${e.message}</p></div>`); }
     return;
@@ -2826,8 +2827,31 @@ function gmSuggest(f) {
   const hits = _M.members.filter(u => !existing.includes(u.email) &&
     (`${u.prenom} ${u.nom}`.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
   ).slice(0, 8);
-  if (!hits.length) { sg.innerHTML=''; sg.classList.remove('open'); return; }
-  sg.innerHTML = hits.map(u =>
+  const rawInput = input.value.trim();
+  const isFullEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawInput);
+  const exactMemberMatch = isFullEmail && _M.members.find(u => u.email.toLowerCase() === rawInput.toLowerCase());
+
+  if (!hits.length) {
+    if (isFullEmail && !exactMemberMatch) {
+      sg.innerHTML = `<div class="gm-sg-item" onclick="gmPick('${f}','${rawInput}','${rawInput}')">
+        <div class="gm-sg-av" style="background:#1565c0">✉</div>
+        <div><div class="gm-sg-name">Envoyer à l'externe</div><div class="gm-sg-email">${rawInput}</div></div>
+      </div>`;
+      sg.classList.add('open');
+    } else {
+      sg.innerHTML=''; sg.classList.remove('open');
+    }
+    return;
+  }
+
+  // Si l'email tapé est complet et non-membre, ajouter option externe en tête
+  const extExtra = (isFullEmail && !exactMemberMatch)
+    ? `<div class="gm-sg-item" onclick="gmPick('${f}','${rawInput}','${rawInput}')">
+        <div class="gm-sg-av" style="background:#1565c0">✉</div>
+        <div><div class="gm-sg-name">Envoyer à l'externe</div><div class="gm-sg-email">${rawInput}</div></div>
+      </div>` : '';
+
+  sg.innerHTML = extExtra + hits.map(u =>
     `<div class="gm-sg-item" onclick="gmPick('${f}','${u.email}','${u.prenom} ${u.nom}')">
       <div class="gm-sg-av">${u.prenom[0]}${u.nom[0]}</div>
       <div><div class="gm-sg-name">${u.prenom} ${u.nom}</div><div class="gm-sg-email">${u.email}</div></div>
@@ -2887,29 +2911,42 @@ async function gmSend() {
 
   try {
     if (!_M.members.length) _M.members = await api('/annuaire');
-    const ids = toArr.map(c => (_M.members.find(u=>u.email===c.email)||{}).id).filter(Boolean);
-    if (!ids.length) {
-      toast('Destinataire introuvable — utilisez la liste de suggestions', 'error');
+
+    const internal = toArr.filter(c => _M.members.find(u => u.email === c.email));
+    const external = toArr.filter(c => !_M.members.find(u => u.email === c.email));
+
+    if (!internal.length && !external.length) {
+      toast('Ajoutez au moins un destinataire valide', 'error');
       btn.disabled=false; btn.textContent='Envoyer'; return;
     }
 
-    const attachment = fileEl?.files?.[0];
-    if (attachment) {
-      const fd = new FormData();
-      fd.append('sujet', subject);
-      fd.append('contenu', body);
-      fd.append('destinataires', JSON.stringify(ids));
-      fd.append('attachment', attachment);
-      const res = await fetch(API + '/messages/with-attachment', {
-        method: 'POST', headers: { Authorization: `Bearer ${TOKEN}` }, body: fd
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || 'Erreur envoi');
-    } else {
-      await api('/messages', { method: 'POST', body: JSON.stringify({ sujet: subject, contenu: body, destinataires: ids }) });
+    // Envoi interne (membres du système)
+    if (internal.length) {
+      const ids = internal.map(c => _M.members.find(u => u.email === c.email).id);
+      const attachment = fileEl?.files?.[0];
+      if (attachment) {
+        const fd = new FormData();
+        fd.append('sujet', subject);
+        fd.append('contenu', body);
+        fd.append('destinataires', JSON.stringify(ids));
+        fd.append('attachment', attachment);
+        const res = await fetch(API + '/messages/with-attachment', {
+          method: 'POST', headers: { Authorization: `Bearer ${TOKEN}` }, body: fd
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(data?.error || 'Erreur envoi');
+      } else {
+        await api('/messages', { method: 'POST', body: JSON.stringify({ sujet: subject, contenu: body, destinataires: ids }) });
+      }
     }
 
-    toast('✅ Message envoyé!');
+    // Envoi externe (adresses hors du système) via SMTP
+    for (const c of external) {
+      await api('/email/send', { method: 'POST', body: JSON.stringify({ to: c.email, subject, body }) });
+    }
+
+    const extNote = external.length ? ` (+ ${external.length} externe${external.length>1?'s':''} par courriel)` : '';
+    toast('✅ Message envoyé' + extNote + '!');
     _MC.to=[]; _MC.cc=[];
     if (fileEl) fileEl.value = '';
     document.getElementById('mc-attach') && (document.getElementById('mc-attach').innerHTML = '');
@@ -5434,6 +5471,76 @@ async function deleteTicketType(actId, ttId) {
     toast('Supprimé');
     window._reloadTicketTypes && window._reloadTicketTypes();
   } catch (ex) { toast(ex.message, 'error'); }
+}
+
+// ══ COURRIEL EXTERNE ═════════════════════════════════════════════════════════
+
+async function externalEmail() {
+  const sent = await api('/email/sent').catch(() => []);
+
+  const rows = sent.map(function(e) {
+    const date = (e.date_envoi || '').substring(0, 16).replace('T', ' ');
+    const statut = e.statut === 'envoye'
+      ? '<span style="color:var(--g2)">✅ Envoyé</span>'
+      : '<span style="color:var(--red)">❌ Erreur</span>';
+    return '<tr style="border-bottom:1px solid var(--border)">' +
+      '<td style="padding:8px 10px;font-size:.82rem;color:var(--muted)">' + date + '</td>' +
+      '<td style="padding:8px 10px">' + (e.expediteur_nom || '') + '</td>' +
+      '<td style="padding:8px 10px">' + escHtml(e.destinataire) + '</td>' +
+      '<td style="padding:8px 10px">' + escHtml(e.sujet) + '</td>' +
+      '<td style="padding:8px 10px;text-align:center">' + statut + '</td>' +
+    '</tr>';
+  }).join('');
+
+  const histSection = sent.length
+    ? '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.83rem">' +
+      '<thead><tr style="background:var(--off)">' +
+      '<th style="padding:9px 10px;text-align:left">Date</th>' +
+      '<th style="padding:9px 10px;text-align:left">Expéditeur</th>' +
+      '<th style="padding:9px 10px;text-align:left">Destinataire</th>' +
+      '<th style="padding:9px 10px;text-align:left">Sujet</th>' +
+      '<th style="padding:9px 10px;text-align:center">Statut</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table></div>'
+    : '<p style="color:var(--muted);font-size:.88rem">Aucun courriel envoyé pour l\'instant.</p>';
+
+  setContent(
+    '<div style="padding:24px">' +
+    '<h2 style="margin-bottom:20px">📤 Courriel externe</h2>' +
+    '<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:28px">' +
+    '<div style="margin-bottom:14px">' +
+      '<label style="display:block;font-weight:600;margin-bottom:5px">Destinataire</label>' +
+      '<input id="extEmailTo" type="email" placeholder="exemple@gmail.com" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:.9rem;box-sizing:border-box"/>' +
+    '</div>' +
+    '<div style="margin-bottom:14px">' +
+      '<label style="display:block;font-weight:600;margin-bottom:5px">Sujet</label>' +
+      '<input id="extEmailSubject" type="text" placeholder="Objet du message" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:.9rem;box-sizing:border-box"/>' +
+    '</div>' +
+    '<div style="margin-bottom:18px">' +
+      '<label style="display:block;font-weight:600;margin-bottom:5px">Message</label>' +
+      '<textarea id="extEmailBody" rows="7" placeholder="Votre message…" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:.9rem;box-sizing:border-box;resize:vertical"></textarea>' +
+    '</div>' +
+    '<button class="btn btn-primary" onclick="sendExternalEmailMsg()" style="min-width:140px">Envoyer</button>' +
+    '</div>' +
+    '<h3 style="margin-bottom:14px">Historique des envois</h3>' +
+    histSection +
+    '</div>'
+  );
+}
+
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function sendExternalEmailMsg() {
+  const to      = document.getElementById('extEmailTo').value.trim();
+  const subject = document.getElementById('extEmailSubject').value.trim();
+  const body    = document.getElementById('extEmailBody').value.trim();
+  if (!to || !subject || !body) { toast('Veuillez remplir tous les champs', 'error'); return; }
+  try {
+    await api('/email/send', { method: 'POST', body: JSON.stringify({ to, subject, body }) });
+    toast('✅ Courriel envoyé à ' + to);
+    externalEmail();
+  } catch(e) { toast(e.message, 'error'); }
 }
 
 // ══ COMMANDES DE BILLETS EN ATTENTE ══════════════════════════════════════════

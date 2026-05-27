@@ -103,6 +103,18 @@ try { db.exec("ALTER TABLE tickets ADD COLUMN payment_status TEXT DEFAULT 'paid'
 // Projets avec budget et ligne financière
 try { db.exec('ALTER TABLE projects ADD COLUMN budget_prevu REAL DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE projects ADD COLUMN notes TEXT'); } catch {}
+// Historique courriels externes
+try { db.exec(`CREATE TABLE IF NOT EXISTS emails_externes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  expediteur_id INTEGER REFERENCES users(id),
+  expediteur_nom TEXT,
+  expediteur_email TEXT,
+  destinataire TEXT NOT NULL,
+  sujet TEXT NOT NULL,
+  corps TEXT NOT NULL,
+  statut TEXT DEFAULT 'envoye',
+  date_envoi TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
 // Ligne financière liée à un projet
 try { db.exec('ALTER TABLE financial_lines ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE'); } catch {}
 try { db.exec(`CREATE TABLE IF NOT EXISTS pending_registrations (

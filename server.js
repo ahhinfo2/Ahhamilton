@@ -1081,6 +1081,38 @@ app.delete('/api/projects/:id', authMiddleware, requireRole('admin'), (req, res)
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
+// COURRIEL EXTERNE
+// ══════════════════════════════════════════════════════════════════════════════
+
+const COMITE_ROLES = ['admin','tresoriere','secretaire','delegue'];
+
+app.post('/api/email/send', authMiddleware, requireRole(...COMITE_ROLES), async (req, res) => {
+  const { to, subject, body } = req.body;
+  if (!to || !subject || !body) return res.status(400).json({ error: 'Champs manquants' });
+  const sender = db.prepare('SELECT prenom, nom, email FROM users WHERE id = ?').get(req.user.id);
+  const senderName = sender ? sender.prenom + ' ' + sender.nom : 'Comité AHH';
+  const senderEmail = sender?.email || '';
+  const bodyHtml = body.replace(/\n/g, '<br/>');
+  try {
+    await mailer.sendExternalEmail({ to, subject, bodyHtml, senderName, senderEmail });
+    db.prepare(`INSERT INTO emails_externes (expediteur_id, expediteur_nom, expediteur_email, destinataire, sujet, corps, statut)
+      VALUES (?, ?, ?, ?, ?, ?, 'envoye')`)
+      .run(req.user.id, senderName, senderEmail, to, subject, body);
+    res.json({ message: 'Courriel envoyé' });
+  } catch(e) {
+    db.prepare(`INSERT INTO emails_externes (expediteur_id, expediteur_nom, expediteur_email, destinataire, sujet, corps, statut)
+      VALUES (?, ?, ?, ?, ?, ?, 'erreur')`)
+      .run(req.user.id, senderName, senderEmail, to, subject, body);
+    res.status(500).json({ error: 'Échec d\'envoi: ' + e.message });
+  }
+});
+
+app.get('/api/email/sent', authMiddleware, requireRole(...COMITE_ROLES), (req, res) => {
+  const rows = db.prepare(`SELECT * FROM emails_externes ORDER BY date_envoi DESC LIMIT 100`).all();
+  res.json(rows);
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
 // REPORTS
 // ══════════════════════════════════════════════════════════════════════════════
 
