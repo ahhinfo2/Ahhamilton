@@ -1144,11 +1144,14 @@ app.get('/api/email/inbox', authMiddleware, requireRole(...COMITE_ROLES), async 
   const user = db.prepare('SELECT email, email_org, smtp_pass_org FROM users WHERE id = ?').get(req.user.id);
   const orgEmail = user?.email_org || (user?.email?.endsWith('@ahhamilton.ca') ? user.email : null);
   const orgPass  = user?.smtp_pass_org || process.env.ORG_SMTP_PASS;
+  console.log(`[inbox] user=${req.user.id} orgEmail=${orgEmail} hasPass=${!!orgPass} IMAP_HOST=${process.env.IMAP_HOST}`);
   if (!orgEmail) return res.status(400).json({ error: 'Aucun email @ahhamilton.ca configuré pour ce compte' });
   try {
     const emails = await imap.fetchEmails(orgEmail, orgPass);
+    console.log(`[inbox] OK → ${emails.length} emails`);
     res.json(emails);
   } catch(e) {
+    console.error(`[inbox] ERREUR:`, e.message, e.stack?.split('\n')[1]);
     res.status(500).json({ error: e.message });
   }
 });
