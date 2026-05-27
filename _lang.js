@@ -287,7 +287,8 @@ window.AHH_T = {
     'Vice-Président': 'Vis-Prezidan',
     'Trésorière': 'Trezorye',
     'Secrétaire': 'Sekretè',
-    'Délégué': 'Delege',
+    'Délégué': 'Akonpanatè',
+    'Accompagnateur': 'Akonpanatè',
 
     // ── about.html ─────────────────────────────────────────────────────────
     'about.h1': 'Sou AHH',

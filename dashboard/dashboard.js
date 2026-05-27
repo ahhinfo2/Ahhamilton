@@ -1104,7 +1104,7 @@ function openMemberForm(u = null) {
       ${can.admin() ? `<div class="form-group"><label>Rôle</label>
         <select id="m_role">
           <option value="member" ${u?.role==='member'?'selected':''}>Membre</option>
-          <option value="delegue" ${u?.role==='delegue'?'selected':''}>Délégué</option>
+          <option value="delegue" ${u?.role==='delegue'?'selected':''}>Accompagnateur</option>
           <option value="secretaire" ${u?.role==='secretaire'?'selected':''}>Secrétaire</option>
           <option value="tresoriere" ${u?.role==='tresoriere'?'selected':''}>Trésorière</option>
           <option value="admin" ${u?.role==='admin'?'selected':''}>Admin</option>
