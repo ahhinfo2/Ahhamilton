@@ -442,8 +442,8 @@ img   { display: block; max-width: 100%; }
 ═══════════════════════════════════════════════ */
 .footer { background: #0f2210; color: rgba(255,255,255,.68); }
 .footer-inner {
-  display: grid; grid-template-columns: 2fr 1fr 1fr 1.2fr;
-  gap: 40px; padding: 56px 24px 36px;
+  display: grid; grid-template-columns: 1.8fr 1fr 1fr 1fr 1.1fr;
+  gap: 32px; padding: 56px 24px 36px;
 }
 .footer-logo { margin-bottom: 14px; }
 .footer-logo .logo-text { color: #fff; }
