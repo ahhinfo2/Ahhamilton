@@ -147,13 +147,9 @@ img   { display: block; max-width: 100%; }
 .hero-photo-bg {
   position: absolute; inset: 0;
   background-size: cover; background-position: center; background-repeat: no-repeat;
-  opacity: 0; transition: opacity 1.5s ease, transform 8s ease;
-  transform: scale(1.06);
+  opacity: 0; transition: opacity 1.2s ease;
 }
-.hero-photo-bg.active {
-  opacity: 1;
-  transform: scale(1);
-}
+.hero-photo-bg.active { opacity: 1; }
 .hero-overlay {
   position: absolute; inset: 0;
   background: linear-gradient(130deg,

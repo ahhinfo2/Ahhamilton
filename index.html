@@ -462,68 +462,45 @@
   </script>
   <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
   <script>
-  (async function initHeroSlideshow() {
-    try {
-      var hero = document.querySelector('.hero');
-      if (!hero) return;
+  fetch('/api/hero-images').then(function(r){ return r.json(); }).then(function(images) {
+    if (!images || images.length === 0) return;
 
-      var res = await fetch('/api/hero-images');
-      if (!res.ok) return;
-      var images = await res.json();
-      if (!images.length) return;
+    var hero = document.querySelector('.hero');
+    if (!hero) return;
 
-      // Supprimer le fond statique existant
-      hero.querySelectorAll('.hero-photo-bg').forEach(function(el) { el.remove(); });
+    // Supprimer l'ancien fond statique
+    hero.querySelectorAll('.hero-photo-bg').forEach(function(el){ el.remove(); });
 
-      // Créer deux panneaux A et B pour le crossfade
-      function makePanel(src) {
-        var d = document.createElement('div');
-        d.className = 'hero-photo-bg';
-        d.style.cssText = 'position:absolute;inset:0;background-size:cover;background-position:center;background-repeat:no-repeat;transition:opacity 1.2s ease,transform 8s ease;';
-        d.style.backgroundImage = "url('" + src + "')";
-        return d;
-      }
+    var overlay = hero.querySelector('.hero-overlay');
 
-      var overlay = hero.querySelector('.hero-overlay');
-      var panelA = makePanel(images[0]);
-      var panelB = makePanel(images[images.length > 1 ? 1 : 0]);
-      panelA.style.opacity = '1';
-      panelA.style.transform = 'scale(1)';
-      panelB.style.opacity = '0';
-      panelB.style.transform = 'scale(1.06)';
+    // Créer un div par image
+    var panels = images.map(function(src) {
+      var d = document.createElement('div');
+      d.className = 'hero-photo-bg';
+      d.style.backgroundImage = "url('" + src + "')";
+      if (overlay) hero.insertBefore(d, overlay);
+      else hero.prepend(d);
+      return d;
+    });
 
-      if (overlay) {
-        hero.insertBefore(panelB, overlay);
-        hero.insertBefore(panelA, overlay);
-      } else {
-        hero.prepend(panelB);
-        hero.prepend(panelA);
-      }
+    // Afficher la première image immédiatement
+    var current = 0;
+    panels[0].classList.add('active');
 
-      if (images.length < 2) return;
+    if (panels.length < 2) return;
 
-      var idx = 1; // prochain index à charger
-      var front = panelA, back = panelB;
+    // Cycle toutes les 4 secondes
+    setInterval(function() {
+      panels[current].classList.remove('active');
+      current = (current + 1) % panels.length;
+      panels[current].classList.add('active');
+    }, 4000);
 
-      setInterval(function() {
-        idx = (idx + 1) % images.length;
-        // Charger la prochaine image dans le panneau caché
-        back.style.backgroundImage = "url('" + images[idx] + "')";
-        // Crossfade
-        front.style.opacity = '0';
-        front.style.transform = 'scale(1.06)';
-        back.style.opacity = '1';
-        back.style.transform = 'scale(1)';
-        // Inverser les rôles
-        var tmp = front; front = back; back = tmp;
-      }, 4000);
-
-    } catch(e) {
-      // Si l'API échoue, on garde le fond existant
-      var fallback = hero && hero.querySelector('.hero-photo-bg');
-      if (fallback) { fallback.style.opacity = '1'; fallback.style.transform = 'scale(1)'; }
-    }
-  })();
+  }).catch(function() {
+    // Fallback : afficher le fond statique
+    var bg = document.querySelector('.hero-photo-bg');
+    if (bg) bg.classList.add('active');
+  });
   </script>
 </body>
 </html>
