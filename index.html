@@ -497,8 +497,8 @@
       panels[current].classList.add('active');
     }, 4000);
 
-  }).catch(function() {
-    // Fallback : afficher le fond statique
+  }).catch(function(err) {
+    console.error('Hero slideshow erreur:', err);
     var bg = document.querySelector('.hero-photo-bg');
     if (bg) bg.classList.add('active');
   });
