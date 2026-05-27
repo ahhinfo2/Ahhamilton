@@ -380,7 +380,7 @@ app.put('/api/users/:id', authMiddleware, (req, res) => {
   const isSelf  = req.user.id === parseInt(req.params.id);
   if (!isAdmin && !isSelf) return res.status(403).json({ error: 'Accès refusé' });
 
-  const { prenom, nom, email, telephone, adresse, date_naissance, role, actif, bio } = req.body;
+  const { prenom, nom, email, telephone, adresse, date_naissance, role, actif, bio, operateur, sms_notifs } = req.body;
   const updates = []; const vals = [];
   if (prenom)        { updates.push('prenom = ?');        vals.push(prenom); }
   if (nom)           { updates.push('nom = ?');           vals.push(nom); }
@@ -389,6 +389,8 @@ app.put('/api/users/:id', authMiddleware, (req, res) => {
   if (adresse !== undefined)   { updates.push('adresse = ?');   vals.push(adresse); }
   if (date_naissance !== undefined) { updates.push('date_naissance = ?'); vals.push(date_naissance); }
   if (bio !== undefined)       { updates.push('bio = ?');       vals.push(bio); }
+  if (operateur !== undefined) { updates.push('operateur = ?'); vals.push(operateur || null); }
+  if (sms_notifs !== undefined){ updates.push('sms_notifs = ?'); vals.push(sms_notifs ? 1 : 0); }
   if (isAdmin && role !== undefined)          { updates.push('role = ?');          vals.push(role); }
   if (isAdmin && actif !== undefined)         { updates.push('actif = ?');         vals.push(actif); }
   if (isAdmin && req.body.email_org !== undefined)    { updates.push('email_org = ?');    vals.push(req.body.email_org || null); }
@@ -493,6 +495,12 @@ app.put('/api/activities/:id', authMiddleware, requireRole(...ACTIVITY_ROLES), (
     // Alerter les admins
     getAdminsAndRole('admin').forEach(a =>
       createAlert(a.id, 'activite', `Activité lancée : ${prev.titre}`, `Statut passé à "En cours".`, prev.id));
+
+    // SMS à tous les membres actifs ayant un opérateur configuré
+    const dateStr = prev.date_debut ? new Date(prev.date_debut).toLocaleDateString('fr-CA') : '';
+    const smsText = `Nouvelle activité AHH : "${prev.titre}"${dateStr ? ' le ' + dateStr : ''}${prev.lieu ? ' à ' + prev.lieu : ''}. Connectez-vous pour vous inscrire.`;
+    const membresAvecSMS = db.prepare("SELECT telephone, operateur, sms_notifs FROM users WHERE actif=1 AND operateur IS NOT NULL AND sms_notifs=1").all();
+    membresAvecSMS.forEach(m => mailer.sendSMS(m, smsText).catch(() => {}));
   }
 
   db.prepare(`UPDATE activities SET titre=?, description=?, type=?, date_debut=?, date_fin=?, lieu=?,
@@ -780,6 +788,18 @@ app.post('/api/messages', authMiddleware, (req, res) => {
 
   const ins = db.prepare('INSERT INTO message_recipients (message_id, destinataire_id) VALUES (?, ?)');
   targets.forEach(id => ins.run(r.lastInsertRowid, id));
+
+  // SMS aux destinataires (envoi silencieux)
+  const expediteur = db.prepare('SELECT prenom, nom FROM users WHERE id = ?').get(req.user.id);
+  const expediteurNom = expediteur ? `${expediteur.prenom} ${expediteur.nom}` : 'AHH';
+  targets.forEach(uid => {
+    const dest = db.prepare('SELECT telephone, operateur, sms_notifs FROM users WHERE id = ?').get(uid);
+    if (dest?.sms_notifs && dest?.operateur) {
+      const preview = (sujet || '').substring(0, 40) || contenu.substring(0, 40);
+      mailer.sendSMS(dest, `Nouveau message de ${expediteurNom}: ${preview}`).catch(() => {});
+    }
+  });
+
   res.status(201).json({ id: r.lastInsertRowid, nb_destinataires: targets.length });
 });
 
@@ -3169,12 +3189,13 @@ function checkRenewalReminders() {
   cutoff.setMonth(cutoff.getMonth() - 11);
   const cutoffStr = cutoff.toISOString().slice(0, 7);
   const members = db.prepare(`
-    SELECT id, prenom, nom, email, plan, plan_paid_month FROM users
+    SELECT id, prenom, nom, email, plan, plan_paid_month, telephone, operateur, sms_notifs FROM users
     WHERE actif = 1 AND role = 'member' AND plan != 'gratuit'
     AND (plan_paid_month IS NULL OR plan_paid_month <= ?)
   `).all(cutoffStr);
   members.forEach(member => {
     mailer.sendRappelAdhesion(member).catch(e => console.error('[RENEWAL] Email error:', e.message));
+    mailer.sendSMS(member, `Rappel AHH : renouvelez votre adhésion ${member.plan} sur ahhamilton.ca`).catch(() => {});
     console.log(`[RENEWAL] Rappel envoyé → ${member.email}`);
   });
   if (members.length) console.log(`[RENEWAL] ${members.length} rappel(s) envoyé(s)`);

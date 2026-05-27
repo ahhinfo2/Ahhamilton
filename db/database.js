@@ -106,6 +106,9 @@ try { db.exec('ALTER TABLE projects ADD COLUMN notes TEXT'); } catch {}
 // Email organisationnel par membre du comité
 try { db.exec('ALTER TABLE users ADD COLUMN email_org TEXT'); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN smtp_pass_org TEXT'); } catch {}
+// Notifications SMS
+try { db.exec("ALTER TABLE users ADD COLUMN operateur TEXT DEFAULT NULL"); } catch {}
+try { db.exec("ALTER TABLE users ADD COLUMN sms_notifs INTEGER DEFAULT 1"); } catch {}
 // Historique courriels externes
 try { db.exec(`CREATE TABLE IF NOT EXISTS emails_externes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

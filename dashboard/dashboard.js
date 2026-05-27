@@ -3703,6 +3703,7 @@ async function profile() {
           <div class="info-item"><label>Date naissance</label><span>${u.date_naissance||'–'}</span></div>
           <div class="info-item"><label>Membre depuis</label><span>${fmt(u.date_inscription)}</span></div>
           <div class="info-item"><label>Heures bénévolat</label><span><strong>${totalH}h</strong></span></div>
+          <div class="info-item"><label>Notifications SMS</label><span>${u.operateur ? (u.sms_notifs ? '📱 Activé — ' + u.operateur : '🔕 Désactivé') : '⚠️ Opérateur non configuré'}</span></div>
         </div>
       </div>
     </div>
@@ -3746,17 +3747,44 @@ async function profile() {
   };
 }
 
+const SMS_OPERATEURS = [
+  ['', '— Aucun (pas de SMS) —'],
+  ['rogers',  'Rogers'],
+  ['bell',    'Bell'],
+  ['telus',   'Telus'],
+  ['fido',    'Fido'],
+  ['freedom', 'Freedom Mobile'],
+  ['koodo',   'Koodo'],
+  ['virgin',  'Virgin Plus'],
+  ['chatr',   'Chatr (Rogers)'],
+  ['public_mobile', 'Public Mobile (Telus)'],
+  ['videotron','Vidéotron'],
+  ['eastlink','Eastlink'],
+];
+
 function openEditProfile(u) {
+  const optsHtml = SMS_OPERATEURS.map(([v, l]) =>
+    `<option value="${v}"${(u.operateur||'') === v ? ' selected' : ''}>${l}</option>`
+  ).join('');
   openModal('Modifier mon profil', `
     <form id="editProf">
       <div class="form-row">
         <div class="form-group"><label>Prénom</label><input id="ep_prenom" value="${u.prenom||''}"/></div>
         <div class="form-group"><label>Nom</label><input id="ep_nom" value="${u.nom||''}"/></div>
       </div>
-      <div class="form-group"><label>Téléphone</label><input id="ep_tel" value="${u.telephone||''}"/></div>
+      <div class="form-group"><label>Téléphone</label><input id="ep_tel" placeholder="514-555-1234" value="${u.telephone||''}"/></div>
       <div class="form-group"><label>Adresse</label><input id="ep_addr" value="${u.adresse||''}"/></div>
       <div class="form-group"><label>Date de naissance</label><input type="date" id="ep_dob" value="${u.date_naissance||''}"/></div>
       <div class="form-group"><label>Bio</label><textarea id="ep_bio">${u.bio||''}</textarea></div>
+      <div class="form-group">
+        <label>📱 Opérateur cellulaire (pour les SMS)</label>
+        <select id="ep_op">${optsHtml}</select>
+        <small style="color:var(--muted);font-size:.75rem">Permet de recevoir les notifications par SMS (nouvelle activité, messages, rappels). Gratuit.</small>
+      </div>
+      <div class="form-group" style="display:flex;align-items:center;gap:10px">
+        <input type="checkbox" id="ep_sms" ${u.sms_notifs !== 0 ? 'checked' : ''} style="width:auto;margin:0"/>
+        <label for="ep_sms" style="margin:0">Recevoir les notifications SMS</label>
+      </div>
       <div class="form-actions">
         <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
         <button type="submit" class="btn btn-primary">Enregistrer</button>
@@ -3769,8 +3797,9 @@ function openEditProfile(u) {
       await api(`/users/${u.id}`, { method:'PUT', body: JSON.stringify({
         prenom:document.getElementById('ep_prenom').value, nom:document.getElementById('ep_nom').value,
         telephone:document.getElementById('ep_tel').value, adresse:document.getElementById('ep_addr').value,
-        date_naissance:document.getElementById('ep_dob').value, bio:document.getElementById('ep_bio').value })});
-      // Update local user
+        date_naissance:document.getElementById('ep_dob').value, bio:document.getElementById('ep_bio').value,
+        operateur: document.getElementById('ep_op').value || null,
+        sms_notifs: document.getElementById('ep_sms').checked ? 1 : 0 })});
       const freshUser = await api('/auth/me');
       USER.prenom = freshUser.prenom; USER.nom = freshUser.nom;
       localStorage.setItem('ahh_user', JSON.stringify(freshUser));

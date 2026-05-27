@@ -20,6 +20,36 @@ function getTransporter() {
 }
 
 const FROM = `"AHH – Association Haïtienne de Hamilton" <${SMTP_USER}>`;
+
+// ── Passerelles SMS canadiennes ───────────────────────────────────────────
+const SMS_GATEWAYS = {
+  rogers:       'pcs.rogers.com',
+  bell:         'txt.bell.ca',
+  telus:        'msg.telus.com',
+  fido:         'fido.ca',
+  freedom:      'txt.freedommobile.ca',
+  koodo:        'msg.koodomobile.com',
+  virgin:       'vmobile.ca',
+  chatr:        'pcs.rogers.com',
+  public_mobile:'msg.telus.com',
+  videotron:    'vmobile.ca',
+  eastlink:     'txt.eastlink.ca',
+};
+
+async function sendSMS(user, message) {
+  if (!user || !user.telephone || !user.operateur || !user.sms_notifs) return;
+  const gateway = SMS_GATEWAYS[user.operateur];
+  if (!gateway) return;
+  const phone = user.telephone.replace(/\D/g, '').slice(-10);
+  if (phone.length < 10) return;
+  const text = ('AHH: ' + message).substring(0, 155);
+  try {
+    await sendMail({ to: `${phone}@${gateway}`, subject: '', text, html: text });
+    console.log(`📱 SMS → ${phone}@${gateway}`);
+  } catch(e) {
+    console.error('[SMS] Erreur:', e.message);
+  }
+}
 const siteUrl = SITE_URL || 'http://localhost:3001';
 
 // ── Enveloppe HTML commune ────────────────────────────────────────────────
@@ -347,8 +377,9 @@ async function sendExternalEmail({ to, subject, bodyHtml, senderName, senderEmai
 }
 
 module.exports = {
-  sendMail, sendBienvenue, sendInscriptionRefusee, sendResetPassword,
+  sendMail, sendSMS, sendBienvenue, sendInscriptionRefusee, sendResetPassword,
   sendContact, sendRappelPaiement, sendPaiementApprouve, sendRappelAdhesion,
   sendRecuFiscal, sendInscriptionActivite, sendNouvelleAdhesion, sendHeuresBenevolat,
-  sendBilletInterac, sendBilletQR, sendNouvelleCommandeBillet, sendExternalEmail
+  sendBilletInterac, sendBilletQR, sendNouvelleCommandeBillet, sendExternalEmail,
+  SMS_GATEWAYS
 };
