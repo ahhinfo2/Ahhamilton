@@ -2537,11 +2537,12 @@ async function annuaire() {
           <span>✏️</span> Nouveau message
         </button>
         <nav>
-          <div class="gm-nav-row gm-active" id="gn-inbox"  onclick="gmNav('inbox')"><span>📥</span><span>Boîte de réception</span><span class="gm-badge" id="gm-badge"></span></div>
-          <div class="gm-nav-row" id="gn-starred" onclick="gmNav('starred')"><span>☆</span><span>Suivis</span></div>
-          <div class="gm-nav-row" id="gn-sent"    onclick="gmNav('sent')"  ><span>📤</span><span>Envoyés</span></div>
-          <div class="gm-nav-row" id="gn-all"     onclick="gmNav('all')"   ><span>📂</span><span>Tous</span></div>
-          <div class="gm-nav-row" id="gn-trash"   onclick="gmNav('trash')" ><span>🗑️</span><span>Corbeille</span></div>
+          <div class="gm-nav-row gm-active" id="gn-inbox"    onclick="gmNav('inbox')"><span>📥</span><span>Boîte de réception</span><span class="gm-badge" id="gm-badge"></span></div>
+          <div class="gm-nav-row" id="gn-starred"   onclick="gmNav('starred')"><span>☆</span><span>Suivis</span></div>
+          <div class="gm-nav-row" id="gn-sent"      onclick="gmNav('sent')"  ><span>📤</span><span>Envoyés</span></div>
+          <div class="gm-nav-row" id="gn-all"       onclick="gmNav('all')"   ><span>📂</span><span>Tous</span></div>
+          <div class="gm-nav-row" id="gn-trash"     onclick="gmNav('trash')" ><span>🗑️</span><span>Corbeille</span></div>
+          <div class="gm-nav-row" id="gn-external"  onclick="gmNav('external')" style="margin-top:10px;border-top:1px solid rgba(255,255,255,.1);padding-top:10px"><span>📬</span><span>Externe (@ahhamilton)</span></div>
         </nav>
       </aside>
       <div class="gm-main" id="gmMain">
@@ -2558,11 +2559,12 @@ async function gmNav(view) {
   _M.checked = new Set();
   document.querySelectorAll('.gm-nav-row').forEach(e => e.classList.remove('gm-active'));
   document.getElementById(`gn-${view}`)?.classList.add('gm-active');
-  if (view === 'inbox')   return gmLoadInbox();
-  if (view === 'sent')    return gmLoadSent();
-  if (view === 'starred') return gmRenderList(_M.all.inbox.filter(m => _M.starred.has(m.message_id||m.id)), 'inbox');
-  if (view === 'all')     return gmRenderList([..._M.all.inbox,..._M.all.sent], 'inbox');
-  if (view === 'trash')   return gmLoadTrash();
+  if (view === 'inbox')    return gmLoadInbox();
+  if (view === 'sent')     return gmLoadSent();
+  if (view === 'starred')  return gmRenderList(_M.all.inbox.filter(m => _M.starred.has(m.message_id||m.id)), 'inbox');
+  if (view === 'all')      return gmRenderList([..._M.all.inbox,..._M.all.sent], 'inbox');
+  if (view === 'trash')    return gmLoadTrash();
+  if (view === 'external') return gmLoadExternal();
 }
 
 async function gmLoadTrash() {
@@ -2586,6 +2588,48 @@ async function gmLoadSent() {
   const { sent } = await api('/messages');
   _M.all.sent = sent;
   gmRenderList(sent, 'sent');
+}
+
+async function gmLoadExternal() {
+  const el = document.getElementById('gmMain');
+  if (!el) return;
+  el.innerHTML = '<div class="loading-screen"><div class="spinner"></div><p style="margin-top:12px;color:var(--muted)">Connexion à la boîte @ahhamilton.ca…</p></div>';
+  try {
+    const emails = await api('/email/inbox');
+    if (!emails.length) {
+      el.innerHTML = '<div class="gm-empty"><div style="font-size:3rem">📭</div><p>Aucun email reçu</p></div>';
+      return;
+    }
+    const rows = emails.map(e => {
+      const date = (e.date||'').substring(0,16).replace('T',' ');
+      const bold = e.seen ? '' : 'font-weight:700';
+      const preview = (e.body||'').replace(/\n/g,' ').substring(0,80);
+      return `<div class="gm-row" style="${bold};cursor:pointer" onclick="gmShowExternal(${JSON.stringify(e).replace(/"/g,'&quot;')})">
+        <div class="gm-row-from">${escHtml(e.fromName||e.from)}</div>
+        <div class="gm-row-subj">${escHtml(e.subject)} <span style="font-weight:400;color:var(--muted);font-size:.82rem">— ${escHtml(preview)}</span></div>
+        <div class="gm-row-date">${date}</div>
+      </div>`;
+    }).join('');
+    el.innerHTML = `<div style="padding:8px 0">${rows}</div>`;
+  } catch(e) {
+    el.innerHTML = `<div class="gm-empty"><div style="font-size:2rem">⚠️</div><p>${e.message}</p><p style="font-size:.82rem;color:var(--muted)">Configurez votre email @ahhamilton.ca dans votre profil (Modifier le membre).</p></div>`;
+  }
+}
+
+function gmShowExternal(e) {
+  const el = document.getElementById('gmMain');
+  if (!el) return;
+  const date = (e.date||'').substring(0,16).replace('T',' ');
+  el.innerHTML = `
+    <div class="gm-detail" style="padding:24px">
+      <button class="btn btn-ghost btn-sm" onclick="gmNav('external')" style="margin-bottom:16px">← Retour</button>
+      <h2 style="font-size:1.1rem;margin-bottom:10px">${escHtml(e.subject)}</h2>
+      <div style="font-size:.83rem;color:var(--muted);margin-bottom:16px">
+        De : <strong>${escHtml(e.fromName||'')} &lt;${escHtml(e.from)}&gt;</strong> · ${date}
+      </div>
+      <div style="background:var(--off);border-radius:10px;padding:16px;font-size:.9rem;white-space:pre-wrap;line-height:1.7">${escHtml(e.body||'')}</div>
+      <button class="btn btn-primary btn-sm" style="margin-top:16px" onclick="gmCompose({subject:'Re: ${escHtml(e.subject).replace(/'/g,"\\'")}',to:'${escHtml(e.from)}'})">Répondre</button>
+    </div>`;
 }
 
 // ── Liste courriels ─────────────────────────────────────────────────────────
@@ -2785,7 +2829,8 @@ async function gmBulkRestore() {
 
 // ── Compositeur ─────────────────────────────────────────────────────────────
 function gmCompose(pre = {}) {
-  _MC.to = []; _MC.cc = [];
+  _MC.to = pre.to ? [{ email: pre.to, name: pre.to }] : [];
+  _MC.cc = [];
   const el = document.getElementById('gmMain');
 
   el.innerHTML = `

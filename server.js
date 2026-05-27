@@ -27,6 +27,7 @@ const Stripe   = require('stripe');
 const db = require('./db/database');
 const { authMiddleware, requireRole, JWT_SECRET } = require('./middleware/auth');
 const mailer = require('./mailer');
+const imap   = require('./imap');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -1114,6 +1115,19 @@ app.post('/api/email/send', authMiddleware, requireRole(...COMITE_ROLES), async 
 app.get('/api/email/sent', authMiddleware, requireRole(...COMITE_ROLES), (req, res) => {
   const rows = db.prepare(`SELECT * FROM emails_externes ORDER BY date_envoi DESC LIMIT 100`).all();
   res.json(rows);
+});
+
+app.get('/api/email/inbox', authMiddleware, requireRole(...COMITE_ROLES), async (req, res) => {
+  const user = db.prepare('SELECT email_org, smtp_pass_org FROM users WHERE id = ?').get(req.user.id);
+  const orgEmail = user?.email_org;
+  const orgPass  = user?.smtp_pass_org || process.env.ORG_SMTP_PASS;
+  if (!orgEmail) return res.status(400).json({ error: 'Aucun email @ahhamilton.ca configuré pour ce compte' });
+  try {
+    const emails = await imap.fetchEmails(orgEmail, orgPass);
+    res.json(emails);
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ══════════════════════════════════════════════════════════════════════════════

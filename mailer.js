@@ -2,7 +2,7 @@
 require('dotenv').config();
 const nodemailer = require('nodemailer');
 
-const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SITE_URL } = process.env;
+const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, ORG_SMTP_PASS, IMAP_HOST, IMAP_PORT, SITE_URL } = process.env;
 
 let _transporter = null;
 
@@ -308,11 +308,14 @@ async function sendExternalEmail({ to, subject, bodyHtml, senderName, senderEmai
      </p>`
   );
 
-  // Si le membre a son propre email @ahhamilton.ca et mot de passe, on l'utilise
-  if (orgEmail && orgSmtpPass) {
+  // Utiliser le mot de passe commun si pas de mot de passe individuel
+  const effectivePass = orgSmtpPass || ORG_SMTP_PASS;
+
+  // Si le membre a son propre email @ahhamilton.ca, on l'utilise
+  if (orgEmail && effectivePass) {
     const t = nodemailer.createTransport({
       host: SMTP_HOST, port: parseInt(SMTP_PORT) || 587, secure: false,
-      auth: { user: orgEmail, pass: orgSmtpPass },
+      auth: { user: orgEmail, pass: effectivePass },
       tls: { rejectUnauthorized: false }
     });
     const from = `"${senderName} — AHH" <${orgEmail}>`;
