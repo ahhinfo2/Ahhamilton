@@ -1095,7 +1095,8 @@ app.post('/api/email/send', authMiddleware, requireRole(...COMITE_ROLES), async 
   const sender = db.prepare('SELECT prenom, nom, email, email_org, smtp_pass_org FROM users WHERE id = ?').get(req.user.id);
   const senderName  = sender ? sender.prenom + ' ' + sender.nom : 'Comité AHH';
   const senderEmail = sender?.email || '';
-  const orgEmail    = sender?.email_org || null;
+  // Utiliser email_org si défini, sinon l'email principal s'il est @ahhamilton.ca
+  const orgEmail    = sender?.email_org || (senderEmail.endsWith('@ahhamilton.ca') ? senderEmail : null);
   const orgSmtpPass = sender?.smtp_pass_org || null;
   const bodyHtml = body.replace(/\n/g, '<br/>');
   try {
@@ -1118,8 +1119,8 @@ app.get('/api/email/sent', authMiddleware, requireRole(...COMITE_ROLES), (req, r
 });
 
 app.get('/api/email/inbox', authMiddleware, requireRole(...COMITE_ROLES), async (req, res) => {
-  const user = db.prepare('SELECT email_org, smtp_pass_org FROM users WHERE id = ?').get(req.user.id);
-  const orgEmail = user?.email_org;
+  const user = db.prepare('SELECT email, email_org, smtp_pass_org FROM users WHERE id = ?').get(req.user.id);
+  const orgEmail = user?.email_org || (user?.email?.endsWith('@ahhamilton.ca') ? user.email : null);
   const orgPass  = user?.smtp_pass_org || process.env.ORG_SMTP_PASS;
   if (!orgEmail) return res.status(400).json({ error: 'Aucun email @ahhamilton.ca configuré pour ce compte' });
   try {
