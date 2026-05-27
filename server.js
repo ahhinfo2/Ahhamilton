@@ -1153,6 +1153,21 @@ app.get('/api/email/inbox', authMiddleware, requireRole(...COMITE_ROLES), async 
   }
 });
 
+app.get('/api/email/inbox/:uid', authMiddleware, requireRole(...COMITE_ROLES), async (req, res) => {
+  const user = db.prepare('SELECT email, email_org, smtp_pass_org FROM users WHERE id = ?').get(req.user.id);
+  const orgEmail = user?.email_org || (user?.email?.endsWith('@ahhamilton.ca') ? user.email : null);
+  const orgPass  = user?.smtp_pass_org || process.env.ORG_SMTP_PASS;
+  if (!orgEmail) return res.status(400).json({ error: 'Aucun email @ahhamilton.ca configuré' });
+  const uid = parseInt(req.params.uid);
+  if (!uid) return res.status(400).json({ error: 'UID invalide' });
+  try {
+    const body = await imap.fetchEmailBody(orgEmail, orgPass, uid);
+    res.json({ body });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ══════════════════════════════════════════════════════════════════════════════
 // REPORTS
 // ══════════════════════════════════════════════════════════════════════════════

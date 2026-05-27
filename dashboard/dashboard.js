@@ -2733,10 +2733,10 @@ async function gmLoadExternal() {
     const rows = emails.map(e => {
       const date = (e.date||'').substring(0,16).replace('T',' ');
       const bold = e.seen ? '' : 'font-weight:700';
-      const preview = (e.body||'').replace(/\n/g,' ').substring(0,80);
-      return `<div class="gm-row" style="${bold};cursor:pointer" onclick="gmShowExternal(${JSON.stringify(e).replace(/"/g,'&quot;')})">
+      const safeE = JSON.stringify({uid:e.uid,date:e.date,from:e.from,fromName:e.fromName,subject:e.subject,seen:e.seen}).replace(/"/g,'&quot;');
+      return `<div class="gm-row" style="${bold};cursor:pointer" onclick="gmShowExternal(${safeE})">
         <div class="gm-row-from">${escHtml(e.fromName||e.from)}</div>
-        <div class="gm-row-subj">${escHtml(e.subject)} <span style="font-weight:400;color:var(--muted);font-size:.82rem">— ${escHtml(preview)}</span></div>
+        <div class="gm-row-subj">${escHtml(e.subject)}</div>
         <div class="gm-row-date">${date}</div>
       </div>`;
     }).join('');
@@ -2746,20 +2746,34 @@ async function gmLoadExternal() {
   }
 }
 
-function gmShowExternal(e) {
+async function gmShowExternal(e) {
   const el = document.getElementById('gmMain');
   if (!el) return;
   const date = (e.date||'').substring(0,16).replace('T',' ');
+  const safeSubj = escHtml(e.subject||'');
+  const safeFrom = escHtml(e.from||'');
+  const safeReplySubj = (e.subject||'').replace(/'/g,"\\'").replace(/"/g,'\\"');
   el.innerHTML = `
     <div class="gm-detail" style="padding:24px">
       <button class="btn btn-ghost btn-sm" onclick="gmNav('external')" style="margin-bottom:16px">← Retour</button>
-      <h2 style="font-size:1.1rem;margin-bottom:10px">${escHtml(e.subject)}</h2>
+      <h2 style="font-size:1.1rem;margin-bottom:10px">${safeSubj}</h2>
       <div style="font-size:.83rem;color:var(--muted);margin-bottom:16px">
-        De : <strong>${escHtml(e.fromName||'')} &lt;${escHtml(e.from)}&gt;</strong> · ${date}
+        De : <strong>${escHtml(e.fromName||'')} &lt;${safeFrom}&gt;</strong> · ${date}
       </div>
-      <div style="background:var(--off);border-radius:10px;padding:16px;font-size:.9rem;white-space:pre-wrap;line-height:1.7">${escHtml(e.body||'')}</div>
-      <button class="btn btn-primary btn-sm" style="margin-top:16px" onclick="gmCompose({subject:'Re: ${escHtml(e.subject).replace(/'/g,"\\'")}',to:'${escHtml(e.from)}'})">Répondre</button>
+      <div id="gmExtBody" style="background:var(--off);border-radius:10px;padding:16px;font-size:.9rem;white-space:pre-wrap;line-height:1.7;color:var(--muted)">⏳ Chargement…</div>
+      <button class="btn btn-primary btn-sm" style="margin-top:16px" onclick="gmCompose({subject:'Re: ${safeReplySubj}',to:'${safeFrom}'})">Répondre</button>
     </div>`;
+  try {
+    const data = await api(`/email/inbox/${e.uid}`);
+    const bodyEl = document.getElementById('gmExtBody');
+    if (bodyEl) {
+      bodyEl.style.color = '';
+      bodyEl.textContent = data.body || '(corps vide)';
+    }
+  } catch(err) {
+    const bodyEl = document.getElementById('gmExtBody');
+    if (bodyEl) bodyEl.textContent = 'Erreur: ' + (err.message || 'impossible de charger le corps');
+  }
 }
 
 // ── Liste courriels ─────────────────────────────────────────────────────────

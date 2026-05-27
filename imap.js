@@ -1,7 +1,7 @@
 require('dotenv').config();
 const { ImapFlow } = require('imapflow');
 
-const { IMAP_HOST, IMAP_PORT, ORG_SMTP_PASS } = process.env;
+const { IMAP_HOST, IMAP_PORT } = process.env;
 
 async function fetchEmails(emailAddr, password) {
   if (!IMAP_HOST || !emailAddr || !password) return [];
@@ -25,13 +25,11 @@ async function fetchEmails(emailAddr, password) {
       console.log(`[IMAP] ${total} messages dans INBOX`);
       if (total === 0) return [];
       const start = Math.max(1, total - 49);
+
+      // Fetch envelope + flags only — no source/body in list fetch (avoids FETCH errors on malformed messages)
       for await (const msg of client.fetch(`${start}:*`, {
-        uid: true, flags: true, envelope: true, source: true
+        uid: true, flags: true, envelope: true
       })) {
-        const text = msg.source?.toString() || '';
-        const bodyMatch = text.match(/\r?\n\r?\n([\s\S]*)/);
-        const rawBody = bodyMatch ? bodyMatch[1] : '';
-        const body = rawBody.replace(/<[^>]+>/g, '').replace(/\r?\n/g, '\n').trim().substring(0, 2000);
         emails.push({
           uid: msg.uid,
           date: msg.envelope?.date?.toISOString() || new Date().toISOString(),
@@ -39,7 +37,7 @@ async function fetchEmails(emailAddr, password) {
           fromName: msg.envelope?.from?.[0]?.name || '',
           subject: msg.envelope?.subject || '(sans objet)',
           seen: msg.flags?.has('\\Seen') || false,
-          body
+          body: ''
         });
       }
     } finally {
@@ -54,4 +52,43 @@ async function fetchEmails(emailAddr, password) {
   return emails.reverse();
 }
 
-module.exports = { fetchEmails };
+async function fetchEmailBody(emailAddr, password, uid) {
+  if (!IMAP_HOST || !emailAddr || !password) return '';
+
+  const client = new ImapFlow({
+    host: IMAP_HOST,
+    port: parseInt(IMAP_PORT) || 993,
+    secure: true,
+    auth: { user: emailAddr, pass: password },
+    logger: false,
+    tls: { rejectUnauthorized: false }
+  });
+
+  let body = '';
+  try {
+    await client.connect();
+    const lock = await client.getMailboxLock('INBOX');
+    try {
+      // Try TEXT body part first; fall back to full source on failure
+      let text = '';
+      try {
+        const msg = await client.fetchOne(`${uid}`, { bodyParts: ['TEXT'] }, { uid: true });
+        text = msg.bodyParts?.get('TEXT')?.toString() || '';
+      } catch {
+        const msg = await client.fetchOne(`${uid}`, { source: true }, { uid: true });
+        const src = msg.source?.toString() || '';
+        const m = src.match(/\r?\n\r?\n([\s\S]*)/);
+        text = m ? m[1] : src;
+      }
+      body = text.replace(/<[^>]+>/g, '').replace(/\r?\n/g, '\n').trim().substring(0, 4000);
+    } finally {
+      lock.release();
+    }
+    await client.logout();
+  } catch (e) {
+    console.error('[IMAP] fetchEmailBody error:', e.message);
+  }
+  return body;
+}
+
+module.exports = { fetchEmails, fetchEmailBody };
