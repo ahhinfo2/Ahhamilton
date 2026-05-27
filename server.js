@@ -375,10 +375,12 @@ app.post('/api/users', authMiddleware, requireRole('admin'), (req, res) => {
   res.status(201).json({ id: r.lastInsertRowid });
 });
 
+const MEMBER_MGR_ROLES = ['admin','tresoriere','secretaire','delegue'];
 app.put('/api/users/:id', authMiddleware, (req, res) => {
   const isAdmin = req.user.role === 'admin';
+  const isMgr   = MEMBER_MGR_ROLES.includes(req.user.role);
   const isSelf  = req.user.id === parseInt(req.params.id);
-  if (!isAdmin && !isSelf) return res.status(403).json({ error: 'Accès refusé' });
+  if (!isMgr && !isSelf) return res.status(403).json({ error: 'Accès refusé' });
 
   const { prenom, nom, email, telephone, adresse, date_naissance, role, actif, bio, operateur, sms_notifs } = req.body;
   const updates = []; const vals = [];
@@ -423,7 +425,7 @@ app.post('/api/users/:id/photo', authMiddleware, uploadProfile.single('photo'), 
 });
 app.use('/uploads/profiles', express.static(path.join(__dirname, 'uploads', 'profiles')));
 
-app.delete('/api/users/:id', authMiddleware, requireRole('admin'), (req, res) => {
+app.delete('/api/users/:id', authMiddleware, requireRole('admin','secretaire','delegue','tresoriere'), (req, res) => {
   const uid = parseInt(req.params.id);
   if (uid === req.user.id) return res.status(400).json({ error: 'Vous ne pouvez pas vous supprimer vous-même' });
   db.prepare('DELETE FROM message_recipients WHERE destinataire_id = ?').run(uid);
@@ -2396,8 +2398,8 @@ app.delete('/api/annonces/:id', authMiddleware, (req, res) => {
   res.json({ message: 'Annonce supprimée' });
 });
 
-// PATCH plan utilisateur (admin only)
-app.patch('/api/users/:id/plan', authMiddleware, requireRole('admin'), (req, res) => {
+// PATCH plan utilisateur
+app.patch('/api/users/:id/plan', authMiddleware, requireRole('admin','secretaire','delegue','tresoriere'), (req, res) => {
   const { plan } = req.body;
   if (!['gratuit','bienfaiteur','partenaire'].includes(plan))
     return res.status(400).json({ error: 'Plan invalide' });

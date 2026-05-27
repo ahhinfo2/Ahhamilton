@@ -1098,7 +1098,7 @@ function renderMembersTable(filtered, q) {
     <td>${hl(u.email, q)}</td>
     <td>${hl(u.telephone||'–', q)}</td>
     <td>${pill(roleName(u.role), u.role==='admin'?'bp-orange':u.role==='member'?'bp-blue':'bp-green')}</td>
-    <td>${can.admin()
+    <td>${can.executive()
       ? `<select class="plan-select" onchange="changePlan(${u.id},this.value)" style="font-size:.75rem;border:1px solid var(--border);border-radius:6px;padding:2px 6px;background:#fff">
            <option value="gratuit"     ${(u.plan||'gratuit')==='gratuit'    ?'selected':''}>Gratuit</option>
            <option value="bienfaiteur" ${(u.plan||'')==='bienfaiteur'?'selected':''}>💛 Bienfaiteur</option>
@@ -1108,13 +1108,13 @@ function renderMembersTable(filtered, q) {
     <td>${u.actif ? pill('Actif','bp-green') : pill('Inactif','bp-red')}</td>
     <td>${fmt(u.date_inscription)}</td>
     <td>
-      ${can.admin() ? `
+      ${can.executive() ? `
         <button class="btn btn-sm btn-outline" onclick='openMemberForm(${JSON.stringify(u).replace(/'/g,"\\'")})'>✏️</button>
         ${u.actif
           ? `<button class="btn btn-sm btn-danger" onclick="toggleMember(${u.id},0)" title="Désactiver">🚫</button>`
           : `<button class="btn btn-sm btn-ghost"  onclick="toggleMember(${u.id},1)" title="Activer">✅</button>`}
-        <button class="btn btn-sm btn-ghost" onclick="deleteMember(${u.id})" style="color:var(--red)" title="Supprimer définitivement">🗑</button>` : ''}
-      ${(can.adminOrSec() || can.delegue()) ? `<button class="btn btn-sm btn-ghost" onclick="showVolunteerFor(${u.id},'${u.prenom} ${u.nom}')">🤝</button>` : ''}
+        ${can.admin() ? `<button class="btn btn-sm btn-ghost" onclick="deleteMember(${u.id})" style="color:var(--red)" title="Supprimer définitivement">🗑</button>` : ''}` : ''}
+      ${can.executive() ? `<button class="btn btn-sm btn-ghost" onclick="showVolunteerFor(${u.id},'${u.prenom} ${u.nom}')">🤝</button>` : ''}
     </td>
   </tr>`).join('');
 }
