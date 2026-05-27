@@ -388,8 +388,10 @@ app.put('/api/users/:id', authMiddleware, (req, res) => {
   if (adresse !== undefined)   { updates.push('adresse = ?');   vals.push(adresse); }
   if (date_naissance !== undefined) { updates.push('date_naissance = ?'); vals.push(date_naissance); }
   if (bio !== undefined)       { updates.push('bio = ?');       vals.push(bio); }
-  if (isAdmin && role !== undefined)  { updates.push('role = ?');  vals.push(role); }
-  if (isAdmin && actif !== undefined) { updates.push('actif = ?'); vals.push(actif); }
+  if (isAdmin && role !== undefined)          { updates.push('role = ?');          vals.push(role); }
+  if (isAdmin && actif !== undefined)         { updates.push('actif = ?');         vals.push(actif); }
+  if (isAdmin && req.body.email_org !== undefined)    { updates.push('email_org = ?');    vals.push(req.body.email_org || null); }
+  if (isAdmin && req.body.smtp_pass_org !== undefined && req.body.smtp_pass_org !== '') { updates.push('smtp_pass_org = ?'); vals.push(req.body.smtp_pass_org); }
 
   if (!updates.length) return res.status(400).json({ error: 'Rien à mettre à jour' });
   vals.push(req.params.id);
@@ -1089,12 +1091,14 @@ const COMITE_ROLES = ['admin','tresoriere','secretaire','delegue'];
 app.post('/api/email/send', authMiddleware, requireRole(...COMITE_ROLES), async (req, res) => {
   const { to, subject, body } = req.body;
   if (!to || !subject || !body) return res.status(400).json({ error: 'Champs manquants' });
-  const sender = db.prepare('SELECT prenom, nom, email FROM users WHERE id = ?').get(req.user.id);
-  const senderName = sender ? sender.prenom + ' ' + sender.nom : 'Comité AHH';
+  const sender = db.prepare('SELECT prenom, nom, email, email_org, smtp_pass_org FROM users WHERE id = ?').get(req.user.id);
+  const senderName  = sender ? sender.prenom + ' ' + sender.nom : 'Comité AHH';
   const senderEmail = sender?.email || '';
+  const orgEmail    = sender?.email_org || null;
+  const orgSmtpPass = sender?.smtp_pass_org || null;
   const bodyHtml = body.replace(/\n/g, '<br/>');
   try {
-    await mailer.sendExternalEmail({ to, subject, bodyHtml, senderName, senderEmail });
+    await mailer.sendExternalEmail({ to, subject, bodyHtml, senderName, senderEmail, orgEmail, orgSmtpPass });
     db.prepare(`INSERT INTO emails_externes (expediteur_id, expediteur_nom, expediteur_email, destinataire, sujet, corps, statut)
       VALUES (?, ?, ?, ?, ?, ?, 'envoye')`)
       .run(req.user.id, senderName, senderEmail, to, subject, body);

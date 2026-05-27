@@ -296,9 +296,7 @@ async function sendNouvelleCommandeBillet(activite, acheteurNom, email, montantT
 }
 
 // ── Courriel externe depuis le comité ────────────────────────────────────
-async function sendExternalEmail({ to, subject, bodyHtml, senderName, senderEmail }) {
-  const from    = `"${senderName} — AHH" <${SMTP_USER}>`;
-  const replyTo = senderEmail ? `"${senderName}" <${senderEmail}>` : FROM;
+async function sendExternalEmail({ to, subject, bodyHtml, senderName, senderEmail, orgEmail, orgSmtpPass }) {
   const html = wrap(subject,
     `<p>Bonjour,</p>
      ${bodyHtml}
@@ -306,9 +304,26 @@ async function sendExternalEmail({ to, subject, bodyHtml, senderName, senderEmai
      <p style="font-size:.8rem;color:#888">
        Ce message vous a été envoyé par <strong>${senderName}</strong>
        au nom de l'<strong>Association Haïtienne de Hamilton</strong>.<br/>
-       Pour répondre, écrivez à : <a href="mailto:${senderEmail || 'contact@ahhamilton.ca'}">${senderEmail || 'contact@ahhamilton.ca'}</a>
+       Pour répondre, écrivez à : <a href="mailto:${orgEmail || senderEmail || 'contact@ahhamilton.ca'}">${orgEmail || senderEmail || 'contact@ahhamilton.ca'}</a>
      </p>`
   );
+
+  // Si le membre a son propre email @ahhamilton.ca et mot de passe, on l'utilise
+  if (orgEmail && orgSmtpPass) {
+    const t = nodemailer.createTransport({
+      host: SMTP_HOST, port: parseInt(SMTP_PORT) || 587, secure: false,
+      auth: { user: orgEmail, pass: orgSmtpPass },
+      tls: { rejectUnauthorized: false }
+    });
+    const from = `"${senderName} — AHH" <${orgEmail}>`;
+    await t.sendMail({ from, to, subject, html });
+    console.log(`✉️  Email envoyé (org) → ${to} | ${subject}`);
+    return;
+  }
+
+  // Sinon on envoie via le compte principal avec le nom du membre
+  const from    = `"${senderName} — AHH" <${SMTP_USER}>`;
+  const replyTo = senderEmail ? `"${senderName}" <${senderEmail}>` : FROM;
   return sendMail({ to, subject, html, from, replyTo });
 }
 

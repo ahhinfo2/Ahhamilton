@@ -103,6 +103,9 @@ try { db.exec("ALTER TABLE tickets ADD COLUMN payment_status TEXT DEFAULT 'paid'
 // Projets avec budget et ligne financière
 try { db.exec('ALTER TABLE projects ADD COLUMN budget_prevu REAL DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE projects ADD COLUMN notes TEXT'); } catch {}
+// Email organisationnel par membre du comité
+try { db.exec('ALTER TABLE users ADD COLUMN email_org TEXT'); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN smtp_pass_org TEXT'); } catch {}
 // Historique courriels externes
 try { db.exec(`CREATE TABLE IF NOT EXISTS emails_externes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

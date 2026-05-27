@@ -1108,7 +1108,14 @@ function openMemberForm(u = null) {
           <option value="secretaire" ${u?.role==='secretaire'?'selected':''}>Secrétaire</option>
           <option value="tresoriere" ${u?.role==='tresoriere'?'selected':''}>Trésorière</option>
           <option value="admin" ${u?.role==='admin'?'selected':''}>Admin</option>
-        </select></div>` : ''}
+        </select></div>
+        <div style="background:var(--off);border-radius:10px;padding:14px;margin-top:6px">
+          <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">📤 Email organisationnel (envoi externe)</div>
+          <div class="form-row">
+            <div class="form-group"><label>Email @ahhamilton.ca</label><input type="email" id="m_email_org" value="${u?.email_org||''}" placeholder="vp@ahhamilton.ca"/></div>
+            <div class="form-group"><label>Mot de passe Hostinger</label><input type="password" id="m_smtp_pass" placeholder="Laisser vide = inchangé"/></div>
+          </div>
+        </div>` : ''}
       ${!isEdit ? `<div class="form-group"><label>Mot de passe *</label><input type="password" id="m_pw" required minlength="6"/></div>` : ''}
       <div class="form-actions">
         <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
@@ -1121,7 +1128,12 @@ function openMemberForm(u = null) {
     const body = { prenom:document.getElementById('m_prenom').value, nom:document.getElementById('m_nom').value,
       email:document.getElementById('m_email').value, telephone:document.getElementById('m_tel').value,
       adresse:document.getElementById('m_addr').value, date_naissance:document.getElementById('m_dob').value };
-    if (can.admin()) body.role = document.getElementById('m_role').value;
+    if (can.admin()) {
+      body.role = document.getElementById('m_role').value;
+      body.email_org = document.getElementById('m_email_org').value.trim() || '';
+      const smtpPass = document.getElementById('m_smtp_pass').value;
+      if (smtpPass) body.smtp_pass_org = smtpPass;
+    }
     if (!isEdit) body.password = document.getElementById('m_pw').value;
     try {
       if (isEdit) await api(`/users/${u.id}`, { method:'PUT', body:JSON.stringify(body) });
