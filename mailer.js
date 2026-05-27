@@ -57,13 +57,13 @@ function wrap(titre, corps) {
 }
 
 // ── Fonction d'envoi principale ───────────────────────────────────────────
-async function sendMail({ to, subject, html, text }) {
+async function sendMail({ to, subject, html, text, from, replyTo }) {
   const t = getTransporter();
   if (!t) {
     console.log(`📧 [DEV] Email non envoyé (SMTP non configuré)\n  À: ${to}\n  Sujet: ${subject}`);
     return false;
   }
-  await t.sendMail({ from: FROM, to, subject, html, text });
+  await t.sendMail({ from: from || FROM, to, subject, html, text, replyTo });
   console.log(`✉️  Email envoyé → ${to} | ${subject}`);
 }
 
@@ -297,6 +297,7 @@ async function sendNouvelleCommandeBillet(activite, acheteurNom, email, montantT
 
 // ── Courriel externe depuis le comité ────────────────────────────────────
 async function sendExternalEmail({ to, subject, bodyHtml, senderName, senderEmail }) {
+  const from    = `"${senderName} — AHH" <${SMTP_USER}>`;
   const replyTo = senderEmail ? `"${senderName}" <${senderEmail}>` : FROM;
   const html = wrap(subject,
     `<p>Bonjour,</p>
@@ -308,7 +309,7 @@ async function sendExternalEmail({ to, subject, bodyHtml, senderName, senderEmai
        Pour répondre, écrivez à : <a href="mailto:${senderEmail || 'contact@ahhamilton.ca'}">${senderEmail || 'contact@ahhamilton.ca'}</a>
      </p>`
   );
-  return sendMail({ to, subject, html, replyTo });
+  return sendMail({ to, subject, html, from, replyTo });
 }
 
 module.exports = {
