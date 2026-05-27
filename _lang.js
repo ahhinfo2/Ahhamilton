@@ -135,7 +135,7 @@ window.AHH_T = {
     'Vice-Président': 'Vice-President',
     'Trésorière': 'Treasurer',
     'Secrétaire': 'Secretary',
-    'Délégué': 'Delegate',
+    'Délégué': 'Accompanier',
 
     // ── about.html ─────────────────────────────────────────────────────────
     'about.h1': 'About AHH',

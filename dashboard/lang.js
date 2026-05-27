@@ -75,7 +75,8 @@ window.AHH_LANG = (function() {
     'Membre':            { en:'Member',             ht:'Manm' },
     'Trésorière':        { en:'Treasurer',          ht:'Trezorye' },
     'Secrétaire':        { en:'Secretary',          ht:'Sekretè' },
-    'Délégué':           { en:'Delegate',           ht:'Delege' },
+    'Délégué':           { en:'Accompanier',        ht:'Akonpanatè' },
+    'Accompagnateur':    { en:'Accompanier',        ht:'Akonpanatè' },
 
     // ── Plans ─────────────────────────────────────────────────────
     'Gratuit':           { en:'Free',               ht:'Gratis' },

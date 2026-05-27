@@ -113,7 +113,7 @@ function statusPill(s) {
 }
 
 function roleName(r) {
-  return { admin:'Admin', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Délégué', member:'Membre' }[r] || r;
+  return { admin:'Admin', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Accompagnateur', member:'Membre' }[r] || r;
 }
 
 const can = {
@@ -955,7 +955,7 @@ async function members() {
         <option value="admin">Admin</option>
         <option value="secretaire">Secrétaire</option>
         <option value="tresoriere">Trésorière</option>
-        <option value="delegue">Délégué</option>
+        <option value="delegue">Accompagnateur</option>
         <option value="member">Membre</option>
       </select>
       <select id="memPlan" class="members-filter" onchange="filterMembers()">
