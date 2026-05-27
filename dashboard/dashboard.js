@@ -152,7 +152,7 @@ function buildSidebar() {
     {
       label: 'Membres',
       items: [
-        { id:'members',       icon:'◎', label:'Annuaire',          roles:['admin','secretaire'] },
+        { id:'members',       icon:'◎', label:'Annuaire',          roles:['admin','secretaire','delegue'] },
         { id:'inscriptions',  icon:'◈', label:'Inscriptions',      roles:EXEC },
         { id:'volunteer',     icon:'◇', label:'Heures bénévolat',  roles:['admin','secretaire','member'] },
       ]
@@ -1114,7 +1114,7 @@ function renderMembersTable(filtered, q) {
           ? `<button class="btn btn-sm btn-danger" onclick="toggleMember(${u.id},0)" title="Désactiver">🚫</button>`
           : `<button class="btn btn-sm btn-ghost"  onclick="toggleMember(${u.id},1)" title="Activer">✅</button>`}
         <button class="btn btn-sm btn-ghost" onclick="deleteMember(${u.id})" style="color:var(--red)" title="Supprimer définitivement">🗑</button>` : ''}
-      ${can.adminOrSec() ? `<button class="btn btn-sm btn-ghost" onclick="showVolunteerFor(${u.id},'${u.prenom} ${u.nom}')">🤝</button>` : ''}
+      ${(can.adminOrSec() || can.delegue()) ? `<button class="btn btn-sm btn-ghost" onclick="showVolunteerFor(${u.id},'${u.prenom} ${u.nom}')">🤝</button>` : ''}
     </td>
   </tr>`).join('');
 }
