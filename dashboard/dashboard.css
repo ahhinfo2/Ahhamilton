@@ -425,16 +425,47 @@ tr:hover td{background:#f8fdf8}
   .site-nav-logo span { display:none }
   #siteNavName     { display:none }
   .site-nav-user   { border-left:none; padding-left:0; }
+  .btn { min-height:44px }
+  .table-wrapper { -webkit-overflow-scrolling:touch }
 }
 @media(max-width:600px){
-  .content{padding:14px}
+  .content{padding:14px;padding-bottom:76px}
   .cards-grid{grid-template-columns:1fr 1fr}
-  .page-header{flex-direction:column;gap:10px}
-  .modal{max-height:100vh;border-radius:0}
+  .page-header{flex-direction:column;gap:10px;align-items:flex-start}
+  .page-actions{flex-wrap:wrap;gap:8px}
+  .modal{max-height:92vh;border-radius:12px 12px 0 0;margin:0}
   .modal-overlay{padding:0;align-items:flex-end}
   .home-grid{grid-template-columns:1fr}
   .quick-actions-grid{grid-template-columns:repeat(2,1fr)}
   .home-greeting{flex-direction:column;gap:10px;text-align:center;padding:20px}
+  .btn{min-height:44px}
+  .finance-summary{grid-template-columns:1fr 1fr}
+  table{font-size:.78rem}
+  th,td{padding:6px 8px}
+}
+
+/* ── BARRE DE NAVIGATION MOBILE (bas de page) ─────────────────────────── */
+.mobile-bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  background: #fff;
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -2px 12px rgba(0,0,0,.08);
+  z-index: 650;
+  justify-content: space-around;
+  padding: 6px 0 env(safe-area-inset-bottom, 6px);
+}
+.mbn-item {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  font-size: .58rem; color: var(--muted); cursor: pointer;
+  padding: 4px 10px; border-radius: 8px; min-width: 48px; text-align: center;
+  transition: color .15s;
+}
+.mbn-item.active { color: var(--g2); }
+.mbn-icon { font-size: 1.25rem; line-height: 1; }
+@media(max-width:600px){
+  .mobile-bottom-nav { display: flex; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════

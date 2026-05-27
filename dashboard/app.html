@@ -13,6 +13,7 @@
   <meta name="apple-mobile-web-app-title" content="AHH"/>
   <link rel="apple-touch-icon" href="../Public/logo.jpg"/>
   <link rel="stylesheet" href="dashboard.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -101,6 +102,15 @@
 
 <!-- ── TOAST ────────────────────────────────────────────────────────────── -->
 <div id="toast" class="toast" style="display:none"></div>
+
+<!-- ── NAV MOBILE BAS DE PAGE ───────────────────────────────────────────── -->
+<nav class="mobile-bottom-nav" id="mobileBottomNav">
+  <div class="mbn-item" onclick="showView('home')" id="mbn-home"><div class="mbn-icon">🏠</div><div>Accueil</div></div>
+  <div class="mbn-item" onclick="showView('activities')" id="mbn-activities"><div class="mbn-icon">🎉</div><div>Activités</div></div>
+  <div class="mbn-item" onclick="showView('messages')" id="mbn-messages"><div class="mbn-icon">✉️</div><div>Messages</div></div>
+  <div class="mbn-item" onclick="showView('profile')" id="mbn-profile"><div class="mbn-icon">👤</div><div>Profil</div></div>
+  <div class="mbn-item" onclick="document.getElementById('sidebar').classList.toggle('open')" id="mbn-more"><div class="mbn-icon">☰</div><div>Menu</div></div>
+</nav>
 
 <script src="lang.js"></script>
 <script src="dashboard.js"></script>

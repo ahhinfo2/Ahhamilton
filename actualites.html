@@ -112,7 +112,7 @@
     </div>
   </section>
 
-  <!-- ÉVÉNEMENTS PASSÉS (statiques) -->
+  <!-- ÉVÉNEMENTS PASSÉS (dynamiques) -->
   <section class="act-section alt">
     <div class="container">
       <div class="section-header" data-reveal>
@@ -120,40 +120,8 @@
         <h2 data-i18n="act.past.h2">Événements passés</h2>
         <p>Revivez nos plus beaux moments ensemble.</p>
       </div>
-      <div class="events-grid">
-        <div class="event-card" style="opacity:.8" data-reveal>
-          <div class="event-header" style="background:linear-gradient(135deg,#1b5e20,#43a047)">🇭🇹</div>
-          <div class="event-body">
-            <h3>Fête nationale haïtienne 2025
-              <span style="background:var(--off);color:var(--muted);font-size:.68rem;font-weight:600;padding:3px 10px;border-radius:50px;margin-left:8px">Terminé</span>
-            </h3>
-            <div class="event-meta"><span>📅 1er janvier 2025</span><span>👥 85 participants</span></div>
-            <p>Une célébration mémorable avec plus de 85 membres réunis pour honorer l'indépendance d'Haïti.</p>
-            <a href="galerie.html" class="btn btn-ghost btn-sm" style="font-size:.78rem;padding:7px 14px">Voir les photos →</a>
-          </div>
-        </div>
-        <div class="event-card" style="opacity:.8" data-reveal data-delay="100">
-          <div class="event-header" style="background:linear-gradient(135deg,#f9a825,#fdd835)">🎊</div>
-          <div class="event-body">
-            <h3>Gala AHH 2025
-              <span style="background:var(--off);color:var(--muted);font-size:.68rem;font-weight:600;padding:3px 10px;border-radius:50px;margin-left:8px">Terminé</span>
-            </h3>
-            <div class="event-meta"><span>📅 Avril 2025</span><span>👥 120 participants</span></div>
-            <p>Notre gala annuel 2025 a réuni plus de 120 personnes dans une soirée de célébration et de reconnaissance.</p>
-            <a href="galerie.html" class="btn btn-ghost btn-sm" style="font-size:.78rem;padding:7px 14px">Voir les photos →</a>
-          </div>
-        </div>
-        <div class="event-card" style="opacity:.8" data-reveal data-delay="200">
-          <div class="event-header" style="background:linear-gradient(135deg,#0277bd,#29b6f6)">🤝</div>
-          <div class="event-body">
-            <h3>Journée bénévolat Automne 2025
-              <span style="background:var(--off);color:var(--muted);font-size:.68rem;font-weight:600;padding:3px 10px;border-radius:50px;margin-left:8px">Terminé</span>
-            </h3>
-            <div class="event-meta"><span>📅 Octobre 2025</span><span>👥 40 bénévoles</span></div>
-            <p>40 bénévoles ont offert 160 heures de service à la communauté hamiltonienne lors de cette journée solidaire.</p>
-            <a href="galerie.html" class="btn btn-ghost btn-sm" style="font-size:.78rem;padding:7px 14px">Voir les photos →</a>
-          </div>
-        </div>
+      <div id="pastGrid" class="events-grid">
+        <div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted)">⏳ Chargement des archives...</div>
       </div>
     </div>
   </section>
@@ -344,6 +312,48 @@
     });
 
     loadEvents();
+
+    async function loadPastEvents() {
+      const grid = document.getElementById('pastGrid');
+      try {
+        const res = await fetch(API_URL + '/activities/public/past');
+        const events = await res.json();
+        if (!events.length) {
+          grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted)"><div style="font-size:2rem;margin-bottom:8px">📅</div><p>Aucun événement passé pour le moment.</p></div>';
+          return;
+        }
+        grid.innerHTML = events.map(function(ev) {
+          var t = TYPE_ICONS[ev.type] || TYPE_ICONS.general;
+          var dateStr = ev.date_debut ? new Date(ev.date_debut).toLocaleDateString('fr-CA', { year:'numeric', month:'long', day:'numeric' }) : '';
+          var participants = ev.nb_inscrits > 0 ? '👥 ' + ev.nb_inscrits + ' participants' : '';
+          var headerHtml;
+          if (ev.thumbnail) {
+            headerHtml = '<div class="event-thumb-wrap" style="position:relative;cursor:pointer" onclick="openActPhotos(' + ev.id + ',\'' + (ev.titre||'').replace(/'/g,"\\'") + '\')">' +
+              '<img class="event-thumb" src="' + BASE_URL + ev.thumbnail + '" alt="' + (ev.titre||'') + '" loading="lazy" style="opacity:.8"/>' +
+              '<span class="event-cat-tag">' + t.icon + '</span>' +
+              '<div style="position:absolute;inset:0;background:rgba(0,0,0,.15)"></div>' +
+              '</div>';
+          } else {
+            headerHtml = '<div class="event-header" style="background:' + t.gradient + ';opacity:.85">' + t.emoji + '</div>';
+          }
+          return '<div class="event-card" style="opacity:.85" data-reveal>' +
+            headerHtml +
+            '<div class="event-body">' +
+              '<h3>' + ev.titre + ' <span style="background:var(--off);color:var(--muted);font-size:.68rem;font-weight:600;padding:3px 10px;border-radius:50px;margin-left:8px">Terminé</span></h3>' +
+              '<div class="event-meta">' +
+                (dateStr ? '<span>📅 ' + dateStr + '</span>' : '') +
+                (participants ? '<span>' + participants + '</span>' : '') +
+              '</div>' +
+              '<p>' + (ev.description || 'Merci à tous les participants pour cet événement mémorable !').substring(0, 160) + '</p>' +
+              '<a href="galerie.html" class="btn btn-ghost btn-sm" style="font-size:.78rem;padding:7px 14px">Voir les photos →</a>' +
+            '</div>' +
+          '</div>';
+        }).join('');
+      } catch(e) {
+        grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted)">Archives temporairement indisponibles.</div>';
+      }
+    }
+    loadPastEvents();
   </script>
 </body>
 </html>

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Profil membre – AHH</title>
+  <link rel="icon" type="image/jpeg" href="Public/logo.jpg"/>
+  <link rel="stylesheet" href="style.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet"/>
+  <style>
+    .membre-hero { padding: 60px 0 40px; background: linear-gradient(135deg, #1b5e20, #2e7d32); color: #fff; text-align: center; }
+    .membre-avatar { width: 110px; height: 110px; border-radius: 50%; object-fit: cover; border: 4px solid rgba(255,255,255,.4); margin-bottom: 14px; background: rgba(255,255,255,.15); display: flex; align-items: center; justify-content: center; font-size: 3rem; }
+    .membre-avatar-wrap { display: flex; justify-content: center; margin-bottom: 14px; }
+    .membre-name { font-size: 1.8rem; font-weight: 700; margin-bottom: 6px; }
+    .membre-role-badge { display: inline-block; background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.35); border-radius: 50px; padding: 4px 16px; font-size: .82rem; font-weight: 600; margin-bottom: 8px; }
+    .membre-since { font-size: .8rem; opacity: .75; }
+    .membre-body { max-width: 800px; margin: 40px auto; padding: 0 24px; }
+    .membre-bio-card { background: #fff; border-radius: 14px; border: 1px solid #e8f5e9; box-shadow: 0 2px 12px rgba(27,94,32,.07); padding: 28px 32px; margin-bottom: 28px; }
+    .membre-bio-card h2 { font-size: 1.05rem; color: #1b5e20; margin: 0 0 12px; }
+    .membre-bio-card p { color: #444; line-height: 1.75; margin: 0; }
+    .talent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; margin-top: 12px; }
+    .talent-card { background: #fff; border-radius: 12px; border: 1px solid #e8f5e9; overflow: hidden; box-shadow: 0 1px 6px rgba(27,94,32,.06); }
+    .talent-card img { width: 100%; height: 130px; object-fit: cover; }
+    .talent-card-body { padding: 14px 16px; }
+    .talent-card-cat { font-size: .7rem; font-weight: 700; color: #2e7d32; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+    .talent-card-name { font-size: .95rem; font-weight: 700; color: #222; margin-bottom: 6px; }
+    .talent-card-desc { font-size: .8rem; color: #666; line-height: 1.5; }
+    .not-found { text-align: center; padding: 80px 24px; color: #666; }
+    .not-found .nf-icon { font-size: 3rem; margin-bottom: 16px; }
+    .back-link { display: inline-flex; align-items: center; gap: 6px; color: #2e7d32; text-decoration: none; font-weight: 600; font-size: .88rem; margin-bottom: 24px; }
+    .back-link:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+  <div id="membreHero" class="membre-hero" style="display:none">
+    <div class="container">
+      <div class="membre-avatar-wrap">
+        <img id="membrePhoto" class="membre-avatar" src="" alt="Photo" style="display:none"/>
+        <div id="membrePhotoFallback" class="membre-avatar">👤</div>
+      </div>
+      <div class="membre-name" id="membreName">—</div>
+      <div class="membre-role-badge" id="membreRole">—</div>
+      <div class="membre-since" id="membreSince"></div>
+    </div>
+  </div>
+
+  <div class="membre-body">
+    <a href="index.html" class="back-link">← Retour à l'accueil</a>
+    <div id="membreContent">
+      <div style="text-align:center;padding:80px;color:#666">⏳ Chargement du profil...</div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+  <script src="_nav.js"></script>
+  <script src="nav-auth.js"></script>
+  <script>
+    const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+      ? 'http://localhost:3001/api' : '/api';
+    const BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+      ? 'http://localhost:3001' : '';
+
+    const ROLE_LABELS = { admin: 'Administrateur·trice', tresoriere: 'Trésorière', secretaire: 'Secrétaire', delegue: 'Accompagnateur', member: 'Membre' };
+    const PLAN_LABELS = { gratuit: 'Membre', bienfaiteur: 'Bienfaiteur', partenaire: 'Partenaire' };
+
+    async function loadMembre() {
+      const params = new URLSearchParams(window.location.search);
+      const id = parseInt(params.get('id'));
+      if (!id) { showNotFound(); return; }
+
+      try {
+        const res = await fetch(API_URL + '/members/' + id + '/public');
+        if (!res.ok) { showNotFound(); return; }
+        const m = await res.json();
+        renderMembre(m);
+      } catch(e) {
+        showNotFound();
+      }
+    }
+
+    function renderMembre(m) {
+      document.title = m.prenom + ' ' + m.nom + ' – AHH';
+      document.getElementById('membreName').textContent = m.prenom + ' ' + m.nom;
+      document.getElementById('membreRole').textContent = ROLE_LABELS[m.role] || m.role;
+      if (m.date_inscription) {
+        const d = new Date(m.date_inscription);
+        document.getElementById('membreSince').textContent = 'Membre depuis ' + d.toLocaleDateString('fr-CA', { year: 'numeric', month: 'long' });
+      }
+      if (m.photo_url) {
+        const img = document.getElementById('membrePhoto');
+        img.src = BASE_URL + m.photo_url;
+        img.style.display = 'block';
+        document.getElementById('membrePhotoFallback').style.display = 'none';
+      }
+      document.getElementById('membreHero').style.display = 'block';
+
+      let html = '';
+      if (m.bio) {
+        html += '<div class="membre-bio-card"><h2>À propos</h2><p>' + escHtml(m.bio) + '</p></div>';
+      }
+      if (m.talents && m.talents.length) {
+        html += '<div class="membre-bio-card"><h2>Talents & services (' + m.talents.length + ')</h2>';
+        html += '<div class="talent-grid">' + m.talents.map(function(t) {
+          return '<div class="talent-card">' +
+            (t.photo_path ? '<img src="' + BASE_URL + t.photo_path + '" alt="' + escHtml(t.nom) + '" loading="lazy"/>' : '') +
+            '<div class="talent-card-body">' +
+              '<div class="talent-card-cat">' + escHtml(t.categorie) + '</div>' +
+              '<div class="talent-card-name">' + escHtml(t.nom) + '</div>' +
+              (t.description ? '<div class="talent-card-desc">' + escHtml(t.description.substring(0, 120)) + '</div>' : '') +
+              (t.site_web ? '<a href="' + escHtml(t.site_web) + '" target="_blank" rel="noopener" style="font-size:.78rem;color:#2e7d32;display:block;margin-top:8px">🌐 Voir le site</a>' : '') +
+            '</div>' +
+          '</div>';
+        }).join('') + '</div></div>';
+      }
+      if (!html) {
+        html = '<div class="membre-bio-card"><p style="color:#888;text-align:center">Ce membre n\'a pas encore complété son profil public.</p></div>';
+      }
+      document.getElementById('membreContent').innerHTML = html;
+    }
+
+    function showNotFound() {
+      document.getElementById('membreContent').innerHTML =
+        '<div class="not-found"><div class="nf-icon">🔍</div><h2>Membre introuvable</h2>' +
+        '<p>Ce profil n\'existe pas ou n\'est pas public.</p>' +
+        '<a href="index.html" class="btn btn-primary" style="margin-top:20px">Retour à l\'accueil</a></div>';
+    }
+
+    function escHtml(s) {
+      if (!s) return '';
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    loadMembre();
+  </script>
+</body>
+</html>

@@ -274,6 +274,10 @@ function buildSidebar() {
 function setActiveNav(viewId) {
   window._activeView = viewId;
   document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.view === viewId));
+  ['home','activities','messages','profile'].forEach(id => {
+    const el = document.getElementById('mbn-' + id);
+    if (el) el.classList.toggle('active', viewId === id);
+  });
   const labels = {
     home:'Tableau de bord', activities:'Activités', members:'Membres', subcommittees:'Sous-comités',
     finance:'Finance', invoices:'Factures', messages:'Messages', volunteer:'Heures de bénévolat',
@@ -346,20 +350,48 @@ function logout() {
   location.replace('login.html');
 }
 
+let _prevMsgCount = 0;
+let _prevAlertCount = 0;
+
 async function pollBadges() {
   try {
     const stats = await api('/stats');
     if (stats) {
       const ac = document.getElementById('alertCount');
       const mc = document.getElementById('msgCount');
-      ac.textContent = stats.alertes_non_lues;
-      mc.textContent = stats.messages_non_lus;
-      ac.style.display = stats.alertes_non_lues > 0 ? 'block' : 'none';
-      mc.style.display = stats.messages_non_lus > 0 ? 'block' : 'none';
+      const newMsgs = stats.messages_non_lus;
+      const newAlerts = stats.alertes_non_lues;
+      ac.textContent = newAlerts;
+      mc.textContent = newMsgs;
+      ac.style.display = newAlerts > 0 ? 'block' : 'none';
+      mc.style.display = newMsgs > 0 ? 'block' : 'none';
+      if (newMsgs > _prevMsgCount && _prevMsgCount >= 0 && document.visibilityState === 'hidden') {
+        showBrowserNotif('Nouveau message — AHH', `Vous avez ${newMsgs} message(s) non lu(s)`);
+      }
+      if (newAlerts > _prevAlertCount && _prevAlertCount >= 0 && document.visibilityState === 'hidden') {
+        showBrowserNotif('Nouvelle alerte — AHH', `Vous avez ${newAlerts} alerte(s) non lue(s)`);
+      }
+      _prevMsgCount = newMsgs;
+      _prevAlertCount = newAlerts;
     }
   } catch {}
   setTimeout(pollBadges, 30000);
 }
+
+function showBrowserNotif(title, body) {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') {
+    new Notification(title, { body, icon: '/Public/logo.jpg', badge: '/Public/logo.jpg' });
+  } else if (Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+// Request notification permission on first interaction
+document.addEventListener('click', function askNotif() {
+  if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+  document.removeEventListener('click', askNotif);
+}, { once: true });
 
 // ── MODAL ──────────────────────────────────────────────────────────────────
 function openModal(title, bodyHtml) {
@@ -1469,6 +1501,7 @@ async function finance() {
       <div class="page-actions">
         <button class="btn btn-primary" onclick="openTransactionForm(null,window._finLines)">+ Transaction</button>
         <button class="btn btn-outline" onclick="openAccountForm(window._finRep)">⚙️ Compte</button>
+        <button class="btn btn-ghost" onclick="printFinance()">🖨️ PDF</button>
       </div>
     </div>
     <div class="finance-summary">
@@ -1478,6 +1511,16 @@ async function finance() {
       <div class="fin-card"><div class="fc-val negative">${fmtMoney(totalDep)}</div><div class="fc-label">Total dépenses</div></div>
       <div class="fin-card"><div class="fc-val">${fmtMoney(totalRev)}</div><div class="fc-label">Total revenus</div></div>
       ${totalComm > 0 ? `<div class="fin-card"><div class="fc-val" style="color:#0277bd">${fmtMoney(totalComm)}</div><div class="fc-label">Commanditaires</div></div>` : ''}
+    </div>
+    <div style="display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap">
+      <div class="table-card" style="flex:1;min-width:280px;padding:16px">
+        <h4 style="margin:0 0 10px;font-size:.88rem;color:var(--text)">Budget vs Dépenses</h4>
+        <canvas id="finBarChart" height="160"></canvas>
+      </div>
+      <div class="table-card" style="width:220px;flex-shrink:0;padding:16px;display:flex;flex-direction:column;align-items:center">
+        <h4 style="margin:0 0 10px;font-size:.88rem;color:var(--text);align-self:flex-start">Répartition</h4>
+        <canvas id="finDonut" style="max-width:180px;max-height:180px"></canvas>
+      </div>
     </div>
     <div class="table-card">
       <div class="table-card-header" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
@@ -1499,6 +1542,93 @@ async function finance() {
     <p style="font-size:.78rem;color:var(--muted);margin-top:-8px">Institution: ${rep?.institution||'–'} · Compte: ${rep?.numero_compte||'–'} · Titulaire: ${rep?.nom_titulaire||'–'}</p>
   `);
   filterFinLines();
+  setTimeout(() => renderFinCharts(lines), 50);
+}
+
+function renderFinCharts(lines) {
+  if (typeof Chart === 'undefined') return;
+  const top = lines.slice(0, 10);
+  const barEl = document.getElementById('finBarChart');
+  if (barEl) {
+    Chart.getChart(barEl)?.destroy();
+    new Chart(barEl, {
+      type: 'bar',
+      data: {
+        labels: top.map(l => (l.activite || l.titre || '').substring(0, 16)),
+        datasets: [
+          { label: 'Budget', data: top.map(l => l.budget_alloue || 0), backgroundColor: 'rgba(46,125,50,.65)', borderRadius: 4 },
+          { label: 'Dépenses', data: top.map(l => l.depenses || 0), backgroundColor: 'rgba(211,47,47,.65)', borderRadius: 4 }
+        ]
+      },
+      options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { font: { size: 11, family: 'Poppins' } } } },
+        scales: { y: { beginAtZero: true, ticks: { callback: v => '$' + v.toFixed(0), font: { size: 10 } } },
+          x: { ticks: { font: { size: 10 } } } } }
+    });
+  }
+  const donutEl = document.getElementById('finDonut');
+  if (donutEl) {
+    const totalBudget = lines.reduce((s,l) => s + (l.budget_alloue||0), 0);
+    const totalDep    = lines.reduce((s,l) => s + (l.depenses||0), 0);
+    const totalRev    = lines.reduce((s,l) => s + (l.revenus||0), 0);
+    const totalComm   = lines.reduce((s,l) => s + (l.commanditaires||0), 0);
+    Chart.getChart(donutEl)?.destroy();
+    new Chart(donutEl, {
+      type: 'doughnut',
+      data: {
+        labels: ['Budget', 'Dépenses', 'Revenus', 'Commanditaires'],
+        datasets: [{ data: [totalBudget, totalDep, totalRev, totalComm],
+          backgroundColor: ['rgba(46,125,50,.75)', 'rgba(211,47,47,.75)', 'rgba(25,118,210,.75)', 'rgba(2,119,189,.75)'],
+          borderWidth: 2, borderColor: '#fff' }]
+      },
+      options: { responsive: true, cutout: '60%',
+        plugins: { legend: { position: 'bottom', labels: { font: { size: 10, family: 'Poppins' }, boxWidth: 12 } } } }
+    });
+  }
+}
+
+function printFinance() {
+  const lines  = window._finAllLines || [];
+  const rep    = window._finRep || {};
+  const totalBudget = lines.reduce((s,l) => s + (l.budget_alloue||0), 0);
+  const totalDep    = lines.reduce((s,l) => s + (l.depenses||0), 0);
+  const totalRev    = lines.reduce((s,l) => s + (l.revenus||0), 0);
+  const totalComm   = lines.reduce((s,l) => s + (l.commanditaires||0), 0);
+  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/>
+  <title>Rapport financier – AHH</title>
+  <style>
+    body{font-family:Arial,sans-serif;font-size:12px;margin:24px;color:#222}
+    h1{font-size:18px;color:#1b5e20;margin:0 0 4px}
+    .meta{color:#666;font-size:11px;margin-bottom:16px}
+    .summary{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+    .card{border:1px solid #e0e0e0;border-radius:6px;padding:10px 14px;min-width:110px}
+    .cv{font-size:16px;font-weight:700;color:#1b5e20}.cl{font-size:10px;color:#666;margin-top:2px}
+    table{width:100%;border-collapse:collapse}
+    th{background:#1b5e20;color:#fff;padding:6px 8px;font-size:11px;text-align:left}
+    td{padding:5px 8px;border-bottom:1px solid #eee;font-size:11px}
+    .red{color:#c62828}.grn{color:#1b5e20}.bold{font-weight:700}
+    @media print{@page{margin:18mm}button{display:none}}
+  </style></head><body>
+  <h1>Rapport financier — Association Haïtienne de Hamilton</h1>
+  <div class="meta">Généré le ${new Date().toLocaleDateString('fr-CA')} · Compte : ${rep.numero_compte||'–'} · Titulaire : ${rep.nom_titulaire||'–'} · Solde actuel : <strong>$${(+rep.solde||0).toFixed(2)}</strong></div>
+  <div class="summary">
+    <div class="card"><div class="cv">$${totalBudget.toFixed(2)}</div><div class="cl">Budget total alloué</div></div>
+    <div class="card"><div class="cv red">$${totalDep.toFixed(2)}</div><div class="cl">Total dépenses</div></div>
+    <div class="card"><div class="cv grn">$${totalRev.toFixed(2)}</div><div class="cl">Total revenus</div></div>
+    ${totalComm>0?`<div class="card"><div class="cv" style="color:#0277bd">$${totalComm.toFixed(2)}</div><div class="cl">Commanditaires</div></div>`:''}
+  </div>
+  <table><thead><tr><th>Titre / Activité</th><th>Budget</th><th>Dépenses</th><th>En attente</th><th>Revenus</th><th>Solde</th><th>Statut</th></tr></thead>
+  <tbody>${lines.map(l=>{const solde=(l.budget_alloue||0)-(l.depenses||0)+(l.revenus||0)+(l.commanditaires||0);
+    return`<tr><td class="bold">${l.activite||l.titre}</td><td>$${(l.budget_alloue||0).toFixed(2)}</td>
+    <td class="red">$${(l.depenses||0).toFixed(2)}</td>
+    <td>${(l.depenses_en_attente||0)>0?'⏳ $'+(l.depenses_en_attente||0).toFixed(2):'–'}</td>
+    <td class="grn">$${(l.revenus||0).toFixed(2)}</td>
+    <td class="${solde<0?'red':'grn'} bold">$${solde.toFixed(2)}</td>
+    <td>${l.statut}</td></tr>`;}).join('')}
+  </tbody></table>
+  <script>window.print();<\/script></body></html>`;
+  const w = window.open('', '_blank', 'width=900,height=700');
+  w.document.write(html);
+  w.document.close();
 }
 
 function filterFinLines() {

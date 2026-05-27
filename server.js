@@ -1468,6 +1468,17 @@ app.get('/api/activities/public', (req, res) => {
   res.json(rows);
 });
 
+app.get('/api/activities/public/past', (req, res) => {
+  const rows = db.prepare(`
+    SELECT id, titre, description, type, date_debut, date_fin, lieu, max_participants, statut,
+    (SELECT COUNT(*) FROM activity_registrations WHERE activity_id = activities.id) AS nb_inscrits,
+    (SELECT photo_path FROM activity_photos WHERE activity_id = activities.id ORDER BY ordre ASC, id ASC LIMIT 1) AS thumbnail
+    FROM activities WHERE statut = 'terminee'
+    ORDER BY date_debut DESC LIMIT 12
+  `).all();
+  res.json(rows);
+});
+
 // ── Activity Photos ───────────────────────────────────────────────────────────
 app.get('/api/activities/:id/photos', (req, res) => {
   const photos = db.prepare(
@@ -3131,6 +3142,54 @@ app.post('/api/orders/:orderToken/cancel', authMiddleware, requireRole('admin', 
   });
   res.json({ ok: true });
 });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PROFIL PUBLIC MEMBRE
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.get('/api/members/:id/public', (req, res) => {
+  const user = db.prepare(`
+    SELECT id, prenom, nom, role, bio, photo_url, date_inscription
+    FROM users WHERE id = ? AND actif = 1
+  `).get(parseInt(req.params.id));
+  if (!user) return res.status(404).json({ error: 'Membre introuvable' });
+  const talents = db.prepare(`
+    SELECT nom, categorie, specialite, description, site_web, photo_path
+    FROM talents WHERE user_id = ? AND statut = 'approuve' AND actif = 1
+  `).all(user.id);
+  res.json({ ...user, talents });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// RAPPELS DE RENOUVELLEMENT D'ADHÉSION
+// ══════════════════════════════════════════════════════════════════════════════
+
+function checkRenewalReminders() {
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - 11);
+  const cutoffStr = cutoff.toISOString().slice(0, 7);
+  const members = db.prepare(`
+    SELECT id, prenom, nom, email, plan, plan_paid_month FROM users
+    WHERE actif = 1 AND role = 'member' AND plan != 'gratuit'
+    AND (plan_paid_month IS NULL OR plan_paid_month <= ?)
+  `).all(cutoffStr);
+  members.forEach(member => {
+    mailer.sendRappelAdhesion(member).catch(e => console.error('[RENEWAL] Email error:', e.message));
+    console.log(`[RENEWAL] Rappel envoyé → ${member.email}`);
+  });
+  if (members.length) console.log(`[RENEWAL] ${members.length} rappel(s) envoyé(s)`);
+}
+
+(function scheduleRenewalCheck() {
+  const now = new Date();
+  const next9am = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0, 0);
+  if (now >= next9am) next9am.setDate(next9am.getDate() + 1);
+  setTimeout(() => {
+    checkRenewalReminders();
+    setInterval(checkRenewalReminders, 24 * 60 * 60 * 1000);
+  }, next9am - now);
+  console.log(`[RENEWAL] Prochain rappel planifié à ${next9am.toLocaleTimeString('fr-CA')}`);
+})();
 
 // ── Fermeture propre de la DB à l'arrêt ────────────────────────────────────
 function gracefulShutdown(signal) {

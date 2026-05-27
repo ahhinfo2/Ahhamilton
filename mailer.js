@@ -295,6 +295,22 @@ async function sendNouvelleCommandeBillet(activite, acheteurNom, email, montantT
   });
 }
 
+async function sendRappelAdhesion(user) {
+  const planName = { bienfaiteur: 'Bienfaiteur', partenaire: 'Partenaire' }[user.plan] || user.plan;
+  await sendMail({
+    to: user.email,
+    subject: `Renouvellement de votre adhésion ${planName} — AHH`,
+    html: wrap('Renouvellement d\'adhésion', `
+      <p>Bonjour <strong>${user.prenom} ${user.nom}</strong>,</p>
+      <p>Il est temps de renouveler votre adhésion <strong>${planName}</strong> à l'Association Haïtienne de Hamilton pour continuer à profiter de tous les avantages liés à votre plan.</p>
+      <p>Connectez-vous à votre espace membre pour effectuer votre paiement :</p>
+      <a href="${siteUrl}/dashboard/app.html" class="btn">Renouveler mon adhésion</a>
+      <hr class="divider"/>
+      <p style="font-size:.82rem;color:#888">Des questions ? Contactez-nous à <a href="mailto:contact@ahhamilton.ca">contact@ahhamilton.ca</a></p>
+    `)
+  });
+}
+
 // ── Courriel externe depuis le comité ────────────────────────────────────
 async function sendExternalEmail({ to, subject, bodyHtml, senderName, senderEmail, orgEmail, orgSmtpPass }) {
   const html = wrap(subject,
@@ -332,7 +348,7 @@ async function sendExternalEmail({ to, subject, bodyHtml, senderName, senderEmai
 
 module.exports = {
   sendMail, sendBienvenue, sendInscriptionRefusee, sendResetPassword,
-  sendContact, sendRappelPaiement, sendPaiementApprouve,
+  sendContact, sendRappelPaiement, sendPaiementApprouve, sendRappelAdhesion,
   sendRecuFiscal, sendInscriptionActivite, sendNouvelleAdhesion, sendHeuresBenevolat,
   sendBilletInterac, sendBilletQR, sendNouvelleCommandeBillet, sendExternalEmail
 };
