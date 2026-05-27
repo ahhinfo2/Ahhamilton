@@ -18,19 +18,20 @@ async function fetchEmails(emailAddr, password) {
   const emails = [];
   try {
     await client.connect();
+    console.log(`[IMAP] Connecté à ${emailAddr}`);
     const lock = await client.getMailboxLock('INBOX');
     try {
-      // Récupérer les 50 derniers messages
       const total = client.mailbox.exists;
+      console.log(`[IMAP] ${total} messages dans INBOX`);
       if (total === 0) return [];
       const start = Math.max(1, total - 49);
       for await (const msg of client.fetch(`${start}:*`, {
-        uid: true, flags: true, envelope: true, bodyStructure: true,
-        source: { start: 0, maxLength: 5000 }
+        uid: true, flags: true, envelope: true, source: true
       })) {
         const text = msg.source?.toString() || '';
         const bodyMatch = text.match(/\r?\n\r?\n([\s\S]*)/);
-        const body = bodyMatch ? bodyMatch[1].replace(/<[^>]+>/g, '').replace(/\r?\n/g, '\n').trim().substring(0, 2000) : '';
+        const rawBody = bodyMatch ? bodyMatch[1] : '';
+        const body = rawBody.replace(/<[^>]+>/g, '').replace(/\r?\n/g, '\n').trim().substring(0, 2000);
         emails.push({
           uid: msg.uid,
           date: msg.envelope?.date?.toISOString() || new Date().toISOString(),
@@ -45,8 +46,10 @@ async function fetchEmails(emailAddr, password) {
       lock.release();
     }
     await client.logout();
+    console.log(`[IMAP] ${emails.length} emails récupérés`);
   } catch (e) {
     console.error('[IMAP] Erreur:', e.message);
+    throw e;
   }
   return emails.reverse();
 }
