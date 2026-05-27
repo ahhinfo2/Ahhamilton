@@ -63,14 +63,8 @@ async function sendMail({ to, subject, html, text }) {
     console.log(`📧 [DEV] Email non envoyé (SMTP non configuré)\n  À: ${to}\n  Sujet: ${subject}`);
     return false;
   }
-  try {
-    await t.sendMail({ from: FROM, to, subject, html, text });
-    console.log(`✉️  Email envoyé → ${to} | ${subject}`);
-    return true;
-  } catch (err) {
-    console.error(`❌ Erreur email → ${to}:`, err.message);
-    return false;
-  }
+  await t.sendMail({ from: FROM, to, subject, html, text });
+  console.log(`✉️  Email envoyé → ${to} | ${subject}`);
 }
 
 // ── Templates ─────────────────────────────────────────────────────────────
