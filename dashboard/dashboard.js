@@ -6423,8 +6423,9 @@ async function forumSubmitTopic() {
 // NEWSLETTER
 // ══════════════════════════════════════════════════════════════════════════════
 
+let _nlHistory = [];
+
 async function newsletter() {
-  const history = await api('/newsletter/history').catch(() => []);
   setContent(`
     <div class="table-card" style="max-width:760px">
       <div class="table-card-header"><h3>📨 Infolettre — Envoi de masse</h3></div>
@@ -6448,11 +6449,83 @@ async function newsletter() {
         </div>
         <hr style="margin:24px 0;border:none;border-top:1px solid var(--border)"/>
         <h4 style="margin-bottom:12px;color:var(--muted);font-size:.85rem">HISTORIQUE</h4>
-        ${history.length ? '<table class="data-table"><thead><tr><th>Date</th><th>Sujet</th><th>Segment</th><th>Envoyés</th><th>Par</th></tr></thead><tbody>' +
-          history.map(h => '<tr><td>' + fmt(h.date_envoi) + '</td><td>' + escHtml(h.sujet) + '</td><td>' + (h.segment||'tous') + '</td><td>' + h.nb_destinataires + '</td><td>' + escHtml((h.prenom||'') + ' ' + (h.nom||'')) + '</td></tr>').join('') +
-          '</tbody></table>' : '<p style="color:var(--muted);text-align:center">Aucun envoi pour l\'instant</p>'}
+        <div id="nlHistContainer"><div style="text-align:center;padding:20px;color:var(--muted)">Chargement...</div></div>
       </div>
     </div>`);
+  await refreshNlHistory();
+}
+
+async function refreshNlHistory() {
+  const container = document.getElementById('nlHistContainer');
+  if (!container) return;
+  _nlHistory = await api('/newsletter/history').catch(() => []);
+  if (!_nlHistory.length) {
+    container.innerHTML = '<p style="color:var(--muted);text-align:center">Aucun envoi pour l\'instant</p>';
+    return;
+  }
+  container.innerHTML = '<table class="data-table"><thead><tr>' +
+    '<th>Date</th><th>Sujet</th><th>Segment</th><th>Envoyés</th><th>Par</th><th>Statut</th><th>Actions</th>' +
+    '</tr></thead><tbody>' +
+    _nlHistory.map(h =>
+      `<tr id="nlRow_${h.id}" style="${h.archive ? 'opacity:.45' : ''}">` +
+      '<td>' + fmt(h.date_envoi) + '</td>' +
+      '<td>' + escHtml(h.sujet) + '</td>' +
+      '<td>' + (h.segment || 'tous') + '</td>' +
+      '<td>' + h.nb_destinataires + '</td>' +
+      '<td>' + escHtml((h.prenom || '') + ' ' + (h.nom || '')) + '</td>' +
+      '<td>' + (h.archive ? '📦 Archivé' : '✅ Envoyé') + '</td>' +
+      '<td style="white-space:nowrap;display:flex;gap:4px">' +
+        `<button class="btn btn-ghost btn-sm" onclick="nlEdit(${h.id})" title="Modifier" style="padding:4px 8px">✏️</button>` +
+        `<button class="btn btn-ghost btn-sm" onclick="nlArchive(${h.id})" title="${h.archive ? 'Désarchiver' : 'Archiver'}" style="padding:4px 8px">📦</button>` +
+        `<button class="btn btn-ghost btn-sm" onclick="nlDelete(${h.id})" title="Supprimer" style="padding:4px 8px;color:#c62828">🗑️</button>` +
+      '</td>' +
+      '</tr>'
+    ).join('') +
+    '</tbody></table>';
+}
+
+async function nlEdit(id) {
+  const h = _nlHistory.find(x => x.id === id);
+  if (!h) return;
+  openModal('✏️ Modifier l\'infolettre',
+    '<label class="form-label">Sujet</label>' +
+    '<input id="nlEditSujet" class="form-input" style="margin-bottom:12px" value="' + escHtml(h.sujet) + '"/>' +
+    '<label class="form-label">Corps</label>' +
+    '<textarea id="nlEditCorps" rows="8" class="form-input" style="resize:vertical;margin-bottom:16px">' + escHtml(h.corps || '') + '</textarea>' +
+    '<div style="display:flex;gap:10px">' +
+    '<button class="btn btn-primary" onclick="nlEditSave(' + id + ')">Enregistrer</button>' +
+    '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button>' +
+    '</div>'
+  );
+}
+
+async function nlEditSave(id) {
+  const sujet = document.getElementById('nlEditSujet')?.value?.trim();
+  const corps = document.getElementById('nlEditCorps')?.value?.trim();
+  if (!sujet || !corps) return toast('Sujet et corps requis', true);
+  try {
+    await api('/newsletter/' + id, { method: 'PATCH', body: JSON.stringify({ sujet, corps }) });
+    closeModal();
+    toast('Infolettre modifiée');
+    await refreshNlHistory();
+  } catch(e) { toast('Erreur : ' + e.message, true); }
+}
+
+async function nlDelete(id) {
+  if (!confirm('Supprimer cet envoi de l\'historique ?')) return;
+  try {
+    await api('/newsletter/' + id, { method: 'DELETE' });
+    toast('Envoi supprimé');
+    await refreshNlHistory();
+  } catch(e) { toast('Erreur : ' + e.message, true); }
+}
+
+async function nlArchive(id) {
+  try {
+    const r = await api('/newsletter/' + id + '/archive', { method: 'PATCH' });
+    toast(r.archive ? 'Archivé' : 'Désarchivé');
+    await refreshNlHistory();
+  } catch(e) { toast('Erreur : ' + e.message, true); }
 }
 
 async function sendNewsletter() {
@@ -6463,7 +6536,6 @@ async function sendNewsletter() {
   const status = document.getElementById('nlStatus');
   if (status) status.textContent = 'Envoi en cours... (peut prendre jusqu\'à 2 min)';
   try {
-    // Timeout étendu à 120s pour l'envoi de masse
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 120000);
     const res = await fetch(API + '/newsletter', {
@@ -6477,7 +6549,9 @@ async function sendNewsletter() {
     if (!res.ok) throw new Error(r.error || `Erreur ${res.status}`);
     toast(r.ok + ' email(s) envoyé(s)' + (r.errors ? ' (' + r.errors + ' erreur(s))' : ''));
     if (status) status.textContent = '';
-    newsletter();
+    document.getElementById('nlSujet').value = '';
+    document.getElementById('nlCorps').value = '';
+    await refreshNlHistory();
   } catch(e) {
     toast('Erreur : ' + (e.name === 'AbortError' ? 'Délai dépassé (trop de membres ?)' : e.message), true);
     if (status) status.textContent = '';

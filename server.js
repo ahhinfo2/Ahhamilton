@@ -3368,6 +3368,33 @@ app.get('/api/newsletter/history', authMiddleware, requireRole('admin','secretai
   res.json(rows);
 });
 
+app.patch('/api/newsletter/:id', authMiddleware, requireRole('admin','secretaire','tresoriere'), (req, res) => {
+  const { sujet, corps } = req.body;
+  if (!sujet?.trim() || !corps?.trim()) return res.status(400).json({ error: 'Sujet et corps requis' });
+  const row = db.prepare('SELECT * FROM newsletter_sends WHERE id=?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Introuvable' });
+  if (req.user.role !== 'admin' && req.user.id !== row.expediteur_id) return res.status(403).json({ error: 'Accès refusé' });
+  db.prepare('UPDATE newsletter_sends SET sujet=?, corps=? WHERE id=?').run(sujet.trim(), corps.trim(), req.params.id);
+  res.json({ ok: true });
+});
+
+app.delete('/api/newsletter/:id', authMiddleware, requireRole('admin','secretaire','tresoriere'), (req, res) => {
+  const row = db.prepare('SELECT * FROM newsletter_sends WHERE id=?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Introuvable' });
+  if (req.user.role !== 'admin' && req.user.id !== row.expediteur_id) return res.status(403).json({ error: 'Accès refusé' });
+  db.prepare('DELETE FROM newsletter_sends WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+app.patch('/api/newsletter/:id/archive', authMiddleware, requireRole('admin','secretaire','tresoriere'), (req, res) => {
+  const row = db.prepare('SELECT * FROM newsletter_sends WHERE id=?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Introuvable' });
+  if (req.user.role !== 'admin' && req.user.id !== row.expediteur_id) return res.status(403).json({ error: 'Accès refusé' });
+  const newVal = row.archive ? 0 : 1;
+  db.prepare('UPDATE newsletter_sends SET archive=? WHERE id=?').run(newVal, req.params.id);
+  res.json({ ok: true, archive: !!newVal });
+});
+
 // ══════════════════════════════════════════════════════════════════════════════
 // ICAL EXPORT
 // ══════════════════════════════════════════════════════════════════════════════

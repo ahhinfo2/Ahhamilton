@@ -262,6 +262,7 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS newsletter_sends (
   segment TEXT DEFAULT 'tous',
   date_envoi TEXT DEFAULT CURRENT_TIMESTAMP
 )`); } catch {}
+try { db.exec(`ALTER TABLE newsletter_sends ADD COLUMN archive INTEGER DEFAULT 0`); } catch {}
 
 function init() {
   db.exec(`
