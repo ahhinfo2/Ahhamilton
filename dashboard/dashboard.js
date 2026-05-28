@@ -2788,7 +2788,7 @@ async function gmShowExternal(e) {
       <div style="font-size:.83rem;color:var(--muted);margin-bottom:16px">
         De : <strong>${escHtml(e.fromName||'')} &lt;${safeFrom}&gt;</strong> · ${date}
       </div>
-      <div id="gmExtBody" style="background:var(--off);border-radius:10px;padding:16px;font-size:.9rem;white-space:pre-wrap;line-height:1.7;color:var(--muted)">⏳ Chargement…</div>
+      <div id="gmExtBody" style="background:var(--off);border-radius:10px;padding:16px;font-size:.9rem;white-space:pre-wrap;line-height:1.7;color:var(--muted);max-height:calc(100vh - 320px);overflow-y:auto">⏳ Chargement…</div>
     </div>`;
   try {
     const data = await api(`/email/inbox/${e.uid}`);

@@ -527,7 +527,7 @@ tr:hover td{background:#f8fdf8}
 .gm-det-subj{font-size:1.3rem;font-weight:500;color:#202124;margin-bottom:16px}
 .gm-det-meta{display:flex;align-items:center;gap:12px;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid var(--gm-border)}
 .gm-det-av{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--g2),var(--g3));color:#fff;font-size:1rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.gm-det-body{font-size:.9rem;line-height:1.8;color:#202124;white-space:pre-wrap}
+.gm-det-body{font-size:.9rem;line-height:1.8;color:#202124;white-space:pre-wrap;max-height:calc(100vh - 340px);overflow-y:auto;padding-right:4px}
 .gm-reply-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border:1px solid var(--gm-border);border-radius:5px;background:#fff;cursor:pointer;font-family:'Poppins',sans-serif;font-size:.84rem;color:var(--text);transition:background .15s}
 .gm-reply-btn:hover{background:var(--gm-hover)}
 
