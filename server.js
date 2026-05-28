@@ -440,13 +440,59 @@ app.use('/uploads/profiles', express.static(path.join(__dirname, 'uploads', 'pro
 app.delete('/api/users/:id', authMiddleware, requireRole('admin','secretaire','delegue','tresoriere'), (req, res) => {
   const uid = parseInt(req.params.id);
   if (uid === req.user.id) return res.status(400).json({ error: 'Vous ne pouvez pas vous supprimer vous-même' });
-  db.prepare('DELETE FROM message_recipients WHERE destinataire_id = ?').run(uid);
-  db.prepare('DELETE FROM volunteer_hours WHERE user_id = ?').run(uid);
-  db.prepare('DELETE FROM activity_registrations WHERE user_id = ?').run(uid);
-  db.prepare('DELETE FROM payments WHERE user_id = ?').run(uid);
-  db.prepare('DELETE FROM alerts WHERE user_id = ?').run(uid);
-  db.prepare('DELETE FROM users WHERE id = ?').run(uid);
-  res.json({ message: 'Membre supprimé' });
+  try {
+    db.prepare('BEGIN').run();
+
+    // Suppression des données appartenant au membre
+    db.prepare('DELETE FROM message_recipients WHERE destinataire_id = ?').run(uid);
+    db.prepare('DELETE FROM volunteer_hours WHERE user_id = ?').run(uid);
+    db.prepare('DELETE FROM activity_registrations WHERE user_id = ?').run(uid);
+    db.prepare('DELETE FROM payments WHERE user_id = ?').run(uid);
+    db.prepare('DELETE FROM tax_receipts WHERE user_id = ?').run(uid);
+    db.prepare('DELETE FROM talents WHERE user_id = ?').run(uid);
+    db.prepare('DELETE FROM annonces WHERE user_id = ?').run(uid);
+    db.prepare('DELETE FROM alerts WHERE destinataire_id = ?').run(uid);
+    db.prepare('DELETE FROM recommendation_letters WHERE membre_id = ?').run(uid);
+    db.prepare('DELETE FROM password_reset_tokens WHERE user_id = ?').run(uid);
+
+    // SET NULL sur les colonnes historiques (préserver les données)
+    db.prepare('UPDATE messages SET expediteur_id = NULL WHERE expediteur_id = ?').run(uid);
+    db.prepare('UPDATE newsletter_sends SET expediteur_id = NULL WHERE expediteur_id = ?').run(uid);
+    db.prepare('UPDATE emails_externes SET expediteur_id = NULL WHERE expediteur_id = ?').run(uid);
+    db.prepare('UPDATE meeting_notes SET auteur_id = NULL WHERE auteur_id = ?').run(uid);
+    db.prepare('UPDATE volunteer_hours SET approuve_par = NULL WHERE approuve_par = ?').run(uid);
+    db.prepare('UPDATE payments SET approuve_par = NULL WHERE approuve_par = ?').run(uid);
+    db.prepare('UPDATE tax_receipts SET genere_par = NULL WHERE genere_par = ?').run(uid);
+    db.prepare('UPDATE activities SET cree_par = NULL WHERE cree_par = ?').run(uid);
+    db.prepare('UPDATE sub_committees SET chef_id = NULL WHERE chef_id = ?').run(uid);
+    db.prepare('UPDATE projects SET responsable_id = NULL WHERE responsable_id = ?').run(uid);
+    db.prepare('UPDATE recommendation_letters SET demande_par = NULL WHERE demande_par = ?').run(uid);
+    db.prepare('UPDATE recommendation_letters SET genere_par = NULL WHERE genere_par = ?').run(uid);
+    db.prepare('UPDATE recommendation_letters SET signe_par = NULL WHERE signe_par = ?').run(uid);
+    db.prepare('UPDATE chat_messages SET sender_id = NULL WHERE sender_id = ?').run(uid);
+    db.prepare('UPDATE galerie_photos SET cree_par = NULL WHERE cree_par = ?').run(uid);
+    db.prepare('UPDATE galerie_annonces SET cree_par = NULL WHERE cree_par = ?').run(uid);
+    db.prepare('UPDATE transactions SET cree_par = NULL WHERE cree_par = ?').run(uid);
+    db.prepare('UPDATE invoices SET cree_par = NULL WHERE cree_par = ?').run(uid);
+    db.prepare('UPDATE activity_tables SET membre_attribue = NULL WHERE membre_attribue = ?').run(uid);
+    db.prepare('UPDATE tickets SET user_id = NULL WHERE user_id = ?').run(uid);
+    db.prepare('UPDATE tickets SET vendu_par = NULL WHERE vendu_par = ?').run(uid);
+    db.prepare('UPDATE memberships SET traite_par = NULL WHERE traite_par = ?').run(uid);
+
+    // Retirer le membre des salons de chat et sous-comités
+    db.prepare('DELETE FROM chat_members WHERE user_id = ?').run(uid);
+    db.prepare('DELETE FROM sc_membres WHERE user_id = ?').run(uid);
+
+    // Supprimer le membre
+    db.prepare('DELETE FROM users WHERE id = ?').run(uid);
+
+    db.prepare('COMMIT').run();
+    res.json({ message: 'Membre supprimé' });
+  } catch(e) {
+    try { db.prepare('ROLLBACK').run(); } catch {}
+    console.error('Erreur suppression membre:', e.message);
+    res.status(500).json({ error: 'Erreur lors de la suppression : ' + e.message });
+  }
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
