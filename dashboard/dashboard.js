@@ -2754,7 +2754,7 @@ async function gmLoadExternal() {
         </div>
       </div>`;
     }).join('');
-    el.innerHTML = `<div style="padding:8px 0">${rows}</div>`;
+    el.innerHTML = `<div class="gm-list">${rows}</div>`;
   } catch(e) {
     el.innerHTML = `<div class="gm-empty"><div style="font-size:2rem">⚠️</div><p>${e.message}</p><p style="font-size:.82rem;color:var(--muted)">Configurez votre email @ahhamilton.ca dans votre profil (Modifier le membre).</p></div>`;
   }
@@ -2777,18 +2777,20 @@ async function gmShowExternal(e) {
   const safeSubj = escHtml(e.subject||'');
   const safeFrom = escHtml(e.from||'');
   el.innerHTML = `
-    <div class="gm-detail" style="padding:24px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
-        <button class="btn btn-ghost btn-sm" onclick="gmNav('external')">← Retour</button>
-        <button class="btn btn-outline btn-sm" onclick="gmCompose({subject:'Re: ${safeSubj.replace(/'/g,'&#39;')}',to:'${safeFrom}'})">↩ Répondre</button>
-        <button class="btn btn-outline btn-sm" onclick="gmExtForward()">↪ Transférer</button>
-        <button class="btn btn-sm" style="color:#d93025;border:1px solid #d93025;background:transparent" onclick="gmExtDelete(${e.uid})">🗑 Supprimer</button>
+    <div class="gm-detail" style="padding:0;display:flex;flex-direction:column">
+      <div style="padding:20px 24px 16px;flex-shrink:0;border-bottom:1px solid var(--gm-border)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="gmNav('external')">← Retour</button>
+          <button class="btn btn-outline btn-sm" onclick="gmCompose({subject:'Re: ${safeSubj.replace(/'/g,'&#39;')}',to:'${safeFrom}'})">↩ Répondre</button>
+          <button class="btn btn-outline btn-sm" onclick="gmExtForward()">↪ Transférer</button>
+          <button class="btn btn-sm" style="color:#d93025;border:1px solid #d93025;background:transparent" onclick="gmExtDelete(${e.uid})">🗑 Supprimer</button>
+        </div>
+        <h2 style="font-size:1.05rem;margin-bottom:8px">${safeSubj}</h2>
+        <div style="font-size:.82rem;color:var(--muted)">
+          De : <strong>${escHtml(e.fromName||'')} &lt;${safeFrom}&gt;</strong> · ${date}
+        </div>
       </div>
-      <h2 style="font-size:1.1rem;margin-bottom:10px">${safeSubj}</h2>
-      <div style="font-size:.83rem;color:var(--muted);margin-bottom:16px">
-        De : <strong>${escHtml(e.fromName||'')} &lt;${safeFrom}&gt;</strong> · ${date}
-      </div>
-      <div id="gmExtBody" style="background:var(--off);border-radius:10px;padding:16px;font-size:.9rem;white-space:pre-wrap;line-height:1.7;color:var(--muted);max-height:calc(100vh - 320px);overflow-y:auto">⏳ Chargement…</div>
+      <div id="gmExtBody" style="flex:1;overflow-y:auto;padding:20px 24px;font-size:.9rem;white-space:pre-wrap;line-height:1.8;color:var(--muted)">⏳ Chargement…</div>
     </div>`;
   try {
     const data = await api(`/email/inbox/${e.uid}`);
