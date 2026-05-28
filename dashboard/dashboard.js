@@ -6286,33 +6286,40 @@ async function forum() {
   const topics = await api('/forum/topics');
   const canMod = can.adminOrSec();
   setContent(`
-    <div class="table-card">
-      <div class="table-card-header" style="gap:12px;flex-wrap:wrap">
-        <h3>💬 Forum communautaire</h3>
-        <button class="btn btn-primary btn-sm" onclick="forumNewTopic()">+ Nouveau sujet</button>
+    <div class="table-card" style="width:100%;max-width:100%">
+      <div class="table-card-header" style="gap:12px;flex-wrap:wrap;padding:20px 28px">
+        <h3 style="font-size:1.1rem">💬 Forum communautaire</h3>
+        <button class="btn btn-primary" onclick="forumNewTopic()">+ Nouveau sujet</button>
       </div>
-      <div style="padding:0 20px 16px">
+      <div style="padding:0 28px 20px">
         ${topics.length ? topics.map(t => `
-          <div class="gm-row" style="cursor:pointer;align-items:flex-start;padding:14px 0" onclick="forumOpenTopic(${t.id})">
+          <div class="gm-row" style="cursor:pointer;align-items:center;padding:18px 0;gap:16px" onclick="forumOpenTopic(${t.id})">
             <div style="flex:1;min-width:0">
-              ${t.epingle ? '<span style="font-size:.7rem;color:var(--g2);font-weight:700;margin-right:6px">📌 ÉPINGLÉ</span>' : ''}
-              ${t.ferme ? '<span style="font-size:.7rem;color:var(--muted);margin-right:6px">🔒</span>' : ''}
-              <strong style="font-size:.97rem">${escHtml(t.titre)}</strong>
-              <div style="font-size:.78rem;color:var(--muted);margin-top:3px">
-                ${FORUM_CATS[t.categorie]||t.categorie} · Par ${escHtml(t.prenom||'')} · ${fmt(t.date_creation)}
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap">
+                ${t.epingle ? '<span style="font-size:.72rem;color:var(--g2);font-weight:700;background:rgba(27,94,32,.1);padding:2px 8px;border-radius:10px">📌 Épinglé</span>' : ''}
+                ${t.ferme ? '<span style="font-size:.72rem;color:var(--muted);background:var(--off);padding:2px 8px;border-radius:10px">🔒 Fermé</span>' : ''}
+                <span style="font-size:.72rem;color:#fff;background:var(--g2);padding:2px 10px;border-radius:10px;font-weight:600">${FORUM_CATS[t.categorie]||t.categorie}</span>
+              </div>
+              <strong style="font-size:1rem;line-height:1.4">${escHtml(t.titre)}</strong>
+              <div style="font-size:.8rem;color:var(--muted);margin-top:4px">
+                Par <strong style="color:var(--text)">${escHtml(t.prenom||'')}</strong> · ${fmt(t.date_creation)}
               </div>
             </div>
-            <div style="text-align:right;font-size:.8rem;color:var(--muted);flex-shrink:0;margin-left:12px">
-              <div>💬 ${t.nb_posts||0}</div>
-              <div>👁 ${t.nb_vues||0}</div>
-              ${canMod ? `<div style="margin-top:6px;display:flex;gap:4px;justify-content:flex-end">
+            <div style="display:flex;align-items:center;gap:18px;flex-shrink:0">
+              <div style="text-align:center;font-size:.85rem;color:var(--muted)">
+                <div style="font-size:1.1rem">💬</div><div>${t.nb_posts||0}</div>
+              </div>
+              <div style="text-align:center;font-size:.85rem;color:var(--muted)">
+                <div style="font-size:1.1rem">👁</div><div>${t.nb_vues||0}</div>
+              </div>
+              ${canMod ? `<div style="display:flex;gap:4px">
                 <button class="gm-tb-btn" onclick="event.stopPropagation();forumPin(${t.id})" title="Épingler">${t.epingle?'📌':'📍'}</button>
                 <button class="gm-tb-btn" onclick="event.stopPropagation();forumClose(${t.id})" title="${t.ferme?'Ouvrir':'Fermer'}">${t.ferme?'🔓':'🔒'}</button>
                 <button class="gm-tb-btn" style="color:#d93025" onclick="event.stopPropagation();forumDeleteTopic(${t.id})" title="Supprimer">🗑</button>
               </div>` : ''}
             </div>
           </div>`).join('<hr style="margin:0;border:none;border-top:1px solid var(--border)"/>') :
-          '<div class="empty-state" style="padding:40px"><div class="es-icon">💬</div><p>Aucun sujet pour l\'instant. Soyez le premier à démarrer une discussion !</p></div>'
+          '<div class="empty-state" style="padding:60px"><div class="es-icon">💬</div><p>Aucun sujet pour l\'instant. Soyez le premier à démarrer une discussion !</p></div>'
         }
       </div>
     </div>`);
