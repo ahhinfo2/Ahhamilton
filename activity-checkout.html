@@ -141,7 +141,7 @@
     const email = document.getElementById('scanEmail')?.value?.trim();
     if (!email) { showErr('Entrez votre adresse courriel.'); return; }
     const btn = document.querySelector('.btn-scan');
-    if (btn) { btn.disabled = true; btn.textContent = 'Traitement…'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Connexion…'; }
     try {
       const r = await fetch(`${API}/activities/${actId}/scan-public`, {
         method: 'POST',
@@ -150,10 +150,19 @@
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error);
-      document.getElementById('payBlock').style.display = 'none';
-      showOk('✅ Bonjour ' + (d.prenom || '') + ' ! Présence confirmée pour « ' + d.activite + ' ».' +
-        (d.paiement_requis && d.prix ? ' Paiement de $' + d.prix.toFixed(2) + ' à régler sur place.' : '') +
-        ' Bonne activité !');
+
+      // Connecter automatiquement le membre
+      localStorage.setItem('ahh_token', d.token);
+      localStorage.setItem('ahh_user', JSON.stringify(d.user));
+
+      // Rediriger vers la page de check-in/paiement connecté
+      if (d.paiement_requis && d.prix) {
+        // Activité payante → recharger la page maintenant connecté pour payer
+        location.reload();
+      } else {
+        // Activité gratuite → carte de membre avec confirmation
+        location.href = 'carte.html?id=' + d.user.id + '&checkin=' + encodeURIComponent(d.activite);
+      }
     } catch(ex) {
       if (btn) { btn.disabled = false; btn.textContent = 'Réessayer'; }
       showErr(ex.message);

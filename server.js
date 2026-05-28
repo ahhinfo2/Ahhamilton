@@ -2666,7 +2666,7 @@ app.post('/api/activities/:id/pay', authMiddleware, (req, res) => {
   res.json({ message: 'Paiement enregistré', montant });
 });
 
-// POST — valider présence via QR sans connexion (email seulement)
+// POST — valider présence via QR sans connexion (email seulement) + auto-login
 app.post('/api/activities/:id/scan-public', (req, res) => {
   const { qr_token, email } = req.body;
   if (!qr_token || !email) return res.status(400).json({ error: 'Token et email requis' });
@@ -2682,7 +2682,14 @@ app.post('/api/activities/:id/scan-public', (req, res) => {
   } else {
     db.prepare("INSERT INTO activity_registrations (activity_id, user_id, statut) VALUES (?,?,'present')").run(act.id, user.id);
   }
-  res.json({ message: 'Présence validée', activite: act.titre, prenom: user.prenom, paiement_requis: act.paiement_requis, prix: act.prix });
+
+  // Générer un JWT pour connecter automatiquement le membre
+  const { password_hash, ...safeUser } = user;
+  const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
+  res.json({
+    token, user: safeUser,
+    activite: act.titre, paiement_requis: act.paiement_requis, prix: act.prix
+  });
 });
 
 // POST — valider présence via QR (scan)
