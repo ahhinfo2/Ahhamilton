@@ -470,18 +470,17 @@ app.delete('/api/users/:id', authMiddleware, requireRole('admin','secretaire','d
     db.prepare('UPDATE recommendation_letters SET genere_par = NULL WHERE genere_par = ?').run(uid);
     db.prepare('UPDATE recommendation_letters SET signe_par = NULL WHERE signe_par = ?').run(uid);
     db.prepare('UPDATE chat_messages SET sender_id = NULL WHERE sender_id = ?').run(uid);
-    db.prepare('UPDATE galerie_photos SET cree_par = NULL WHERE cree_par = ?').run(uid);
-    db.prepare('UPDATE galerie_annonces SET cree_par = NULL WHERE cree_par = ?').run(uid);
+    db.prepare('UPDATE gallery_photos SET cree_par = NULL WHERE cree_par = ?').run(uid);
     db.prepare('UPDATE transactions SET cree_par = NULL WHERE cree_par = ?').run(uid);
     db.prepare('UPDATE invoices SET cree_par = NULL WHERE cree_par = ?').run(uid);
     db.prepare('UPDATE activity_tables SET membre_attribue = NULL WHERE membre_attribue = ?').run(uid);
     db.prepare('UPDATE tickets SET user_id = NULL WHERE user_id = ?').run(uid);
     db.prepare('UPDATE tickets SET vendu_par = NULL WHERE vendu_par = ?').run(uid);
-    db.prepare('UPDATE memberships SET traite_par = NULL WHERE traite_par = ?').run(uid);
+    db.prepare('UPDATE pending_registrations SET traite_par = NULL WHERE traite_par = ?').run(uid);
 
     // Retirer le membre des salons de chat et sous-comités
-    db.prepare('DELETE FROM chat_members WHERE user_id = ?').run(uid);
-    db.prepare('DELETE FROM sc_membres WHERE user_id = ?').run(uid);
+    db.prepare('DELETE FROM chat_room_members WHERE user_id = ?').run(uid);
+    db.prepare('DELETE FROM sub_committee_members WHERE user_id = ?').run(uid);
 
     // Supprimer le membre
     db.prepare('DELETE FROM users WHERE id = ?').run(uid);
