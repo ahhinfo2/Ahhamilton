@@ -513,6 +513,7 @@ const DISCOUNT_ROLES  = ['admin']; // VP = admin role, Présidente = admin role
 
 const crypto2 = require('crypto');
 const QRCode  = require('qrcode');
+const jimp    = require('jimp');
 
 app.post('/api/activities', authMiddleware, requireRole(...ACTIVITY_ROLES), (req, res) => {
   const { titre, description, type, date_debut, date_fin, lieu, budget_prevu, max_participants,
@@ -2525,15 +2526,35 @@ app.get('/api/activities/:id/qr', async (req, res) => {
 
   try {
     if (format === 'png') {
-      const buf = await QRCode.toBuffer(url, {
+      // Générer le QR avec niveau H (30% correction) pour permettre le logo
+      const qrBuf = await QRCode.toBuffer(url, {
         type: 'png', width: size, margin: 2,
+        errorCorrectionLevel: 'H',
         color: { dark: '#1b5e20', light: '#ffffff' }
       });
+
+      // Superposer le logo au centre
+      const logoPath = path.join(__dirname, 'Public', 'logo1.png');
+      let finalBuf = qrBuf;
+      if (fs.existsSync(logoPath)) {
+        const qrImg   = await jimp.Jimp.read(qrBuf);
+        const logoImg = await jimp.Jimp.read(logoPath);
+        const logoSize = Math.round(qrImg.bitmap.width * 0.22);
+        const pad      = Math.round(logoSize * 0.15);
+        const bg = new jimp.Jimp({ width: logoSize + pad * 2, height: logoSize + pad * 2, color: 0xFFFFFFFF });
+        logoImg.resize({ w: logoSize, h: logoSize });
+        bg.composite(logoImg, pad, pad);
+        const cx = Math.round((qrImg.bitmap.width  - bg.bitmap.width)  / 2);
+        const cy = Math.round((qrImg.bitmap.height - bg.bitmap.height) / 2);
+        qrImg.composite(bg, cx, cy);
+        finalBuf = await qrImg.getBuffer('image/png');
+      }
+
       const filename = `QR-${act.titre.replace(/[^a-zA-Z0-9]/g,'-').substring(0,30)}.png`;
       res.set('Content-Type', 'image/png');
       res.set('Content-Disposition', `attachment; filename="${filename}"`);
       res.set('Cache-Control', 'no-cache');
-      return res.send(buf);
+      return res.send(finalBuf);
     }
 
     // SVG avec logo centré
