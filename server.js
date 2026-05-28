@@ -3125,7 +3125,11 @@ app.get('/api/activities/:id/public', (req, res) => {
   const act = db.prepare(`SELECT id, titre, date_debut, date_fin, lieu, description, paiement_requis, prix
     FROM activities WHERE id = ? AND statut NOT IN ('archivee','brouillon')`).get(req.params.id);
   if (!act) return res.status(404).json({ error: 'Activité introuvable' });
-  const types = db.prepare('SELECT * FROM activity_ticket_types WHERE activity_id = ? AND actif = 1 ORDER BY ordre, id').all(req.params.id);
+  let types = db.prepare('SELECT * FROM activity_ticket_types WHERE activity_id = ? AND actif = 1 ORDER BY ordre, id').all(req.params.id);
+  // Si l'activité a un prix mais aucun type de billet → générer une "Entrée générale" automatique
+  if (!types.length && act.paiement_requis && act.prix > 0) {
+    types = [{ id: 'general', activity_id: act.id, nom: 'Entrée générale', description: '', prix: act.prix, capacite_max: 0, nb_vendus: 0, actif: 1, ordre: 0 }];
+  }
   res.json({ ...act, ticket_types: types });
 });
 
@@ -3177,10 +3181,16 @@ app.post('/api/activities/:id/buy', async (req, res) => {
   for (const item of items) {
     const qty = parseInt(item.quantity) || 0;
     if (qty < 1) continue;
-    const tt = db.prepare('SELECT * FROM activity_ticket_types WHERE id=? AND activity_id=? AND actif=1').get(item.ticket_type_id, actId);
-    if (!tt) return res.status(400).json({ error: 'Type de billet invalide' });
-    if (tt.capacite_max > 0 && tt.nb_vendus + qty > tt.capacite_max) {
-      return res.status(400).json({ error: `Plus assez de places pour "${tt.nom}"` });
+    let tt;
+    if (String(item.ticket_type_id) === 'general') {
+      // Billet générique automatique basé sur le prix de l'activité
+      tt = { id: null, activity_id: actId, nom: 'Entrée générale', prix: act.prix || 0, capacite_max: 0, nb_vendus: 0 };
+    } else {
+      tt = db.prepare('SELECT * FROM activity_ticket_types WHERE id=? AND activity_id=? AND actif=1').get(item.ticket_type_id, actId);
+      if (!tt) return res.status(400).json({ error: 'Type de billet invalide' });
+      if (tt.capacite_max > 0 && tt.nb_vendus + qty > tt.capacite_max) {
+        return res.status(400).json({ error: `Plus assez de places pour "${tt.nom}"` });
+      }
     }
     montantTotal += tt.prix * qty;
     lineItems.push({ tt, qty });
@@ -3204,7 +3214,7 @@ app.post('/api/activities/:id/buy', async (req, res) => {
         .run(actId, tt.id, acheteurNom, email, telephone || '',
           `TICKET:${ticketToken}`, tt.prix, payment_method || 'interac',
           paymentStatus, orderToken, ticketStatut);
-      db.prepare('UPDATE activity_ticket_types SET nb_vendus = nb_vendus + 1 WHERE id=?').run(tt.id);
+      if (tt.id) db.prepare('UPDATE activity_ticket_types SET nb_vendus = nb_vendus + 1 WHERE id=?').run(tt.id);
       insertedTickets.push({ id: r.lastInsertRowid, token: ticketToken, nom: tt.nom, prix: tt.prix });
     }
   }
@@ -3226,7 +3236,7 @@ app.post('/api/activities/:id/buy', async (req, res) => {
     if (!stripeKey) {
       // Rollback
       insertedTickets.forEach(t => db.prepare('DELETE FROM tickets WHERE id=?').run(t.id));
-      lineItems.forEach(({ tt, qty }) => db.prepare('UPDATE activity_ticket_types SET nb_vendus = nb_vendus - ? WHERE id=?').run(qty, tt.id));
+      lineItems.forEach(({ tt, qty }) => { if (tt.id) db.prepare('UPDATE activity_ticket_types SET nb_vendus = nb_vendus - ? WHERE id=?').run(qty, tt.id); });
       return res.status(500).json({ error: 'Paiement Stripe non configuré — utilisez Interac.' });
     }
     try {
@@ -3251,7 +3261,7 @@ app.post('/api/activities/:id/buy', async (req, res) => {
       return res.json({ checkout_url: session.url, order_token: orderToken });
     } catch (err) {
       insertedTickets.forEach(t => db.prepare('DELETE FROM tickets WHERE id=?').run(t.id));
-      lineItems.forEach(({ tt, qty }) => db.prepare('UPDATE activity_ticket_types SET nb_vendus = nb_vendus - ? WHERE id=?').run(qty, tt.id));
+      lineItems.forEach(({ tt, qty }) => { if (tt.id) db.prepare('UPDATE activity_ticket_types SET nb_vendus = nb_vendus - ? WHERE id=?').run(qty, tt.id); });
       return res.status(500).json({ error: err.message });
     }
   }
