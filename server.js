@@ -1168,6 +1168,20 @@ app.get('/api/email/inbox/:uid', authMiddleware, requireRole(...COMITE_ROLES), a
   }
 });
 
+app.delete('/api/email/inbox/:uid', authMiddleware, requireRole(...COMITE_ROLES), async (req, res) => {
+  const orgEmail = process.env.ORG_EMAIL || 'contact@ahhamilton.ca';
+  const orgPass  = process.env.ORG_SMTP_PASS;
+  if (!orgPass) return res.status(500).json({ error: 'ORG_SMTP_PASS non configuré' });
+  const uid = parseInt(req.params.uid);
+  if (!uid) return res.status(400).json({ error: 'UID invalide' });
+  try {
+    await imap.deleteEmail(orgEmail, orgPass, uid);
+    res.json({ ok: true });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ══════════════════════════════════════════════════════════════════════════════
 // REPORTS
 // ══════════════════════════════════════════════════════════════════════════════

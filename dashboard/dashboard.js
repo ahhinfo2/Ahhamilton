@@ -2737,7 +2737,11 @@ async function gmLoadExternal() {
       return `<div class="gm-row" style="${bold};cursor:pointer" onclick="gmShowExternal(${safeE})">
         <div class="gm-row-from">${escHtml(e.fromName||e.from)}</div>
         <div class="gm-row-subj">${escHtml(e.subject)}</div>
-        <div class="gm-row-date">${date}</div>
+        <div class="gm-row-date" style="display:flex;align-items:center;gap:8px">
+          <span>${date}</span>
+          <button class="gm-tb-btn" style="color:#d93025;padding:2px 6px;font-size:.8rem" title="Supprimer"
+            onclick="event.stopPropagation();gmExtDeleteFromList(${e.uid})">🗑</button>
+        </div>
       </div>`;
     }).join('');
     el.innerHTML = `<div style="padding:8px 0">${rows}</div>`;
@@ -2746,22 +2750,28 @@ async function gmLoadExternal() {
   }
 }
 
+let _extCurrent = null; // { e, body } for the open external email
+
 async function gmShowExternal(e) {
+  _extCurrent = { e, body: '' };
   const el = document.getElementById('gmMain');
   if (!el) return;
   const date = (e.date||'').substring(0,16).replace('T',' ');
   const safeSubj = escHtml(e.subject||'');
   const safeFrom = escHtml(e.from||'');
-  const safeReplySubj = (e.subject||'').replace(/'/g,"\\'").replace(/"/g,'\\"');
   el.innerHTML = `
     <div class="gm-detail" style="padding:24px">
-      <button class="btn btn-ghost btn-sm" onclick="gmNav('external')" style="margin-bottom:16px">← Retour</button>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="gmNav('external')">← Retour</button>
+        <button class="btn btn-outline btn-sm" onclick="gmCompose({subject:'Re: ${safeSubj.replace(/'/g,'&#39;')}',to:'${safeFrom}'})">↩ Répondre</button>
+        <button class="btn btn-outline btn-sm" onclick="gmExtForward()">↪ Transférer</button>
+        <button class="btn btn-sm" style="color:#d93025;border:1px solid #d93025;background:transparent" onclick="gmExtDelete(${e.uid})">🗑 Supprimer</button>
+      </div>
       <h2 style="font-size:1.1rem;margin-bottom:10px">${safeSubj}</h2>
       <div style="font-size:.83rem;color:var(--muted);margin-bottom:16px">
         De : <strong>${escHtml(e.fromName||'')} &lt;${safeFrom}&gt;</strong> · ${date}
       </div>
       <div id="gmExtBody" style="background:var(--off);border-radius:10px;padding:16px;font-size:.9rem;white-space:pre-wrap;line-height:1.7;color:var(--muted)">⏳ Chargement…</div>
-      <button class="btn btn-primary btn-sm" style="margin-top:16px" onclick="gmCompose({subject:'Re: ${safeReplySubj}',to:'${safeFrom}'})">Répondre</button>
     </div>`;
   try {
     const data = await api(`/email/inbox/${e.uid}`);
@@ -2769,10 +2779,42 @@ async function gmShowExternal(e) {
     if (bodyEl) {
       bodyEl.style.color = '';
       bodyEl.textContent = data.body || '(corps vide)';
+      if (_extCurrent) _extCurrent.body = data.body || '';
     }
   } catch(err) {
     const bodyEl = document.getElementById('gmExtBody');
     if (bodyEl) bodyEl.textContent = 'Erreur: ' + (err.message || 'impossible de charger le corps');
+  }
+}
+
+function gmExtForward() {
+  if (!_extCurrent) return;
+  const { e, body } = _extCurrent;
+  const date = (e.date||'').substring(0,16).replace('T',' ');
+  const fwdBody = `\n\n--- Message transféré ---\nDe : ${e.fromName ? e.fromName + ' <' + e.from + '>' : e.from}\nDate : ${date}\nObjet : ${e.subject||''}\n\n${body}`;
+  gmCompose({ subject: `Fwd: ${e.subject||''}`, body: fwdBody });
+}
+
+async function gmExtDelete(uid) {
+  if (!confirm('Supprimer cet email définitivement de la boîte contact@ahhamilton.ca ?')) return;
+  try {
+    await api(`/email/inbox/${uid}`, { method: 'DELETE' });
+    toast('Email supprimé');
+    _extCurrent = null;
+    gmNav('external');
+  } catch(err) {
+    toast('Erreur suppression : ' + err.message, 'error');
+  }
+}
+
+async function gmExtDeleteFromList(uid) {
+  if (!confirm('Supprimer cet email définitivement ?')) return;
+  try {
+    await api(`/email/inbox/${uid}`, { method: 'DELETE' });
+    toast('Email supprimé');
+    gmNav('external'); // Refresh list (cache invalidated server-side)
+  } catch(err) {
+    toast('Erreur suppression : ' + err.message, 'error');
   }
 }
 

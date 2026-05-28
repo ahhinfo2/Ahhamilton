@@ -126,9 +126,31 @@ function _makeClient(emailAddr, password) {
   });
 }
 
+async function deleteEmail(emailAddr, password, uid) {
+  if (!IMAP_HOST || !emailAddr || !password) throw new Error('Config IMAP manquante');
+
+  const client = _makeClient(emailAddr, password);
+  try {
+    await client.connect();
+    const lock = await client.getMailboxLock('INBOX');
+    try {
+      await client.messageDelete(`${uid}`, { uid: true });
+    } finally {
+      lock.release();
+    }
+    await client.logout();
+    invalidateCache(emailAddr);
+    console.log(`[IMAP] message uid=${uid} deleted from ${emailAddr}`);
+  } catch (e) {
+    console.error('[IMAP] deleteEmail error:', e.message);
+    try { await client.logout(); } catch {}
+    throw e;
+  }
+}
+
 // Invalidate cache for an account (call after sending a reply)
 function invalidateCache(emailAddr) {
   _cache.delete(emailAddr);
 }
 
-module.exports = { fetchEmails, fetchEmailBody, invalidateCache };
+module.exports = { fetchEmails, fetchEmailBody, deleteEmail, invalidateCache };
