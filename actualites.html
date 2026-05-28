@@ -218,9 +218,15 @@
         ? '👥 ' + (ev.nb_inscrits || 0) + '/' + ev.max_participants + ' places'
         : '👥 Entrée libre';
       const isLoggedIn = !!localStorage.getItem('ahh_token');
-      const btnHtml = isLoggedIn
-        ? '<a href="dashboard/app.html" class="btn btn-primary btn-sm" style="font-size:.8rem;padding:9px 18px">S\'inscrire via mon espace →</a>'
-        : '<a href="dashboard/login.html" class="btn btn-primary btn-sm" style="font-size:.8rem;padding:9px 18px">Connexion pour s\'inscrire →</a>';
+      const isPaid = ev.paiement_requis && ev.prix > 0;
+      let btnHtml;
+      if (isPaid) {
+        btnHtml = '<a href="billets.html?id=' + ev.id + '" class="btn btn-primary btn-sm" style="font-size:.8rem;padding:9px 18px">🎟️ Acheter un billet →</a>';
+      } else if (isLoggedIn) {
+        btnHtml = '<a href="dashboard/app.html" class="btn btn-primary btn-sm" style="font-size:.8rem;padding:9px 18px">S\'inscrire via mon espace →</a>';
+      } else {
+        btnHtml = '<a href="dashboard/login.html" class="btn btn-primary btn-sm" style="font-size:.8rem;padding:9px 18px">Connexion pour s\'inscrire →</a>';
+      }
 
       const typeLabel = ev.type.charAt(0).toUpperCase() + ev.type.slice(1);
       const dateStr  = ev.date_debut ? '📅 ' + new Date(ev.date_debut).toLocaleDateString('fr-CA') : '';
