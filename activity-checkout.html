@@ -76,13 +76,13 @@
       document.getElementById('mainContent').style.display = 'block';
 
       if (!act.paiement_requis || !act.prix) {
-        // Pas de paiement — juste valider présence si connecté
+        // Gratuite — connecté : bouton direct ; non connecté : formulaire email
         document.getElementById('payBlock').innerHTML =
           '<div class="not-payant"><div class="icon">✅</div>' +
           '<p>Cette activité est <strong>gratuite</strong>.</p></div>' +
-          (authToken ?
-            '<button class="btn btn-scan" onclick="scanPresence()">📍 Valider ma présence</button>' :
-            '<div class="login-note">Connectez-vous pour valider votre présence : <a href="dashboard/login.html">Connexion →</a></div>');
+          (authToken
+            ? '<button class="btn btn-scan" onclick="scanPresence()">📍 Valider ma présence</button>'
+            : emailForm('Confirmer ma présence gratuitement'));
       } else {
         // Activité payante
         const prixAffiche = act.prix.toFixed(2);
@@ -104,8 +104,8 @@
               <button type="submit" class="btn">💳 Payer $${prixAffiche}</button>
             </form>
             <div class="divider">ou</div>
-            <button class="btn btn-scan" onclick="scanPresence()">📍 Seulement valider ma présence</button>` :
-            '<div class="login-note">Connectez-vous pour payer et valider votre présence :<br/><a href="dashboard/login.html">🔐 Connexion AHH</a></div>');
+            <button class="btn btn-scan" onclick="scanPresence()">📍 Seulement valider ma présence</button>`
+            : emailForm('Réserver ma place (paiement $' + prixAffiche + ' sur place)'));
 
         if (authToken) {
           document.getElementById('payForm')?.addEventListener('submit', async function(e) {
@@ -127,6 +127,37 @@
         }
       }
     } catch(e) { showErr('Erreur de chargement : ' + e.message); }
+  }
+
+  function emailForm(btnLabel) {
+    return '<div class="form-group" style="margin-top:12px">' +
+      '<label>Votre courriel membre</label>' +
+      '<input id="scanEmail" type="email" placeholder="votre@email.ca" style="margin-bottom:10px"/>' +
+      '</div>' +
+      '<button class="btn btn-scan" onclick="scanPublic()">' + btnLabel + '</button>';
+  }
+
+  async function scanPublic() {
+    const email = document.getElementById('scanEmail')?.value?.trim();
+    if (!email) { showErr('Entrez votre adresse courriel.'); return; }
+    const btn = document.querySelector('.btn-scan');
+    if (btn) { btn.disabled = true; btn.textContent = 'Traitement…'; }
+    try {
+      const r = await fetch(`${API}/activities/${actId}/scan-public`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ qr_token: token, email })
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error);
+      document.getElementById('payBlock').style.display = 'none';
+      showOk('✅ Bonjour ' + (d.prenom || '') + ' ! Présence confirmée pour « ' + d.activite + ' ».' +
+        (d.paiement_requis && d.prix ? ' Paiement de $' + d.prix.toFixed(2) + ' à régler sur place.' : '') +
+        ' Bonne activité !');
+    } catch(ex) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Réessayer'; }
+      showErr(ex.message);
+    }
   }
 
   async function scanPresence() {

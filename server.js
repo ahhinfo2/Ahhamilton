@@ -2666,6 +2666,25 @@ app.post('/api/activities/:id/pay', authMiddleware, (req, res) => {
   res.json({ message: 'Paiement enregistré', montant });
 });
 
+// POST — valider présence via QR sans connexion (email seulement)
+app.post('/api/activities/:id/scan-public', (req, res) => {
+  const { qr_token, email } = req.body;
+  if (!qr_token || !email) return res.status(400).json({ error: 'Token et email requis' });
+  const act = db.prepare('SELECT * FROM activities WHERE id = ? AND qr_token = ?').get(req.params.id, qr_token);
+  if (!act) return res.status(403).json({ error: 'QR invalide' });
+
+  const user = db.prepare('SELECT * FROM users WHERE email = ? AND actif = 1').get(email.trim().toLowerCase());
+  if (!user) return res.status(404).json({ error: 'Aucun membre trouvé avec cet email. Contactez un administrateur.' });
+
+  const existing = db.prepare('SELECT * FROM activity_registrations WHERE activity_id=? AND user_id=?').get(act.id, user.id);
+  if (existing) {
+    db.prepare("UPDATE activity_registrations SET statut='present' WHERE id=?").run(existing.id);
+  } else {
+    db.prepare("INSERT INTO activity_registrations (activity_id, user_id, statut) VALUES (?,?,'present')").run(act.id, user.id);
+  }
+  res.json({ message: 'Présence validée', activite: act.titre, prenom: user.prenom, paiement_requis: act.paiement_requis, prix: act.prix });
+});
+
 // POST — valider présence via QR (scan)
 app.post('/api/activities/:id/scan', authMiddleware, (req, res) => {
   const { qr_token } = req.body;
