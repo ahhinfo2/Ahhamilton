@@ -91,21 +91,22 @@
           (user && user.plan && user.plan !== 'gratuit' ? '<div class="price-plan">Rabais possible selon votre plan ' + user.plan + '</div>' : '') +
           '</div>' +
           (authToken ? `
+            <button class="btn" style="background:linear-gradient(135deg,#635bff,#8b85ff);margin-bottom:10px" onclick="payStripe()">💳 Payer en ligne — $${prixAffiche} (Stripe)</button>
+            <div class="divider">ou payer sur place</div>
             <form id="payForm">
-              <div class="form-group"><label>Méthode de paiement</label>
+              <div class="form-group"><label>Méthode</label>
                 <select id="methode">
                   <option value="interac">Interac</option>
-                  <option value="cash">Espèces (sur place)</option>
+                  <option value="cash">Espèces</option>
                   <option value="cheque">Chèque</option>
-                  <option value="virement">Virement bancaire</option>
                 </select></div>
               <div class="form-group"><label>Référence (optionnel)</label>
                 <input id="ref" placeholder="ex: confirmation Interac…"/></div>
-              <button type="submit" class="btn">💳 Payer $${prixAffiche}</button>
+              <button type="submit" class="btn">✅ Confirmer paiement sur place</button>
             </form>
             <div class="divider">ou</div>
             <button class="btn btn-scan" onclick="scanPresence()">📍 Seulement valider ma présence</button>`
-            : emailForm('Réserver ma place (paiement $' + prixAffiche + ' sur place)'));
+            : emailForm('Réserver ma place — $' + prixAffiche));
 
         if (authToken) {
           document.getElementById('payForm')?.addEventListener('submit', async function(e) {
@@ -120,9 +121,9 @@
               });
               const d = await r.json();
               if (!r.ok) throw new Error(d.error);
-              showOk('✅ Paiement de $' + d.montant.toFixed(2) + ' enregistré ! Vous recevrez une confirmation par courriel.');
-              document.getElementById('payForm').style.display = 'none';
-            } catch(ex) { showErr(ex.message); btn.disabled=false; btn.textContent = '💳 Payer $' + prixAffiche; }
+              const uid = JSON.parse(localStorage.getItem('ahh_user') || '{}').id;
+              location.href = 'carte.html?id=' + uid + '&checkin=' + encodeURIComponent(act.titre) + '&paid=1';
+            } catch(ex) { showErr(ex.message); btn.disabled=false; btn.textContent = '✅ Confirmer paiement sur place'; }
           });
         }
       }
@@ -130,11 +131,29 @@
   }
 
   function emailForm(btnLabel) {
-    return '<div class="form-group" style="margin-top:12px">' +
+    return '<div style="background:#fff8e1;border-left:3px solid #f9a825;border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:.83rem;color:#5a4a00">' +
+      '👤 Entrez votre courriel membre pour confirmer votre place. Si vous n\'êtes pas membre, <a href="billets.html?id=' + actId + '" style="color:#1b5e20;font-weight:600">achetez un billet ici →</a>' +
+      '</div>' +
+      '<div class="form-group">' +
       '<label>Votre courriel membre</label>' +
-      '<input id="scanEmail" type="email" placeholder="votre@email.ca" style="margin-bottom:10px"/>' +
+      '<input id="scanEmail" type="text" inputmode="email" autocomplete="email" placeholder="votre@email.ca" style="margin-bottom:10px"/>' +
       '</div>' +
       '<button class="btn btn-scan" onclick="scanPublic()">' + btnLabel + '</button>';
+  }
+
+  async function payStripe() {
+    try {
+      const btn = document.querySelector('[onclick="payStripe()"]');
+      if (btn) { btn.disabled = true; btn.textContent = 'Redirection…'; }
+      const r = await fetch(`${API}/activities/${actId}/pay-stripe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + authToken },
+        body: JSON.stringify({ qr_token: token })
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error);
+      location.href = d.checkout_url;
+    } catch(ex) { showErr(ex.message); }
   }
 
   async function scanPublic() {

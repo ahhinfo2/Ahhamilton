@@ -2692,6 +2692,40 @@ app.post('/api/activities/:id/scan-public', (req, res) => {
   });
 });
 
+// POST — payer activité via Stripe (redirige vers Stripe Checkout)
+app.post('/api/activities/:id/pay-stripe', authMiddleware, async (req, res) => {
+  const { qr_token } = req.body;
+  const act = db.prepare('SELECT * FROM activities WHERE id = ?').get(req.params.id);
+  if (!act) return res.status(404).json({ error: 'Activité introuvable' });
+  if (act.qr_token !== qr_token) return res.status(403).json({ error: 'Token QR invalide' });
+
+  const stripeKey = (process.env.STRIPE_SECRET_KEY || '').trim();
+  if (!stripeKey) return res.status(500).json({ error: 'Paiement en ligne non configuré — payez sur place.' });
+
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  const siteBase = process.env.SITE_URL || 'https://ahhamilton.ca';
+  try {
+    const stripe = Stripe(stripeKey);
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: 'payment',
+      customer_email: user.email,
+      line_items: [{
+        price_data: {
+          currency: 'cad',
+          product_data: { name: act.titre, description: act.lieu || '' },
+          unit_amount: Math.round((act.prix || 0) * 100),
+        },
+        quantity: 1,
+      }],
+      metadata: { type: 'activite', activity_id: String(act.id), user_id: String(user.id), qr_token },
+      success_url: `${siteBase}/carte.html?id=${user.id}&checkin=${encodeURIComponent(act.titre)}&paid=1`,
+      cancel_url: `${siteBase}/activity-checkout.html?actid=${act.id}&token=${qr_token}`,
+    });
+    res.json({ checkout_url: session.url });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // POST — valider présence via QR (scan)
 app.post('/api/activities/:id/scan', authMiddleware, (req, res) => {
   const { qr_token } = req.body;
