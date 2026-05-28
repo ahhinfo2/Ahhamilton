@@ -1141,26 +1141,23 @@ app.get('/api/email/sent', authMiddleware, requireRole(...COMITE_ROLES), (req, r
 });
 
 app.get('/api/email/inbox', authMiddleware, requireRole(...COMITE_ROLES), async (req, res) => {
-  const user = db.prepare('SELECT email, email_org, smtp_pass_org FROM users WHERE id = ?').get(req.user.id);
-  const orgEmail = user?.email_org || (user?.email?.endsWith('@ahhamilton.ca') ? user.email : null);
-  const orgPass  = user?.smtp_pass_org || process.env.ORG_SMTP_PASS;
-  console.log(`[inbox] user=${req.user.id} orgEmail=${orgEmail} hasPass=${!!orgPass} IMAP_HOST=${process.env.IMAP_HOST}`);
-  if (!orgEmail) return res.status(400).json({ error: 'Aucun email @ahhamilton.ca configuré pour ce compte' });
+  // Shared org inbox — always contact@ahhamilton.ca, visible to all committee members
+  const orgEmail = process.env.ORG_EMAIL || 'contact@ahhamilton.ca';
+  const orgPass  = process.env.ORG_SMTP_PASS;
+  if (!orgPass) return res.status(500).json({ error: 'ORG_SMTP_PASS non configuré sur le serveur' });
   try {
     const emails = await imap.fetchEmails(orgEmail, orgPass);
-    console.log(`[inbox] OK → ${emails.length} emails`);
     res.json(emails);
   } catch(e) {
-    console.error(`[inbox] ERREUR:`, e.message, e.stack?.split('\n')[1]);
+    console.error(`[inbox] ERREUR pour ${orgEmail}:`, e.message);
     res.status(500).json({ error: e.message });
   }
 });
 
 app.get('/api/email/inbox/:uid', authMiddleware, requireRole(...COMITE_ROLES), async (req, res) => {
-  const user = db.prepare('SELECT email, email_org, smtp_pass_org FROM users WHERE id = ?').get(req.user.id);
-  const orgEmail = user?.email_org || (user?.email?.endsWith('@ahhamilton.ca') ? user.email : null);
-  const orgPass  = user?.smtp_pass_org || process.env.ORG_SMTP_PASS;
-  if (!orgEmail) return res.status(400).json({ error: 'Aucun email @ahhamilton.ca configuré' });
+  const orgEmail = process.env.ORG_EMAIL || 'contact@ahhamilton.ca';
+  const orgPass  = process.env.ORG_SMTP_PASS;
+  if (!orgPass) return res.status(500).json({ error: 'ORG_SMTP_PASS non configuré' });
   const uid = parseInt(req.params.uid);
   if (!uid) return res.status(400).json({ error: 'UID invalide' });
   try {
