@@ -225,9 +225,9 @@
           </div>
           ${sold_out ? '' : `
           <div class="qty-ctrl">
-            <button class="qty-btn" onclick="changeQty(${tt.id}, -1)">−</button>
+            <button class="qty-btn" onclick="changeQty('${tt.id}', -1)">−</button>
             <span class="qty-val">${qty}</span>
-            <button class="qty-btn" onclick="changeQty(${tt.id}, 1)">+</button>
+            <button class="qty-btn" onclick="changeQty('${tt.id}', 1)">+</button>
           </div>`}
         </div>
       `;
@@ -235,7 +235,7 @@
   }
 
   function changeQty(ttId, delta) {
-    const tt = act.ticket_types.find(t => t.id === ttId);
+    const tt = act.ticket_types.find(t => String(t.id) === String(ttId));
     if (!tt) return;
     const dispo = tt.capacite_max > 0 ? tt.capacite_max - tt.nb_vendus : 999;
     const cur = quantities[ttId] || 0;
