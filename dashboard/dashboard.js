@@ -5487,16 +5487,19 @@ async function viewActivityQR(id, titre, qrToken) {
 async function showActivityReport(actId) {
   closeModal();
   const r = await api('/reports/activity/' + actId);
-  const { activite: act, inscrits, totalRevenu, nbPayes, nbNonPayes } = r;
+  const { activite: act, inscrits, billets = [], totalRevenu, nbPayes, nbNonPayes } = r;
+  const totalPersonnes = inscrits.length + billets.length;
 
   openModal('📊 Rapport — ' + act.titre,
     '<div style="max-height:70vh;overflow-y:auto">' +
       '<div class="cards-grid" style="grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">' +
-        '<div class="stat-card"><div class="sc-icon">👥</div><div class="sc-value">' + inscrits.length + '</div><div class="sc-label">Inscrits</div></div>' +
+        '<div class="stat-card"><div class="sc-icon">👥</div><div class="sc-value">' + totalPersonnes + '</div><div class="sc-label">Total</div></div>' +
         '<div class="stat-card"><div class="sc-icon">✅</div><div class="sc-value">' + nbPayes + '</div><div class="sc-label">Payés</div></div>' +
         '<div class="stat-card accent"><div class="sc-icon">💰</div><div class="sc-value">$' + totalRevenu.toFixed(2) + '</div><div class="sc-label">Revenu</div></div>' +
       '</div>' +
-      '<table style="width:100%;border-collapse:collapse;font-size:.82rem">' +
+
+      (inscrits.length ? '<h4 style="font-size:.8rem;color:var(--muted);margin-bottom:6px">MEMBRES</h4>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:.82rem;margin-bottom:16px">' +
         '<thead><tr style="background:var(--off)">' +
           '<th style="padding:8px;text-align:left">Membre</th><th>Plan</th><th>Statut</th><th>Payé</th><th>Montant</th>' +
         '</tr></thead><tbody>' +
@@ -5509,7 +5512,23 @@ async function showActivityReport(actId) {
             '<td style="padding:7px 8px">$' + (i.montant_paye||0).toFixed(2) + '</td>' +
           '</tr>'
         ).join('') +
-        '</tbody></table>' +
+        '</tbody></table>' : '') +
+
+      (billets.length ? '<h4 style="font-size:.8rem;color:var(--muted);margin-bottom:6px">BILLETS ACHETÉS (non-membres)</h4>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:.82rem;margin-bottom:16px">' +
+        '<thead><tr style="background:var(--off)">' +
+          '<th style="padding:8px;text-align:left">Acheteur</th><th>Méthode</th><th>Statut</th><th>Montant</th>' +
+        '</tr></thead><tbody>' +
+        billets.map(b =>
+          '<tr style="border-bottom:1px solid var(--border)">' +
+            '<td style="padding:7px 8px">' + escHtml(b.nom_complet||'') + '<br/><small style="color:var(--muted)">' + escHtml(b.email||'') + '</small></td>' +
+            '<td style="padding:7px 8px">' + (b.methode_paiement||'stripe') + '</td>' +
+            '<td style="padding:7px 8px">💳 Payé</td>' +
+            '<td style="padding:7px 8px">$' + (b.montant_paye||0).toFixed(2) + '</td>' +
+          '</tr>'
+        ).join('') +
+        '</tbody></table>' : '') +
+
       '<div style="margin-top:14px;text-align:right">' +
         '<button class="btn btn-outline btn-sm" onclick="printSection(\'Rapport — ' + act.titre + '\')">🖨️ Imprimer</button>' +
       '</div>' +

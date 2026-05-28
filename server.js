@@ -104,6 +104,16 @@ app.post('/api/stripe/webhook', express.raw({ type: '*/*' }), async (req, res) =
           db.prepare('UPDATE account_info SET solde = solde + ?, date_maj = CURRENT_TIMESTAMP WHERE id = 1').run(montant);
         }
       }
+      // Inscrire le membre dans activity_registrations s'il a un compte
+      const membre = email ? db.prepare('SELECT id FROM users WHERE email = ? AND actif = 1').get(email) : null;
+      if (membre && actId) {
+        const existing = db.prepare('SELECT id FROM activity_registrations WHERE activity_id=? AND user_id=?').get(actId, membre.id);
+        if (existing) {
+          db.prepare("UPDATE activity_registrations SET statut='inscrit' WHERE id=?").run(existing.id);
+        } else {
+          db.prepare("INSERT INTO activity_registrations (activity_id, user_id, statut) VALUES (?,?,'inscrit')").run(actId, membre.id);
+        }
+      }
       console.log(`✅ Stripe billets activés : ${email} — ${tickets.length} billet(s) — $${montant}`);
       return;
     }
@@ -3008,19 +3018,38 @@ app.get('/api/activities/:id/tickets/report', authMiddleware, requireRole('admin
 
 const REPORT_ROLES = ['admin','tresoriere','secretaire','delegue'];
 
-// Rapport activité : inscrits, payés, non payés, revenus
+// Rapport activité : inscrits membres + acheteurs de billets externes
 app.get('/api/reports/activity/:id', authMiddleware, requireRole(...REPORT_ROLES), (req, res) => {
   const act = db.prepare('SELECT * FROM activities WHERE id = ?').get(req.params.id);
   if (!act) return res.status(404).json({ error: 'Activité introuvable' });
 
+  // Membres inscrits
   const inscrits = db.prepare(`
     SELECT ar.*, u.prenom, u.nom, u.email, u.plan
     FROM activity_registrations ar JOIN users u ON u.id = ar.user_id
     WHERE ar.activity_id = ? ORDER BY u.nom
   `).all(req.params.id);
 
-  const totalRevenu = inscrits.filter(r => r.paye).reduce((s, r) => s + (r.montant_paye||0), 0);
-  res.json({ activite: act, inscrits, totalRevenu, nbPayes: inscrits.filter(r=>r.paye).length, nbNonPayes: inscrits.filter(r=>!r.paye).length });
+  // Acheteurs de billets externes (non-membres ou membres via Stripe)
+  const billets = db.prepare(`
+    SELECT acheteur_nom AS nom_complet, acheteur_email AS email, prix AS montant_paye,
+      payment_status, statut, methode_paiement, order_token
+    FROM tickets WHERE activity_id = ? AND payment_status = 'paid'
+    ORDER BY id
+  `).all(req.params.id);
+
+  const revenuMembres = inscrits.filter(r => r.paye).reduce((s, r) => s + (r.montant_paye||0), 0);
+  const revenuBillets = billets.reduce((s, b) => s + (b.montant_paye||0), 0);
+  const totalRevenu = revenuMembres + revenuBillets;
+
+  res.json({
+    activite: act,
+    inscrits,
+    billets,
+    totalRevenu,
+    nbPayes: inscrits.filter(r=>r.paye).length + billets.length,
+    nbNonPayes: inscrits.filter(r=>!r.paye).length
+  });
 });
 
 // Rapport global activités (toutes ou par période)

@@ -168,7 +168,10 @@
       document.getElementById('stepInfo').style.display = 'none';
       document.getElementById('stepPay').style.display = 'none';
       document.getElementById('actTitle').textContent = 'Paiement confirmé !';
-      document.getElementById('actMeta').innerHTML = '✅ Votre paiement par carte a été accepté. Vos codes QR vous seront envoyés par courriel dans quelques instants.';
+      document.getElementById('actMeta').innerHTML =
+        '✅ Votre paiement par carte a été accepté.<br/><br/>' +
+        '📧 <strong>Vérifiez votre courriel</strong> — votre code QR d\'entrée vous sera envoyé dans quelques instants.<br/><br/>' +
+        '⚠️ <strong>Important : conservez votre code QR.</strong> Vous devrez le présenter à l\'entrée de l\'activité pour accéder à l\'événement. Sans ce code, l\'accès ne pourra pas être confirmé.';
       return;
     }
 
