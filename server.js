@@ -3303,6 +3303,75 @@ app.post('/api/activities/:id/buy', async (req, res) => {
   res.json({ order_token: orderToken, interac: { email: interacEmail, montant: montantTotal, reference: orderRef } });
 });
 
+// Public: activer les billets après retour Stripe (mécanisme de secours si webhook absent)
+app.post('/api/orders/:orderToken/activate', async (req, res) => {
+  const { orderToken } = req.params;
+  if (!orderToken || orderToken.length < 10) return res.status(400).json({ error: 'Token invalide' });
+
+  const tickets = db.prepare('SELECT * FROM tickets WHERE order_token = ?').all(orderToken);
+  if (!tickets.length) return res.status(404).json({ error: 'Commande introuvable' });
+
+  // Vérifier via Stripe que le paiement est bien effectué
+  const stripeKey = (process.env.STRIPE_SECRET_KEY || '').trim();
+  if (!stripeKey) return res.status(500).json({ error: 'Stripe non configuré' });
+
+  try {
+    const stripe = Stripe(stripeKey);
+    const sessions = await stripe.checkout.sessions.list({ limit: 10 });
+    const session = sessions.data.find(s => s.metadata?.order_token === orderToken);
+
+    if (!session || session.payment_status !== 'paid') {
+      return res.status(402).json({ error: 'Paiement non confirmé par Stripe' });
+    }
+
+    // Déjà activé ?
+    if (tickets[0].payment_status === 'paid') {
+      return res.json({ ok: true, email: tickets[0].acheteur_email, already: true });
+    }
+
+    // Activer les billets
+    db.prepare('UPDATE tickets SET statut="actif", payment_status="paid" WHERE order_token=?').run(orderToken);
+    const activatedTickets = db.prepare('SELECT * FROM tickets WHERE order_token=?').all(orderToken);
+    const act = db.prepare('SELECT * FROM activities WHERE id=?').get(activatedTickets[0]?.activity_id);
+    const prenom = activatedTickets[0]?.acheteur_nom?.split(' ')[0] || '';
+    const email = activatedTickets[0]?.acheteur_email || '';
+
+    // Envoyer QR par courriel
+    for (const t of activatedTickets) {
+      const ticketToken = (t.qr_data || '').replace('TICKET:', '');
+      try {
+        const qrUrl = `${process.env.SITE_URL || 'https://ahhamilton.ca'}/scan.html?t=${ticketToken}`;
+        const qrBuf = await QRCode.toBuffer(qrUrl, { type: 'png', width: 300, margin: 2, errorCorrectionLevel: 'H', color: { dark: '#1b5e20', light: '#ffffff' } });
+        mailer.sendBilletQR(t.acheteur_email, prenom, act, { ...t, nom: 'Entrée générale', token: ticketToken }, qrBuf.toString('base64')).catch(() => {});
+      } catch(e) { console.error('QR send error:', e.message); }
+    }
+
+    // Inscrire dans activity_registrations si c'est un membre
+    const membre = email ? db.prepare('SELECT id FROM users WHERE email = ? AND actif = 1').get(email) : null;
+    if (membre && act) {
+      const existing = db.prepare('SELECT id FROM activity_registrations WHERE activity_id=? AND user_id=?').get(act.id, membre.id);
+      if (!existing) db.prepare("INSERT INTO activity_registrations (activity_id, user_id, statut) VALUES (?,?,'inscrit')").run(act.id, membre.id);
+    }
+
+    // Enregistrer le revenu
+    const montant = activatedTickets.reduce((s, t) => s + (t.prix || 0), 0);
+    if (montant > 0 && act) {
+      const line = db.prepare('SELECT id FROM financial_lines WHERE activity_id=? LIMIT 1').get(act.id);
+      if (line) {
+        const adminId = db.prepare("SELECT id FROM users WHERE role='admin' AND (phantom IS NULL OR phantom=0) LIMIT 1").get()?.id || 1;
+        db.prepare("INSERT INTO transactions (financial_line_id, type, montant, description, methode, cree_par) VALUES (?, 'revenu', ?, ?, 'stripe', ?)")
+          .run(line.id, montant, `Billets Stripe — ${email}`, adminId);
+        db.prepare('UPDATE account_info SET solde = solde + ?, date_maj = CURRENT_TIMESTAMP WHERE id = 1').run(montant);
+      }
+    }
+
+    res.json({ ok: true, email, nb_billets: activatedTickets.length });
+  } catch(e) {
+    console.error('Activate order error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Admin: liste des commandes en attente (doit être avant /:orderToken)
 app.get('/api/orders/pending', authMiddleware, requireRole('admin', 'tresoriere', 'secretaire'), (req, res) => {
   const orders = db.prepare(`

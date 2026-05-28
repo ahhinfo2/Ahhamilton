@@ -160,7 +160,7 @@
   function fmt(n) { return '$' + (n || 0).toFixed(2); }
 
   async function init() {
-    // Cas succès Stripe
+    // Cas succès Stripe — activer la commande et envoyer QR
     if (successFlag && orderToken) {
       document.getElementById('loadWrap').style.display = 'none';
       document.getElementById('mainPage').style.display = 'block';
@@ -170,8 +170,22 @@
       document.getElementById('actTitle').textContent = 'Paiement confirmé !';
       document.getElementById('actMeta').innerHTML =
         '✅ Votre paiement par carte a été accepté.<br/><br/>' +
-        '📧 <strong>Vérifiez votre courriel</strong> — votre code QR d\'entrée vous sera envoyé dans quelques instants.<br/><br/>' +
-        '⚠️ <strong>Important : conservez votre code QR.</strong> Vous devrez le présenter à l\'entrée de l\'activité pour accéder à l\'événement. Sans ce code, l\'accès ne pourra pas être confirmé.';
+        '⏳ Activation de votre billet en cours...';
+
+      // Activer les billets et envoyer le QR (mécanisme de secours si webhook absent)
+      try {
+        const r = await fetch(`${API}/orders/${orderToken}/activate`, { method: 'POST' });
+        const d = await r.json();
+        document.getElementById('actMeta').innerHTML =
+          '✅ Votre paiement par carte a été accepté.<br/><br/>' +
+          '📧 <strong>Vérifiez votre courriel</strong> — votre code QR d\'entrée a été envoyé à <strong>' + (d.email || '') + '</strong>.<br/><br/>' +
+          '⚠️ <strong>Important : conservez votre code QR.</strong> Vous devrez le présenter à l\'entrée de l\'activité pour accéder à l\'événement. Sans ce code, l\'accès ne pourra pas être confirmé.';
+      } catch(e) {
+        document.getElementById('actMeta').innerHTML =
+          '✅ Votre paiement par carte a été accepté.<br/><br/>' +
+          '📧 <strong>Vérifiez votre courriel</strong> — votre code QR d\'entrée vous sera envoyé dans quelques instants.<br/><br/>' +
+          '⚠️ <strong>Important : conservez votre code QR.</strong>';
+      }
       return;
     }
 
