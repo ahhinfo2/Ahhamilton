@@ -1,6 +1,6 @@
-const CACHE = 'ahh-v9';
+const CACHE = 'ahh-v10';
 const STATIC = [
-  '/', '/index.html', '/style.css', '/script.js',
+  '/', '/index.html', '/style.css',
   '/actualites.html', '/talents.html', '/annonces.html', '/galerie.html',
   '/about.html', '/equipe.html', '/adhesion.html', '/carte.html',
   '/dashboard/app.html', '/dashboard/login.html',
@@ -8,6 +8,9 @@ const STATIC = [
   '/Public/logo.jpg',
   'https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap'
 ];
+
+// Fichiers jamais mis en cache (toujours réseau)
+const NO_CACHE = ['/sw.js', '/script.js'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
@@ -28,6 +31,8 @@ self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   // API calls: network-first, no cache
   if (url.pathname.startsWith('/api/')) return;
+  // Fichiers critiques: toujours réseau
+  if (NO_CACHE.includes(url.pathname)) return;
   // Everything else: cache-first, fall back to network
   e.respondWith(
     caches.match(e.request).then(cached => {

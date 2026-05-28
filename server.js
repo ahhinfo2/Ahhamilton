@@ -158,6 +158,17 @@ app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/dashboard', express.static(path.join(__dirname, 'dashboard')));
+
+// sw.js et script.js servis sans cache pour que les mises à jour soient immédiates
+app.get('/sw.js', (req, res) => {
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.sendFile(path.join(__dirname, 'sw.js'));
+});
+app.get('/script.js', (req, res) => {
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.sendFile(path.join(__dirname, 'script.js'));
+});
+
 app.use('/', express.static(path.join(__dirname)));
 
 // ── Multer : invoice photos ─────────────────────────────────────────────────
