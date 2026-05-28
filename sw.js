@@ -1,4 +1,4 @@
-const CACHE = 'ahh-v8';
+const CACHE = 'ahh-v9';
 const STATIC = [
   '/', '/index.html', '/style.css', '/script.js',
   '/actualites.html', '/talents.html', '/annonces.html', '/galerie.html',
