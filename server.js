@@ -2980,15 +2980,6 @@ app.delete('/api/videos/:id', authMiddleware, requireRole('admin','secretaire'),
   res.json({ message: 'Supprimé' });
 });
 
-// ══════════════════════════════════════════════════════════════════════════════
-// 404 HANDLER
-// ══════════════════════════════════════════════════════════════════════════════
-
-app.use((req, res) => {
-  if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Route introuvable' });
-  res.status(404).sendFile(path.join(__dirname, '404.html'));
-});
-
 // ══ TYPES DE BILLETS ══════════════════════════════════════════════════════════
 
 // Public: infos activité + types de billets (sans auth)
@@ -3425,6 +3416,15 @@ app.get('/api/members/:id/card', authMiddleware, (req, res) => {
   const u = db.prepare('SELECT id, prenom, nom, email, telephone, plan, role, date_inscription, photo_url, actif FROM users WHERE id=?').get(targetId);
   if (!u) return res.status(404).json({ error: 'Membre introuvable' });
   res.json(u);
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 404 HANDLER — doit être après toutes les routes
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.use((req, res) => {
+  if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Route introuvable' });
+  res.status(404).sendFile(path.join(__dirname, '404.html'));
 });
 
 // ── Fermeture propre de la DB à l'arrêt ────────────────────────────────────
