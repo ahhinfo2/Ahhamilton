@@ -808,6 +808,7 @@ function renderActivitiesTable(data) {
         ` : ''}
         ${memberBtn}
         <a href="${API}/activities/${a.id}/ical" download title="Ajouter au calendrier" class="btn btn-sm btn-ghost">📅</a>
+        <a href="${API}/activities/${a.id}/qr?format=png&size=1000" download="QR-${a.titre.replace(/[^a-z0-9]/gi,'-')}.png" title="Télécharger le QR code (PNG haute résolution)" class="btn btn-sm btn-ghost">📲</a>
       </td>
     </tr>`;
   }).join('');
