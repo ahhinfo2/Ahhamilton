@@ -1,7 +1,18 @@
-// Service worker minimal — PWA install seulement, pas d'interception
-const CACHE = 'ahh-v3';
+const CACHE = 'ahh-v5';
+const STATIC = [
+  '/', '/index.html', '/style.css', '/script.js',
+  '/actualites.html', '/talents.html', '/annonces.html', '/galerie.html',
+  '/about.html', '/equipe.html', '/adhesion.html', '/carte.html',
+  '/dashboard/app.html', '/dashboard/login.html',
+  '/dashboard/dashboard.css', '/dashboard/dashboard.js',
+  '/Public/logo.jpg',
+  'https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap'
+];
 
 self.addEventListener('install', e => {
+  e.waitUntil(
+    caches.open(CACHE).then(c => c.addAll(STATIC.map(u => new Request(u, { cache: 'reload' }))).catch(() => {}))
+  );
   self.skipWaiting();
 });
 
@@ -13,4 +24,21 @@ self.addEventListener('activate', e => {
   );
 });
 
-// Pas d'interception fetch — le site fonctionne normalement
+self.addEventListener('fetch', e => {
+  const url = new URL(e.request.url);
+  // API calls: network-first, no cache
+  if (url.pathname.startsWith('/api/')) return;
+  // Everything else: cache-first, fall back to network
+  e.respondWith(
+    caches.match(e.request).then(cached => {
+      if (cached) return cached;
+      return fetch(e.request).then(response => {
+        if (response && response.status === 200 && response.type !== 'opaque') {
+          const clone = response.clone();
+          caches.open(CACHE).then(c => c.put(e.request, clone));
+        }
+        return response;
+      }).catch(() => caches.match('/index.html'));
+    })
+  );
+});

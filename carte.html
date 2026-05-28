@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Carte de membre – AHH Hamilton</title>
+  <link rel="icon" type="image/jpeg" href="Public/logo.jpg"/>
+  <link rel="manifest" href="/manifest.json"/>
+  <meta name="theme-color" content="#1b5e20"/>
+  <link rel="stylesheet" href="style.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    body { background: #f0f4f0; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; padding:24px; box-sizing:border-box; }
+    .card-wrap { width:340px; }
+    .member-card {
+      background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 50%, #388e3c 100%);
+      border-radius: 20px;
+      padding: 28px 24px 24px;
+      color: #fff;
+      box-shadow: 0 12px 40px rgba(27,94,32,.35);
+      position: relative;
+      overflow: hidden;
+    }
+    .member-card::before {
+      content:'';
+      position:absolute; top:-40px; right:-40px;
+      width:160px; height:160px;
+      border-radius:50%;
+      background:rgba(255,255,255,.07);
+    }
+    .member-card::after {
+      content:'';
+      position:absolute; bottom:-60px; left:-30px;
+      width:200px; height:200px;
+      border-radius:50%;
+      background:rgba(255,255,255,.05);
+    }
+    .card-logo { display:flex; align-items:center; gap:10px; margin-bottom:22px; }
+    .card-logo img { width:38px; height:38px; border-radius:8px; }
+    .card-logo-text { font-size:.82rem; font-weight:700; line-height:1.2; opacity:.9; }
+    .card-avatar { width:72px; height:72px; border-radius:50%; border:3px solid rgba(255,255,255,.5); object-fit:cover; margin-bottom:12px; background:rgba(255,255,255,.15); display:flex; align-items:center; justify-content:center; font-size:2rem; }
+    .card-name { font-size:1.25rem; font-weight:700; margin-bottom:2px; }
+    .card-role { font-size:.78rem; opacity:.8; margin-bottom:14px; }
+    .card-plan { display:inline-block; background:rgba(255,255,255,.2); border:1px solid rgba(255,255,255,.3); border-radius:20px; padding:3px 12px; font-size:.72rem; font-weight:700; margin-bottom:20px; letter-spacing:.04em; }
+    .card-info { display:flex; gap:20px; margin-bottom:20px; font-size:.78rem; opacity:.85; }
+    .card-info div { display:flex; flex-direction:column; }
+    .card-info label { font-size:.66rem; opacity:.7; font-weight:600; text-transform:uppercase; letter-spacing:.05em; margin-bottom:2px; }
+    .card-qr { background:#fff; border-radius:12px; padding:10px; display:flex; align-items:center; justify-content:center; }
+    .card-qr img { width:110px; height:110px; }
+    .card-footer { text-align:center; margin-top:14px; font-size:.72rem; opacity:.65; }
+    .card-number { font-family:monospace; font-size:.75rem; opacity:.6; margin-top:8px; letter-spacing:.08em; }
+
+    .actions { display:flex; gap:10px; margin-top:20px; justify-content:center; flex-wrap:wrap; }
+    .not-found { text-align:center; padding:60px 24px; }
+    .not-found .nf-icon { font-size:3rem; margin-bottom:12px; }
+
+    @media print {
+      body { background:#fff; padding:0; }
+      .actions { display:none; }
+      .member-card { box-shadow:none; border:1px solid #ddd; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="card-wrap">
+  <div id="cardContainer">
+    <div style="text-align:center;padding:60px;color:#666">⏳ Chargement...</div>
+  </div>
+</div>
+
+<script>
+  const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:3001/api' : '/api';
+  const BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:3001' : '';
+
+  const ROLE_LABELS = { admin:'Administrateur·trice', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Accompagnateur', member:'Membre' };
+  const PLAN_LABELS = { gratuit:'Membre', bienfaiteur:'Bienfaiteur', partenaire:'Partenaire' };
+  const PLAN_COLORS = { gratuit:'rgba(255,255,255,.15)', bienfaiteur:'rgba(212,175,55,.4)', partenaire:'rgba(192,192,192,.4)' };
+
+  async function loadCard() {
+    const params = new URLSearchParams(window.location.search);
+    const token = localStorage.getItem('token');
+
+    // Determine member ID
+    let memberId = parseInt(params.get('id'));
+    let user = null;
+
+    // If no token, redirect to login
+    if (!token) {
+      window.location.href = '/dashboard/login.html?redirect=' + encodeURIComponent(window.location.href);
+      return;
+    }
+
+    // Get current user
+    try {
+      const res = await fetch(API_URL + '/me', { headers: { Authorization: 'Bearer ' + token } });
+      if (!res.ok) throw new Error('Session expirée');
+      user = await res.json();
+      if (!memberId) memberId = user.id;
+    } catch(e) {
+      showError('Session expirée. Veuillez vous reconnecter.');
+      return;
+    }
+
+    // Fetch member card data
+    try {
+      const res = await fetch(API_URL + '/members/' + memberId + '/card', { headers: { Authorization: 'Bearer ' + token } });
+      if (!res.ok) { showError('Carte introuvable ou accès refusé.'); return; }
+      const m = await res.json();
+      if (!m.actif) { showError('Ce compte n\'est pas actif.'); return; }
+      renderCard(m);
+    } catch(e) {
+      showError(e.message);
+    }
+  }
+
+  function renderCard(m) {
+    const since = m.date_inscription ? new Date(m.date_inscription).toLocaleDateString('fr-CA', { year:'numeric', month:'long' }) : '–';
+    const planLabel = PLAN_LABELS[m.plan] || m.plan;
+    const planColor = PLAN_COLORS[m.plan] || PLAN_COLORS.gratuit;
+    const memberId = String(m.id).padStart(5, '0');
+    const profileUrl = window.location.origin + '/membre.html?id=' + m.id;
+
+    document.title = m.prenom + ' ' + m.nom + ' – Carte AHH';
+
+    document.getElementById('cardContainer').innerHTML = `
+      <div class="member-card">
+        <div class="card-logo">
+          <img src="Public/logo.jpg" alt="AHH"/>
+          <div class="card-logo-text">Association Haïtienne<br/>de Hamilton</div>
+        </div>
+
+        <div style="display:flex;gap:16px;align-items:flex-start">
+          <div>
+            ${m.photo_url
+              ? '<img class="card-avatar" src="' + BASE_URL + m.photo_url + '" alt="Photo"/>'
+              : '<div class="card-avatar">👤</div>'}
+          </div>
+          <div style="flex:1;min-width:0">
+            <div class="card-name">${escHtml(m.prenom)} ${escHtml(m.nom)}</div>
+            <div class="card-role">${ROLE_LABELS[m.role] || m.role}</div>
+            <div class="card-plan" style="background:${planColor}">${planLabel.toUpperCase()}</div>
+          </div>
+        </div>
+
+        <div class="card-info">
+          <div><label>Membre depuis</label><span>${since}</span></div>
+          <div><label>No. membre</label><span>#${memberId}</span></div>
+          ${m.telephone ? '<div><label>Téléphone</label><span>' + escHtml(m.telephone) + '</span></div>' : ''}
+        </div>
+
+        <div class="card-qr">
+          <img id="qrImg" src="" alt="QR Code"/>
+        </div>
+        <div class="card-footer">Scannez pour voir le profil public</div>
+        <div class="card-number">AHH-${memberId}</div>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimer</button>
+        <button class="btn btn-outline" onclick="downloadCard()">💾 Télécharger</button>
+        <a href="dashboard/app.html" class="btn btn-ghost">← Tableau de bord</a>
+      </div>`;
+
+    // Generate QR code
+    loadQR(profileUrl);
+  }
+
+  async function loadQR(url) {
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(API_URL + '/qr?data=' + encodeURIComponent(url), { headers: { Authorization: 'Bearer ' + token } });
+      if (res.ok) {
+        const { qr } = await res.json();
+        const img = document.getElementById('qrImg');
+        if (img) img.src = qr;
+      }
+    } catch {}
+  }
+
+  function downloadCard() {
+    window.print();
+  }
+
+  function showError(msg) {
+    document.getElementById('cardContainer').innerHTML =
+      '<div class="not-found"><div class="nf-icon">❌</div><h2>Erreur</h2><p>' + msg + '</p>' +
+      '<a href="dashboard/app.html" class="btn btn-primary" style="margin-top:16px">Tableau de bord</a></div>';
+  }
+
+  function escHtml(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  loadCard();
+</script>
+</body>
+</html>

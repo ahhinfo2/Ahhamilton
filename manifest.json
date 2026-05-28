@@ -24,17 +24,9 @@
     }
   ],
   "shortcuts": [
-    {
-      "name": "Mon espace",
-      "short_name": "Dashboard",
-      "url": "/dashboard/app.html",
-      "icons": [{ "src": "/Public/logo.jpg", "sizes": "192x192" }]
-    },
-    {
-      "name": "Activités",
-      "short_name": "Activités",
-      "url": "/activites.html",
-      "icons": [{ "src": "/Public/logo.jpg", "sizes": "192x192" }]
-    }
+    { "name": "Mon espace",  "url": "/dashboard/app.html", "icons": [{ "src": "/Public/logo.jpg", "sizes": "192x192" }] },
+    { "name": "Activités",   "url": "/actualites.html",    "icons": [{ "src": "/Public/logo.jpg", "sizes": "192x192" }] },
+    { "name": "Forum",       "url": "/dashboard/app.html#forum",    "icons": [{ "src": "/Public/logo.jpg", "sizes": "192x192" }] },
+    { "name": "Messages",    "url": "/dashboard/app.html#messages", "icons": [{ "src": "/Public/logo.jpg", "sizes": "192x192" }] }
   ]
 }

@@ -3257,6 +3257,176 @@ function checkRenewalReminders() {
   console.log(`[RENEWAL] Prochain rappel planifié à ${next9am.toLocaleTimeString('fr-CA')}`);
 })();
 
+// QR code générique (utilisé par carte.html et autres pages)
+app.get('/api/qr', authMiddleware, async (req, res) => {
+  const { data } = req.query;
+  if (!data) return res.status(400).json({ error: 'data requis' });
+  const qr = await QRCode.toDataURL(data, { width: 200, margin: 1 });
+  res.json({ qr });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FORUM
+// ══════════════════════════════════════════════════════════════════════════════
+
+const FORUM_CATEGORIES = ['general','entraide','emploi','logement','culture','annonces'];
+
+app.get('/api/forum/topics', authMiddleware, (req, res) => {
+  const topics = db.prepare(`
+    SELECT ft.*, u.prenom, u.nom,
+      (SELECT COUNT(*) FROM forum_posts WHERE topic_id = ft.id) AS nb_posts,
+      (SELECT date_creation FROM forum_posts WHERE topic_id = ft.id ORDER BY date_creation DESC LIMIT 1) AS dernier_post
+    FROM forum_topics ft LEFT JOIN users u ON u.id = ft.auteur_id
+    ORDER BY ft.epingle DESC, ft.date_derniere_activite DESC
+  `).all();
+  res.json(topics);
+});
+
+app.post('/api/forum/topics', authMiddleware, (req, res) => {
+  const { titre, categorie, contenu } = req.body;
+  if (!titre?.trim() || !contenu?.trim()) return res.status(400).json({ error: 'Titre et contenu requis' });
+  const cat = FORUM_CATEGORIES.includes(categorie) ? categorie : 'general';
+  const topic = db.prepare(`INSERT INTO forum_topics (titre, categorie, auteur_id) VALUES (?,?,?)`).run(titre.trim(), cat, req.user.id);
+  db.prepare(`INSERT INTO forum_posts (topic_id, auteur_id, contenu) VALUES (?,?,?)`).run(topic.lastInsertRowid, req.user.id, contenu.trim());
+  res.json({ id: topic.lastInsertRowid });
+});
+
+app.get('/api/forum/topics/:id', authMiddleware, (req, res) => {
+  const topic = db.prepare(`SELECT ft.*, u.prenom, u.nom FROM forum_topics ft LEFT JOIN users u ON u.id = ft.auteur_id WHERE ft.id=?`).get(req.params.id);
+  if (!topic) return res.status(404).json({ error: 'Sujet introuvable' });
+  db.prepare(`UPDATE forum_topics SET nb_vues = nb_vues + 1 WHERE id=?`).run(req.params.id);
+  const posts = db.prepare(`SELECT fp.*, u.prenom, u.nom, u.photo_url FROM forum_posts fp LEFT JOIN users u ON u.id = fp.auteur_id WHERE fp.topic_id=? ORDER BY fp.date_creation ASC`).all(req.params.id);
+  res.json({ topic, posts });
+});
+
+app.post('/api/forum/topics/:id/posts', authMiddleware, (req, res) => {
+  const topic = db.prepare('SELECT * FROM forum_topics WHERE id=?').get(req.params.id);
+  if (!topic) return res.status(404).json({ error: 'Sujet introuvable' });
+  if (topic.ferme && !['admin','secretaire'].includes(req.user.role)) return res.status(403).json({ error: 'Sujet fermé' });
+  const { contenu } = req.body;
+  if (!contenu?.trim()) return res.status(400).json({ error: 'Contenu requis' });
+  const post = db.prepare(`INSERT INTO forum_posts (topic_id, auteur_id, contenu) VALUES (?,?,?)`).run(req.params.id, req.user.id, contenu.trim());
+  db.prepare(`UPDATE forum_topics SET date_derniere_activite=CURRENT_TIMESTAMP WHERE id=?`).run(req.params.id);
+  res.json({ id: post.lastInsertRowid });
+});
+
+app.delete('/api/forum/topics/:id', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  db.prepare('DELETE FROM forum_topics WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+app.delete('/api/forum/posts/:id', authMiddleware, (req, res) => {
+  const post = db.prepare('SELECT * FROM forum_posts WHERE id=?').get(req.params.id);
+  if (!post) return res.status(404).json({ error: 'Post introuvable' });
+  if (post.auteur_id !== req.user.id && !['admin','secretaire'].includes(req.user.role)) return res.status(403).json({ error: 'Accès refusé' });
+  db.prepare('DELETE FROM forum_posts WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+app.patch('/api/forum/topics/:id/pin', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  db.prepare(`UPDATE forum_topics SET epingle = CASE WHEN epingle=1 THEN 0 ELSE 1 END WHERE id=?`).run(req.params.id);
+  res.json({ ok: true });
+});
+
+app.patch('/api/forum/topics/:id/close', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  db.prepare(`UPDATE forum_topics SET ferme = CASE WHEN ferme=1 THEN 0 ELSE 1 END WHERE id=?`).run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// NEWSLETTER
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.post('/api/newsletter', authMiddleware, requireRole('admin','secretaire','tresoriere'), async (req, res) => {
+  const { sujet, corps, segment } = req.body;
+  if (!sujet?.trim() || !corps?.trim()) return res.status(400).json({ error: 'Sujet et corps requis' });
+
+  let query = `SELECT id, prenom, nom, email, plan FROM users WHERE actif=1`;
+  if (segment === 'bienfaiteur') query += ` AND plan='bienfaiteur'`;
+  else if (segment === 'partenaire') query += ` AND plan='partenaire'`;
+  else if (segment === 'payants') query += ` AND plan IN ('bienfaiteur','partenaire')`;
+  const membres = db.prepare(query).all();
+  if (!membres.length) return res.status(400).json({ error: 'Aucun destinataire dans ce segment' });
+
+  const { sendMail } = require('./mailer');
+  let ok = 0, errors = 0;
+  for (const m of membres) {
+    try {
+      await sendMail({
+        to: m.email,
+        subject: sujet,
+        html: `<div style="font-family:sans-serif;max-width:600px;margin:auto">
+          <p>Bonjour ${m.prenom},</p>
+          ${corps.replace(/\n/g,'<br/>')}
+          <hr style="margin:24px 0;border:none;border-top:1px solid #eee"/>
+          <p style="font-size:.8rem;color:#888">Association Haïtienne de Hamilton · <a href="https://ahhamilton.ca">ahhamilton.ca</a></p>
+        </div>`
+      });
+      ok++;
+    } catch { errors++; }
+  }
+
+  db.prepare(`INSERT INTO newsletter_sends (expediteur_id, sujet, corps, nb_destinataires, segment) VALUES (?,?,?,?,?)`)
+    .run(req.user.id, sujet, corps, ok, segment || 'tous');
+
+  res.json({ ok, errors, total: membres.length });
+});
+
+app.get('/api/newsletter/history', authMiddleware, requireRole('admin','secretaire','tresoriere'), (req, res) => {
+  const rows = db.prepare(`SELECT ns.*, u.prenom, u.nom FROM newsletter_sends ns LEFT JOIN users u ON u.id=ns.expediteur_id ORDER BY ns.date_envoi DESC LIMIT 50`).all();
+  res.json(rows);
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ICAL EXPORT
+// ══════════════════════════════════════════════════════════════════════════════
+
+function toIcalDate(str) {
+  if (!str) return '';
+  return str.replace(/[-:]/g,'').replace('T','T').split('.')[0] + 'Z';
+}
+
+app.get('/api/activities/:id/ical', (req, res) => {
+  const a = db.prepare('SELECT * FROM activities WHERE id=?').get(req.params.id);
+  if (!a) return res.status(404).send('Not found');
+  const dtStart = a.date_debut ? toIcalDate(new Date(a.date_debut).toISOString()) : toIcalDate(new Date().toISOString());
+  const dtEnd   = a.date_fin   ? toIcalDate(new Date(a.date_fin).toISOString())   : dtStart;
+  const ical = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//AHH Hamilton//FR',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'BEGIN:VEVENT',
+    `UID:activity-${a.id}@ahhamilton.ca`,
+    `DTSTAMP:${toIcalDate(new Date().toISOString())}`,
+    `DTSTART:${dtStart}`,
+    `DTEND:${dtEnd}`,
+    `SUMMARY:${(a.titre||'').replace(/,/g,'\\,')}`,
+    a.description ? `DESCRIPTION:${a.description.replace(/\n/g,'\\n').replace(/,/g,'\\,')}` : '',
+    a.lieu ? `LOCATION:${a.lieu.replace(/,/g,'\\,')}` : '',
+    'END:VEVENT',
+    'END:VCALENDAR'
+  ].filter(Boolean).join('\r\n');
+  res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="activite-${a.id}.ics"`);
+  res.send(ical);
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MEMBERSHIP CARD
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.get('/api/members/:id/card', authMiddleware, (req, res) => {
+  const targetId = parseInt(req.params.id);
+  if (req.user.id !== targetId && !['admin','secretaire','tresoriere','delegue'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Accès refusé' });
+  }
+  const u = db.prepare('SELECT id, prenom, nom, email, telephone, plan, role, date_inscription, photo_url, actif FROM users WHERE id=?').get(targetId);
+  if (!u) return res.status(404).json({ error: 'Membre introuvable' });
+  res.json(u);
+});
+
 // ── Fermeture propre de la DB à l'arrêt ────────────────────────────────────
 function gracefulShutdown(signal) {
   console.log(`\n[${signal}] Fermeture propre en cours...`);

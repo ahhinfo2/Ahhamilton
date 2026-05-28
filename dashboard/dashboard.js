@@ -179,6 +179,15 @@ function buildSidebar() {
       ]
     },
 
+    // ── Communauté ────────────────────────────────────────────────
+    {
+      label: 'Communauté',
+      items: [
+        { id:'forum',       icon:'◫', label:'Forum',        roles: ALL },
+        { id:'newsletter',  icon:'◉', label:'Infolettre',   roles:['admin','secretaire','tresoriere'] },
+      ]
+    },
+
     // ── Contenu ───────────────────────────────────────────────────
     {
       label: 'Contenu',
@@ -286,7 +295,8 @@ function setActiveNav(viewId) {
     talents_mgmt:'Nos talents', annonces_mgmt:'Petites annonces',
     mes_talents:'Mon talent', mes_annonces:'Mes annonces',
     inscriptions:'Inscriptions en attente', paiements:'Paiements membres',
-    recus:'Reçus fiscaux', mon_paiement:'Mon paiement', annuaire:'Courriel'
+    recus:'Reçus fiscaux', mon_paiement:'Mon paiement', annuaire:'Courriel',
+    forum:'Forum', newsletter:'Infolettre'
   };
   const raw = labels[viewId] || 'Dashboard';
   document.getElementById('topbarTitle').textContent = window.AHH_LANG ? AHH_LANG.get(raw) : raw;
@@ -411,7 +421,7 @@ async function showView(viewId) {
     notes, reports, letters, projects, alerts, profile,
     gallery_mgmt, annuaire, talents_mgmt, annonces_mgmt, mes_talents, mes_annonces,
     inscriptions, paiements, recus, mon_paiement, mes_billets, testimonials_mgmt, videos_mgmt,
-    scanner
+    scanner, forum, newsletter
   };
   const extViews = { 'pending-orders': pendingOrders };
   if (extViews[viewId]) {
@@ -798,6 +808,7 @@ function renderActivitiesTable(data) {
           ${can.admin() ? `<button class="btn btn-sm btn-ghost" onclick="deleteActivity(${a.id})" style="color:var(--red)" title="Supprimer définitivement">🗑</button>` : ''}
         ` : ''}
         ${memberBtn}
+        <a href="${API_URL}/activities/${a.id}/ical" download title="Ajouter au calendrier" class="btn btn-sm btn-ghost">📅</a>
       </td>
     </tr>`;
   }).join('');
@@ -3747,7 +3758,10 @@ async function profile() {
 
   setContent(`
     <div class="page-header"><div><h2>Mon profil</h2></div>
-      <div class="page-actions"><button class="btn btn-outline" onclick="openEditProfile(${JSON.stringify(u).replace(/"/g,'&quot;')})">✏️ Modifier</button></div></div>
+      <div class="page-actions">
+        <a href="../carte.html?id=${u.id}" target="_blank" class="btn btn-ghost">🪪 Carte</a>
+        <button class="btn btn-outline" onclick="openEditProfile(${JSON.stringify(u).replace(/"/g,'&quot;')})">✏️ Modifier</button>
+      </div></div>
     <div class="profile-card">
       <div class="profile-avatar-wrap">
         <div class="profile-avatar">${avatarInner}</div>
@@ -6259,5 +6273,202 @@ async function deleteActivityPhoto(photoId, actId, actTitre, btn) {
   } catch(e) {
     toast('Erreur', true);
     btn.disabled = false;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FORUM
+// ══════════════════════════════════════════════════════════════════════════════
+const FORUM_CATS = { general:'Général', entraide:'Entraide', emploi:'Emploi', logement:'Logement', culture:'Culture & Événements', annonces:'Annonces' };
+let _forumTopic = null;
+
+async function forum() {
+  if (_forumTopic) { await forumShowTopic(_forumTopic); return; }
+  const topics = await api('/forum/topics');
+  const canMod = can.adminOrSec();
+  setContent(`
+    <div class="table-card">
+      <div class="table-card-header" style="gap:12px;flex-wrap:wrap">
+        <h3>💬 Forum communautaire</h3>
+        <button class="btn btn-primary btn-sm" onclick="forumNewTopic()">+ Nouveau sujet</button>
+      </div>
+      <div style="padding:0 20px 16px">
+        ${topics.length ? topics.map(t => `
+          <div class="gm-row" style="cursor:pointer;align-items:flex-start;padding:14px 0" onclick="forumOpenTopic(${t.id})">
+            <div style="flex:1;min-width:0">
+              ${t.epingle ? '<span style="font-size:.7rem;color:var(--g2);font-weight:700;margin-right:6px">📌 ÉPINGLÉ</span>' : ''}
+              ${t.ferme ? '<span style="font-size:.7rem;color:var(--muted);margin-right:6px">🔒</span>' : ''}
+              <strong style="font-size:.97rem">${escHtml(t.titre)}</strong>
+              <div style="font-size:.78rem;color:var(--muted);margin-top:3px">
+                ${FORUM_CATS[t.categorie]||t.categorie} · Par ${escHtml(t.prenom||'')} ${escHtml(t.nom||'')} · ${fmt(t.date_creation)}
+              </div>
+            </div>
+            <div style="text-align:right;font-size:.8rem;color:var(--muted);flex-shrink:0;margin-left:12px">
+              <div>💬 ${t.nb_posts||0}</div>
+              <div>👁 ${t.nb_vues||0}</div>
+              ${canMod ? `<div style="margin-top:6px;display:flex;gap:4px;justify-content:flex-end">
+                <button class="gm-tb-btn" onclick="event.stopPropagation();forumPin(${t.id})" title="Épingler">${t.epingle?'📌':'📍'}</button>
+                <button class="gm-tb-btn" onclick="event.stopPropagation();forumClose(${t.id})" title="${t.ferme?'Ouvrir':'Fermer'}">${t.ferme?'🔓':'🔒'}</button>
+                <button class="gm-tb-btn" style="color:#d93025" onclick="event.stopPropagation();forumDeleteTopic(${t.id})" title="Supprimer">🗑</button>
+              </div>` : ''}
+            </div>
+          </div>`).join('<hr style="margin:0;border:none;border-top:1px solid var(--border)"/>') :
+          '<div class="empty-state" style="padding:40px"><div class="es-icon">💬</div><p>Aucun sujet pour l\'instant. Soyez le premier à démarrer une discussion !</p></div>'
+        }
+      </div>
+    </div>`);
+}
+
+function forumOpenTopic(id) { _forumTopic = id; forum(); }
+function forumBack() { _forumTopic = null; forum(); }
+
+async function forumShowTopic(id) {
+  const { topic, posts } = await api(`/forum/topics/${id}`);
+  const canMod = can.adminOrSec();
+  const isClosed = topic.ferme;
+  setContent(`
+    <div class="table-card">
+      <div class="table-card-header" style="gap:8px;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="forumBack()">← Forum</button>
+        <h3 style="margin:0;flex:1">${escHtml(topic.titre)}</h3>
+        <span style="font-size:.78rem;color:var(--muted);padding:4px 10px;background:var(--off);border-radius:20px">${FORUM_CATS[topic.categorie]||topic.categorie}</span>
+      </div>
+      <div style="padding:0 20px 20px">
+        ${posts.map((p,i) => `
+          <div style="display:flex;gap:12px;margin-top:${i===0?'0':'20px'}">
+            <div style="width:40px;height:40px;border-radius:50%;background:var(--g1);display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;overflow:hidden">
+              ${p.photo_url ? `<img src="${BASE_URL}${p.photo_url}" style="width:100%;height:100%;object-fit:cover"/>` : '👤'}
+            </div>
+            <div style="flex:1;background:var(--off);border-radius:10px;padding:12px 16px">
+              <div style="font-size:.8rem;color:var(--muted);margin-bottom:6px">
+                <strong style="color:var(--text)">${escHtml(p.prenom||'')} ${escHtml(p.nom||'')}</strong> · ${fmt(p.date_creation)}
+                ${(p.auteur_id===USER.id||canMod) ? `<button class="gm-tb-btn" style="color:#d93025;float:right" onclick="forumDeletePost(${p.id})">🗑</button>` : ''}
+              </div>
+              <div style="white-space:pre-wrap;font-size:.9rem;line-height:1.6">${escHtml(p.contenu)}</div>
+            </div>
+          </div>`).join('')}
+
+        ${!isClosed ? `
+          <div style="margin-top:24px">
+            <textarea id="forumReply" rows="4" placeholder="Votre réponse…"
+              style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:10px;font-size:.9rem;box-sizing:border-box;resize:vertical"></textarea>
+            <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="forumPostReply(${id})">Envoyer</button>
+          </div>` : '<p style="text-align:center;color:var(--muted);margin-top:24px">🔒 Ce sujet est fermé.</p>'}
+      </div>
+    </div>`);
+}
+
+async function forumPostReply(topicId) {
+  const contenu = document.getElementById('forumReply')?.value?.trim();
+  if (!contenu) return toast('Écrivez quelque chose !', true);
+  await api(`/forum/topics/${topicId}/posts`, { method:'POST', body: JSON.stringify({ contenu }) });
+  toast('Réponse envoyée');
+  forumOpenTopic(topicId);
+}
+
+async function forumDeletePost(id) {
+  if (!confirm('Supprimer ce message ?')) return;
+  await api(`/forum/posts/${id}`, { method:'DELETE' });
+  toast('Message supprimé');
+  forumShowTopic(_forumTopic);
+}
+
+async function forumDeleteTopic(id) {
+  if (!confirm('Supprimer ce sujet et toutes ses réponses ?')) return;
+  await api(`/forum/topics/${id}`, { method:'DELETE' });
+  toast('Sujet supprimé');
+  _forumTopic = null;
+  forum();
+}
+
+async function forumPin(id) {
+  await api(`/forum/topics/${id}/pin`, { method:'PATCH' });
+  forum();
+}
+
+async function forumClose(id) {
+  await api(`/forum/topics/${id}/close`, { method:'PATCH' });
+  if (_forumTopic === id) forumShowTopic(id); else forum();
+}
+
+function forumNewTopic() {
+  showModal(`
+    <h2 style="margin-bottom:16px">💬 Nouveau sujet</h2>
+    <label class="form-label">Catégorie</label>
+    <select id="ftCat" class="form-input" style="margin-bottom:12px">
+      ${Object.entries(FORUM_CATS).map(([v,l])=>`<option value="${v}">${l}</option>`).join('')}
+    </select>
+    <label class="form-label">Titre</label>
+    <input id="ftTitre" class="form-input" placeholder="Titre du sujet" style="margin-bottom:12px"/>
+    <label class="form-label">Message</label>
+    <textarea id="ftContenu" rows="6" class="form-input" placeholder="Décrivez votre sujet…" style="resize:vertical"></textarea>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button class="btn btn-primary" onclick="forumSubmitTopic()">Publier</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+    </div>`);
+}
+
+async function forumSubmitTopic() {
+  const titre = document.getElementById('ftTitre')?.value?.trim();
+  const contenu = document.getElementById('ftContenu')?.value?.trim();
+  const categorie = document.getElementById('ftCat')?.value;
+  if (!titre || !contenu) return toast('Titre et message requis', true);
+  const { id } = await api('/forum/topics', { method:'POST', body: JSON.stringify({ titre, contenu, categorie }) });
+  closeModal();
+  toast('Sujet publié !');
+  forumOpenTopic(id);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// NEWSLETTER
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function newsletter() {
+  const history = await api('/newsletter/history').catch(() => []);
+  setContent(`
+    <div class="table-card" style="max-width:760px">
+      <div class="table-card-header"><h3>📨 Infolettre — Envoi de masse</h3></div>
+      <div style="padding:20px">
+        <div style="margin-bottom:20px">
+          <label class="form-label">Segment de destinataires</label>
+          <select id="nlSegment" class="form-input" style="margin-bottom:14px">
+            <option value="tous">Tous les membres actifs</option>
+            <option value="payants">Membres payants (bienfaiteur + partenaire)</option>
+            <option value="bienfaiteur">Bienfaiteurs seulement</option>
+            <option value="partenaire">Partenaires seulement</option>
+          </select>
+          <label class="form-label">Sujet</label>
+          <input id="nlSujet" class="form-input" placeholder="Objet de l'email" style="margin-bottom:14px"/>
+          <label class="form-label">Corps du message</label>
+          <textarea id="nlCorps" rows="10" class="form-input" placeholder="Contenu de votre infolettre..." style="resize:vertical;margin-bottom:14px"></textarea>
+          <div style="display:flex;gap:10px;align-items:center">
+            <button class="btn btn-primary" onclick="sendNewsletter()">📨 Envoyer</button>
+            <span id="nlStatus" style="font-size:.85rem;color:var(--muted)"></span>
+          </div>
+        </div>
+        <hr style="margin:24px 0;border:none;border-top:1px solid var(--border)"/>
+        <h4 style="margin-bottom:12px;color:var(--muted);font-size:.85rem">HISTORIQUE</h4>
+        ${history.length ? '<table class="data-table"><thead><tr><th>Date</th><th>Sujet</th><th>Segment</th><th>Envoyés</th><th>Par</th></tr></thead><tbody>' +
+          history.map(h => '<tr><td>' + fmt(h.date_envoi) + '</td><td>' + escHtml(h.sujet) + '</td><td>' + (h.segment||'tous') + '</td><td>' + h.nb_destinataires + '</td><td>' + escHtml((h.prenom||'') + ' ' + (h.nom||'')) + '</td></tr>').join('') +
+          '</tbody></table>' : '<p style="color:var(--muted);text-align:center">Aucun envoi pour l\'instant</p>'}
+      </div>
+    </div>`);
+}
+
+async function sendNewsletter() {
+  const sujet = document.getElementById('nlSujet')?.value?.trim();
+  const corps = document.getElementById('nlCorps')?.value?.trim();
+  const segment = document.getElementById('nlSegment')?.value;
+  if (!sujet || !corps) return toast('Sujet et corps requis', true);
+  const status = document.getElementById('nlStatus');
+  if (status) status.textContent = 'Envoi en cours...';
+  try {
+    const r = await api('/newsletter', { method:'POST', body: JSON.stringify({ sujet, corps, segment }) });
+    toast(r.ok + ' email(s) envoyé(s)' + (r.errors ? ' (' + r.errors + ' erreur(s))' : ''));
+    if (status) status.textContent = '';
+    newsletter();
+  } catch(e) {
+    toast('Erreur : ' + e.message, true);
+    if (status) status.textContent = '';
   }
 }

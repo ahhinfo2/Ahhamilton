@@ -231,6 +231,38 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS activity_photos (
 try { db.exec('ALTER TABLE tax_receipts ADD COLUMN mode_emission TEXT DEFAULT \'manuel\''); } catch {}
 try { db.exec('ALTER TABLE tax_receipts ADD COLUMN stripe_payment_id TEXT'); } catch {}
 
+// Forum communautaire
+try { db.exec(`CREATE TABLE IF NOT EXISTS forum_topics (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  titre TEXT NOT NULL,
+  categorie TEXT DEFAULT 'general',
+  auteur_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  epingle INTEGER DEFAULT 0,
+  ferme INTEGER DEFAULT 0,
+  nb_vues INTEGER DEFAULT 0,
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+  date_derniere_activite TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+try { db.exec(`CREATE TABLE IF NOT EXISTS forum_posts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  topic_id INTEGER NOT NULL REFERENCES forum_topics(id) ON DELETE CASCADE,
+  auteur_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  contenu TEXT NOT NULL,
+  modifie INTEGER DEFAULT 0,
+  date_modification TEXT,
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+// Newsletter: track sends
+try { db.exec(`CREATE TABLE IF NOT EXISTS newsletter_sends (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  expediteur_id INTEGER REFERENCES users(id),
+  sujet TEXT NOT NULL,
+  corps TEXT NOT NULL,
+  nb_destinataires INTEGER DEFAULT 0,
+  segment TEXT DEFAULT 'tous',
+  date_envoi TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
 function init() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
