@@ -39,10 +39,10 @@ document.body.appendChild(backTop);
 // ══════════════════════════════════════════════════════════
 const waBtn = document.createElement('a');
 waBtn.id        = 'whatsappBtn';
-waBtn.href      = 'https://wa.me/19058188269?text=' + encodeURIComponent('Bonjour, je souhaite rejoindre le groupe WhatsApp de l\'Association Haïtienne de Hamilton. Pouvez-vous m\'envoyer le lien d\'invitation ? Merci !');
+waBtn.href      = 'https://wa.me/19055197967?text=' + encodeURIComponent('Bonjour, je souhaite faire une demande de location auprès de l\'Association Haïtienne de Hamilton. Pouvez-vous me contacter ? Merci !');
 waBtn.target    = '_blank';
 waBtn.rel       = 'noopener';
-waBtn.title     = 'Rejoindre notre groupe WhatsApp';
+waBtn.title     = 'Demande de location — WhatsApp';
 waBtn.innerHTML = `<svg viewBox="0 0 32 32" width="28" height="28" fill="currentColor">
   <path d="M16 2C8.28 2 2 8.28 2 16c0 2.46.65 4.8 1.8 6.82L2 30l7.36-1.77A13.93 13.93 0 0016 30c7.72 0 14-6.28 14-14S23.72 2 16 2zm0 25.5a11.44 11.44 0 01-5.82-1.59l-.42-.25-4.36 1.05 1.08-4.24-.28-.44A11.5 11.5 0 1116 27.5zm6.34-8.62c-.35-.17-2.06-1.01-2.38-1.13-.32-.12-.55-.17-.78.17-.23.35-.9 1.13-1.1 1.36-.2.23-.41.26-.76.09-.35-.17-1.48-.54-2.81-1.73-1.04-.92-1.74-2.06-1.94-2.41-.2-.35-.02-.54.15-.71.15-.15.35-.4.52-.6.17-.2.23-.35.35-.58.12-.23.06-.43-.03-.6-.09-.17-.78-1.88-1.07-2.58-.28-.68-.56-.59-.78-.6h-.66c-.23 0-.6.09-.91.43-.32.35-1.2 1.17-1.2 2.86s1.23 3.32 1.4 3.55c.17.23 2.42 3.7 5.87 5.19.82.35 1.46.56 1.96.72.82.26 1.57.22 2.16.13.66-.1 2.06-.84 2.35-1.66.29-.81.29-1.51.2-1.66-.08-.15-.31-.24-.66-.41z"/>
 </svg>`;
