@@ -263,6 +263,7 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS newsletter_sends (
   date_envoi TEXT DEFAULT CURRENT_TIMESTAMP
 )`); } catch {}
 try { db.exec(`ALTER TABLE newsletter_sends ADD COLUMN archive INTEGER DEFAULT 0`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN phantom INTEGER DEFAULT 0`); } catch {}
 
 function init() {
   db.exec(`

