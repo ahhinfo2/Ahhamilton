@@ -184,7 +184,6 @@ function buildSidebar() {
       label: 'Communauté',
       items: [
         { id:'forum',       icon:'◫', label:'Forum',        roles: ALL },
-        { id:'newsletter',  icon:'◉', label:'Infolettre',   roles:['admin','secretaire','tresoriere'] },
       ]
     },
 
@@ -6300,7 +6299,7 @@ async function forum() {
               ${t.ferme ? '<span style="font-size:.7rem;color:var(--muted);margin-right:6px">🔒</span>' : ''}
               <strong style="font-size:.97rem">${escHtml(t.titre)}</strong>
               <div style="font-size:.78rem;color:var(--muted);margin-top:3px">
-                ${FORUM_CATS[t.categorie]||t.categorie} · Par ${escHtml(t.prenom||'')} ${escHtml(t.nom||'')} · ${fmt(t.date_creation)}
+                ${FORUM_CATS[t.categorie]||t.categorie} · Par ${escHtml(t.prenom||'')} · ${fmt(t.date_creation)}
               </div>
             </div>
             <div style="text-align:right;font-size:.8rem;color:var(--muted);flex-shrink:0;margin-left:12px">
@@ -6341,7 +6340,7 @@ async function forumShowTopic(id) {
             </div>
             <div style="flex:1;background:var(--off);border-radius:10px;padding:12px 16px">
               <div style="font-size:.8rem;color:var(--muted);margin-bottom:6px">
-                <strong style="color:var(--text)">${escHtml(p.prenom||'')} ${escHtml(p.nom||'')}</strong> · ${fmt(p.date_creation)}
+                <strong style="color:var(--text)">${escHtml(p.prenom||'')}</strong> · ${fmt(p.date_creation)}
                 ${(p.auteur_id===USER.id||canMod) ? `<button class="gm-tb-btn" style="color:#d93025;float:right" onclick="forumDeletePost(${p.id})">🗑</button>` : ''}
               </div>
               <div style="white-space:pre-wrap;font-size:.9rem;line-height:1.6">${escHtml(p.contenu)}</div>
