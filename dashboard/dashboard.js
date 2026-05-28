@@ -6392,20 +6392,20 @@ async function forumClose(id) {
 }
 
 function forumNewTopic() {
-  showModal(`
-    <h2 style="margin-bottom:16px">💬 Nouveau sujet</h2>
-    <label class="form-label">Catégorie</label>
-    <select id="ftCat" class="form-input" style="margin-bottom:12px">
-      ${Object.entries(FORUM_CATS).map(([v,l])=>`<option value="${v}">${l}</option>`).join('')}
-    </select>
-    <label class="form-label">Titre</label>
-    <input id="ftTitre" class="form-input" placeholder="Titre du sujet" style="margin-bottom:12px"/>
-    <label class="form-label">Message</label>
-    <textarea id="ftContenu" rows="6" class="form-input" placeholder="Décrivez votre sujet…" style="resize:vertical"></textarea>
-    <div style="display:flex;gap:10px;margin-top:16px">
-      <button class="btn btn-primary" onclick="forumSubmitTopic()">Publier</button>
-      <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
-    </div>`);
+  openModal('💬 Nouveau sujet',
+    '<label class="form-label">Catégorie</label>' +
+    '<select id="ftCat" class="form-input" style="margin-bottom:12px">' +
+      Object.entries(FORUM_CATS).map(([v,l]) => `<option value="${v}">${l}</option>`).join('') +
+    '</select>' +
+    '<label class="form-label">Titre</label>' +
+    '<input id="ftTitre" class="form-input" placeholder="Titre du sujet" style="margin-bottom:12px"/>' +
+    '<label class="form-label">Message</label>' +
+    '<textarea id="ftContenu" rows="6" class="form-input" placeholder="Décrivez votre sujet..." style="resize:vertical;margin-bottom:16px"></textarea>' +
+    '<div style="display:flex;gap:10px">' +
+      '<button class="btn btn-primary" onclick="forumSubmitTopic()">Publier</button>' +
+      '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button>' +
+    '</div>'
+  );
 }
 
 async function forumSubmitTopic() {
@@ -6461,14 +6461,25 @@ async function sendNewsletter() {
   const segment = document.getElementById('nlSegment')?.value;
   if (!sujet || !corps) return toast('Sujet et corps requis', true);
   const status = document.getElementById('nlStatus');
-  if (status) status.textContent = 'Envoi en cours...';
+  if (status) status.textContent = 'Envoi en cours... (peut prendre jusqu\'à 2 min)';
   try {
-    const r = await api('/newsletter', { method:'POST', body: JSON.stringify({ sujet, corps, segment }) });
+    // Timeout étendu à 120s pour l'envoi de masse
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 120000);
+    const res = await fetch(API + '/newsletter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({ sujet, corps, segment }),
+      signal: controller.signal
+    });
+    clearTimeout(timer);
+    const r = await res.json();
+    if (!res.ok) throw new Error(r.error || `Erreur ${res.status}`);
     toast(r.ok + ' email(s) envoyé(s)' + (r.errors ? ' (' + r.errors + ' erreur(s))' : ''));
     if (status) status.textContent = '';
     newsletter();
   } catch(e) {
-    toast('Erreur : ' + e.message, true);
+    toast('Erreur : ' + (e.name === 'AbortError' ? 'Délai dépassé (trop de membres ?)' : e.message), true);
     if (status) status.textContent = '';
   }
 }
