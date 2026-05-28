@@ -807,7 +807,7 @@ function renderActivitiesTable(data) {
           ${can.admin() ? `<button class="btn btn-sm btn-ghost" onclick="deleteActivity(${a.id})" style="color:var(--red)" title="Supprimer définitivement">🗑</button>` : ''}
         ` : ''}
         ${memberBtn}
-        <a href="${API_URL}/activities/${a.id}/ical" download title="Ajouter au calendrier" class="btn btn-sm btn-ghost">📅</a>
+        <a href="${API}/activities/${a.id}/ical" download title="Ajouter au calendrier" class="btn btn-sm btn-ghost">📅</a>
       </td>
     </tr>`;
   }).join('');
