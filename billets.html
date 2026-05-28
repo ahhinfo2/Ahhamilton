@@ -278,7 +278,7 @@
   async function submitOrder() {
     const items = Object.entries(quantities)
       .filter(([, qty]) => qty > 0)
-      .map(([ticket_type_id, quantity]) => ({ ticket_type_id: parseInt(ticket_type_id), quantity }));
+      .map(([ticket_type_id, quantity]) => ({ ticket_type_id: isNaN(parseInt(ticket_type_id)) ? ticket_type_id : parseInt(ticket_type_id), quantity }));
 
     if (!items.length) { showMsg('Sélectionnez au moins un billet.', 'err'); return; }
 
