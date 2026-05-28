@@ -126,6 +126,31 @@ function _makeClient(emailAddr, password) {
   });
 }
 
+async function markAsRead(emailAddr, password, uid) {
+  if (!IMAP_HOST || !emailAddr || !password) return;
+
+  const client = _makeClient(emailAddr, password);
+  try {
+    await client.connect();
+    const lock = await client.getMailboxLock('INBOX');
+    try {
+      await client.messageFlagsAdd(`${uid}`, ['\\Seen'], { uid: true });
+      // Update cache in-place so the list reflects the change without a full refetch
+      const hit = _cache.get(emailAddr);
+      if (hit) {
+        const m = hit.emails.find(x => x.uid === uid);
+        if (m) m.seen = true;
+      }
+    } finally {
+      lock.release();
+    }
+    await client.logout();
+  } catch (e) {
+    console.error('[IMAP] markAsRead error:', e.message);
+    try { await client.logout(); } catch {}
+  }
+}
+
 async function deleteEmail(emailAddr, password, uid) {
   if (!IMAP_HOST || !emailAddr || !password) throw new Error('Config IMAP manquante');
 
@@ -153,4 +178,4 @@ function invalidateCache(emailAddr) {
   _cache.delete(emailAddr);
 }
 
-module.exports = { fetchEmails, fetchEmailBody, deleteEmail, invalidateCache };
+module.exports = { fetchEmails, fetchEmailBody, markAsRead, deleteEmail, invalidateCache };

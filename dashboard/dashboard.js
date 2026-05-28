@@ -2734,7 +2734,7 @@ async function gmLoadExternal() {
       const date = (e.date||'').substring(0,16).replace('T',' ');
       const bold = e.seen ? '' : 'font-weight:700';
       const safeE = JSON.stringify({uid:e.uid,date:e.date,from:e.from,fromName:e.fromName,subject:e.subject,seen:e.seen}).replace(/"/g,'&quot;');
-      return `<div class="gm-row" style="${bold};cursor:pointer" onclick="gmShowExternal(${safeE})">
+      return `<div class="gm-row" data-extuid="${e.uid}" style="${bold};cursor:pointer" onclick="gmShowExternal(${safeE})">
         <div class="gm-row-from">${escHtml(e.fromName||e.from)}</div>
         <div class="gm-row-subj">${escHtml(e.subject)}</div>
         <div class="gm-row-date" style="display:flex;align-items:center;gap:8px">
@@ -2754,6 +2754,13 @@ let _extCurrent = null; // { e, body } for the open external email
 
 async function gmShowExternal(e) {
   _extCurrent = { e, body: '' };
+  // Mark as read immediately in the DOM and fire API call in background
+  if (!e.seen) {
+    const row = document.querySelector(`.gm-row[data-extuid="${e.uid}"]`);
+    if (row) row.style.fontWeight = '';
+    e.seen = true;
+    api(`/email/inbox/${e.uid}/read`, { method: 'PUT' }).catch(() => {});
+  }
   const el = document.getElementById('gmMain');
   if (!el) return;
   const date = (e.date||'').substring(0,16).replace('T',' ');
