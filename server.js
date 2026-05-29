@@ -21,7 +21,7 @@ const Stripe   = require('stripe');
 
 // Créer les dossiers uploads au démarrage
 ['uploads','uploads/gallery','uploads/profiles','uploads/invoices',
- 'uploads/payments','uploads/talents','uploads/annonces','uploads/attachments','uploads/activities']
+ 'uploads/payments','uploads/talents','uploads/annonces','uploads/attachments','uploads/activities','uploads/qr']
   .forEach(d => { const p = path.join(__dirname, d); if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true }); });
 
 const db = require('./db/database');
@@ -3327,13 +3327,18 @@ app.post('/api/orders/:orderToken/activate', async (req, res) => {
     db.prepare("UPDATE tickets SET statut='actif', payment_status='paid' WHERE order_token=?").run(orderToken);
     const activated = db.prepare('SELECT * FROM tickets WHERE order_token=?').all(orderToken);
 
-    // Envoyer QR par courriel
+    // Envoyer QR par courriel (sauvegarde sur disque → URL publique pour éviter le blocage Gmail)
+    const siteBase = process.env.SITE_URL || 'https://ahhamilton.ca';
     for (const t of activated) {
       const ticketToken = (t.qr_data || '').replace('TICKET:', '');
       try {
-        const qrUrl = `${process.env.SITE_URL || 'https://ahhamilton.ca'}/scan.html?t=${ticketToken}`;
-        const qrBuf = await QRCode.toBuffer(qrUrl, { type: 'png', width: 400, margin: 2, errorCorrectionLevel: 'H', color: { dark: '#1b5e20', light: '#ffffff' } });
-        mailer.sendBilletQR(t.acheteur_email, prenom, act, { ...t, nom: t.ticket_type_id ? '' : 'Entrée générale', token: ticketToken }, qrBuf.toString('base64')).catch(e => console.error('QR mail error:', e.message));
+        const scanUrl = `${siteBase}/scan.html?t=${ticketToken}`;
+        const qrBuf = await QRCode.toBuffer(scanUrl, { type: 'png', width: 500, margin: 2, errorCorrectionLevel: 'H', color: { dark: '#1b5e20', light: '#ffffff' } });
+        const qrFile = path.join(__dirname, 'uploads', 'qr', `${ticketToken}.png`);
+        fs.writeFileSync(qrFile, qrBuf);
+        const qrPublicUrl = `${siteBase}/uploads/qr/${ticketToken}.png`;
+        const nomBillet = t.ticket_type_id ? (db.prepare('SELECT nom FROM activity_ticket_types WHERE id=?').get(t.ticket_type_id)?.nom || 'Entrée générale') : 'Entrée générale';
+        mailer.sendBilletQR(t.acheteur_email, prenom, act, { ...t, nom: nomBillet, token: ticketToken }, qrBuf.toString('base64'), qrPublicUrl).catch(e => console.error('QR mail error:', e.message));
       } catch(e) { console.error('QR gen error:', e.message); }
     }
 

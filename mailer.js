@@ -286,8 +286,12 @@ async function sendBilletInterac(email, prenom, activite, billets, orderRef, int
   });
 }
 
-async function sendBilletQR(email, prenom, activite, billet, qrBase64) {
+async function sendBilletQR(email, prenom, activite, billet, qrBase64, qrPublicUrl) {
   const dateAct = activite.date_debut ? new Date(activite.date_debut).toLocaleDateString('fr-CA', { dateStyle: 'long' }) : '';
+  const qrImgHtml = qrPublicUrl
+    ? `<img src="${qrPublicUrl}" alt="Code QR" style="width:220px;height:220px;border:6px solid #1b5e20;border-radius:12px"/>`
+    : `<img src="cid:qrcode@ahh" alt="Code QR" style="width:220px;height:220px;border:6px solid #1b5e20;border-radius:12px"/>`;
+
   await sendMail({
     to: email,
     subject: `🎫 Votre billet — ${activite.titre} — AHH`,
@@ -297,14 +301,14 @@ async function sendBilletQR(email, prenom, activite, billet, qrBase64) {
       ${dateAct ? `<p>📅 <strong>${dateAct}</strong>${activite.lieu ? ' — 📍 ' + activite.lieu : ''}</p>` : ''}
       ${billet.nom ? `<p>Type : <strong>${billet.nom}</strong></p>` : ''}
       <div style="text-align:center;margin:24px 0">
-        <img src="cid:qrcode@ahh" alt="Code QR" style="width:220px;height:220px;border:6px solid #1b5e20;border-radius:12px"/>
+        ${qrImgHtml}
         <p style="font-size:.78rem;color:#888;margin-top:8px">Présentez ce code QR à l'entrée</p>
       </div>
       <div style="background:#e8f5e9;border-radius:8px;padding:12px;text-align:center;font-size:.82rem;color:#1b5e20">
         ⚠️ Ce billet est <strong>personnel et non transférable</strong>. Chaque billet ne peut être scanné qu'une seule fois.
       </div>
     `),
-    attachments: [{
+    attachments: qrPublicUrl ? [] : [{
       filename: 'billet-qr.png',
       content: Buffer.from(qrBase64, 'base64'),
       cid: 'qrcode@ahh',
