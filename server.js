@@ -3389,6 +3389,7 @@ app.get('/api/orders/pending', authMiddleware, requireRole('admin', 'tresoriere'
 
 // Public: voir l'état d'une commande
 app.get('/api/orders/:orderToken', (req, res) => {
+  const siteBase = process.env.SITE_URL || 'https://ahhamilton.ca';
   const tickets = db.prepare(`
     SELECT t.*, att.nom AS type_nom, a.titre AS activite, a.date_debut, a.lieu
     FROM tickets t
@@ -3398,7 +3399,12 @@ app.get('/api/orders/:orderToken', (req, res) => {
     ORDER BY t.id
   `).all(req.params.orderToken);
   if (!tickets.length) return res.status(404).json({ error: 'Commande introuvable' });
-  res.json({ tickets, statut: tickets[0].payment_status });
+  const ticketsWithQR = tickets.map(t => {
+    const token = (t.qr_data || '').replace('TICKET:', '');
+    const qrPath = path.join(__dirname, 'uploads', 'qr', `${token}.png`);
+    return { ...t, qr_file_url: fs.existsSync(qrPath) ? `${siteBase}/uploads/qr/${token}.png` : null };
+  });
+  res.json({ tickets: ticketsWithQR, statut: tickets[0].payment_status });
 });
 
 // Admin: confirmer paiement Interac → activer billets + envoyer QR

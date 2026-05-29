@@ -172,19 +172,34 @@
         '✅ Votre paiement par carte a été accepté.<br/><br/>' +
         '⏳ Activation de votre billet en cours...';
 
-      // Activer les billets et envoyer le QR (mécanisme de secours si webhook absent)
+      // Activer les billets et afficher le QR directement sur la page
       try {
         const r = await fetch(`${API}/orders/${orderToken}/activate`, { method: 'POST' });
         const d = await r.json();
+        // Charger les billets pour afficher les QR
+        const bRes = await fetch(`${API}/orders/${orderToken}`);
+        const bData = await bRes.json();
+        const tickets = bData.tickets || [];
+        let qrHtml = '';
+        for (const t of tickets) {
+          if (t.qr_file_url) {
+            qrHtml += `<div style="text-align:center;margin:16px 0">
+              <img src="${t.qr_file_url}" style="width:220px;height:220px;border:6px solid #1b5e20;border-radius:12px" alt="QR Code"/>
+              <div style="font-size:.75rem;color:#888;margin-top:6px">Billet — ${t.type_nom || 'Entrée générale'}</div>
+            </div>`;
+          }
+        }
         document.getElementById('actMeta').innerHTML =
-          '✅ Votre paiement par carte a été accepté.<br/><br/>' +
-          '📧 <strong>Vérifiez votre courriel</strong> — votre code QR d\'entrée a été envoyé à <strong>' + (d.email || '') + '</strong>.<br/><br/>' +
-          '⚠️ <strong>Important : conservez votre code QR.</strong> Vous devrez le présenter à l\'entrée de l\'activité pour accéder à l\'événement. Sans ce code, l\'accès ne pourra pas être confirmé.';
+          '✅ <strong>Paiement confirmé !</strong><br/><br/>' +
+          (qrHtml || '') +
+          '<p style="font-size:.85rem">📧 Un courriel avec votre QR a également été envoyé à <strong>' + (d.email || '') + '</strong>.</p>' +
+          '<p style="font-size:.82rem;color:#c62828">⚠️ <strong>Conservez ce code QR</strong> — vous devrez le présenter à l\'entrée.</p>' +
+          '<button onclick="window.print()" style="margin-top:12px;padding:10px 20px;background:#1b5e20;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:.9rem">🖨️ Imprimer / Sauvegarder</button>';
       } catch(e) {
         document.getElementById('actMeta').innerHTML =
-          '✅ Votre paiement par carte a été accepté.<br/><br/>' +
-          '📧 <strong>Vérifiez votre courriel</strong> — votre code QR d\'entrée vous sera envoyé dans quelques instants.<br/><br/>' +
-          '⚠️ <strong>Important : conservez votre code QR.</strong>';
+          '✅ Votre paiement a été accepté.<br/><br/>' +
+          '📧 <strong>Vérifiez votre courriel</strong> pour votre code QR d\'entrée.<br/><br/>' +
+          '⚠️ <strong>Conservez votre code QR.</strong>';
       }
       return;
     }
