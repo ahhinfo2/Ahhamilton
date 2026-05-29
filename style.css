@@ -89,7 +89,7 @@ img   { display: block; max-width: 100%; }
 .navbar.scrolled .logo-img { border-color: var(--border); }
 .logo-text-group { display: flex; flex-direction: column; }
 .logo-text { font-weight: 700; font-size: .95rem; color: #fff; line-height: 1.1; transition: var(--tr); }
-.logo-sub  { font-size: .78rem; color: rgba(255,255,255,.85); font-weight: 600; letter-spacing: .03em; transition: var(--tr); }
+.logo-sub  { font-size: .78rem; color: rgba(255,255,255,.85); font-weight: 600; letter-spacing: .03em; transition: var(--tr); max-width: 160px; line-height: 1.3; }
 .navbar.scrolled .logo-text { color: var(--text); }
 .navbar.scrolled .logo-sub  { color: var(--muted); }
 
@@ -98,7 +98,7 @@ img   { display: block; max-width: 100%; }
 .nav-link {
   font-size: .97rem; font-weight: 600; color: #fff;
   padding: 8px 15px; border-radius: 8px; transition: var(--tr);
-  text-shadow: 0 1px 4px rgba(0,0,0,.3);
+  text-shadow: 0 1px 4px rgba(0,0,0,.3); white-space: nowrap;
 }
 .nav-link:hover { color: #fff; background: rgba(255,255,255,.18); }
 .navbar.scrolled .nav-link { color: #1b5e20; text-shadow: none; }
