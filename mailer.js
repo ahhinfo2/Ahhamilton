@@ -87,13 +87,13 @@ function wrap(titre, corps) {
 }
 
 // ── Fonction d'envoi principale ───────────────────────────────────────────
-async function sendMail({ to, subject, html, text, from, replyTo }) {
+async function sendMail({ to, subject, html, text, from, replyTo, attachments }) {
   const t = getTransporter();
   if (!t) {
     console.log(`📧 [DEV] Email non envoyé (SMTP non configuré)\n  À: ${to}\n  Sujet: ${subject}`);
     return false;
   }
-  await t.sendMail({ from: from || FROM, to, subject, html, text, replyTo });
+  await t.sendMail({ from: from || FROM, to, subject, html, text, replyTo, attachments });
   console.log(`✉️  Email envoyé → ${to} | ${subject}`);
 }
 
@@ -297,13 +297,19 @@ async function sendBilletQR(email, prenom, activite, billet, qrBase64) {
       ${dateAct ? `<p>📅 <strong>${dateAct}</strong>${activite.lieu ? ' — 📍 ' + activite.lieu : ''}</p>` : ''}
       ${billet.nom ? `<p>Type : <strong>${billet.nom}</strong></p>` : ''}
       <div style="text-align:center;margin:24px 0">
-        <img src="data:image/png;base64,${qrBase64}" alt="Code QR" style="width:200px;height:200px;border:6px solid #1b5e20;border-radius:12px"/>
+        <img src="cid:qrcode@ahh" alt="Code QR" style="width:220px;height:220px;border:6px solid #1b5e20;border-radius:12px"/>
         <p style="font-size:.78rem;color:#888;margin-top:8px">Présentez ce code QR à l'entrée</p>
       </div>
       <div style="background:#e8f5e9;border-radius:8px;padding:12px;text-align:center;font-size:.82rem;color:#1b5e20">
         ⚠️ Ce billet est <strong>personnel et non transférable</strong>. Chaque billet ne peut être scanné qu'une seule fois.
       </div>
-    `)
+    `),
+    attachments: [{
+      filename: 'billet-qr.png',
+      content: Buffer.from(qrBase64, 'base64'),
+      cid: 'qrcode@ahh',
+      contentType: 'image/png'
+    }]
   });
 }
 
