@@ -11,22 +11,22 @@
   "lang": "fr",
   "icons": [
     {
-      "src": "/Public/logo.jpg",
+      "src": "/Public/logo1.png",
       "sizes": "192x192",
       "type": "image/jpeg",
       "purpose": "any maskable"
     },
     {
-      "src": "/Public/logo.jpg",
+      "src": "/Public/logo1.png",
       "sizes": "512x512",
       "type": "image/jpeg",
       "purpose": "any maskable"
     }
   ],
   "shortcuts": [
-    { "name": "Mon espace",  "url": "/dashboard/app.html", "icons": [{ "src": "/Public/logo.jpg", "sizes": "192x192" }] },
-    { "name": "Activités",   "url": "/actualites.html",    "icons": [{ "src": "/Public/logo.jpg", "sizes": "192x192" }] },
-    { "name": "Forum",       "url": "/dashboard/app.html#forum",    "icons": [{ "src": "/Public/logo.jpg", "sizes": "192x192" }] },
-    { "name": "Messages",    "url": "/dashboard/app.html#messages", "icons": [{ "src": "/Public/logo.jpg", "sizes": "192x192" }] }
+    { "name": "Mon espace",  "url": "/dashboard/app.html", "icons": [{ "src": "/Public/logo1.png", "sizes": "192x192" }] },
+    { "name": "Activités",   "url": "/actualites.html",    "icons": [{ "src": "/Public/logo1.png", "sizes": "192x192" }] },
+    { "name": "Forum",       "url": "/dashboard/app.html#forum",    "icons": [{ "src": "/Public/logo1.png", "sizes": "192x192" }] },
+    { "name": "Messages",    "url": "/dashboard/app.html#messages", "icons": [{ "src": "/Public/logo1.png", "sizes": "192x192" }] }
   ]
 }

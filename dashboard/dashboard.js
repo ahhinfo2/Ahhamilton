@@ -391,7 +391,7 @@ async function pollBadges() {
 function showBrowserNotif(title, body) {
   if (!('Notification' in window)) return;
   if (Notification.permission === 'granted') {
-    new Notification(title, { body, icon: '/Public/logo.jpg', badge: '/Public/logo.jpg' });
+    new Notification(title, { body, icon: '/Public/logo1.png', badge: '/Public/logo1.png' });
   } else if (Notification.permission === 'default') {
     Notification.requestPermission();
   }
@@ -2263,7 +2263,7 @@ function previewLetter(id, nom, contenu) {
 function ahhPrintHeader() {
   return `
     <div style="display:flex;align-items:center;gap:20px;border-bottom:3px solid #1b5e20;padding-bottom:18px;margin-bottom:24px">
-      <img src="/Public/logo.jpg" alt="AHH" style="width:70px;height:70px;border-radius:8px;object-fit:cover;flex-shrink:0"/>
+      <img src="/Public/logo1.png" alt="AHH" style="width:70px;height:70px;border-radius:8px;object-fit:cover;flex-shrink:0"/>
       <div>
         <div style="font-size:1.3rem;font-weight:800;color:#1b5e20">Association Haïtienne de Hamilton</div>
         <div style="font-size:.82rem;color:#555;margin-top:2px">231 Fernwood Crescent, Hamilton, ON  L8T 3L7</div>

@@ -70,7 +70,7 @@ function wrap(titre, corps) {
 </style></head><body>
 <div class="wrap">
   <div class="hdr">
-    <img src="${siteUrl}/Public/logo.jpg" alt="AHH"/>
+    <img src="${siteUrl}/Public/logo1.png" alt="AHH"/>
     <h1>Association Haïtienne de Hamilton</h1>
   </div>
   <div class="body">
@@ -296,7 +296,7 @@ async function sendBilletQR(email, prenom, activite, billet, qrBase64, qrPublicU
     <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;border:2px solid #1b5e20;border-radius:16px;overflow:hidden">
       <!-- En-tête vert -->
       <div style="background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:20px;text-align:center">
-        <img src="${siteUrl}/Public/logo.jpg" width="60" height="60" alt="AHH" style="border-radius:10px;margin-bottom:8px;display:block;margin:0 auto 8px"/>
+        <img src="${siteUrl}/Public/logo1.png" width="60" height="60" alt="AHH" style="border-radius:10px;margin-bottom:8px;display:block;margin:0 auto 8px"/>
         <div style="color:#fff;font-size:1.1rem;font-weight:700">Association Haïtienne de Hamilton</div>
         <div style="color:rgba(255,255,255,.8);font-size:.8rem;margin-top:2px">Billet d'entrée</div>
       </div>

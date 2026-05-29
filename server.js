@@ -2078,7 +2078,7 @@ app.get('/api/receipts/:id/print', authMiddleware, (req, res) => {
 <div class="noprint"><button onclick="window.print()">🖨️ Imprimer / Sauvegarder en PDF</button></div>
 <div class="receipt">
   <div class="header">
-    <div class="logo-block"><img src="/Public/logo.jpg" alt="AHH"/></div>
+    <div class="logo-block"><img src="/Public/logo1.png" alt="AHH"/></div>
     <div>
       <div class="org-name">Association Haïtienne de Hamilton</div>
       <div class="org-sub">No. d'enregistrement : AHH-Hamilton-ON</div>

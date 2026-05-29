@@ -90,7 +90,7 @@
 
       <!-- Logo -->
       <a href="${pre}index.html" class="logo">
-        <img src="${pre}Public/logo.jpg" alt="AHH" class="logo-img"/>
+        <img src="${pre}Public/logo1.png" alt="AHH" class="logo-img"/>
         <div class="logo-text-group">
           <span class="logo-text">AHH</span>
           <span class="logo-sub">Association Haïtienne de Hamilton</span>
@@ -104,7 +104,7 @@
       <nav class="nav-links" id="navLinks">
         <!-- Header mobile -->
         <div class="nav-mobile-header">
-          <img src="${pre}Public/logo.jpg" alt="AHH" class="logo-img" style="width:32px;height:32px"/>
+          <img src="${pre}Public/logo1.png" alt="AHH" class="logo-img" style="width:32px;height:32px"/>
           <span style="color:#fff;font-weight:700;font-size:.9rem">AHH</span>
           <button class="nav-close" id="navClose">✕</button>
         </div>
@@ -174,7 +174,7 @@
     <div class="container footer-inner">
       <div class="footer-brand">
         <a href="${pre}index.html" class="logo footer-logo">
-          <img src="${pre}Public/logo.jpg" alt="AHH" class="logo-img"/>
+          <img src="${pre}Public/logo1.png" alt="AHH" class="logo-img"/>
           <span class="logo-text">AHH</span>
         </a>
         <p data-i18n="footer-desc">Association Haïtienne de Hamilton — Une communauté unie dans la culture et la solidarité.</p>

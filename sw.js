@@ -5,7 +5,7 @@ const STATIC = [
   '/about.html', '/equipe.html', '/adhesion.html', '/carte.html',
   '/dashboard/app.html', '/dashboard/login.html',
   '/dashboard/dashboard.css', '/dashboard/dashboard.js',
-  '/Public/logo.jpg',
+  '/Public/logo1.png',
   'https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap'
 ];
 
