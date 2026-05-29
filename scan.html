@@ -144,9 +144,24 @@
     .result-side{width:100%;flex:none;height:260px}
     .cam-side{flex:1}
   }
+
+  /* Bannière flottante résultat (mobile) */
+  #scanBanner{
+    display:none;position:fixed;top:60px;left:0;right:0;z-index:999;
+    padding:16px 20px;text-align:center;
+    font-size:1.1rem;font-weight:700;color:#fff;
+    box-shadow:0 4px 20px rgba(0,0,0,.4);
+    transition:opacity .3s;
+  }
+  #scanBanner.ok  {background:#2e7d32}
+  #scanBanner.dup {background:#6a1a75}
+  #scanBanner.err {background:#c62828}
+  #scanBanner.warn{background:#e65100}
 </style>
 </head>
 <body>
+
+<div id="scanBanner"></div>
 
 <div class="hdr">
   <div class="hdr-logo">
@@ -327,7 +342,19 @@ async function onQRDetected(rawText) {
   }
 }
 
+let _bannerTimer = null;
+function showBanner(cls, msg) {
+  const b = document.getElementById('scanBanner');
+  b.className = cls; b.textContent = msg; b.style.display = 'block'; b.style.opacity = '1';
+  clearTimeout(_bannerTimer);
+  _bannerTimer = setTimeout(() => { b.style.opacity = '0'; setTimeout(() => { b.style.display = 'none'; }, 300); }, 3000);
+}
+
 function showResult(cls, icon, status, nom, table, vendeur, activite, isdup) {
+  // Bannière flottante visible immédiatement (utile sur mobile)
+  const msgs = { ok: '✅ ' + (nom||'') + ' — BIENVENUE !', dup: '🔄 ' + (nom||'') + ' — DÉJÀ ENTRÉ', err: '❌ ' + status, warn: '⚠️ ' + status };
+  showBanner(cls, msgs[cls] || status);
+
   const box = document.getElementById('resultMain');
   box.className = 'result-main ' + cls;
   const achatInfo = vendeur
