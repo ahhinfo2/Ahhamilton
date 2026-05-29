@@ -1,4 +1,4 @@
-const CACHE = 'ahh-v15';
+const CACHE = 'ahh-v16';
 const STATIC = [
   '/', '/index.html', '/style.css',
   '/actualites.html', '/talents.html', '/annonces.html', '/galerie.html',
@@ -10,7 +10,7 @@ const STATIC = [
 ];
 
 // Fichiers jamais mis en cache (toujours réseau — mises à jour fréquentes)
-const NO_CACHE = ['/sw.js', '/script.js', '/scan.html', '/ticket.html', '/billets.html', '/activity-checkout.html'];
+const NO_CACHE = ['/sw.js', '/script.js', '/_nav.js', '/style.css', '/scan.html', '/ticket.html', '/billets.html', '/activity-checkout.html'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
