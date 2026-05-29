@@ -3315,10 +3315,11 @@ app.post('/api/orders/:orderToken/activate', async (req, res) => {
   const email  = tickets[0].acheteur_email || '';
   const prenom = (tickets[0].acheteur_nom || '').split(' ')[0];
   const act    = db.prepare('SELECT * FROM activities WHERE id=?').get(tickets[0].activity_id);
+  const forceResend = req.query.resend === '1';
 
-  // Déjà activé → renvoyer juste l'email sans re-envoyer le QR
-  if (tickets[0].payment_status === 'paid') {
-    return res.json({ ok: true, email, already: true });
+  // Déjà activé → renvoyer le QR seulement si ?resend=1
+  if (tickets[0].payment_status === 'paid' && !forceResend) {
+    return res.json({ ok: true, email, already: true, hint: 'Ajoutez ?resend=1 pour renvoyer le QR' });
   }
 
   try {
