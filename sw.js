@@ -1,4 +1,4 @@
-const CACHE = 'ahh-v13';
+const CACHE = 'ahh-v14';
 const STATIC = [
   '/', '/index.html', '/style.css',
   '/actualites.html', '/talents.html', '/annonces.html', '/galerie.html',
@@ -9,8 +9,8 @@ const STATIC = [
   'https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap'
 ];
 
-// Fichiers jamais mis en cache (toujours réseau)
-const NO_CACHE = ['/sw.js', '/script.js'];
+// Fichiers jamais mis en cache (toujours réseau — mises à jour fréquentes)
+const NO_CACHE = ['/sw.js', '/script.js', '/scan.html', '/ticket.html', '/billets.html', '/activity-checkout.html'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
