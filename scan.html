@@ -138,32 +138,48 @@
   .idle-icon{font-size:3rem;margin-bottom:12px}
   .idle p{font-size:.88rem}
 
-  /* ── MOBILE : tout en overlay sur la caméra ── */
+  /* ── MOBILE : caméra 55% + résultat 45%, tout visible sans scroller ── */
   @media(max-width:640px){
     /* Header ultra-compact */
-    .hdr{padding:6px 12px}
-    .hdr-logo img{width:28px;height:28px}
-    .hdr-title{font-size:.8rem}
-    .hdr-sub{display:none}
-    .hdr-user{font-size:.68rem}
-    .btn-logout{padding:3px 8px;font-size:.65rem}
+    .hdr{padding:5px 10px}
+    .hdr-logo img{width:26px;height:26px}
+    .hdr-title{font-size:.78rem}
+    .hdr-sub,.hdr-user{display:none}
+    .btn-logout{padding:3px 8px;font-size:.62rem;margin-top:0}
 
-    /* Caméra plein écran */
-    .main{display:block;height:calc(100vh - 46px);position:relative}
-    .cam-side{position:absolute;inset:0;z-index:1}
-    .cam-tip{display:none}
-
-    /* Filtre activité : overlay compact en bas */
-    .act-filter{
-      position:fixed;bottom:0;left:0;right:0;z-index:20;
-      padding:6px 10px;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);
-      border-top:1px solid #333;
+    /* Layout colonne, hauteur fixe, 0 scroll */
+    .main{
+      display:flex;flex-direction:column;
+      height:calc(100vh - 40px);overflow:hidden;
     }
-    .act-filter label{font-size:.68rem}
-    .act-filter select{font-size:.75rem;padding:4px 6px}
 
-    /* Panel résultat : caché sur mobile (remplacé par overlay) */
-    .result-side{display:none}
+    /* Caméra : 55% de l'espace */
+    .cam-side{flex:0 0 55%;min-height:0}
+    .cam-tip{display:none}
+    .act-filter{padding:4px 8px}
+    .act-filter label{font-size:.65rem}
+    .act-filter select{font-size:.72rem;padding:3px 6px}
+    .viewfinder{width:160px;height:160px}
+
+    /* Résultat : 45% restants, compact */
+    .result-side{
+      display:flex;flex-direction:column;
+      flex:0 0 45%;width:100%;min-height:0;
+      border-left:none;border-top:2px solid #333;
+    }
+    .result-header{padding:6px 12px;font-size:.65rem}
+    .result-main{padding:10px 14px}
+    .result-icon{font-size:2.4rem;margin-bottom:4px}
+    .result-status{font-size:.8rem;margin-bottom:8px}
+    .result-name{font-size:1.4rem;margin-bottom:4px}
+    .result-table{font-size:1.1rem;margin-bottom:6px}
+    .result-badge{font-size:.72rem;padding:4px 10px}
+    .result-activity{font-size:.68rem;margin-top:4px}
+    .idle-icon{font-size:1.8rem;margin-bottom:6px}
+    .idle p{font-size:.75rem}
+
+    /* Historique : caché sur mobile */
+    .history{display:none}
   }
 
   /* ── Overlay résultat plein écran (mobile + desktop) ── */
