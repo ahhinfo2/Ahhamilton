@@ -100,6 +100,17 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS activity_ticket_types (
 try { db.exec('ALTER TABLE tickets ADD COLUMN ticket_type_id INTEGER REFERENCES activity_ticket_types(id)'); } catch {}
 try { db.exec('ALTER TABLE tickets ADD COLUMN order_token TEXT'); } catch {}
 try { db.exec("ALTER TABLE tickets ADD COLUMN payment_status TEXT DEFAULT 'paid'"); } catch {}
+// Code-barres unique Code128 pour chaque ticket
+try { db.exec('ALTER TABLE tickets ADD COLUMN barcode_data TEXT'); } catch {}
+// Tables réservées par membre comité pour vente en personne
+try { db.exec(`CREATE TABLE IF NOT EXISTS comite_tables (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  activity_id INTEGER NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  table_debut INTEGER NOT NULL,
+  table_fin INTEGER NOT NULL,
+  UNIQUE(activity_id, user_id)
+)`); } catch {}
 // Projets avec budget et ligne financière
 try { db.exec('ALTER TABLE projects ADD COLUMN budget_prevu REAL DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE projects ADD COLUMN notes TEXT'); } catch {}

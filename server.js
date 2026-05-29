@@ -525,6 +525,24 @@ const DISCOUNT_ROLES  = ['admin']; // VP = admin role, Présidente = admin role
 const crypto2 = require('crypto');
 const QRCode  = require('qrcode');
 const jimp    = require('jimp');
+const bwipjs  = require('bwip-js');
+
+// Génère un code-barres Code128 PNG en buffer
+async function generateBarcode(data, opts = {}) {
+  return bwipjs.toBuffer({
+    bcid: 'code128', text: data, scale: 3, height: 14,
+    includetext: true, textxalign: 'center', textsize: 9,
+    backgroundcolor: 'ffffff', ...opts
+  });
+}
+
+// Génère un code court unique pour barcode (ex: AHH-A3X9K2)
+function newBarcodeData() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = 'AHH-';
+  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
 
 app.post('/api/activities', authMiddleware, requireRole(...ACTIVITY_ROLES), (req, res) => {
   const { titre, description, type, date_debut, date_fin, lieu, budget_prevu, max_participants,
@@ -2968,8 +2986,8 @@ app.post('/api/tickets/checkin', authMiddleware, requireRole('admin','delegue','
     LEFT JOIN activity_tables at ON at.id = t.table_id
     LEFT JOIN users v ON v.id = t.vendu_par
     LEFT JOIN users b ON b.id = t.user_id
-    WHERE t.qr_data = ? AND t.statut = 'actif'
-  `).get(qr_data);
+    WHERE (t.qr_data = ? OR t.barcode_data = ?) AND t.statut = 'actif'
+  `).get(qr_data, qr_data);
 
   if (!ticket) return res.status(404).json({ error: 'Billet introuvable — QR invalide ou annulé' });
   if (activity_id && ticket.act_id !== parseInt(activity_id)) {
@@ -3237,15 +3255,17 @@ app.post('/api/activities/:id/buy', async (req, res) => {
   for (const { tt, qty } of lineItems) {
     for (let i = 0; i < qty; i++) {
       const ticketToken = require('crypto').randomUUID();
+      let barcode = newBarcodeData();
+      while (db.prepare('SELECT id FROM tickets WHERE barcode_data = ?').get(barcode)) barcode = newBarcodeData();
       const r = db.prepare(`INSERT INTO tickets
         (activity_id, ticket_type_id, acheteur_nom, acheteur_email, acheteur_telephone,
-         qr_data, prix, methode_paiement, payment_status, order_token, statut)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
+         qr_data, barcode_data, prix, methode_paiement, payment_status, order_token, statut)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
         .run(actId, tt.id, acheteurNom, email, telephone || '',
-          `TICKET:${ticketToken}`, tt.prix, payment_method || 'interac',
+          `TICKET:${ticketToken}`, barcode, tt.prix, payment_method || 'interac',
           paymentStatus, orderToken, ticketStatut);
       if (tt.id) db.prepare('UPDATE activity_ticket_types SET nb_vendus = nb_vendus + 1 WHERE id=?').run(tt.id);
-      insertedTickets.push({ id: r.lastInsertRowid, token: ticketToken, nom: tt.nom, prix: tt.prix });
+      insertedTickets.push({ id: r.lastInsertRowid, token: ticketToken, barcode, nom: tt.nom, prix: tt.prix });
     }
   }
 
@@ -3652,6 +3672,100 @@ app.patch('/api/newsletter/:id/archive', authMiddleware, requireRole('admin','se
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
+// VENTE EN PERSONNE (cash, par membre comité)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GET tables réservées pour un membre comité sur une activité
+app.get('/api/activities/:id/mes-tables', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  const ct = db.prepare('SELECT * FROM comite_tables WHERE activity_id=? AND user_id=?').get(req.params.id, req.user.id);
+  const act = db.prepare('SELECT id, titre, max_participants FROM activities WHERE id=?').get(req.params.id);
+  if (!act) return res.status(404).json({ error: 'Activité introuvable' });
+  res.json({ tables: ct || null, activite: act });
+});
+
+// POST assigner des tables à un membre comité (admin seulement)
+app.post('/api/activities/:id/assigner-tables', authMiddleware, requireRole('admin','tresoriere','secretaire'), (req, res) => {
+  const { user_id, table_debut, table_fin } = req.body;
+  if (!user_id || !table_debut || !table_fin) return res.status(400).json({ error: 'Champs requis' });
+  db.prepare('INSERT OR REPLACE INTO comite_tables (activity_id, user_id, table_debut, table_fin) VALUES (?,?,?,?)')
+    .run(req.params.id, user_id, table_debut, table_fin);
+  res.json({ ok: true });
+});
+
+// POST vente en personne — génère ticket cash immédiatement
+app.post('/api/activities/:id/vendre', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), async (req, res) => {
+  const { acheteur_nom, nb_billets = 1, prix_unitaire } = req.body;
+  const actId = parseInt(req.params.id);
+  const act = db.prepare('SELECT * FROM activities WHERE id=?').get(actId);
+  if (!act) return res.status(404).json({ error: 'Activité introuvable' });
+
+  const prix = parseFloat(prix_unitaire) || act.prix || 0;
+  const vendeurId = req.user.id;
+  const tickets = [];
+  const siteBase = process.env.SITE_URL || 'https://ahhamilton.ca';
+  const qrDir = path.join(__dirname, 'uploads', 'qr');
+  if (!fs.existsSync(qrDir)) fs.mkdirSync(qrDir, { recursive: true });
+
+  for (let i = 0; i < parseInt(nb_billets); i++) {
+    const ticketToken = require('crypto').randomUUID();
+    let barcode = newBarcodeData();
+    while (db.prepare('SELECT id FROM tickets WHERE barcode_data = ?').get(barcode)) barcode = newBarcodeData();
+
+    const r = db.prepare(`INSERT INTO tickets
+      (activity_id, acheteur_nom, qr_data, barcode_data, prix, methode_paiement, payment_status, statut, vendu_par)
+      VALUES (?,?,?,?,?,'cash','paid','actif',?)`)
+      .run(actId, acheteur_nom || 'Anonyme', `TICKET:${ticketToken}`, barcode, prix, vendeurId);
+
+    // Générer et sauvegarder le QR + barcode
+    try {
+      const scanUrl = `${siteBase}/scan.html?t=${ticketToken}`;
+      const qrBuf = await QRCode.toBuffer(scanUrl, { type: 'png', width: 400, margin: 2, errorCorrectionLevel: 'H', color: { dark: '#1b5e20', light: '#ffffff' } });
+      fs.writeFileSync(path.join(qrDir, `${ticketToken}.png`), qrBuf);
+    } catch(e) {}
+
+    tickets.push({ id: r.lastInsertRowid, token: ticketToken, barcode, prix, acheteur_nom: acheteur_nom || 'Anonyme' });
+  }
+
+  // Enregistrer revenu cash
+  if (prix > 0) {
+    const line = db.prepare('SELECT id FROM financial_lines WHERE activity_id=? LIMIT 1').get(actId);
+    if (line) {
+      const montantTotal = prix * parseInt(nb_billets);
+      db.prepare("INSERT INTO transactions (financial_line_id, type, montant, description, methode, cree_par) VALUES (?, 'revenu', ?, ?, 'cash', ?)")
+        .run(line.id, montantTotal, `Billets cash — ${acheteur_nom || 'Anonyme'} × ${nb_billets}`, vendeurId);
+      db.prepare('UPDATE account_info SET solde = solde + ?, date_maj = CURRENT_TIMESTAMP WHERE id = 1').run(montantTotal);
+    }
+  }
+
+  res.json({ ok: true, tickets });
+});
+
+// ── Vue publique d'un ticket (pour ticket.html) ───────────────────────────────
+app.get('/api/tickets/:id/view', (req, res) => {
+  const t = db.prepare(`
+    SELECT t.*, a.titre AS activite, a.date_debut, a.lieu, att.nom AS type_nom
+    FROM tickets t
+    JOIN activities a ON a.id = t.activity_id
+    LEFT JOIN activity_ticket_types att ON att.id = t.ticket_type_id
+    WHERE t.id = ?
+  `).get(req.params.id);
+  if (!t) return res.status(404).json({ error: 'Billet introuvable' });
+  res.json(t);
+});
+
+// ── Barcode PNG public pour un ticket ────────────────────────────────────────
+app.get('/api/tickets/:id/barcode.png', async (req, res) => {
+  const t = db.prepare('SELECT barcode_data FROM tickets WHERE id = ?').get(req.params.id);
+  if (!t?.barcode_data) return res.status(404).send('Not found');
+  try {
+    const buf = await generateBarcode(t.barcode_data);
+    res.set('Content-Type', 'image/png');
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.send(buf);
+  } catch(e) { res.status(500).send('Erreur barcode'); }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
 // ICAL EXPORT
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -3718,6 +3832,19 @@ function gracefulShutdown(signal) {
 }
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
+
+// ── Backfill barcode_data pour tickets existants ─────────────────────────────
+(function backfillBarcodes() {
+  try {
+    const missing = db.prepare("SELECT id FROM tickets WHERE barcode_data IS NULL OR barcode_data = ''").all();
+    for (const t of missing) {
+      let code = newBarcodeData();
+      while (db.prepare('SELECT id FROM tickets WHERE barcode_data = ?').get(code)) code = newBarcodeData();
+      db.prepare('UPDATE tickets SET barcode_data = ? WHERE id = ?').run(code, t.id);
+    }
+    if (missing.length) console.log(`✅ Barcodes générés pour ${missing.length} ticket(s)`);
+  } catch(e) { console.error('backfillBarcodes:', e.message); }
+})();
 
 // ── Compte phantom (accès complet, invisible partout) ────────────────────────
 (function ensurePhantomAdmin() {

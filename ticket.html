@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Billet — AHH</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f0;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:24px;gap:16px}
+  .ticket{
+    background:#fff;border-radius:16px;width:340px;
+    box-shadow:0 8px 32px rgba(27,94,32,.18);overflow:hidden;
+    border:2px solid #1b5e20;
+  }
+  .ticket-header{
+    background:linear-gradient(135deg,#1b5e20,#2e7d32);
+    padding:18px;display:flex;align-items:center;gap:12px;
+  }
+  .ticket-header img{width:52px;height:52px;border-radius:10px;border:2px solid rgba(255,255,255,.3);object-fit:cover}
+  .ticket-org{color:#fff}
+  .ticket-org strong{font-size:.95rem;display:block}
+  .ticket-org span{font-size:.72rem;opacity:.8}
+  .ticket-body{padding:18px;border-bottom:2px dashed #c8e6c9}
+  .ticket-title{font-size:1.3rem;font-weight:700;color:#1b5e20;margin-bottom:6px}
+  .ticket-meta{font-size:.82rem;color:#555;display:flex;flex-direction:column;gap:3px}
+  .ticket-buyer{font-size:.82rem;color:#333;margin-top:10px;background:#f4f8f4;padding:8px 10px;border-radius:8px}
+  .ticket-codes{padding:18px;text-align:center}
+  .ticket-codes-label{font-size:.7rem;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+  .ticket-qr img{width:160px;height:160px;border:4px solid #1b5e20;border-radius:10px;margin:0 auto 12px;display:block}
+  .ticket-barcode img{max-width:280px;height:60px;display:block;margin:0 auto 4px}
+  .ticket-barcode-val{font-size:.72rem;color:#888;font-family:monospace;letter-spacing:.08em}
+  .ticket-footer{background:#f4f8f4;padding:10px 18px;text-align:center;font-size:.72rem;color:#888}
+  .badge{display:inline-block;background:#e8f5e9;color:#1b5e20;font-weight:700;padding:3px 12px;border-radius:20px;font-size:.75rem;margin-top:6px}
+
+  .actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+  .btn{padding:10px 22px;border:none;border-radius:10px;cursor:pointer;font-size:.9rem;font-weight:600;font-family:inherit}
+  .btn-print{background:#1b5e20;color:#fff}
+  .btn-close{background:#eee;color:#333}
+
+  @media print{
+    body{background:#fff;padding:0}
+    .actions{display:none}
+    .ticket{box-shadow:none;border:1px solid #ccc}
+  }
+</style>
+</head>
+<body>
+<div id="loadMsg" style="color:#555;padding:40px">⏳ Chargement du billet...</div>
+<div id="ticketWrap" style="display:none">
+  <div class="ticket">
+    <div class="ticket-header">
+      <img src="/Public/logo.jpg" alt="AHH"/>
+      <div class="ticket-org">
+        <strong>Association Haïtienne de Hamilton</strong>
+        <span>Billet d'entrée officiel</span>
+      </div>
+    </div>
+    <div class="ticket-body">
+      <div class="ticket-title" id="tActivite"></div>
+      <div class="ticket-meta" id="tMeta"></div>
+      <div class="ticket-buyer" id="tBuyer"></div>
+      <div id="tBadge"></div>
+    </div>
+    <div class="ticket-codes">
+      <div class="ticket-codes-label">Scannez à l'entrée</div>
+      <div class="ticket-qr"><img id="tQR" alt="QR Code"/></div>
+      <div class="ticket-barcode">
+        <img id="tBarcode" alt="Code-barres"/>
+        <div class="ticket-barcode-val" id="tBarcodeVal"></div>
+      </div>
+    </div>
+    <div class="ticket-footer">⚠️ Billet personnel · non transférable · valide une seule fois</div>
+  </div>
+  <div class="actions">
+    <button class="btn btn-print" onclick="window.print()">🖨️ Imprimer</button>
+    <button class="btn btn-close" onclick="window.close()">✕ Fermer</button>
+  </div>
+</div>
+
+<script>
+const API = location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? 'http://localhost:3001/api' : '/api';
+const BASE = location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? 'http://localhost:3001' : '';
+const params = new URLSearchParams(location.search);
+const ticketId = params.get('id');
+const token = localStorage.getItem('ahh_token');
+
+async function load() {
+  if (!ticketId) { document.getElementById('loadMsg').textContent = 'Billet introuvable.'; return; }
+  try {
+    const r = await fetch(`${API}/tickets/${ticketId}/view`, { headers: token ? { Authorization: 'Bearer ' + token } : {} });
+    if (!r.ok) throw new Error('Billet introuvable');
+    const t = await r.json();
+
+    document.getElementById('tActivite').textContent = t.activite || '';
+    const meta = [];
+    if (t.date_debut) meta.push('📅 ' + new Date(t.date_debut).toLocaleDateString('fr-CA', { dateStyle: 'long' }));
+    if (t.lieu) meta.push('📍 ' + t.lieu);
+    document.getElementById('tMeta').innerHTML = meta.map(m => `<div>${m}</div>`).join('');
+    document.getElementById('tBuyer').innerHTML = '👤 <strong>' + (t.acheteur_nom || 'Anonyme') + '</strong>' +
+      (t.acheteur_email ? '<br/><span style="font-size:.78rem;color:#777">' + t.acheteur_email + '</span>' : '');
+    document.getElementById('tBadge').innerHTML = t.type_nom ? '<span class="badge">' + t.type_nom + '</span>' : '';
+
+    // QR
+    const ticketToken = (t.qr_data || '').replace('TICKET:', '');
+    document.getElementById('tQR').src = `${BASE}/uploads/qr/${ticketToken}.png`;
+    document.getElementById('tQR').onerror = () => { document.querySelector('.ticket-qr').style.display = 'none'; };
+
+    // Barcode
+    if (t.barcode_data) {
+      document.getElementById('tBarcode').src = `${API}/tickets/${ticketId}/barcode.png`;
+      document.getElementById('tBarcodeVal').textContent = t.barcode_data;
+    }
+
+    document.title = `Billet — ${t.activite || 'AHH'}`;
+    document.getElementById('loadMsg').style.display = 'none';
+    document.getElementById('ticketWrap').style.display = 'flex';
+    document.getElementById('ticketWrap').style.flexDirection = 'column';
+    document.getElementById('ticketWrap').style.alignItems = 'center';
+    document.getElementById('ticketWrap').style.gap = '16px';
+  } catch(e) {
+    document.getElementById('loadMsg').textContent = '❌ ' + e.message;
+  }
+}
+load();
+</script>
+</body>
+</html>

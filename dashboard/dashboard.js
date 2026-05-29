@@ -213,8 +213,9 @@ function buildSidebar() {
     {
       label: 'Événements',
       items: [
-        { id:'scanner',        icon:'📷', label:'Scanner billets',    roles:['admin','delegue','secretaire','tresoriere'] },
-        { id:'pending-orders', icon:'🎟', label:'Commandes en attente', roles:['admin','tresoriere','secretaire'] },
+        { id:'vente-personne',  icon:'💵', label:'Vendre (cash)',        roles:['admin','delegue','secretaire','tresoriere'] },
+        { id:'scanner',         icon:'📷', label:'Scanner billets',      roles:['admin','delegue','secretaire','tresoriere'] },
+        { id:'pending-orders',  icon:'🎟', label:'Commandes en attente', roles:['admin','tresoriere','secretaire'] },
       ]
     },
 
@@ -295,7 +296,7 @@ function setActiveNav(viewId) {
     mes_talents:'Mon talent', mes_annonces:'Mes annonces',
     inscriptions:'Inscriptions en attente', paiements:'Paiements membres',
     recus:'Reçus fiscaux', mon_paiement:'Mon paiement', annuaire:'Courriel',
-    forum:'Forum', newsletter:'Infolettre'
+    forum:'Forum', newsletter:'Infolettre', 'vente-personne':'Vendre (Cash)'
   };
   const raw = labels[viewId] || 'Dashboard';
   document.getElementById('topbarTitle').textContent = window.AHH_LANG ? AHH_LANG.get(raw) : raw;
@@ -422,7 +423,7 @@ async function showView(viewId) {
     inscriptions, paiements, recus, mon_paiement, mes_billets, testimonials_mgmt, videos_mgmt,
     scanner, forum, newsletter
   };
-  const extViews = { 'pending-orders': pendingOrders };
+  const extViews = { 'pending-orders': pendingOrders, 'vente-personne': ventePersonne };
   if (extViews[viewId]) {
     try { await extViews[viewId](); } catch(e) { setContent(`<div class="empty-state"><div class="es-icon">⚠️</div><p>${e.message}</p></div>`); }
     return;
@@ -6295,6 +6296,82 @@ async function deleteActivityPhoto(photoId, actId, actTitre, btn) {
     toast('Erreur', true);
     btn.disabled = false;
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// VENTE EN PERSONNE (CASH)
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function ventePersonne() {
+  const acts = await api('/activities').catch(() => []);
+  const actives = acts.filter(a => ['planifiee','en_cours'].includes(a.statut));
+  setContent(`
+    <div class="table-card" style="max-width:680px">
+      <div class="table-card-header">
+        <h3>💵 Vente de billets en personne (Cash)</h3>
+      </div>
+      <div style="padding:20px">
+        <div class="form-group" style="margin-bottom:14px">
+          <label class="form-label">Activité</label>
+          <select id="vpActivite" class="form-input" onchange="vpLoadActivity()">
+            <option value="">— Choisir une activité —</option>
+            ${actives.map(a => `<option value="${a.id}" data-prix="${a.prix||0}">${a.titre} (${a.date_debut ? new Date(a.date_debut).toLocaleDateString('fr-CA') : '–'})</option>`).join('')}
+          </select>
+        </div>
+        <div id="vpForm" style="display:none">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Nom de l'acheteur</label>
+              <input id="vpNom" class="form-input" placeholder="Nom (ou Anonyme)"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Nombre de billets</label>
+              <input id="vpNb" class="form-input" type="number" min="1" max="20" value="1"/>
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom:18px">
+            <label class="form-label">Prix unitaire ($)</label>
+            <input id="vpPrix" class="form-input" type="number" min="0" step="0.01"/>
+          </div>
+          <button class="btn btn-primary" onclick="vpVendre()">💵 Encaisser et générer billet(s)</button>
+        </div>
+        <div id="vpTickets" style="margin-top:24px"></div>
+      </div>
+    </div>`);
+}
+
+function vpLoadActivity() {
+  const sel = document.getElementById('vpActivite');
+  const opt = sel.options[sel.selectedIndex];
+  if (!opt.value) { document.getElementById('vpForm').style.display = 'none'; return; }
+  document.getElementById('vpPrix').value = opt.dataset.prix || '0';
+  document.getElementById('vpForm').style.display = 'block';
+  document.getElementById('vpTickets').innerHTML = '';
+}
+
+async function vpVendre() {
+  const actId = document.getElementById('vpActivite').value;
+  const nom = document.getElementById('vpNom').value.trim() || 'Anonyme';
+  const nb = parseInt(document.getElementById('vpNb').value) || 1;
+  const prix = parseFloat(document.getElementById('vpPrix').value) || 0;
+  if (!actId) return toast('Choisissez une activité', true);
+  try {
+    const r = await api(`/activities/${actId}/vendre`, { method: 'POST', body: JSON.stringify({ acheteur_nom: nom, nb_billets: nb, prix_unitaire: prix }) });
+    const container = document.getElementById('vpTickets');
+    container.innerHTML = '<h4 style="margin-bottom:12px;color:var(--g2)">✅ ' + r.tickets.length + ' billet(s) généré(s)</h4>' +
+      r.tickets.map(t => `
+        <div style="border:2px solid #1b5e20;border-radius:12px;padding:14px;margin-bottom:12px;background:#f4f8f4;display:flex;align-items:center;justify-content:space-between;gap:12px">
+          <div>
+            <div style="font-weight:700;color:#1b5e20">${escHtml(t.acheteur_nom)}</div>
+            <div style="font-size:.8rem;font-family:monospace;color:#555;margin-top:2px">${t.barcode}</div>
+            <div style="font-size:.78rem;color:var(--muted)">$${t.prix.toFixed(2)} · Cash</div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <a href="/ticket.html?id=${t.id}" target="_blank" class="btn btn-primary btn-sm">🖨️ Imprimer</a>
+          </div>
+        </div>`).join('');
+    toast(r.tickets.length + ' billet(s) vendu(s) — ' + nom);
+  } catch(e) { toast('Erreur : ' + e.message, true); }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

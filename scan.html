@@ -285,10 +285,15 @@ async function onQRDetected(rawText) {
   lastQR = rawText;
   setTimeout(() => { lastQR = ''; }, 3000); // cooldown 3s
 
-  // Normaliser : URL scan.html?t=TOKEN → TICKET:TOKEN
+  // Normaliser :
+  // 1. URL scan.html?t=TOKEN → TICKET:TOKEN
+  // 2. Code128 AHH-XXXXXX → envoyé tel quel (barcode_data)
   let qrText = rawText;
   const urlMatch = rawText.match(/[?&]t=([^&\s]+)/);
-  if (urlMatch) qrText = 'TICKET:' + urlMatch[1];
+  if (urlMatch) {
+    qrText = 'TICKET:' + urlMatch[1];
+  }
+  // Si c'est un barcode AHH-XXXXXX, le serveur le reconnaîtra via barcode_data
 
   const actId = document.getElementById('actSelect').value || null;
   const box = document.getElementById('resultMain');
