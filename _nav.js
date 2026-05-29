@@ -92,7 +92,7 @@
       <a href="${pre}index.html" class="logo">
         <img src="${pre}Public/logo1.png" alt="AHH" class="logo-img"/>
         <div class="logo-text-group">
-          <span class="logo-sub" style="font-size:.85rem">Association Haïtienne de Hamilton</span>
+          <span class="logo-sub" style="font-size:.85rem;line-height:1.35">Association<br/>Haïtienne de<br/>Hamilton</span>
         </div>
       </a>
 
