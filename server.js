@@ -81,7 +81,7 @@ app.post('/api/stripe/webhook', express.raw({ type: '*/*' }), async (req, res) =
     if (session.metadata?.type === 'billet' && session.metadata?.order_token) {
       const orderToken = session.metadata.order_token;
       const actId = parseInt(session.metadata.activity_id);
-      db.prepare('UPDATE tickets SET statut="actif", payment_status="paid" WHERE order_token=?').run(orderToken);
+      db.prepare('UPDATE tickets SET statut='actif', payment_status='paid' WHERE order_token=?').run(orderToken);
       const tickets = db.prepare('SELECT * FROM tickets WHERE order_token=?').all(orderToken);
       const act = db.prepare('SELECT * FROM activities WHERE id=?').get(actId);
       const prenom = session.metadata.acheteur_prenom || email;
@@ -2642,7 +2642,7 @@ app.post('/api/activities/:id/pay', authMiddleware, (req, res) => {
   }
 
   // Créer un billet avec QR "Acheté en ligne" et assigner une table libre
-  const existingTicket = db.prepare('SELECT id FROM tickets WHERE activity_id=? AND user_id=? AND statut="actif"').get(act.id, user.id);
+  const existingTicket = db.prepare('SELECT id FROM tickets WHERE activity_id=? AND user_id=? AND statut='actif'').get(act.id, user.id);
   if (!existingTicket) {
     const freeTable = db.prepare(`
       SELECT at.* FROM activity_tables at
@@ -3323,7 +3323,7 @@ app.post('/api/orders/:orderToken/activate', async (req, res) => {
 
   try {
     // Activer tous les billets de cette commande
-    db.prepare('UPDATE tickets SET statut="actif", payment_status="paid" WHERE order_token=?').run(orderToken);
+    db.prepare('UPDATE tickets SET statut='actif', payment_status='paid' WHERE order_token=?').run(orderToken);
     const activated = db.prepare('SELECT * FROM tickets WHERE order_token=?').all(orderToken);
 
     // Envoyer QR par courriel
@@ -3401,7 +3401,7 @@ app.post('/api/orders/:orderToken/confirm', authMiddleware, requireRole('admin',
   const tickets = db.prepare('SELECT * FROM tickets WHERE order_token=? AND payment_status="pending"').all(orderToken);
   if (!tickets.length) return res.status(404).json({ error: 'Commande introuvable ou déjà confirmée' });
 
-  db.prepare('UPDATE tickets SET statut="actif", payment_status="paid" WHERE order_token=?').run(orderToken);
+  db.prepare('UPDATE tickets SET statut='actif', payment_status='paid' WHERE order_token=?').run(orderToken);
 
   const act = db.prepare('SELECT * FROM activities WHERE id=?').get(tickets[0].activity_id);
   for (const t of tickets) {
