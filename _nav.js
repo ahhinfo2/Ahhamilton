@@ -92,8 +92,7 @@
       <a href="${pre}index.html" class="logo">
         <img src="${pre}Public/logo1.png" alt="AHH" class="logo-img"/>
         <div class="logo-text-group">
-          <span class="logo-text">AHH</span>
-          <span class="logo-sub">Association Haïtienne de Hamilton</span>
+          <span class="logo-sub" style="font-size:.85rem">Association Haïtienne de Hamilton</span>
         </div>
       </a>
 
@@ -105,7 +104,7 @@
         <!-- Header mobile -->
         <div class="nav-mobile-header">
           <img src="${pre}Public/logo1.png" alt="AHH" class="logo-img" style="width:32px;height:32px"/>
-          <span style="color:#fff;font-weight:700;font-size:.9rem">AHH</span>
+          <span style="color:#fff;font-weight:600;font-size:.75rem">Association Haïtienne de Hamilton</span>
           <button class="nav-close" id="navClose">✕</button>
         </div>
 
@@ -113,11 +112,10 @@
 
         <!-- Dropdown : Association -->
         <div class="dropdown">
-          <button class="${activeDrop(['about.html','equipe.html'])} dropdown-toggle">
+          <button class="${activeDrop(['equipe.html'])} dropdown-toggle">
             <span data-i18n="Association">Association</span> <span class="dropdown-caret">▾</span>
           </button>
           <div class="dropdown-menu">
-            <a href="${pre}about.html"    class="${active('about.html')}"    data-i18n="À propos">À propos</a>
             <a href="${pre}equipe.html"   class="${active('equipe.html')}"   data-i18n="Notre équipe">Notre équipe</a>
             <a href="${pre}adhesion.html" class="${active('adhesion.html')}" data-i18n="Devenir membre">Devenir membre</a>
           </div>
@@ -145,7 +143,7 @@
           </div>
         </div>
 
-        <a href="${pre}index.html#contact" class="nav-link" data-i18n="Contact">Contact</a>
+        <a href="${pre}about.html" class="${active('about.html')}" data-i18n="À propos">À propos</a>
         <a href="${pre}dashboard/login.html" class="btn btn-login" data-i18n="Connexion">Connexion</a>
       </nav>
 
