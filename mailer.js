@@ -289,25 +289,40 @@ async function sendBilletInterac(email, prenom, activite, billets, orderRef, int
 async function sendBilletQR(email, prenom, activite, billet, qrBase64, qrPublicUrl) {
   const dateAct = activite.date_debut ? new Date(activite.date_debut).toLocaleDateString('fr-CA', { dateStyle: 'long' }) : '';
   const qrImgHtml = qrPublicUrl
-    ? `<img src="${qrPublicUrl}" alt="Code QR" style="width:220px;height:220px;border:6px solid #1b5e20;border-radius:12px"/>`
-    : `<img src="cid:qrcode@ahh" alt="Code QR" style="width:220px;height:220px;border:6px solid #1b5e20;border-radius:12px"/>`;
+    ? `<img src="${qrPublicUrl}" width="220" height="220" alt="Code QR" style="display:block;border:5px solid #1b5e20;border-radius:12px;margin:0 auto"/>`
+    : `<img src="cid:qrcode@ahh" width="220" height="220" alt="Code QR" style="display:block;border:5px solid #1b5e20;border-radius:12px;margin:0 auto"/>`;
+
+  const ticketHtml = `
+    <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;border:2px solid #1b5e20;border-radius:16px;overflow:hidden">
+      <!-- En-tête vert -->
+      <div style="background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:20px;text-align:center">
+        <img src="${siteUrl}/Public/logo.jpg" width="60" height="60" alt="AHH" style="border-radius:10px;margin-bottom:8px;display:block;margin:0 auto 8px"/>
+        <div style="color:#fff;font-size:1.1rem;font-weight:700">Association Haïtienne de Hamilton</div>
+        <div style="color:rgba(255,255,255,.8);font-size:.8rem;margin-top:2px">Billet d'entrée</div>
+      </div>
+      <!-- Infos activité -->
+      <div style="background:#fff;padding:20px;text-align:center;border-bottom:2px dashed #c8e6c9">
+        <div style="font-size:1.4rem;font-weight:700;color:#1b5e20;margin-bottom:8px">${activite.titre}</div>
+        ${dateAct ? `<div style="color:#444;font-size:.9rem;margin-bottom:4px">📅 ${dateAct}</div>` : ''}
+        ${activite.lieu ? `<div style="color:#444;font-size:.9rem">📍 ${activite.lieu}</div>` : ''}
+        ${billet.nom ? `<div style="display:inline-block;background:#e8f5e9;color:#1b5e20;font-weight:600;padding:4px 14px;border-radius:20px;font-size:.82rem;margin-top:8px">${billet.nom}</div>` : ''}
+      </div>
+      <!-- QR Code -->
+      <div style="background:#fff;padding:24px;text-align:center">
+        <div style="font-size:.8rem;color:#888;margin-bottom:12px;text-transform:uppercase;letter-spacing:.05em">Présentez ce code à l'entrée</div>
+        ${qrImgHtml}
+        <div style="font-size:.72rem;color:#aaa;margin-top:10px">Bonjour ${prenom} — billet personnel non transférable</div>
+      </div>
+      <!-- Pied -->
+      <div style="background:#f4f8f4;padding:12px;text-align:center;font-size:.75rem;color:#888">
+        ⚠️ Ce billet ne peut être scanné qu'<strong>une seule fois</strong>. Conservez-le précieusement.
+      </div>
+    </div>`;
 
   await sendMail({
     to: email,
-    subject: `🎫 Votre billet — ${activite.titre} — AHH`,
-    html: wrap('Votre billet est prêt !', `
-      <p>Bonjour <strong>${prenom}</strong>,</p>
-      <p>Votre paiement a été confirmé. Voici votre billet pour <strong>${activite.titre}</strong>.</p>
-      ${dateAct ? `<p>📅 <strong>${dateAct}</strong>${activite.lieu ? ' — 📍 ' + activite.lieu : ''}</p>` : ''}
-      ${billet.nom ? `<p>Type : <strong>${billet.nom}</strong></p>` : ''}
-      <div style="text-align:center;margin:24px 0">
-        ${qrImgHtml}
-        <p style="font-size:.78rem;color:#888;margin-top:8px">Présentez ce code QR à l'entrée</p>
-      </div>
-      <div style="background:#e8f5e9;border-radius:8px;padding:12px;text-align:center;font-size:.82rem;color:#1b5e20">
-        ⚠️ Ce billet est <strong>personnel et non transférable</strong>. Chaque billet ne peut être scanné qu'une seule fois.
-      </div>
-    `),
+    subject: `🎫 Votre billet — ${activite.titre}`,
+    html: ticketHtml,
     attachments: qrPublicUrl ? [] : [{
       filename: 'billet-qr.png',
       content: Buffer.from(qrBase64, 'base64'),

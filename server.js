@@ -511,7 +511,8 @@ app.delete('/api/users/:id', authMiddleware, requireRole('admin','secretaire','d
 app.get('/api/activities', authMiddleware, (req, res) => {
   const rows = db.prepare(`
     SELECT a.*, u.prenom || ' ' || u.nom AS createur,
-    (SELECT COUNT(*) FROM activity_registrations WHERE activity_id = a.id) AS nb_inscrits,
+    (SELECT COUNT(*) FROM activity_registrations WHERE activity_id = a.id AND paye = 1) +
+    (SELECT COUNT(*) FROM tickets WHERE activity_id = a.id AND payment_status = 'paid') AS nb_inscrits,
     (SELECT COUNT(*) FROM activity_registrations WHERE activity_id = a.id AND user_id = ?) AS user_registered
     FROM activities a LEFT JOIN users u ON u.id = a.cree_par ORDER BY a.date_debut DESC
   `).all(req.user.id);
@@ -3327,17 +3328,20 @@ app.post('/api/orders/:orderToken/activate', async (req, res) => {
     db.prepare("UPDATE tickets SET statut='actif', payment_status='paid' WHERE order_token=?").run(orderToken);
     const activated = db.prepare('SELECT * FROM tickets WHERE order_token=?').all(orderToken);
 
-    // Envoyer QR par courriel (sauvegarde sur disque → URL publique pour éviter le blocage Gmail)
+    // Envoyer QR par courriel (URL publique sur le serveur)
     const siteBase = process.env.SITE_URL || 'https://ahhamilton.ca';
+    const qrDir = path.join(__dirname, 'uploads', 'qr');
+    if (!fs.existsSync(qrDir)) fs.mkdirSync(qrDir, { recursive: true });
     for (const t of activated) {
       const ticketToken = (t.qr_data || '').replace('TICKET:', '');
       try {
         const scanUrl = `${siteBase}/scan.html?t=${ticketToken}`;
         const qrBuf = await QRCode.toBuffer(scanUrl, { type: 'png', width: 500, margin: 2, errorCorrectionLevel: 'H', color: { dark: '#1b5e20', light: '#ffffff' } });
-        const qrFile = path.join(__dirname, 'uploads', 'qr', `${ticketToken}.png`);
+        const qrFile = path.join(qrDir, `${ticketToken}.png`);
         fs.writeFileSync(qrFile, qrBuf);
         const qrPublicUrl = `${siteBase}/uploads/qr/${ticketToken}.png`;
         const nomBillet = t.ticket_type_id ? (db.prepare('SELECT nom FROM activity_ticket_types WHERE id=?').get(t.ticket_type_id)?.nom || 'Entrée générale') : 'Entrée générale';
+        console.log(`📧 Envoi QR à ${t.acheteur_email} — URL: ${qrPublicUrl}`);
         mailer.sendBilletQR(t.acheteur_email, prenom, act, { ...t, nom: nomBillet, token: ticketToken }, qrBuf.toString('base64'), qrPublicUrl).catch(e => console.error('QR mail error:', e.message));
       } catch(e) { console.error('QR gen error:', e.message); }
     }
