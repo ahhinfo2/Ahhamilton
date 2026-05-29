@@ -2976,6 +2976,7 @@ app.post('/api/tickets/checkin', authMiddleware, requireRole('admin','delegue','
   const { qr_data, activity_id } = req.body;
   if (!qr_data) return res.status(400).json({ error: 'QR data manquant' });
 
+  // Chercher d'abord sans filtre statut (pour diagnostiquer)
   const ticket = db.prepare(`
     SELECT t.*, a.titre AS activite, a.id AS act_id,
       at.numero AS table_numero,
@@ -2986,10 +2987,16 @@ app.post('/api/tickets/checkin', authMiddleware, requireRole('admin','delegue','
     LEFT JOIN activity_tables at ON at.id = t.table_id
     LEFT JOIN users v ON v.id = t.vendu_par
     LEFT JOIN users b ON b.id = t.user_id
-    WHERE (t.qr_data = ? OR t.barcode_data = ?) AND t.statut = 'actif'
+    WHERE (t.qr_data = ? OR t.barcode_data = ?)
   `).get(qr_data, qr_data);
 
-  if (!ticket) return res.status(404).json({ error: 'Billet introuvable — QR invalide ou annulé' });
+  if (!ticket) return res.status(404).json({ error: 'Billet introuvable — QR non reconnu' });
+
+  // Vérifier statut : accepter actif OU payment_status=paid
+  const isValid = ticket.statut === 'actif' || ticket.payment_status === 'paid';
+  if (!isValid) {
+    return res.status(403).json({ error: `Billet ${ticket.statut === 'annule' ? 'annulé' : 'non activé'} (statut: ${ticket.statut})` });
+  }
   if (activity_id && ticket.act_id !== parseInt(activity_id)) {
     return res.status(409).json({ error: `Ce billet est pour l'activité : ${ticket.activite}` });
   }
