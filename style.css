@@ -210,7 +210,7 @@ img   { display: block; max-width: 100%; }
 
 .hero-sub {
   font-size: 1rem; color: rgba(255,255,255,.82);
-  margin-bottom: 32px; max-width: 520px; line-height: 1.75;
+  margin-bottom: 32px; max-width: 800px; white-space: nowrap; line-height: 1.75;
   text-shadow: 0 1px 8px rgba(0,0,0,.2);
   margin-left: auto; margin-right: auto;
 }
