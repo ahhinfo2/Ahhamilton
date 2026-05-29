@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Impression billets — AHH</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f0;padding:20px}
+
+  .controls{background:#fff;border-radius:12px;padding:16px 20px;margin-bottom:20px;
+    display:flex;align-items:center;gap:12px;flex-wrap:wrap;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+  .controls h2{font-size:1rem;color:#1b5e20;flex:1}
+  .btn{padding:9px 20px;border:none;border-radius:8px;cursor:pointer;font-size:.88rem;font-weight:600;font-family:inherit}
+  .btn-print{background:#1b5e20;color:#fff}
+  .btn-back{background:#eee;color:#333;text-decoration:none;display:inline-flex;align-items:center}
+  .count{font-size:.82rem;color:#666}
+
+  /* ── FORMAT NORMAL (1 ticket/page ou 2/page en paysage) ── */
+  .grid-normal{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  .grid-small {display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+
+  /* Ticket normal */
+  .ticket{
+    background:#fff;border-radius:12px;border:2px solid #1b5e20;
+    overflow:hidden;break-inside:avoid;page-break-inside:avoid;
+  }
+  .ticket-hdr{
+    background:linear-gradient(135deg,#1b5e20,#2e7d32);
+    padding:10px 14px;display:flex;align-items:center;gap:8px;
+  }
+  .ticket-hdr img{width:36px;height:36px;border-radius:7px;object-fit:cover;border:2px solid rgba(255,255,255,.3)}
+  .ticket-hdr-txt{color:#fff}
+  .ticket-hdr-txt strong{font-size:.82rem;display:block}
+  .ticket-hdr-txt span{font-size:.62rem;opacity:.8}
+  .ticket-body{padding:10px 14px;border-bottom:1.5px dashed #c8e6c9}
+  .ticket-title{font-size:1rem;font-weight:700;color:#1b5e20;margin-bottom:3px}
+  .ticket-meta{font-size:.72rem;color:#555}
+  .ticket-buyer{font-size:.75rem;color:#333;margin-top:6px;background:#f4f8f4;padding:5px 8px;border-radius:6px}
+  .ticket-codes{padding:10px 14px;text-align:center}
+  .ticket-codes-lbl{font-size:.6rem;color:#999;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+  .ticket-qr img{width:120px;height:120px;border:3px solid #1b5e20;border-radius:8px;margin:0 auto 8px;display:block}
+  .ticket-bc img{max-width:100%;height:44px;display:block;margin:0 auto 3px}
+  .ticket-bc-val{font-size:.62rem;color:#999;font-family:monospace}
+  .ticket-footer{background:#f4f8f4;padding:6px 14px;font-size:.62rem;color:#888;text-align:center}
+
+  /* ── FORMAT PETIT (4/page) ── */
+  .ticket-small{
+    background:#fff;border-radius:8px;border:1.5px solid #1b5e20;
+    overflow:hidden;break-inside:avoid;page-break-inside:avoid;
+    font-size:.8rem;
+  }
+  .ts-hdr{background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:6px 10px;display:flex;align-items:center;gap:6px}
+  .ts-hdr img{width:24px;height:24px;border-radius:5px;object-fit:cover}
+  .ts-hdr-txt{color:#fff;font-size:.65rem;font-weight:700}
+  .ts-body{padding:6px 10px;border-bottom:1px dashed #c8e6c9}
+  .ts-title{font-size:.82rem;font-weight:700;color:#1b5e20}
+  .ts-meta{font-size:.62rem;color:#666}
+  .ts-buyer{font-size:.68rem;color:#333;margin-top:4px;font-weight:600}
+  .ts-codes{padding:6px 10px;text-align:center}
+  .ts-qr img{width:80px;height:80px;border:2px solid #1b5e20;border-radius:6px;margin:0 auto 4px;display:block}
+  .ts-bc img{max-width:90%;height:32px;display:block;margin:0 auto 2px}
+  .ts-bc-val{font-size:.55rem;color:#aaa;font-family:monospace}
+  .ts-footer{background:#f4f8f4;padding:4px 10px;font-size:.55rem;color:#999;text-align:center}
+
+  @media print{
+    body{background:#fff;padding:8px}
+    .controls{display:none}
+    .grid-normal{gap:12px}
+    .grid-small{gap:6px}
+  }
+</style>
+</head>
+<body>
+<div class="controls">
+  <h2 id="pageTitle">⏳ Chargement des billets...</h2>
+  <span class="count" id="pageCount"></span>
+  <button class="btn btn-print" onclick="window.print()">🖨️ Imprimer</button>
+  <a href="javascript:history.back()" class="btn btn-back">← Retour</a>
+</div>
+<div id="ticketsGrid"></div>
+
+<script>
+const API = location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? 'http://localhost:3001/api' : '/api';
+const BASE = location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? 'http://localhost:3001' : '';
+const token = localStorage.getItem('ahh_token');
+const params = new URLSearchParams(location.search);
+const ids = (params.get('ids') || '').split(',').map(s => s.trim()).filter(Boolean);
+const size = params.get('size') || 'normal';
+const isSmall = size === 'small';
+
+async function load() {
+  if (!ids.length) { document.getElementById('pageTitle').textContent = 'Aucun billet spécifié.'; return; }
+  const tickets = [];
+  for (const id of ids) {
+    try {
+      const r = await fetch(`${API}/tickets/${id}/view`, { headers: token ? { Authorization: 'Bearer ' + token } : {} });
+      if (r.ok) tickets.push(await r.json());
+    } catch(e) {}
+  }
+  if (!tickets.length) { document.getElementById('pageTitle').textContent = 'Aucun billet trouvé.'; return; }
+
+  const act = tickets[0];
+  document.title = `Billets — ${act.activite || 'AHH'}`;
+  document.getElementById('pageTitle').textContent = `Billets — ${act.activite || 'AHH'} (${isSmall ? 'format petit' : 'format standard'})`;
+  document.getElementById('pageCount').textContent = tickets.length + ' billet(s)';
+
+  const grid = document.getElementById('ticketsGrid');
+  grid.className = isSmall ? 'grid-small' : 'grid-normal';
+  grid.innerHTML = tickets.map(t => renderTicket(t, isSmall)).join('');
+}
+
+function renderTicket(t, small) {
+  const ticketToken = (t.qr_data || '').replace('TICKET:', '');
+  const qrSrc = `${BASE}/uploads/qr/${ticketToken}.png`;
+  const bcSrc = `${API}/tickets/${t.id}/barcode.png`;
+  const dateStr = t.date_debut ? new Date(t.date_debut).toLocaleDateString('fr-CA', { day:'numeric', month:'long', year:'numeric' }) : '';
+
+  if (small) return `
+    <div class="ticket-small">
+      <div class="ts-hdr">
+        <img src="/Public/logo.jpg" alt="AHH"/>
+        <div class="ts-hdr-txt">AHH Hamilton</div>
+      </div>
+      <div class="ts-body">
+        <div class="ts-title">${esc(t.activite||'')}</div>
+        <div class="ts-meta">${dateStr}${t.lieu ? ' · ' + t.lieu : ''}</div>
+        <div class="ts-buyer">👤 ${esc(t.acheteur_nom||'Anonyme')}</div>
+        ${t.type_nom ? `<div class="ts-meta" style="margin-top:2px">${esc(t.type_nom)}</div>` : ''}
+      </div>
+      <div class="ts-codes">
+        <div class="ts-qr"><img src="${qrSrc}" alt="QR" onerror="this.style.display='none'"/></div>
+        <div class="ts-bc"><img src="${bcSrc}" alt="Barcode" onerror="this.style.display='none'"/></div>
+        <div class="ts-bc-val">${esc(t.barcode_data||'')}</div>
+      </div>
+      <div class="ts-footer">⚠️ Personnel · valide 1 fois</div>
+    </div>`;
+
+  return `
+    <div class="ticket">
+      <div class="ticket-hdr">
+        <img src="/Public/logo.jpg" alt="AHH"/>
+        <div class="ticket-hdr-txt">
+          <strong>Association Haïtienne de Hamilton</strong>
+          <span>Billet d'entrée officiel</span>
+        </div>
+      </div>
+      <div class="ticket-body">
+        <div class="ticket-title">${esc(t.activite||'')}</div>
+        <div class="ticket-meta">${dateStr ? '📅 ' + dateStr : ''}${t.lieu ? ' · 📍 ' + t.lieu : ''}</div>
+        <div class="ticket-buyer">👤 ${esc(t.acheteur_nom||'Anonyme')}${t.type_nom ? ' · ' + esc(t.type_nom) : ''}</div>
+      </div>
+      <div class="ticket-codes">
+        <div class="ticket-codes-lbl">Scannez à l'entrée</div>
+        <div class="ticket-qr"><img src="${qrSrc}" alt="QR" onerror="this.style.display='none'"/></div>
+        <div class="ticket-bc">
+          <img src="${bcSrc}" alt="Barcode" onerror="this.style.display='none'"/>
+          <div class="ticket-bc-val">${esc(t.barcode_data||'')}</div>
+        </div>
+      </div>
+      <div class="ticket-footer">⚠️ Billet personnel et non transférable · valide une seule fois</div>
+    </div>`;
+}
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+load();
+</script>
+</body>
+</html>

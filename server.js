@@ -3046,7 +3046,7 @@ app.get('/api/activities/:id/tickets/report', authMiddleware, requireRole('admin
 
 const REPORT_ROLES = ['admin','tresoriere','secretaire','delegue'];
 
-// Rapport activité : inscrits membres + acheteurs de billets externes
+// Rapport activité : inscrits membres + billets + check-in
 app.get('/api/reports/activity/:id', authMiddleware, requireRole(...REPORT_ROLES), (req, res) => {
   const act = db.prepare('SELECT * FROM activities WHERE id = ?').get(req.params.id);
   if (!act) return res.status(404).json({ error: 'Activité introuvable' });
@@ -3058,25 +3058,41 @@ app.get('/api/reports/activity/:id', authMiddleware, requireRole(...REPORT_ROLES
     WHERE ar.activity_id = ? ORDER BY u.nom
   `).all(req.params.id);
 
-  // Acheteurs de billets externes (non-membres ou membres via Stripe)
+  // Billets vendus (en ligne + en personne)
   const billets = db.prepare(`
-    SELECT acheteur_nom AS nom_complet, acheteur_email AS email, prix AS montant_paye,
-      payment_status, statut, methode_paiement, order_token
-    FROM tickets WHERE activity_id = ? AND payment_status = 'paid'
-    ORDER BY id
+    SELECT t.*, att.nom AS type_nom
+    FROM tickets t
+    LEFT JOIN activity_ticket_types att ON att.id = t.ticket_type_id
+    WHERE t.activity_id = ? AND t.payment_status = 'paid'
+    ORDER BY t.id
   `).all(req.params.id);
 
-  const revenuMembres = inscrits.filter(r => r.paye).reduce((s, r) => s + (r.montant_paye||0), 0);
-  const revenuBillets = billets.reduce((s, b) => s + (b.montant_paye||0), 0);
-  const totalRevenu = revenuMembres + revenuBillets;
+  // Stats check-in
+  const arrivés = billets.filter(b => b.checked_in === 1).length;
+  const nonArrivés = billets.filter(b => b.checked_in !== 1).length;
+
+  // Par type de billet
+  const parType = {};
+  for (const b of billets) {
+    const k = b.type_nom || 'Entrée générale';
+    if (!parType[k]) parType[k] = { nb: 0, montant: 0, arrives: 0 };
+    parType[k].nb++;
+    parType[k].montant += b.prix || 0;
+    if (b.checked_in === 1) parType[k].arrives++;
+  }
+
+  const revenuBillets = billets.reduce((s, b) => s + (b.prix || 0), 0);
+  const revenuMembres = inscrits.filter(r => r.paye).reduce((s, r) => s + (r.montant_paye || 0), 0);
 
   res.json({
     activite: act,
     inscrits,
     billets,
-    totalRevenu,
-    nbPayes: inscrits.filter(r=>r.paye).length + billets.length,
-    nbNonPayes: inscrits.filter(r=>!r.paye).length
+    parType,
+    checkin: { arrives: arrivés, non_arrives: nonArrivés, total: billets.length },
+    totalRevenu: revenuBillets + revenuMembres,
+    nbPayes: inscrits.filter(r => r.paye).length + billets.length,
+    nbNonPayes: inscrits.filter(r => !r.paye).length
   });
 });
 

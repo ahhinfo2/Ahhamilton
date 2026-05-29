@@ -5488,53 +5488,72 @@ async function viewActivityQR(id, titre, qrToken) {
 async function showActivityReport(actId) {
   closeModal();
   const r = await api('/reports/activity/' + actId);
-  const { activite: act, inscrits, billets = [], totalRevenu, nbPayes, nbNonPayes } = r;
-  const totalPersonnes = inscrits.length + billets.length;
+  const { activite: act, inscrits, billets = [], parType = {}, checkin = {}, totalRevenu } = r;
+  const totalBillets = billets.length;
+  const arrivés = checkin.arrives || 0;
+  const nonArrivés = checkin.non_arrives || 0;
+  const pct = totalBillets > 0 ? Math.round(arrivés / totalBillets * 100) : 0;
 
   openModal('📊 Rapport — ' + act.titre,
-    '<div style="max-height:70vh;overflow-y:auto">' +
-      '<div class="cards-grid" style="grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">' +
-        '<div class="stat-card"><div class="sc-icon">👥</div><div class="sc-value">' + totalPersonnes + '</div><div class="sc-label">Total</div></div>' +
-        '<div class="stat-card"><div class="sc-icon">✅</div><div class="sc-value">' + nbPayes + '</div><div class="sc-label">Payés</div></div>' +
-        '<div class="stat-card accent"><div class="sc-icon">💰</div><div class="sc-value">$' + totalRevenu.toFixed(2) + '</div><div class="sc-label">Revenu</div></div>' +
-      '</div>' +
+    '<div style="max-height:72vh;overflow-y:auto">' +
 
-      (inscrits.length ? '<h4 style="font-size:.8rem;color:var(--muted);margin-bottom:6px">MEMBRES</h4>' +
-      '<table style="width:100%;border-collapse:collapse;font-size:.82rem;margin-bottom:16px">' +
-        '<thead><tr style="background:var(--off)">' +
-          '<th style="padding:8px;text-align:left">Membre</th><th>Plan</th><th>Statut</th><th>Payé</th><th>Montant</th>' +
-        '</tr></thead><tbody>' +
-        inscrits.map(i =>
-          '<tr style="border-bottom:1px solid var(--border)">' +
-            '<td style="padding:7px 8px">' + i.prenom + ' ' + i.nom + '<br/><small style="color:var(--muted)">' + i.email + '</small></td>' +
-            '<td style="padding:7px 8px">' + pill(i.plan||'gratuit','bp-blue') + '</td>' +
-            '<td style="padding:7px 8px">' + (i.statut||'inscrit') + '</td>' +
-            '<td style="padding:7px 8px">' + (i.paye ? '✅' : '❌') + '</td>' +
-            '<td style="padding:7px 8px">$' + (i.montant_paye||0).toFixed(2) + '</td>' +
-          '</tr>'
-        ).join('') +
-        '</tbody></table>' : '') +
+    // Cartes stats principales
+    '<div class="cards-grid" style="grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">' +
+      '<div class="stat-card"><div class="sc-icon">🎟️</div><div class="sc-value">' + totalBillets + '</div><div class="sc-label">Billets vendus</div></div>' +
+      '<div class="stat-card" style="background:#e8f5e9"><div class="sc-icon">✅</div><div class="sc-value" style="color:#1b5e20">' + arrivés + '</div><div class="sc-label">Arrivés</div></div>' +
+      '<div class="stat-card" style="background:#fff3e0"><div class="sc-icon">⏳</div><div class="sc-value" style="color:#e65100">' + nonArrivés + '</div><div class="sc-label">Non arrivés</div></div>' +
+      '<div class="stat-card accent"><div class="sc-icon">💰</div><div class="sc-value">$' + totalRevenu.toFixed(2) + '</div><div class="sc-label">Revenu</div></div>' +
+    '</div>' +
 
-      (billets.length ? '<h4 style="font-size:.8rem;color:var(--muted);margin-bottom:6px">BILLETS ACHETÉS (non-membres)</h4>' +
-      '<table style="width:100%;border-collapse:collapse;font-size:.82rem;margin-bottom:16px">' +
-        '<thead><tr style="background:var(--off)">' +
-          '<th style="padding:8px;text-align:left">Acheteur</th><th>Méthode</th><th>Statut</th><th>Montant</th>' +
-        '</tr></thead><tbody>' +
-        billets.map(b =>
-          '<tr style="border-bottom:1px solid var(--border)">' +
-            '<td style="padding:7px 8px">' + escHtml(b.nom_complet||'') + '<br/><small style="color:var(--muted)">' + escHtml(b.email||'') + '</small></td>' +
-            '<td style="padding:7px 8px">' + (b.methode_paiement||'stripe') + '</td>' +
-            '<td style="padding:7px 8px">💳 Payé</td>' +
-            '<td style="padding:7px 8px">$' + (b.montant_paye||0).toFixed(2) + '</td>' +
-          '</tr>'
-        ).join('') +
-        '</tbody></table>' : '') +
+    // Barre de présence
+    '<div style="margin-bottom:16px">' +
+      '<div style="display:flex;justify-content:space-between;font-size:.78rem;color:var(--muted);margin-bottom:4px"><span>Présence</span><span>' + pct + '%</span></div>' +
+      '<div style="background:#e0e0e0;border-radius:8px;height:10px"><div style="background:#1b5e20;border-radius:8px;height:100%;width:' + pct + '%"></div></div>' +
+    '</div>' +
 
-      '<div style="margin-top:14px;text-align:right">' +
-        '<button class="btn btn-outline btn-sm" onclick="printSection(\'Rapport — ' + act.titre + '\')">🖨️ Imprimer</button>' +
-      '</div>' +
+    // Par type de billet
+    (Object.keys(parType).length ? '<h4 style="font-size:.8rem;color:var(--muted);margin-bottom:6px">PAR TYPE</h4>' +
+    '<table style="width:100%;border-collapse:collapse;font-size:.82rem;margin-bottom:14px">' +
+      '<thead><tr style="background:var(--off)"><th style="padding:6px 8px;text-align:left">Type</th><th>Vendus</th><th>Arrivés</th><th>Revenu</th></tr></thead><tbody>' +
+      Object.entries(parType).map(([k, v]) =>
+        '<tr style="border-bottom:1px solid var(--border)">' +
+          '<td style="padding:6px 8px;font-weight:600">' + escHtml(k) + '</td>' +
+          '<td style="padding:6px 8px">' + v.nb + '</td>' +
+          '<td style="padding:6px 8px">' + v.arrives + ' / ' + v.nb + '</td>' +
+          '<td style="padding:6px 8px">$' + v.montant.toFixed(2) + '</td>' +
+        '</tr>').join('') +
+      '</tbody></table>' : '') +
+
+    // Liste billets
+    (billets.length ? '<h4 style="font-size:.8rem;color:var(--muted);margin-bottom:6px">DÉTAIL BILLETS</h4>' +
+    '<table style="width:100%;border-collapse:collapse;font-size:.8rem;margin-bottom:14px">' +
+      '<thead><tr style="background:var(--off)"><th style="padding:6px 8px;text-align:left">Acheteur</th><th>Type</th><th>Méthode</th><th>Entrée</th><th>$</th></tr></thead><tbody>' +
+      billets.map(b =>
+        '<tr style="border-bottom:1px solid var(--border);' + (b.checked_in ? 'background:#f1f8e9' : '') + '">' +
+          '<td style="padding:5px 8px">' + escHtml(b.acheteur_nom||'') + (b.acheteur_email ? '<br/><small style="color:var(--muted)">' + escHtml(b.acheteur_email) + '</small>' : '') + '</td>' +
+          '<td style="padding:5px 8px;font-size:.75rem">' + escHtml(b.type_nom||'Général') + '</td>' +
+          '<td style="padding:5px 8px;font-size:.75rem">' + (b.methode_paiement||'—') + '</td>' +
+          '<td style="padding:5px 8px">' + (b.checked_in ? '✅ ' + (b.date_checkin ? new Date(b.date_checkin).toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'}) : '') : '–') + '</td>' +
+          '<td style="padding:5px 8px">$' + (b.prix||0).toFixed(2) + '</td>' +
+        '</tr>').join('') +
+      '</tbody></table>' : '') +
+
+    '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">' +
+      '<button class="btn btn-outline btn-sm" onclick="printSection(\'Rapport — ' + act.titre + '\')">🖨️ Imprimer</button>' +
+      (act.statut !== 'archivee' ? '<button class="btn btn-sm" style="background:#e65100;color:#fff" onclick="archiveActivity(' + actId + ')">📦 Archiver l\'activité</button>' : '<span style="color:var(--muted);font-size:.8rem;padding:8px">📦 Archivée</span>') +
+    '</div>' +
     '</div>'
   );
+}
+
+async function archiveActivity(id) {
+  if (!confirm('Archiver cette activité ? Elle n\'apparaîtra plus dans les listes actives.')) return;
+  try {
+    await api(`/activities/${id}`, { method: 'PUT', body: JSON.stringify({ statut: 'archivee' }) });
+    toast('Activité archivée');
+    closeModal();
+    activities();
+  } catch(e) { toast('Erreur : ' + e.message, true); }
 }
 
 // ══ PRÉSENTS EN DIRECT ════════════════════════════════════════════════════════
@@ -6358,17 +6377,19 @@ async function vpVendre() {
   try {
     const r = await api(`/activities/${actId}/vendre`, { method: 'POST', body: JSON.stringify({ acheteur_nom: nom, nb_billets: nb, prix_unitaire: prix }) });
     const container = document.getElementById('vpTickets');
+    const ids = r.tickets.map(t => t.id).join(',');
     container.innerHTML = '<h4 style="margin-bottom:12px;color:var(--g2)">✅ ' + r.tickets.length + ' billet(s) généré(s)</h4>' +
+      '<div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">' +
+        `<a href="/print-tickets.html?ids=${ids}" target="_blank" class="btn btn-primary">🖨️ Imprimer tous (${r.tickets.length})</a>` +
+        `<a href="/print-tickets.html?ids=${ids}&size=small" target="_blank" class="btn btn-outline">🖨️ Format petit (4/page)</a>` +
+      '</div>' +
       r.tickets.map(t => `
-        <div style="border:2px solid #1b5e20;border-radius:12px;padding:14px;margin-bottom:12px;background:#f4f8f4;display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <div style="border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:8px;background:#f4f8f4;display:flex;align-items:center;justify-content:space-between;gap:10px">
           <div>
-            <div style="font-weight:700;color:#1b5e20">${escHtml(t.acheteur_nom)}</div>
-            <div style="font-size:.8rem;font-family:monospace;color:#555;margin-top:2px">${t.barcode}</div>
-            <div style="font-size:.78rem;color:var(--muted)">$${t.prix.toFixed(2)} · Cash</div>
+            <div style="font-weight:600;color:#1b5e20;font-size:.9rem">${escHtml(t.acheteur_nom)}</div>
+            <div style="font-size:.75rem;font-family:monospace;color:#777">${t.barcode}</div>
           </div>
-          <div style="display:flex;gap:8px">
-            <a href="/ticket.html?id=${t.id}" target="_blank" class="btn btn-primary btn-sm">🖨️ Imprimer</a>
-          </div>
+          <a href="/ticket.html?id=${t.id}" target="_blank" class="btn btn-ghost btn-sm">🖨️</a>
         </div>`).join('');
     toast(r.tickets.length + ' billet(s) vendu(s) — ' + nom);
   } catch(e) { toast('Erreur : ' + e.message, true); }
