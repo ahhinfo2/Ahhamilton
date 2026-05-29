@@ -1,21 +1,15 @@
-const CACHE = 'ahh-v20';
-const STATIC = [
-  '/', '/index.html', '/style.css',
-  '/actualites.html', '/talents.html', '/annonces.html', '/galerie.html',
-  '/about.html', '/equipe.html', '/adhesion.html', '/carte.html',
-  '/dashboard/app.html', '/dashboard/login.html',
-  '/dashboard/dashboard.css', '/dashboard/dashboard.js',
-  '/Public/logo1.png',
-  'https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap'
+const CACHE = 'ahh-v21';
+
+// Fichiers JAMAIS mis en cache — toujours chargés depuis le réseau
+const NO_CACHE = [
+  '/sw.js', '/script.js', '/_nav.js', '/_lang.js', '/style.css',
+  '/', '/index.html',
+  '/scan.html', '/ticket.html', '/print-tickets.html',
+  '/billets.html', '/activity-checkout.html', '/carte.html'
 ];
 
-// Fichiers jamais mis en cache (toujours réseau — mises à jour fréquentes)
-const NO_CACHE = ['/sw.js', '/script.js', '/_nav.js', '/style.css', '/scan.html', '/ticket.html', '/billets.html', '/activity-checkout.html'];
-
 self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(STATIC.map(u => new Request(u, { cache: 'reload' }))).catch(() => {}))
-  );
+  e.waitUntil(caches.open(CACHE).then(() => {}));
   self.skipWaiting();
 });
 
@@ -29,11 +23,12 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
-  // API calls: network-first, no cache
+  // API calls et fichiers critiques: toujours réseau
   if (url.pathname.startsWith('/api/')) return;
-  // Fichiers critiques: toujours réseau
   if (NO_CACHE.includes(url.pathname)) return;
-  // Everything else: cache-first, fall back to network
+  // Polices Google: réseau uniquement (CORS)
+  if (url.hostname.includes('fonts.')) return;
+  // Autres: cache-first
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;
@@ -43,7 +38,7 @@ self.addEventListener('fetch', e => {
           caches.open(CACHE).then(c => c.put(e.request, clone));
         }
         return response;
-      }).catch(() => caches.match('/index.html'));
+      }).catch(() => {});
     })
   );
 });
