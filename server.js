@@ -2974,6 +2974,7 @@ app.get('/api/activities/:id/live', authMiddleware, requireRole('admin','delegue
 // Check-in : scanner un QR billet et marquer l'entrée
 app.post('/api/tickets/checkin', authMiddleware, requireRole('admin','delegue','secretaire','tresoriere'), (req, res) => {
   const { qr_data, activity_id } = req.body;
+  console.log(`[CHECKIN] user=${req.user.id} qr="${qr_data}" act=${activity_id||'all'}`);
   if (!qr_data) return res.status(400).json({ error: 'QR data manquant' });
 
   // Chercher d'abord sans filtre statut (pour diagnostiquer)
@@ -2990,6 +2991,7 @@ app.post('/api/tickets/checkin', authMiddleware, requireRole('admin','delegue','
     WHERE (t.qr_data = ? OR t.barcode_data = ?)
   `).get(qr_data, qr_data);
 
+  console.log(`[CHECKIN] ticket trouvé: ${ticket ? `id=${ticket.id} statut=${ticket.statut} payment=${ticket.payment_status}` : 'AUCUN'}`);
   if (!ticket) return res.status(404).json({ error: 'Billet introuvable — QR non reconnu' });
 
   // Vérifier statut : accepter actif OU payment_status=paid
