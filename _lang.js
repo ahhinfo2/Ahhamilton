@@ -1,6 +1,6 @@
 window.AHH_T = {
   fr: {
-    'hero.badge': '🇭🇹 Communauté Haïtienne · Hamilton, ON',
+    'hero.badge': 'Communauté Haïtienne · Hamilton, ON',
     'hero.intro': "Notre communauté s'appuie sur des valeurs essentielles :",
     'hero.values': 'Liberté · Égalité · Entraide',
     'hero.subtitle': "et l'union comme source de notre puissance.",
@@ -103,7 +103,7 @@ window.AHH_T = {
 
   en: {
     // ── index.html ─────────────────────────────────────────────────────────
-    'hero.badge': '🇭🇹 Haitian Community · Hamilton, ON',
+    'hero.badge': 'Haitian Community · Hamilton, ON',
     'hero.intro': 'Our community is built on essential values:',
     'hero.values': 'Freedom · Equality · Solidarity',
     'hero.subtitle': 'and unity as the source of our strength.',
@@ -255,7 +255,7 @@ window.AHH_T = {
 
   ht: {
     // ── index.html ─────────────────────────────────────────────────────────
-    'hero.badge': '🇭🇹 Kominote Ayisyen · Hamilton, ON',
+    'hero.badge': 'Kominote Ayisyen · Hamilton, ON',
     'hero.intro': 'Kominote nou an chita sou valè esansyèl yo :',
     'hero.values': 'Libète · Egalite · Solidarite',
     'hero.subtitle': 'ak inite kòm sous fòs nou.',
