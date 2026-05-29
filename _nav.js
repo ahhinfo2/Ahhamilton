@@ -173,13 +173,12 @@
       <div class="footer-brand">
         <a href="${pre}index.html" class="logo footer-logo">
           <img src="${pre}Public/logo1.png" alt="AHH" class="logo-img"/>
-          <span class="logo-text">AHH</span>
         </a>
         <p data-i18n="footer-desc">Association Haïtienne de Hamilton — Une communauté unie dans la culture et la solidarité.</p>
         <div class="footer-socials">
-          <a href="#" class="social-icon" aria-label="Facebook">f</a>
-          <a href="#" class="social-icon" aria-label="Instagram">in</a>
-          <a href="#" class="social-icon" aria-label="YouTube">▶</a>
+          <a href="https://www.facebook.com/profile.php?id=61563612753408" target="_blank" rel="noopener" class="social-icon" aria-label="Facebook">f</a>
+          <a href="https://www.instagram.com/ahhinfo/" target="_blank" rel="noopener" class="social-icon" aria-label="Instagram">ig</a>
+          <a href="https://www.youtube.com/channel/UCwtpIkOjjVt5luago0UnXow" target="_blank" rel="noopener" class="social-icon" aria-label="YouTube">▶</a>
         </div>
       </div>
       <div class="footer-links">
