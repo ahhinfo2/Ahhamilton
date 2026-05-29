@@ -169,27 +169,32 @@
   /* ── Overlay résultat plein écran (mobile + desktop) ── */
   #scanOverlay{
     display:none;position:fixed;inset:0;z-index:500;
-    background:rgba(0,0,0,.82);backdrop-filter:blur(6px);
     flex-direction:column;align-items:center;justify-content:center;
-    text-align:center;padding:24px;
+    text-align:center;padding:28px 20px;
   }
   #scanOverlay.visible{display:flex}
-  #scanOverlay .ov-icon{font-size:5rem;margin-bottom:10px}
-  #scanOverlay .ov-status{font-size:1rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:16px}
-  #scanOverlay .ov-name{font-size:2.2rem;font-weight:800;color:#fff;line-height:1.2;margin-bottom:8px}
-  #scanOverlay .ov-sub{font-size:.88rem;color:rgba(255,255,255,.7);margin-bottom:20px}
-  #scanOverlay.ok    .ov-status{color:#66bb6a}
-  #scanOverlay.ok    {border-top:6px solid #2e7d32}
-  #scanOverlay.dup   .ov-status{color:#ce93d8}
-  #scanOverlay.dup   {border-top:6px solid #6a1a75}
-  #scanOverlay.err   .ov-status{color:#ef5350}
-  #scanOverlay.err   {border-top:6px solid #c62828}
-  #scanOverlay.warn  .ov-status{color:#ff9800}
-  #scanOverlay.warn  {border-top:6px solid #e65100}
+  #scanOverlay.ok  {background:#1b5e20}
+  #scanOverlay.dup {background:#4a0072}
+  #scanOverlay.err {background:#b71c1c}
+  #scanOverlay.warn{background:#bf360c}
+  #scanOverlay .ov-icon{font-size:6rem;margin-bottom:8px;line-height:1}
+  #scanOverlay .ov-status{
+    font-size:1.2rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+    color:rgba(255,255,255,.85);margin-bottom:20px;
+  }
+  #scanOverlay .ov-name{
+    font-size:2.6rem;font-weight:800;color:#fff;line-height:1.15;
+    margin-bottom:10px;text-shadow:0 2px 8px rgba(0,0,0,.3);
+  }
+  #scanOverlay .ov-sub{
+    font-size:1rem;color:rgba(255,255,255,.8);margin-bottom:28px;
+    background:rgba(0,0,0,.2);padding:8px 16px;border-radius:20px;
+  }
   #scanOverlay .ov-close{
-    margin-top:12px;padding:10px 28px;border:2px solid rgba(255,255,255,.3);
-    border-radius:24px;color:#fff;background:transparent;cursor:pointer;
-    font-size:.9rem;font-family:inherit;
+    padding:14px 36px;border:2px solid rgba(255,255,255,.5);
+    border-radius:30px;color:#fff;background:rgba(255,255,255,.15);
+    cursor:pointer;font-size:1rem;font-weight:600;font-family:inherit;
+    backdrop-filter:blur(4px);
   }
 
   /* Bannière legacy — non utilisée sur mobile maintenant */
@@ -323,28 +328,38 @@ async function loadActivities() {
 function startScanner() {
   scanner = new Html5Qrcode('reader');
   const config = {
-    fps: 15,
-    qrbox: { width: 220, height: 220 },
+    fps: 30,
+    qrbox: { width: 260, height: 260 },
     aspectRatio: 1.0,
     disableFlip: false,
-    experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+    experimentalFeatures: { useBarCodeDetectorIfSupported: false }
   };
-  scanner.start(
-    { facingMode: 'environment' },
-    config,
-    onQRDetected,
-    () => {}
-  ).catch(err => {
-    document.querySelector('.cam-tip').textContent = '⚠️ Impossible d\'accéder à la caméra. Vérifiez les permissions.';
-    document.querySelector('.cam-tip').style.color = '#ef5350';
-  });
+
+  // Essai 1 : caméra arrière exacte (Android Chrome)
+  scanner.start({ facingMode: { exact: 'environment' } }, config, onQRDetected, () => {})
+    .catch(() => {
+      // Essai 2 : caméra arrière préférée (iOS Safari + Chrome)
+      scanner.start({ facingMode: 'environment' }, config, onQRDetected, () => {})
+        .catch(() => {
+          // Essai 3 : n'importe quelle caméra
+          scanner.start({ facingMode: 'user' }, config, onQRDetected, () => {})
+            .catch(() => {
+              // Essai 4 : laisser le navigateur choisir
+              scanner.start(null, config, onQRDetected, () => {})
+                .catch(err => {
+                  const tip = document.querySelector('.cam-tip');
+                  if (tip) { tip.textContent = '⚠️ Caméra inaccessible — autorisez l\'accès dans les réglages.'; tip.style.color = '#ef5350'; }
+                });
+            });
+        });
+    });
 }
 
 // ── QR Détecté ───────────────────────────────────────────────────────────────
 async function onQRDetected(rawText) {
   if (rawText === lastQR) return;
   lastQR = rawText;
-  setTimeout(() => { lastQR = ''; }, 3000); // cooldown 3s
+  setTimeout(() => { lastQR = ''; }, 2000); // cooldown 2s
 
   // Normaliser :
   // 1. URL scan.html?t=TOKEN → TICKET:TOKEN
