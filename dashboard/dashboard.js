@@ -141,91 +141,61 @@ function buildSidebar() {
 
   const sections = [
     // ── Accueil ───────────────────────────────────────────────────
-    {
-      label: null, // pas de titre de section pour l'item principal
-      items: [
-        { id:'home', icon:'⊞', label:'Tableau de bord', roles: ALL },
-      ]
-    },
+    { label: null, items: [
+      { id:'home', icon:'⊞', label:'Tableau de bord', roles: ALL },
+    ]},
 
-    // ── Membres & Inscriptions ────────────────────────────────────
-    {
-      label: 'Membres',
-      items: [
-        { id:'members',       icon:'◎', label:'Annuaire',          roles:['admin','secretaire','delegue'] },
-        { id:'inscriptions',  icon:'◈', label:'Inscriptions',      roles:EXEC },
-        { id:'volunteer',     icon:'◇', label:'Heures bénévolat',  roles:['admin','secretaire','member'] },
-      ]
-    },
+    // ── Billetterie (prioritaire) ─────────────────────────────────
+    { label: 'Billetterie', items: [
+      { id:'vente-personne',  icon:'💵', label:'Vendre (cash)',        roles:EXEC },
+      { id:'scanner',         icon:'📷', label:'Scanner billets',      roles:EXEC },
+      { id:'pending-orders',  icon:'🎟', label:'Commandes en attente', roles:STAFF },
+    ]},
+
+    // ── Membres ───────────────────────────────────────────────────
+    { label: 'Membres', items: [
+      { id:'members',       icon:'◎', label:'Annuaire',         roles:['admin','secretaire','delegue'] },
+      { id:'inscriptions',  icon:'◈', label:'Inscriptions',     roles:EXEC },
+      { id:'volunteer',     icon:'◇', label:'Bénévolat',        roles:['admin','secretaire'] },
+    ]},
 
     // ── Activités ─────────────────────────────────────────────────
-    {
-      label: 'Activités',
-      items: [
-        { id:'activities',    icon:'◉', label:'Calendrier',    roles: ALL },
-        { id:'subcommittees', icon:'◐', label:'Sous-comités',  roles: ALL },
-        { id:'projects',      icon:'◑', label:'Projets',       roles:['admin','delegue'] },
-      ]
-    },
-
-    // ── Finance ───────────────────────────────────────────────────
-    {
-      label: 'Finance',
-      items: [
-        { id:'paiements',  icon:'◆', label:'Paiements',       roles:['admin','tresoriere'] },
-        { id:'finance',    icon:'◇', label:'Lignes & budget',  roles:['admin','tresoriere'] },
-        { id:'invoices',   icon:'◈', label:'Factures',         roles:['admin','tresoriere'] },
-        { id:'recus',      icon:'◉', label:'Reçus fiscaux',   roles:['admin','tresoriere'] },
-      ]
-    },
-
-    // ── Communauté ────────────────────────────────────────────────
-    {
-      label: 'Communauté',
-      items: [
-        { id:'forum',       icon:'◫', label:'Forum',        roles: ALL },
-      ]
-    },
-
-    // ── Contenu ───────────────────────────────────────────────────
-    {
-      label: 'Contenu',
-      items: [
-        { id:'gallery_mgmt',       icon:'◎', label:'Galerie',          roles:['admin','secretaire'] },
-        { id:'talents_mgmt',       icon:'◈', label:'Talents',           roles:['admin','secretaire'] },
-        { id:'annonces_mgmt',      icon:'◉', label:'Petites annonces',  roles:['admin','secretaire'] },
-        { id:'testimonials_mgmt',  icon:'❝', label:'Témoignages',       roles:['admin','secretaire'] },
-        { id:'videos_mgmt',        icon:'▶', label:'Vidéos',            roles:['admin','secretaire'] },
-        { id:'notes',              icon:'◇', label:'Notes de réunion',  roles:EXEC },
-      ]
-    },
-
-    // ── Rapports ──────────────────────────────────────────────────
-    {
-      label: 'Rapports',
-      items: [
-        { id:'reports', icon:'◆', label:'Rapports', roles:STAFF },
-        { id:'letters', icon:'◎', label:'Lettres',  roles:['admin','secretaire'] },
-      ]
-    },
-
-    // ── Événements ────────────────────────────────────────────────
-    {
-      label: 'Événements',
-      items: [
-        { id:'vente-personne',  icon:'💵', label:'Vendre (cash)',        roles:['admin','delegue','secretaire','tresoriere'] },
-        { id:'scanner',         icon:'📷', label:'Scanner billets',      roles:['admin','delegue','secretaire','tresoriere'] },
-        { id:'pending-orders',  icon:'🎟', label:'Commandes en attente', roles:['admin','tresoriere','secretaire'] },
-      ]
-    },
+    { label: 'Activités', items: [
+      { id:'activities',    icon:'◉', label:'Calendrier',   roles: ALL },
+      { id:'subcommittees', icon:'◐', label:'Sous-comités', roles: ALL },
+      { id:'projects',      icon:'◑', label:'Projets',      roles:['admin','delegue'] },
+    ]},
 
     // ── Communication ─────────────────────────────────────────────
-    {
-      label: 'Communication',
-      items: [
-        { id:'annuaire', icon:'◉', label:'Courriel', roles: ALL },
-      ]
-    },
+    { label: 'Communication', items: [
+      { id:'annuaire', icon:'✉️', label:'Courriel', roles: ALL },
+      { id:'forum',    icon:'◫', label:'Forum',    roles: ALL },
+    ]},
+
+    // ── Finance ───────────────────────────────────────────────────
+    { label: 'Finance', items: [
+      { id:'paiements', icon:'◆', label:'Paiements',      roles:['admin','tresoriere'] },
+      { id:'finance',   icon:'◇', label:'Budget',          roles:['admin','tresoriere'] },
+      { id:'invoices',  icon:'◈', label:'Factures',        roles:['admin','tresoriere'] },
+      { id:'recus',     icon:'◉', label:'Reçus fiscaux',  roles:['admin','tresoriere'] },
+    ]},
+
+    // ── Rapports & Admin ──────────────────────────────────────────
+    { label: 'Rapports', items: [
+      { id:'reports', icon:'◆', label:'Rapports', roles:STAFF },
+      { id:'letters', icon:'◎', label:'Lettres',  roles:['admin','secretaire'] },
+      { id:'alerts',  icon:'◇', label:'Alertes',  roles:['admin','tresoriere'] },
+    ]},
+
+    // ── Contenu (fonctions rares en bas) ──────────────────────────
+    { label: 'Contenu', items: [
+      { id:'gallery_mgmt',      icon:'◎', label:'Galerie',          roles:['admin','secretaire'] },
+      { id:'talents_mgmt',      icon:'◈', label:'Talents',           roles:['admin','secretaire'] },
+      { id:'annonces_mgmt',     icon:'◉', label:'Annonces',          roles:['admin','secretaire'] },
+      { id:'notes',             icon:'◇', label:'Notes réunion',     roles:EXEC },
+      { id:'testimonials_mgmt', icon:'❝', label:'Témoignages',       roles:['admin','secretaire'] },
+      { id:'videos_mgmt',       icon:'▶', label:'Vidéos',            roles:['admin','secretaire'] },
+    ]},
 
     // ── Mon espace membre ─────────────────────────────────────────
     {
@@ -496,7 +466,7 @@ async function home() {
       </div>` : ''}
     </div>
 
-    <div class="home-grid">
+    <div class="home-grid" style="grid-template-columns:1fr 1fr 1fr">
       <!-- Actions rapides -->
       <div class="table-card">
         <div class="table-card-header"><h3>⚡ Actions rapides</h3></div>
@@ -509,44 +479,58 @@ async function home() {
         </div>
       </div>
 
-      <!-- Alertes récentes -->
-      ${can.adminOrTre() || can.adminOrSec() ? `
+      <!-- Prochaines activités -->
       <div class="table-card">
         <div class="table-card-header">
-          <h3>🔔 Alertes récentes</h3>
+          <h3>📅 Prochaines activités</h3>
+          <button class="btn btn-sm btn-ghost" onclick="showView('activities')">Toutes →</button>
+        </div>
+        <div style="padding:8px 0">
+          ${upcoming.length ? upcoming.slice(0,4).map(a => `
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);cursor:pointer" onclick="showView('activities')">
+              <div style="width:36px;height:36px;border-radius:8px;background:var(--g2);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;flex-shrink:0">${a.date_debut ? new Date(a.date_debut).getDate() : '?'}<br/><span style="font-size:.6rem;opacity:.8">${a.date_debut ? new Date(a.date_debut).toLocaleString('fr-CA',{month:'short'}).toUpperCase() : ''}</span></div>
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:600;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(a.titre)}</div>
+                <div style="font-size:.75rem;color:var(--muted)">${a.lieu || '–'} · ${a.nb_inscrits || 0} inscrits</div>
+              </div>
+            </div>`).join('') : '<div class="empty-state" style="padding:24px"><div class="es-icon">📅</div><p>Aucune activité planifiée</p></div>'}
+        </div>
+      </div>
+
+      <!-- Alertes + Derniers membres -->
+      <div class="table-card">
+        ${can.adminOrSec() ? `
+        <div class="table-card-header">
+          <h3>🔔 Alertes</h3>
           ${unreadAlerts.length ? `<button class="btn btn-sm btn-ghost" onclick="showView('alerts')">Toutes →</button>` : ''}
         </div>
         <div style="padding:4px 8px">
-          ${unreadAlerts.length ? unreadAlerts.map(a => `
+          ${unreadAlerts.length ? unreadAlerts.slice(0,3).map(a => `
             <div class="alert-item">
               <div class="alert-dot"></div>
               <div>
                 <div class="alert-title">${a.titre || 'Alerte'}</div>
-                <div class="alert-body">${a.contenu || ''}</div>
                 <div class="alert-time">${fmt(a.date_creation)}</div>
               </div>
-            </div>`).join('') : '<div class="empty-state" style="padding:24px"><div class="es-icon">✅</div><p>Aucune alerte non lue</p></div>'}
+            </div>`).join('') : '<div style="padding:12px 16px;font-size:.82rem;color:var(--muted)">✅ Aucune alerte non lue</div>'}
         </div>
-      </div>` : ''}
-    </div>
-
-    <!-- Prochaines activités -->
-    ${upcoming.length ? `
-    <div class="table-card" style="margin-top:20px">
-      <div class="table-card-header">
-        <h3>📅 Prochaines activités</h3>
-        <button class="btn btn-sm btn-primary" onclick="showView('activities')">Voir toutes →</button>
+        <div class="table-card-header" style="border-top:1px solid var(--border);margin-top:4px">
+          <h3>👤 Derniers membres</h3>
+          <button class="btn btn-sm btn-ghost" onclick="showView('members')">Tous →</button>
+        </div>
+        <div style="padding:4px 0">
+          ${(stats.derniers_membres||[]).slice(0,4).map(m => `
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 16px">
+              <div style="width:30px;height:30px;border-radius:50%;background:var(--g3);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:700;flex-shrink:0">${(m.prenom||'?')[0]}${(m.nom||'')[0]||''}</div>
+              <div><div style="font-size:.83rem;font-weight:600">${escHtml(m.prenom)} ${escHtml(m.nom)}</div><div style="font-size:.72rem;color:var(--muted)">${fmt(m.date_inscription)}</div></div>
+            </div>`).join('') || '<div style="padding:12px 16px;font-size:.82rem;color:var(--muted)">Aucun nouveau membre</div>'}
+        </div>` : `
+        <div class="table-card-header"><h3>🔔 Alertes</h3></div>
+        <div style="padding:4px 8px">
+          ${unreadAlerts.length ? unreadAlerts.slice(0,4).map(a => `<div class="alert-item"><div class="alert-dot"></div><div><div class="alert-title">${a.titre||'Alerte'}</div></div></div>`).join('') : '<div style="padding:12px 16px;font-size:.82rem;color:var(--muted)">✅ Aucune alerte</div>'}
+        </div>`}
       </div>
-      <div class="table-wrapper"><table>
-        <thead><tr><th>Activité</th><th>Date</th><th>Lieu</th><th>Action</th></tr></thead>
-        <tbody>${upcoming.map(a => `<tr>
-          <td><strong>${a.titre}</strong></td>
-          <td>${fmt(a.date_debut)}</td>
-          <td>${a.lieu || '–'}</td>
-          <td><button class="btn btn-sm btn-ghost" onclick="showView('activities')">Voir →</button></td>
-        </tr>`).join('')}</tbody>
-      </table></div>
-    </div>` : ''}
+    </div>
   `);
 }
 
@@ -791,29 +775,49 @@ function renderActivitiesTable(data) {
       <td>${a.nb_inscrits}${a.max_participants ? '/'+a.max_participants : ''}</td>
       <td>${statusPill(a.statut)}</td>
       <td>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:nowrap">
         ${canCreateActivity() ? `
-          <button class="btn btn-sm btn-outline" onclick='openActivityForm(${JSON.stringify(a).replace(/'/g,"&#39;")})' title="Modifier">✏️</button>
-          ${!isArchived && a.statut === 'planifiee' && can.adminOrSec() ? `<button class="btn btn-sm btn-primary" onclick="launchActivity(${a.id},'${a.titre.replace(/'/g,"\\'")}')">🚀</button>` : ''}
-          ${a.paiement_requis ? `<button class="btn btn-sm btn-accent" onclick="viewActivityQR(${a.id},'${a.titre.replace(/'/g,"\\'")}','${a.qr_token||''}')">📱</button>` : ''}
-          <button class="btn btn-sm btn-ghost" title="Photos" onclick="manageActivityPhotos(${a.id},'${a.titre.replace(/'/g,"\\'")}')">🖼</button>
-          <button class="btn btn-sm btn-ghost" title="Tables" onclick="managerTables(${a.id},'${a.titre.replace(/'/g,"\\'")}')">🪑</button>
-          <button class="btn btn-sm btn-ghost" title="Scanner" onclick="openScanner(${a.id})">📷</button>
-          <button class="btn btn-sm btn-ghost" onclick="viewRegistrations(${a.id},'${a.titre.replace(/'/g,"\\'")}')">👥</button>
-          <button class="btn btn-sm btn-ghost" onclick="showActivityReport(${a.id})">📊</button>
-          <button class="btn btn-sm btn-ghost" title="Présents en direct" onclick="liveAttendance(${a.id})">📍</button>
-          <button class="btn btn-sm btn-ghost" title="Types de billets" onclick="manageTicketTypes(${a.id})">🎟</button>
-          ${isArchived
-            ? `<button class="btn btn-sm btn-ghost" onclick="unarchiveActivity(${a.id})" title="Restaurer" style="color:var(--g2)">↩️</button>`
-            : `<button class="btn btn-sm btn-ghost" onclick="archiveActivity(${a.id})" title="Archiver" style="color:#888">📦</button>`}
-          ${can.admin() ? `<button class="btn btn-sm btn-ghost" onclick="deleteActivity(${a.id})" style="color:var(--red)" title="Supprimer définitivement">🗑</button>` : ''}
+          <button class="btn btn-sm btn-outline" onclick='openActivityForm(${JSON.stringify(a).replace(/'/g,"&#39;")})' title="Modifier">✏️ Modifier</button>
+          <button class="btn btn-sm btn-ghost" title="Scanner billets" onclick="openScanner(${a.id})">📷 Scanner</button>
+          <button class="btn btn-sm btn-ghost" onclick="showActivityReport(${a.id})" title="Rapport">📊 Rapport</button>
+          <div style="position:relative">
+            <button class="btn btn-sm btn-ghost" onclick="toggleActMenu(${a.id},event)" title="Plus d'actions" style="font-weight:700;font-size:1rem;padding:4px 10px">⋮</button>
+            <div class="act-more-menu" id="actMenu_${a.id}" style="display:none;position:absolute;right:0;top:100%;z-index:200;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.12);min-width:200px;padding:6px 0">
+              ${!isArchived && a.statut === 'planifiee' && can.adminOrSec() ? '<div class="act-menu-item" onclick="closeActMenus();launchActivity(' + a.id + ',\'' + a.titre.replace(/'/g,"\\'") + '\')">🚀 Lancer l\'activité</div>' : ''}
+              ${a.paiement_requis ? '<div class="act-menu-item" onclick="closeActMenus();viewActivityQR(' + a.id + ',\'' + a.titre.replace(/'/g,"\\'") + '\',\'' + (a.qr_token||'') + '\')">📱 QR Paiement</div>' : ''}
+              <div class="act-menu-item" onclick="closeActMenus();viewRegistrations(${a.id},'${a.titre.replace(/'/g,"\\'")}')">👥 Inscrits</div>
+              <div class="act-menu-item" onclick="closeActMenus();liveAttendance(${a.id})">📍 Présents en direct</div>
+              <div class="act-menu-item" onclick="closeActMenus();manageTicketTypes(${a.id})">🎟 Types de billets</div>
+              <div class="act-menu-item" onclick="closeActMenus();managerTables(${a.id},'${a.titre.replace(/'/g,"\\'")}')">🪑 Tables</div>
+              <div class="act-menu-item" onclick="closeActMenus();manageActivityPhotos(${a.id},'${a.titre.replace(/'/g,"\\'")}')">🖼 Photos</div>
+              <div style="border-top:1px solid var(--border);margin:4px 0"></div>
+              <div class="act-menu-item"><a href="${API}/activities/${a.id}/ical" download style="color:inherit;text-decoration:none;display:block">📅 Exporter iCal</a></div>
+              <div class="act-menu-item"><a href="${API}/activities/${a.id}/qr?format=png&size=1000" download="QR-${a.id}.png" style="color:inherit;text-decoration:none;display:block">📲 Télécharger QR PNG</a></div>
+              <div style="border-top:1px solid var(--border);margin:4px 0"></div>
+              ${isArchived
+                ? '<div class="act-menu-item" style="color:var(--g2)" onclick="closeActMenus();unarchiveActivity(' + a.id + ')">↩️ Restaurer</div>'
+                : '<div class="act-menu-item" style="color:#888" onclick="closeActMenus();archiveActivity(' + a.id + ')">📦 Archiver</div>'}
+              ${can.admin() ? '<div class="act-menu-item" style="color:var(--red)" onclick="closeActMenus();deleteActivity(' + a.id + ')">🗑 Supprimer</div>' : ''}
+            </div>
+          </div>
         ` : ''}
         ${memberBtn}
-        <a href="${API}/activities/${a.id}/ical" download title="Ajouter au calendrier" class="btn btn-sm btn-ghost">📅</a>
-        <a href="${API}/activities/${a.id}/qr?format=png&size=1000" download="QR-${a.titre.replace(/[^a-z0-9]/gi,'-')}.png" title="Télécharger le QR code (PNG haute résolution)" class="btn btn-sm btn-ghost">📲</a>
+        </div>
       </td>
     </tr>`;
   }).join('');
 }
+
+function toggleActMenu(id, e) {
+  e.stopPropagation();
+  closeActMenus();
+  const m = document.getElementById('actMenu_' + id);
+  if (m) m.style.display = m.style.display === 'none' ? 'block' : 'none';
+}
+function closeActMenus() {
+  document.querySelectorAll('.act-more-menu').forEach(m => m.style.display = 'none');
+}
+document.addEventListener('click', closeActMenus);
 
 async function archiveActivity(id) {
   const a = (window._activitiesData || []).find(x => x.id === id);

@@ -1343,7 +1343,8 @@ app.get('/api/stats', authMiddleware, (req, res) => {
     total_heures:     db.prepare("SELECT COALESCE(SUM(heures),0) AS c FROM volunteer_hours WHERE statut='approuve'").get().c,
     messages_non_lus: db.prepare("SELECT COUNT(*) AS c FROM message_recipients WHERE destinataire_id=? AND lu=0").get(req.user.id).c,
     alertes_non_lues: db.prepare("SELECT COUNT(*) AS c FROM alerts WHERE destinataire_id=? AND lu=0").get(req.user.id).c,
-    prochaines_activites: db.prepare("SELECT titre, date_debut, lieu FROM activities WHERE statut='planifiee' ORDER BY date_debut LIMIT 3").all(),
+    prochaines_activites: db.prepare("SELECT id, titre, date_debut, lieu, (SELECT COUNT(*) FROM activity_registrations WHERE activity_id=activities.id) AS nb_inscrits FROM activities WHERE statut='planifiee' ORDER BY date_debut LIMIT 5").all(),
+    derniers_membres: db.prepare("SELECT id, prenom, nom, date_inscription FROM users WHERE actif=1 AND (phantom IS NULL OR phantom=0) ORDER BY date_inscription DESC LIMIT 4").all(),
   };
   if (['admin','tresoriere'].includes(req.user.role)) {
     const acc = db.prepare('SELECT solde FROM account_info WHERE id=1').get();

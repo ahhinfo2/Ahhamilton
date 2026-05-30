@@ -1511,3 +1511,7 @@ html.dark .search-results { background: var(--white); }
 .mpc-desc  { font-size: .82rem; color: var(--muted); line-height: 1.55; padding: 0 18px 10px; }
 .mpc-contact { display: flex; flex-wrap: wrap; gap: 12px; padding: 0 18px 10px; font-size: .78rem; color: var(--muted); }
 .mpc-actions { display: flex; gap: 8px; padding: 10px 18px 14px; border-top: 1px solid var(--border); }
+
+/* ── MENU CONTEXTUEL ACTIVITÉS ─────────────────────────────────────────── */
+.act-menu-item{padding:8px 16px;font-size:.84rem;cursor:pointer;color:var(--text);transition:background .15s;white-space:nowrap}
+.act-menu-item:hover{background:var(--off)}
