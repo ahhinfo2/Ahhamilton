@@ -150,7 +150,7 @@ img{display:block;max-width:100%}
 .btn-logout:hover{background:rgba(255,255,255,.2);color:#fff}
 
 /* ── TOPBAR ────────────────────────────────────────────────────────────── */
-.main-wrapper{margin-left:var(--sidebar);min-height:100vh;display:flex;flex-direction:column;transition:margin var(--tr);padding-top:var(--strip-h)}
+.main-wrapper{margin-left:var(--sidebar);min-height:100vh;display:flex;flex-direction:column;transition:margin var(--tr);padding-top:var(--strip-h);flex:1;min-width:0;overflow-x:hidden}
 .topbar{
   position:sticky;top:var(--strip-h);z-index:100;
   height:var(--topbar);background:var(--white);
