@@ -6325,7 +6325,7 @@ async function ventePersonne() {
   const acts = await api('/activities').catch(() => []);
   const actives = acts.filter(a => ['planifiee','en_cours'].includes(a.statut));
   setContent(`
-    <div class="table-card" style="max-width:680px">
+    <div class="table-card" style="max-width:100%">
       <div class="table-card-header">
         <h3>💵 Vente de billets en personne (Cash)</h3>
       </div>
@@ -6553,7 +6553,7 @@ let _nlHistory = [];
 
 async function newsletter() {
   setContent(`
-    <div class="table-card" style="max-width:760px">
+    <div class="table-card" style="max-width:100%">
       <div class="table-card-header"><h3>📨 Infolettre — Envoi de masse</h3></div>
       <div style="padding:20px">
         <div style="margin-bottom:20px">
