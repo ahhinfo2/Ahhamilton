@@ -6,7 +6,7 @@
   --white:#fff;--off:#f1f8f1;--bg:#f4f6f8;
   --text:#1c2b1c;--muted:#5a7a5a;--border:#c8e6c9;
   --red:#e53935;--blue:#1565c0;
-  --sidebar:210px;--topbar:54px;
+  --sidebar:210px;--topbar:60px;
   --radius:10px;--radius-lg:14px;
   --shadow:0 2px 12px rgba(27,94,32,.10);
   --shadow-lg:0 8px 32px rgba(27,94,32,.18);
@@ -153,9 +153,9 @@ img{display:block;max-width:100%}
 .main-wrapper{margin-left:var(--sidebar);min-height:100vh;display:flex;flex-direction:column;transition:margin var(--tr);padding-top:var(--strip-h);flex:1;min-width:0;overflow-x:hidden}
 .topbar{
   position:sticky;top:var(--strip-h);z-index:100;
-  height:var(--topbar);background:var(--white);
-  display:flex;align-items:center;gap:12px;
-  padding:0 20px;border-bottom:1px solid var(--border);
+  min-height:var(--topbar);background:var(--white);
+  display:flex;align-items:center;flex-wrap:wrap;gap:8px;
+  padding:8px 20px;border-bottom:1px solid var(--border);
   box-shadow:var(--shadow);
 }
 .hamburger-dash{display:none;background:none;border:none;font-size:1.3rem;cursor:pointer;padding:4px}
@@ -218,7 +218,8 @@ tr:hover td{background:#f8fdf8}
 .btn-danger:hover{opacity:.85}
 .btn-ghost{background:var(--off);color:var(--text);border:1px solid var(--border)}
 .btn-ghost:hover{background:var(--border)}
-.btn-sm{padding:6px 12px;font-size:.78rem}
+.btn-sm{padding:4px 8px;font-size:.74rem}
+.btn-xs{padding:3px 6px;font-size:.7rem}
 .btn-accent{background:linear-gradient(135deg,var(--accent),var(--accent-lt));color:var(--text)}
 .btn-accent:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(249,168,37,.4)}
 .btn:disabled{opacity:.5;cursor:not-allowed;transform:none!important}
