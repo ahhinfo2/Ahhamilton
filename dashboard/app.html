@@ -17,46 +17,25 @@
 </head>
 <body>
 
-<!-- ── BARRE UNIQUE : AHH + dashboard controls ───────────────────────── -->
+<!-- ── BARRE NAV : logo + menu public + prénom + déconnexion ─────────── -->
 <div class="site-nav-strip" id="siteNavStrip">
   <div class="site-nav-inner">
-    <!-- AHH : retour à l'accueil -->
-    <a href="../index.html" class="site-nav-logo" style="flex-shrink:0">
+    <a href="../index.html" class="site-nav-logo">
       <img src="../Public/logo1.png" alt="AHH" class="site-nav-logo-img"/>
-      <span style="font-weight:700;font-size:.88rem">AHH</span>
+      <span>AHH</span>
     </a>
-    <!-- Hamburger mobile -->
-    <button class="hamburger-dash" id="sidebarToggle" style="margin-left:8px">☰</button>
-    <!-- Titre de la page -->
-    <div class="topbar-title" id="topbarTitle" style="margin-left:12px">Tableau de bord</div>
-    <!-- Recherche -->
-    <div class="search-wrap" id="searchWrap">
-      <input class="search-input" id="searchInput" type="text" placeholder="🔍 Rechercher..." autocomplete="off"/>
-      <div class="search-results" id="searchResults" style="display:none"></div>
-    </div>
-    <!-- Boutons droite -->
-    <div class="topbar-right">
-      <div class="lang-selector" id="langSelectorWrap" onclick="event.stopPropagation()">
-        <button class="icon-btn lang-btn" id="langBtn" title="Langue"
-          onclick="document.getElementById('langSelectorWrap').classList.toggle('open')">
-          🌐 <span id="langLabel">FR</span>
-        </button>
-        <div class="lang-dropdown" id="langDropdown">
-          <div class="lang-dropdown-title">Langue / Language</div>
-          <button class="lang-opt" data-lang="fr" onclick="if(window.AHH_LANG)AHH_LANG.set('fr');document.getElementById('langSelectorWrap').classList.remove('open')">🇫🇷 Français</button>
-          <button class="lang-opt" data-lang="en" onclick="if(window.AHH_LANG)AHH_LANG.set('en');document.getElementById('langSelectorWrap').classList.remove('open')">🇬🇧 English</button>
-          <button class="lang-opt" data-lang="ht" onclick="if(window.AHH_LANG)AHH_LANG.set('ht');document.getElementById('langSelectorWrap').classList.remove('open')">🇭🇹 Kreyòl</button>
-        </div>
-      </div>
-      <button class="icon-btn" id="darkToggle" title="Mode nuit">🌙</button>
-      <button class="icon-btn" id="alertBtn" title="Alertes">🔔<span class="badge" id="alertCount" style="display:none"></span></button>
-      <button class="icon-btn" id="msgBtn" title="Messages">✉️<span class="badge" id="msgCount" style="display:none"></span></button>
-      <div class="user-chip" id="userChip"></div>
-      <button id="siteNavLogout" class="icon-btn" title="Déconnexion" style="font-size:.75rem;width:auto;padding:0 10px;gap:4px;display:flex;align-items:center;color:#c62828;border-color:#ffd5d5;background:#fff5f5" onclick="logout()">⬅ Déco</button>
-    </div>
-    <!-- Conservé pour la compatibilité JS -->
-    <div id="siteNavUser" style="display:none">
-      <span id="siteNavName"></span>
+    <nav class="site-nav-links">
+      <a href="../index.html">Accueil</a>
+      <a href="../actualites.html">Activités</a>
+      <a href="../galerie.html">Galerie</a>
+      <a href="../equipe.html">Équipe</a>
+      <a href="../index.html#don">Soutenir</a>
+      <a href="../about.html">À propos</a>
+    </nav>
+    <div class="site-nav-user" id="siteNavUser">
+      <span class="site-nav-connected"></span>
+      <span id="siteNavName" style="font-weight:600;font-size:.82rem"></span>
+      <button class="site-nav-logout" id="siteNavLogout" onclick="logout()">⬅ Déconnexion</button>
     </div>
   </div>
 </div>
@@ -75,7 +54,32 @@
 
 <!-- ── MAIN ─────────────────────────────────────────────────────────────── -->
 <div class="main-wrapper">
-  <!-- Topbar supprimée — fusionnée dans site-nav-strip -->
+  <header class="topbar">
+    <button class="hamburger-dash" id="sidebarToggle">☰</button>
+    <div class="topbar-title" id="topbarTitle">Tableau de bord</div>
+    <div class="search-wrap" id="searchWrap">
+      <input class="search-input" id="searchInput" type="text" placeholder="🔍 Rechercher..." autocomplete="off"/>
+      <div class="search-results" id="searchResults" style="display:none"></div>
+    </div>
+    <div class="topbar-right">
+      <div class="lang-selector" id="langSelectorWrap" onclick="event.stopPropagation()">
+        <button class="icon-btn lang-btn" id="langBtn" title="Langue"
+          onclick="document.getElementById('langSelectorWrap').classList.toggle('open')">
+          🌐 <span id="langLabel">FR</span>
+        </button>
+        <div class="lang-dropdown" id="langDropdown">
+          <div class="lang-dropdown-title">Langue / Language</div>
+          <button class="lang-opt" data-lang="fr" onclick="if(window.AHH_LANG)AHH_LANG.set('fr');document.getElementById('langSelectorWrap').classList.remove('open')">🇫🇷 Français</button>
+          <button class="lang-opt" data-lang="en" onclick="if(window.AHH_LANG)AHH_LANG.set('en');document.getElementById('langSelectorWrap').classList.remove('open')">🇬🇧 English</button>
+          <button class="lang-opt" data-lang="ht" onclick="if(window.AHH_LANG)AHH_LANG.set('ht');document.getElementById('langSelectorWrap').classList.remove('open')">🇭🇹 Kreyòl</button>
+        </div>
+      </div>
+      <button class="icon-btn" id="darkToggle" title="Mode nuit">🌙</button>
+      <button class="icon-btn" id="alertBtn" title="Alertes">🔔<span class="badge" id="alertCount" style="display:none"></span></button>
+      <button class="icon-btn" id="msgBtn" title="Messages">✉️<span class="badge" id="msgCount" style="display:none"></span></button>
+      <div class="user-chip" id="userChip"></div>
+    </div>
+  </header>
 
   <!-- Contenu principal -->
   <main class="content" id="mainContent">
