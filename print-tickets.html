@@ -11,24 +11,21 @@
   .controls{background:#fff;border-radius:12px;padding:16px 20px;margin-bottom:20px;
     display:flex;align-items:center;gap:12px;flex-wrap:wrap;box-shadow:0 2px 8px rgba(0,0,0,.08)}
   .controls h2{font-size:1rem;color:#1b5e20;flex:1}
-  .btn{padding:9px 20px;border:none;border-radius:8px;cursor:pointer;font-size:.88rem;font-weight:600;font-family:inherit}
+  .btn{padding:9px 20px;border:none;border-radius:8px;cursor:pointer;font-size:.88rem;font-weight:600;font-family:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
   .btn-print{background:#1b5e20;color:#fff}
-  .btn-back{background:#eee;color:#333;text-decoration:none;display:inline-flex;align-items:center}
+  .btn-active{background:#1b5e20;color:#fff}
+  .btn-outline{background:#fff;border:2px solid #1b5e20;color:#1b5e20}
+  .btn-back{background:#eee;color:#333}
   .count{font-size:.82rem;color:#666}
 
-  /* ── FORMAT NORMAL (1 ticket/page ou 2/page en paysage) ── */
+  /* ── GRIDS ── */
   .grid-normal{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
   .grid-small {display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .grid-stub  {display:grid;grid-template-columns:1fr;gap:20px}
 
-  /* Ticket normal */
-  .ticket{
-    background:#fff;border-radius:12px;border:2px solid #1b5e20;
-    overflow:hidden;break-inside:avoid;page-break-inside:avoid;
-  }
-  .ticket-hdr{
-    background:linear-gradient(135deg,#1b5e20,#2e7d32);
-    padding:10px 14px;display:flex;align-items:center;gap:8px;
-  }
+  /* ── TICKET STANDARD ── */
+  .ticket{background:#fff;border-radius:12px;border:2px solid #1b5e20;overflow:hidden;break-inside:avoid;page-break-inside:avoid}
+  .ticket-hdr{background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:10px 14px;display:flex;align-items:center;gap:8px}
   .ticket-hdr img{width:36px;height:36px;border-radius:7px;object-fit:cover;border:2px solid rgba(255,255,255,.3)}
   .ticket-hdr-txt{color:#fff}
   .ticket-hdr-txt strong{font-size:.82rem;display:block}
@@ -44,12 +41,37 @@
   .ticket-bc-val{font-size:.62rem;color:#999;font-family:monospace}
   .ticket-footer{background:#f4f8f4;padding:6px 14px;font-size:.62rem;color:#888;text-align:center}
 
-  /* ── FORMAT PETIT (4/page) ── */
-  .ticket-small{
-    background:#fff;border-radius:8px;border:1.5px solid #1b5e20;
+  /* ── TICKET AVEC TALON ── */
+  .ticket-stub-wrap{
+    display:flex;background:#fff;border:2px solid #1b5e20;border-radius:12px;
     overflow:hidden;break-inside:avoid;page-break-inside:avoid;
-    font-size:.8rem;
   }
+  .ticket-stub-main{flex:1;min-width:0} /* partie attendee */
+  .ticket-stub-sep{
+    width:1px;background:repeating-linear-gradient(to bottom,#1b5e20 0,#1b5e20 6px,transparent 6px,transparent 10px);
+    flex-shrink:0;position:relative;
+  }
+  .ticket-stub-sep::before{
+    content:'✂';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    background:#fff;padding:4px;font-size:.8rem;color:#888;
+  }
+  .ticket-stub-part{
+    width:140px;flex-shrink:0;
+    background:linear-gradient(135deg,#1b5e20,#2e7d32);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:14px 10px;text-align:center;
+  }
+  .stub-label{color:rgba(255,255,255,.7);font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+  .stub-activite{color:#fff;font-weight:700;font-size:.78rem;margin-bottom:8px;line-height:1.3}
+  .stub-code{background:rgba(255,255,255,.2);color:#fff;font-family:monospace;font-size:.85rem;font-weight:800;padding:6px 10px;border-radius:8px;letter-spacing:.06em;margin-bottom:6px;word-break:break-all}
+  .stub-prix{color:rgba(255,255,255,.9);font-size:.75rem;margin-bottom:4px}
+  .stub-bc img{width:110px;height:30px;display:block;margin:6px auto 0;filter:invert(1)}
+  .stub-acheteur{color:rgba(255,255,255,.8);font-size:.68rem;margin-top:6px}
+  .stub-vendeur{color:rgba(255,255,255,.6);font-size:.6rem;margin-top:2px}
+  .stub-footer{color:rgba(255,255,255,.5);font-size:.58rem;margin-top:8px;border-top:1px solid rgba(255,255,255,.2);padding-top:6px}
+
+  /* ── PETIT FORMAT ── */
+  .ticket-small{background:#fff;border-radius:8px;border:1.5px solid #1b5e20;overflow:hidden;break-inside:avoid;page-break-inside:avoid;font-size:.8rem}
   .ts-hdr{background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:6px 10px;display:flex;align-items:center;gap:6px}
   .ts-hdr img{width:24px;height:24px;border-radius:5px;object-fit:cover}
   .ts-hdr-txt{color:#fff;font-size:.65rem;font-weight:700}
@@ -64,10 +86,11 @@
   .ts-footer{background:#f4f8f4;padding:4px 10px;font-size:.55rem;color:#999;text-align:center}
 
   @media print{
-    body{background:#fff;padding:8px}
+    body{background:#fff;padding:4px}
     .controls{display:none}
-    .grid-normal{gap:12px}
+    .grid-normal{gap:10px}
     .grid-small{gap:6px}
+    .grid-stub{gap:14px}
   }
 </style>
 </head>
@@ -75,6 +98,12 @@
 <div class="controls">
   <h2 id="pageTitle">⏳ Chargement des billets...</h2>
   <span class="count" id="pageCount"></span>
+  <div style="display:flex;gap:6px;align-items:center">
+    <span style="font-size:.78rem;color:#666">Format :</span>
+    <button class="btn btn-active" id="btnStub"   onclick="setFormat('stub')"   style="padding:6px 12px">🎫 Avec talon</button>
+    <button class="btn btn-outline" id="btnNormal" onclick="setFormat('normal')" style="padding:6px 12px">📄 Standard</button>
+    <button class="btn btn-outline" id="btnSmall"  onclick="setFormat('small')"  style="padding:6px 12px">🗂 Petit (4/page)</button>
+  </div>
   <button class="btn btn-print" onclick="window.print()">🖨️ Imprimer</button>
   <a href="javascript:history.back()" class="btn btn-back">← Retour</a>
 </div>
@@ -86,83 +115,125 @@ const BASE = location.hostname === 'localhost' || location.hostname === '127.0.0
 const token = localStorage.getItem('ahh_token');
 const params = new URLSearchParams(location.search);
 const ids = (params.get('ids') || '').split(',').map(s => s.trim()).filter(Boolean);
-const size = params.get('size') || 'normal';
-const isSmall = size === 'small';
+let currentFormat = params.get('size') === 'small' ? 'small' : 'stub';
+let allTickets = [];
+
+function setFormat(fmt) {
+  currentFormat = fmt;
+  ['btnStub','btnNormal','btnSmall'].forEach(id => {
+    document.getElementById(id).className = 'btn btn-outline';
+  });
+  document.getElementById('btn' + fmt.charAt(0).toUpperCase() + fmt.slice(1)).className = 'btn btn-active';
+  renderAll();
+}
 
 async function load() {
   if (!ids.length) { document.getElementById('pageTitle').textContent = 'Aucun billet spécifié.'; return; }
-  const tickets = [];
   for (const id of ids) {
     try {
       const r = await fetch(`${API}/tickets/${id}/view`, { headers: token ? { Authorization: 'Bearer ' + token } : {} });
-      if (r.ok) tickets.push(await r.json());
+      if (r.ok) allTickets.push(await r.json());
     } catch(e) {}
   }
-  if (!tickets.length) { document.getElementById('pageTitle').textContent = 'Aucun billet trouvé.'; return; }
-
-  const act = tickets[0];
-  document.title = `Billets — ${act.activite || 'AHH'}`;
-  document.getElementById('pageTitle').textContent = `Billets — ${act.activite || 'AHH'} (${isSmall ? 'format petit' : 'format standard'})`;
-  document.getElementById('pageCount').textContent = tickets.length + ' billet(s)';
-
-  const grid = document.getElementById('ticketsGrid');
-  grid.className = isSmall ? 'grid-small' : 'grid-normal';
-  grid.innerHTML = tickets.map(t => renderTicket(t, isSmall)).join('');
+  if (!allTickets.length) { document.getElementById('pageTitle').textContent = 'Aucun billet trouvé.'; return; }
+  document.title = `Billets — ${allTickets[0].activite || 'AHH'}`;
+  document.getElementById('pageTitle').textContent = `Billets — ${allTickets[0].activite || 'AHH'}`;
+  document.getElementById('pageCount').textContent = allTickets.length + ' billet(s)';
+  renderAll();
 }
 
-function renderTicket(t, small) {
+function renderAll() {
+  const grid = document.getElementById('ticketsGrid');
+  grid.className = currentFormat === 'small' ? 'grid-small' : currentFormat === 'stub' ? 'grid-stub' : 'grid-normal';
+  grid.innerHTML = allTickets.map(t => renderTicket(t, currentFormat)).join('');
+}
+
+function renderTicket(t, fmt) {
   const ticketToken = (t.qr_data || '').replace('TICKET:', '');
   const qrSrc = `${BASE}/uploads/qr/${ticketToken}.png`;
   const bcSrc = `${API}/tickets/${t.id}/barcode.png`;
   const dateStr = t.date_debut ? new Date(t.date_debut).toLocaleDateString('fr-CA', { day:'numeric', month:'long', year:'numeric' }) : '';
+  const s = t => String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-  if (small) return `
-    <div class="ticket-small">
-      <div class="ts-hdr">
-        <img src="/Public/logo1.png" alt="AHH"/>
-        <div class="ts-hdr-txt">AHH Hamilton</div>
+  if (fmt === 'stub') {
+    // ── TICKET AVEC TALON ──
+    return `
+    <div class="ticket-stub-wrap">
+      <!-- Partie ticket (acheteur) -->
+      <div class="ticket-stub-main">
+        <div class="ticket-hdr">
+          <img src="/Public/logo1.png" alt="AHH"/>
+          <div class="ticket-hdr-txt">
+            <strong>Association Haïtienne de Hamilton</strong>
+            <span>Billet d'entrée officiel</span>
+          </div>
+        </div>
+        <div class="ticket-body">
+          <div class="ticket-title">${s(t.activite)}</div>
+          <div class="ticket-meta">${dateStr ? '📅 ' + dateStr : ''}${t.lieu ? ' · 📍 ' + t.lieu : ''}</div>
+          <div class="ticket-buyer">👤 ${s(t.acheteur_nom||'Anonyme')}${t.type_nom ? ' · ' + s(t.type_nom) : ''}</div>
+        </div>
+        <div class="ticket-codes">
+          <div class="ticket-codes-lbl">Scannez à l'entrée</div>
+          <div class="ticket-qr"><img src="${qrSrc}" alt="QR" onerror="this.style.display='none'"/></div>
+          <div class="ticket-bc">
+            <img src="${bcSrc}" alt="Barcode" onerror="this.style.display='none'"/>
+            <div class="ticket-bc-val">${s(t.barcode_data||'')}</div>
+          </div>
+        </div>
+        <div class="ticket-footer">⚠️ Billet personnel · non transférable · valide une seule fois</div>
       </div>
+
+      <!-- Séparateur pointillé -->
+      <div class="ticket-stub-sep"></div>
+
+      <!-- TALON (reste chez le vendeur) -->
+      <div class="ticket-stub-part">
+        <div class="stub-label">✂ Talon vendeur</div>
+        <div class="stub-activite">${s(t.activite)}</div>
+        <div class="stub-code">${s(t.barcode_data||'')}</div>
+        <div class="stub-prix">$${(t.prix||0).toFixed(2)} · Cash</div>
+        <div class="stub-bc"><img src="${bcSrc}" alt="Code-barres" onerror="this.style.display='none'"/></div>
+        <div class="stub-acheteur">${s(t.acheteur_nom||'Anonyme')}</div>
+        ${dateStr ? '<div class="stub-vendeur">' + dateStr.split(' ').slice(0,2).join(' ') + '</div>' : ''}
+        <div class="stub-footer">Gardez ce talon pour confirmer la vente</div>
+      </div>
+    </div>`;
+  }
+
+  if (fmt === 'small') return `
+    <div class="ticket-small">
+      <div class="ts-hdr"><img src="/Public/logo1.png" alt="AHH"/><div class="ts-hdr-txt">AHH Hamilton</div></div>
       <div class="ts-body">
-        <div class="ts-title">${esc(t.activite||'')}</div>
+        <div class="ts-title">${s(t.activite||'')}</div>
         <div class="ts-meta">${dateStr}${t.lieu ? ' · ' + t.lieu : ''}</div>
-        <div class="ts-buyer">👤 ${esc(t.acheteur_nom||'Anonyme')}</div>
-        ${t.type_nom ? `<div class="ts-meta" style="margin-top:2px">${esc(t.type_nom)}</div>` : ''}
+        <div class="ts-buyer">👤 ${s(t.acheteur_nom||'Anonyme')}</div>
+        ${t.type_nom ? `<div class="ts-meta" style="margin-top:2px">${s(t.type_nom)}</div>` : ''}
       </div>
       <div class="ts-codes">
         <div class="ts-qr"><img src="${qrSrc}" alt="QR" onerror="this.style.display='none'"/></div>
         <div class="ts-bc"><img src="${bcSrc}" alt="Barcode" onerror="this.style.display='none'"/></div>
-        <div class="ts-bc-val">${esc(t.barcode_data||'')}</div>
+        <div class="ts-bc-val">${s(t.barcode_data||'')}</div>
       </div>
       <div class="ts-footer">⚠️ Personnel · valide 1 fois</div>
     </div>`;
 
   return `
     <div class="ticket">
-      <div class="ticket-hdr">
-        <img src="/Public/logo1.png" alt="AHH"/>
-        <div class="ticket-hdr-txt">
-          <strong>Association Haïtienne de Hamilton</strong>
-          <span>Billet d'entrée officiel</span>
-        </div>
-      </div>
+      <div class="ticket-hdr"><img src="/Public/logo1.png" alt="AHH"/><div class="ticket-hdr-txt"><strong>Association Haïtienne de Hamilton</strong><span>Billet d'entrée officiel</span></div></div>
       <div class="ticket-body">
-        <div class="ticket-title">${esc(t.activite||'')}</div>
+        <div class="ticket-title">${s(t.activite||'')}</div>
         <div class="ticket-meta">${dateStr ? '📅 ' + dateStr : ''}${t.lieu ? ' · 📍 ' + t.lieu : ''}</div>
-        <div class="ticket-buyer">👤 ${esc(t.acheteur_nom||'Anonyme')}${t.type_nom ? ' · ' + esc(t.type_nom) : ''}</div>
+        <div class="ticket-buyer">👤 ${s(t.acheteur_nom||'Anonyme')}${t.type_nom ? ' · ' + s(t.type_nom) : ''}</div>
       </div>
       <div class="ticket-codes">
         <div class="ticket-codes-lbl">Scannez à l'entrée</div>
         <div class="ticket-qr"><img src="${qrSrc}" alt="QR" onerror="this.style.display='none'"/></div>
-        <div class="ticket-bc">
-          <img src="${bcSrc}" alt="Barcode" onerror="this.style.display='none'"/>
-          <div class="ticket-bc-val">${esc(t.barcode_data||'')}</div>
-        </div>
+        <div class="ticket-bc"><img src="${bcSrc}" alt="Barcode" onerror="this.style.display='none'"/><div class="ticket-bc-val">${s(t.barcode_data||'')}</div></div>
       </div>
       <div class="ticket-footer">⚠️ Billet personnel et non transférable · valide une seule fois</div>
     </div>`;
 }
-
-function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 load();
 </script>

@@ -3789,6 +3789,23 @@ app.post('/api/tickets/:id/marquer-vendu', authMiddleware, requireRole('admin','
   res.json({ ok: true, barcode: t.barcode_data });
 });
 
+// POST — marquer vendu par code-barres (saisie des talons)
+app.post('/api/tickets/by-barcode/:code/marquer-vendu', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  const t = db.prepare("SELECT * FROM tickets WHERE barcode_data = ? AND statut = 'genere'").get(req.params.code);
+  if (!t) return res.status(404).json({ ok: false, error: 'Billet introuvable ou déjà vendu' });
+
+  db.prepare("UPDATE tickets SET statut='actif', payment_status='paid' WHERE id=?").run(t.id);
+  if (t.prix > 0) {
+    const line = db.prepare('SELECT id FROM financial_lines WHERE activity_id=? LIMIT 1').get(t.activity_id);
+    if (line) {
+      db.prepare("INSERT INTO transactions (financial_line_id, type, montant, description, methode, cree_par) VALUES (?, 'revenu', ?, ?, 'cash', ?)")
+        .run(line.id, t.prix, `Talon vendu — ${t.barcode_data}`, req.user.id);
+      db.prepare('UPDATE account_info SET solde = solde + ?, date_maj = CURRENT_TIMESTAMP WHERE id = 1').run(t.prix);
+    }
+  }
+  res.json({ ok: true, barcode: t.barcode_data, prix: t.prix });
+});
+
 // POST — annuler tous les billets générés non vendus d'une activité
 app.post('/api/activities/:id/annuler-non-vendus', authMiddleware, requireRole('admin','tresoriere','secretaire'), (req, res) => {
   const r = db.prepare("UPDATE tickets SET statut='annule' WHERE activity_id=? AND statut='genere'").run(req.params.id);

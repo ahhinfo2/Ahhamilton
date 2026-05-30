@@ -6410,9 +6410,12 @@ async function vpRefreshGeneres() {
       return;
     }
     list.innerHTML =
-      `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px">
         <span style="font-size:.82rem;color:var(--muted)">${tickets.length} billet(s) non vendu(s)</span>
-        <button class="btn btn-sm" style="color:#c62828;border-color:#ffd5d5;background:#fff5f5" onclick="vpAnnulerNonVendus('${actId}')">🗑 Annuler tous</button>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-sm btn-primary" onclick="vpSaisirTalons()">🎫 Saisir les talons</button>
+          <button class="btn btn-sm" style="color:#c62828;border-color:#ffd5d5;background:#fff5f5" onclick="vpAnnulerNonVendus('${actId}')">🗑 Annuler tous</button>
+        </div>
       </div>` +
       tickets.map(t => `
         <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
@@ -6466,6 +6469,50 @@ async function vpAnnulerNonVendus(actId) {
     toast(r.annules + ' billet(s) annulé(s)');
     vpRefreshGeneres();
   } catch(e) { toast('Erreur : ' + e.message, true); }
+}
+
+// ── Saisie des talons (codes AHH-XXXXX) pour marquer vendus en lot ───────────
+async function vpSaisirTalons() {
+  const actId = document.getElementById('vpActivite')?.value;
+  openModal('🎫 Saisir les talons récupérés',
+    `<p style="font-size:.85rem;color:var(--muted);margin-bottom:12px">
+      Entrez les codes des talons récupérés (un par ligne ou séparés par des virgules).<br/>
+      Exemple : <code>AHH-4RQ584, AHH-7XK291</code>
+    </p>
+    <textarea id="talonCodes" rows="8" class="form-input" placeholder="AHH-4RQ584&#10;AHH-7XK291&#10;..." style="font-family:monospace;resize:vertical;margin-bottom:12px"></textarea>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-primary" onclick="vpTraiterTalons()">✅ Marquer vendus</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+    </div>
+    <div id="talonResult" style="margin-top:12px"></div>`
+  );
+}
+
+async function vpTraiterTalons() {
+  const raw = document.getElementById('talonCodes')?.value || '';
+  const codes = raw.split(/[\n,;]+/).map(s => s.trim().toUpperCase()).filter(Boolean);
+  if (!codes.length) return toast('Entrez au moins un code', true);
+  const result = document.getElementById('talonResult');
+  result.innerHTML = '<span style="color:var(--muted)">⏳ Traitement...</span>';
+
+  let ok = 0, errors = [];
+  for (const code of codes) {
+    try {
+      const r = await api(`/tickets/by-barcode/${encodeURIComponent(code)}/marquer-vendu`, { method: 'POST' });
+      if (r.ok) ok++;
+      else errors.push(code + ': ' + (r.error || 'Erreur'));
+    } catch(e) { errors.push(code + ': ' + e.message); }
+  }
+
+  result.innerHTML =
+    `<div style="background:#e8f5e9;border-radius:8px;padding:10px 14px;font-size:.84rem;color:#1b5e20;margin-bottom:8px">
+      ✅ <strong>${ok} billet(s)</strong> marqué(s) vendu(s) — revenu enregistré
+    </div>` +
+    (errors.length ? `<div style="background:#fdecea;border-radius:8px;padding:10px 14px;font-size:.82rem;color:#c62828">
+      ❌ ${errors.length} code(s) non trouvé(s) :<br/>${errors.join('<br/>')}
+    </div>` : '');
+
+  if (ok > 0) vpRefreshGeneres();
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
