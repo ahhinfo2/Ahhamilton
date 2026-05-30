@@ -2684,7 +2684,7 @@ async function annuaire() {
           <div class="gm-nav-row" id="gn-sent"      onclick="gmNav('sent')"  ><span>📤</span><span>Envoyés</span></div>
           <div class="gm-nav-row" id="gn-all"       onclick="gmNav('all')"   ><span>📂</span><span>Tous</span></div>
           <div class="gm-nav-row" id="gn-trash"     onclick="gmNav('trash')" ><span>🗑️</span><span>Corbeille</span></div>
-          <div class="gm-nav-row" id="gn-external"  onclick="gmNav('external')" style="margin-top:10px;border-top:1px solid rgba(255,255,255,.1);padding-top:10px"><span>📬</span><span>Externe (@ahhamilton)</span></div>
+          ${can.executive() ? `<div class="gm-nav-row" id="gn-external" onclick="gmNav('external')" style="margin-top:10px;border-top:1px solid rgba(255,255,255,.1);padding-top:10px"><span>📬</span><span>Externe (@ahhamilton)</span></div>` : ''}
         </nav>
       </aside>
       <div class="gm-main" id="gmMain">
