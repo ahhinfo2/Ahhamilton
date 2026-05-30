@@ -309,7 +309,7 @@ function renderUserChip() {
     : `${USER.prenom} · ${roleName(USER.role)}`;
   document.getElementById('userChip').textContent = chipText;
   const nameEl = document.getElementById('siteNavName');
-  if (nameEl) nameEl.textContent = `${USER.prenom} ${USER.nom}`;
+  if (nameEl) nameEl.textContent = USER.prenom;
   const logoutStrip = document.getElementById('siteNavLogout');
   if (logoutStrip) logoutStrip.onclick = logout;
 }

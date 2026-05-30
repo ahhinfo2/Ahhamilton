@@ -18,7 +18,7 @@ a{text-decoration:none;color:inherit}
 img{display:block;max-width:100%}
 
 /* ── SITE NAV STRIP ────────────────────────────────────────────────────── */
-:root { --strip-h: 46px; }
+:root { --strip-h: 58px; }
 
 .site-nav-strip {
   position: fixed;
@@ -28,47 +28,45 @@ img{display:block;max-width:100%}
   background: #ffffff;
   border-bottom: 2px solid var(--border);
   box-shadow: 0 2px 12px rgba(0,0,0,.07);
-  z-index: 300;
   display: flex;
   align-items: center;
 }
 .site-nav-inner {
   width: 100%;
-  padding: 0 12px;
-  display: flex;
+  padding: 0 20px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 6px;
-  overflow: hidden;
+  gap: 16px;
 }
 .site-nav-logo {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   color: var(--text);
-  font-weight: 700;
-  font-size: .84rem;
+  font-weight: 800;
+  font-size: 1rem;
   text-decoration: none;
   flex-shrink: 0;
-  justify-self: start;
 }
 .site-nav-logo-img {
-  width: 28px; height: 28px;
-  border-radius: 7px;
+  width: 38px; height: 38px;
+  border-radius: 9px;
   object-fit: cover;
-  border: 1.5px solid var(--border);
+  border: 2px solid var(--border);
 }
 .site-nav-links {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   justify-content: center;
 }
 .site-nav-links a {
   color: var(--muted);
-  font-size: .78rem;
-  font-weight: 500;
-  padding: 5px 10px;
-  border-radius: 6px;
+  font-size: .9rem;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 8px;
   text-decoration: none;
   transition: var(--tr);
   white-space: nowrap;
@@ -80,21 +78,23 @@ img{display:block;max-width:100%}
 .site-nav-user {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   justify-self: end;
-  padding-left: 12px;
+  padding-left: 16px;
   border-left: 1px solid var(--border);
+  flex-shrink: 0;
 }
 .site-nav-connected {
-  width: 8px; height: 8px;
+  width: 9px; height: 9px;
   border-radius: 50%;
   background: #43a047;
   flex-shrink: 0;
 }
 #siteNavName {
   color: var(--text);
-  font-size: .78rem;
-  font-weight: 600;
+  font-size: .88rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
 .site-nav-logout {
   background: var(--off);
