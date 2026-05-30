@@ -17,13 +17,16 @@
 </head>
 <body>
 
-<!-- ── BARRE NAV : logo + menu public + prénom + déconnexion ─────────── -->
+<!-- ── BARRE UNIQUE ────────────────────────────────────────────────────── -->
 <div class="site-nav-strip" id="siteNavStrip">
   <div class="site-nav-inner">
+    <!-- Logo gauche -->
+    <button class="hamburger-dash" id="sidebarToggle">☰</button>
     <a href="../index.html" class="site-nav-logo">
       <img src="../Public/logo1.png" alt="AHH" class="site-nav-logo-img"/>
       <span>AHH</span>
     </a>
+    <!-- Nav centrée -->
     <nav class="site-nav-links">
       <a href="../actualites.html">Activités</a>
       <a href="../galerie.html">Galerie</a>
@@ -31,36 +34,8 @@
       <a href="../index.html#don">Soutenir</a>
       <a href="../about.html">À propos</a>
     </nav>
+    <!-- Droite : boutons + prénom + déco -->
     <div class="site-nav-user" id="siteNavUser">
-      <span class="site-nav-connected"></span>
-      <span id="siteNavName"></span>
-      <button class="site-nav-logout" id="siteNavLogout" onclick="logout()">⬅ Déconnexion</button>
-    </div>
-  </div>
-</div>
-
-<!-- ── SIDEBAR ──────────────────────────────────────────────────────────── -->
-<aside class="sidebar" id="sidebar">
-  <div class="sidebar-brand">
-    <img src="../Public/logo1.png" alt="AHH" class="sb-logo-img"/>
-    <span class="sb-name">Mon espace</span>
-  </div>
-  <nav class="sidebar-nav" id="sidebarNav"></nav>
-  <div class="sidebar-footer">
-    <button class="btn-logout" id="btnLogout">⬅ Déconnexion</button>
-  </div>
-</aside>
-
-<!-- ── MAIN ─────────────────────────────────────────────────────────────── -->
-<div class="main-wrapper">
-  <header class="topbar">
-    <button class="hamburger-dash" id="sidebarToggle">☰</button>
-    <div class="topbar-title" id="topbarTitle">Tableau de bord</div>
-    <div class="search-wrap" id="searchWrap">
-      <input class="search-input" id="searchInput" type="text" placeholder="🔍 Rechercher..." autocomplete="off"/>
-      <div class="search-results" id="searchResults" style="display:none"></div>
-    </div>
-    <div class="topbar-right">
       <div class="lang-selector" id="langSelectorWrap" onclick="event.stopPropagation()">
         <button class="icon-btn lang-btn" id="langBtn" title="Langue"
           onclick="document.getElementById('langSelectorWrap').classList.toggle('open')">
@@ -77,8 +52,35 @@
       <button class="icon-btn" id="alertBtn" title="Alertes">🔔<span class="badge" id="alertCount" style="display:none"></span></button>
       <button class="icon-btn" id="msgBtn" title="Messages">✉️<span class="badge" id="msgCount" style="display:none"></span></button>
       <div class="user-chip" id="userChip"></div>
+      <span class="site-nav-connected"></span>
+      <span id="siteNavName"></span>
+      <button class="site-nav-logout" id="siteNavLogout" onclick="logout()">⬅ Déco</button>
     </div>
-  </header>
+  </div>
+</div>
+<!-- Titre de page (caché, conservé pour la compatibilité JS) -->
+<div id="topbarTitle" style="display:none">Tableau de bord</div>
+<!-- Recherche globale (conservée, déplacée) -->
+<div id="searchWrap" style="display:none">
+  <input id="searchInput" type="text" autocomplete="off"/>
+  <div id="searchResults" style="display:none"></div>
+</div>
+
+<!-- ── SIDEBAR ──────────────────────────────────────────────────────────── -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <img src="../Public/logo1.png" alt="AHH" class="sb-logo-img"/>
+    <span class="sb-name">Mon espace</span>
+  </div>
+  <nav class="sidebar-nav" id="sidebarNav"></nav>
+  <div class="sidebar-footer">
+    <button class="btn-logout" id="btnLogout">⬅ Déconnexion</button>
+  </div>
+</aside>
+
+<!-- ── MAIN ─────────────────────────────────────────────────────────────── -->
+<div class="main-wrapper">
+  <!-- Topbar supprimée (contenu fusionné dans site-nav-strip) -->
 
   <!-- Contenu principal -->
   <main class="content" id="mainContent">
