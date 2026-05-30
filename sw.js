@@ -1,9 +1,10 @@
-const CACHE = 'ahh-v21';
+const CACHE = 'ahh-v22';
 
 // Fichiers JAMAIS mis en cache — toujours chargés depuis le réseau
 const NO_CACHE = [
   '/sw.js', '/script.js', '/_nav.js', '/_lang.js', '/style.css',
   '/', '/index.html',
+  '/dashboard/app.html', '/dashboard/dashboard.css', '/dashboard/dashboard.js',
   '/scan.html', '/ticket.html', '/print-tickets.html',
   '/billets.html', '/activity-checkout.html', '/carte.html'
 ];
