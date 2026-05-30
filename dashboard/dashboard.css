@@ -153,14 +153,14 @@ img{display:block;max-width:100%}
 .main-wrapper{margin-left:var(--sidebar);min-height:100vh;display:flex;flex-direction:column;transition:margin var(--tr);padding-top:var(--strip-h);flex:1;min-width:0;overflow-x:hidden}
 .topbar{
   position:sticky;top:var(--strip-h);z-index:100;
-  min-height:var(--topbar);background:var(--white);
-  display:flex;align-items:center;flex-wrap:wrap;gap:8px;
-  padding:8px 20px;border-bottom:1px solid var(--border);
+  height:var(--topbar);background:var(--white);
+  display:flex;align-items:center;gap:8px;overflow:hidden;
+  padding:0 16px;border-bottom:1px solid var(--border);
   box-shadow:var(--shadow);
 }
 .hamburger-dash{display:none;background:none;border:none;font-size:1.3rem;cursor:pointer;padding:4px}
-.topbar-title{flex:1;font-size:1rem;font-weight:700;color:var(--text)}
-.topbar-right{display:flex;align-items:center;gap:8px}
+.topbar-title{font-size:1rem;font-weight:700;color:var(--text);white-space:nowrap;margin-right:8px}
+.topbar-right{display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:auto}
 .icon-btn{position:relative;background:var(--off);border:1px solid var(--border);border-radius:8px;width:36px;height:36px;font-size:1rem;cursor:pointer;transition:var(--tr);display:flex;align-items:center;justify-content:center}
 .icon-btn:hover{background:var(--border)}
 .badge{position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;font-size:.65rem;font-weight:700;padding:2px 5px;border-radius:50px;min-width:17px;text-align:center;line-height:1.2}
@@ -833,7 +833,7 @@ html.dark .gm-row:hover { background: var(--off); }
 /* ── TOPBAR SEARCH ─────────────────────────────────────────────────────── */
 .search-wrap {
   position: relative;
-  flex: 1; max-width: 360px; margin: 0 12px;
+  flex: 1; max-width: 340px; min-width: 120px; margin: 0 8px;
 }
 .search-input {
   width: 100%; padding: 7px 14px;
