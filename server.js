@@ -3718,15 +3718,18 @@ app.post('/api/activities/:id/assigner-tables', authMiddleware, requireRole('adm
   res.json({ ok: true });
 });
 
-// POST vente en personne — génère ticket cash immédiatement
+// POST vente en personne — mode 'generer' (sans revenue) ou 'vendre' (avec revenue)
 app.post('/api/activities/:id/vendre', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), async (req, res) => {
-  const { acheteur_nom, nb_billets = 1, prix_unitaire } = req.body;
+  const { acheteur_nom, nb_billets = 1, prix_unitaire, mode = 'vendre' } = req.body;
   const actId = parseInt(req.params.id);
   const act = db.prepare('SELECT * FROM activities WHERE id=?').get(actId);
   if (!act) return res.status(404).json({ error: 'Activité introuvable' });
 
   const prix = parseFloat(prix_unitaire) || act.prix || 0;
   const vendeurId = req.user.id;
+  const isGenerer = mode === 'generer'; // true = pré-imprimer sans enregistrer la vente
+  const statut = isGenerer ? 'genere' : 'actif';
+  const paymentStatus = isGenerer ? 'pending' : 'paid';
   const tickets = [];
   const siteBase = process.env.SITE_URL || 'https://ahhamilton.ca';
   const qrDir = path.join(__dirname, 'uploads', 'qr');
@@ -3739,10 +3742,9 @@ app.post('/api/activities/:id/vendre', authMiddleware, requireRole('admin','tres
 
     const r = db.prepare(`INSERT INTO tickets
       (activity_id, acheteur_nom, qr_data, barcode_data, prix, methode_paiement, payment_status, statut, vendu_par)
-      VALUES (?,?,?,?,?,'cash','paid','actif',?)`)
-      .run(actId, acheteur_nom || 'Anonyme', `TICKET:${ticketToken}`, barcode, prix, vendeurId);
+      VALUES (?,?,?,?,?,'cash',?,?,?)`)
+      .run(actId, acheteur_nom || 'Anonyme', `TICKET:${ticketToken}`, barcode, prix, paymentStatus, statut, vendeurId);
 
-    // Générer et sauvegarder le QR + barcode
     try {
       const scanUrl = `${siteBase}/scan.html?t=${ticketToken}`;
       const qrBuf = await QRCode.toBuffer(scanUrl, { type: 'png', width: 400, margin: 2, errorCorrectionLevel: 'H', color: { dark: '#1b5e20', light: '#ffffff' } });
@@ -3752,8 +3754,8 @@ app.post('/api/activities/:id/vendre', authMiddleware, requireRole('admin','tres
     tickets.push({ id: r.lastInsertRowid, token: ticketToken, barcode, prix, acheteur_nom: acheteur_nom || 'Anonyme' });
   }
 
-  // Enregistrer revenu cash
-  if (prix > 0) {
+  // Enregistrer revenu seulement si vente réelle (pas génération)
+  if (!isGenerer && prix > 0) {
     const line = db.prepare('SELECT id FROM financial_lines WHERE activity_id=? LIMIT 1').get(actId);
     if (line) {
       const montantTotal = prix * parseInt(nb_billets);
@@ -3763,7 +3765,40 @@ app.post('/api/activities/:id/vendre', authMiddleware, requireRole('admin','tres
     }
   }
 
-  res.json({ ok: true, tickets });
+  res.json({ ok: true, mode, tickets });
+});
+
+// POST — marquer un billet généré comme vendu (enregistre le revenu)
+app.post('/api/tickets/:id/marquer-vendu', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  const t = db.prepare('SELECT * FROM tickets WHERE id=?').get(req.params.id);
+  if (!t) return res.status(404).json({ error: 'Billet introuvable' });
+  if (t.statut !== 'genere') return res.status(400).json({ error: 'Ce billet n\'est pas en attente de vente' });
+
+  db.prepare("UPDATE tickets SET statut='actif', payment_status='paid', methode_paiement='cash' WHERE id=?").run(t.id);
+
+  // Enregistrer revenu
+  if (t.prix > 0) {
+    const line = db.prepare('SELECT id FROM financial_lines WHERE activity_id=? LIMIT 1').get(t.activity_id);
+    if (line) {
+      const adminId = db.prepare("SELECT id FROM users WHERE role='admin' AND (phantom IS NULL OR phantom=0) LIMIT 1").get()?.id || 1;
+      db.prepare("INSERT INTO transactions (financial_line_id, type, montant, description, methode, cree_par) VALUES (?, 'revenu', ?, ?, 'cash', ?)")
+        .run(line.id, t.prix, `Billet vendu — ${t.barcode_data}`, req.user.id);
+      db.prepare('UPDATE account_info SET solde = solde + ?, date_maj = CURRENT_TIMESTAMP WHERE id = 1').run(t.prix);
+    }
+  }
+  res.json({ ok: true, barcode: t.barcode_data });
+});
+
+// POST — annuler tous les billets générés non vendus d'une activité
+app.post('/api/activities/:id/annuler-non-vendus', authMiddleware, requireRole('admin','tresoriere','secretaire'), (req, res) => {
+  const r = db.prepare("UPDATE tickets SET statut='annule' WHERE activity_id=? AND statut='genere'").run(req.params.id);
+  res.json({ ok: true, annules: r.changes });
+});
+
+// GET — billets générés (non encore vendus) d'une activité
+app.get('/api/activities/:id/billets-generes', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  const tickets = db.prepare("SELECT id, barcode_data, acheteur_nom, prix, vendu_par FROM tickets WHERE activity_id=? AND statut='genere' ORDER BY id").all(req.params.id);
+  res.json(tickets);
 });
 
 // ── Vue publique d'un ticket (pour ticket.html) ───────────────────────────────

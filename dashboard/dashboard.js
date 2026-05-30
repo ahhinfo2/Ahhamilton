@@ -6329,36 +6329,60 @@ async function ventePersonne() {
   const acts = await api('/activities').catch(() => []);
   const actives = acts.filter(a => ['planifiee','en_cours'].includes(a.statut));
   setContent(`
-    <div class="table-card" style="max-width:100%">
-      <div class="table-card-header">
-        <h3>💵 Vente de billets en personne (Cash)</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+
+      <!-- Colonne gauche : Formulaire -->
+      <div class="table-card">
+        <div class="table-card-header"><h3>💵 Billets — Vente / Pré-impression</h3></div>
+        <div style="padding:16px">
+          <div class="form-group" style="margin-bottom:14px">
+            <label class="form-label">Activité</label>
+            <select id="vpActivite" class="form-input" onchange="vpLoadActivity()">
+              <option value="">— Choisir une activité —</option>
+              ${actives.map(a => `<option value="${a.id}" data-prix="${a.prix||0}">${a.titre} (${a.date_debut ? new Date(a.date_debut).toLocaleDateString('fr-CA') : '–'})</option>`).join('')}
+            </select>
+          </div>
+          <div id="vpForm" style="display:none">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Nom acheteur</label>
+                <input id="vpNom" class="form-input" placeholder="Nom (ou Anonyme)"/>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Quantité</label>
+                <input id="vpNb" class="form-input" type="number" min="1" max="200" value="1"/>
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom:18px">
+              <label class="form-label">Prix unitaire ($)</label>
+              <input id="vpPrix" class="form-input" type="number" min="0" step="0.01"/>
+            </div>
+
+            <!-- Explication du mode -->
+            <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:.82rem">
+              <strong>💡 Deux modes :</strong><br/>
+              <b>Pré-imprimer</b> → génère les billets SANS enregistrer la vente. Vous marquez "Vendu" au moment de l'encaissement.<br/>
+              <b>Vendre maintenant</b> → billet activé et revenu enregistré immédiatement.
+            </div>
+
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <button class="btn btn-outline" onclick="vpAction('generer')">🖨️ Pré-imprimer (sans vente)</button>
+              <button class="btn btn-primary" onclick="vpAction('vendre')">💵 Vendre maintenant</button>
+            </div>
+          </div>
+          <div id="vpTickets" style="margin-top:20px"></div>
+        </div>
       </div>
-      <div style="padding:20px">
-        <div class="form-group" style="margin-bottom:14px">
-          <label class="form-label">Activité</label>
-          <select id="vpActivite" class="form-input" onchange="vpLoadActivity()">
-            <option value="">— Choisir une activité —</option>
-            ${actives.map(a => `<option value="${a.id}" data-prix="${a.prix||0}">${a.titre} (${a.date_debut ? new Date(a.date_debut).toLocaleDateString('fr-CA') : '–'})</option>`).join('')}
-          </select>
+
+      <!-- Colonne droite : Billets pré-imprimés non vendus -->
+      <div class="table-card">
+        <div class="table-card-header">
+          <h3>📋 Billets générés — non vendus</h3>
+          <button class="btn btn-sm btn-ghost" id="vpRefreshBtn" onclick="vpRefreshGeneres()" style="display:none">↻ Actualiser</button>
         </div>
-        <div id="vpForm" style="display:none">
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Nom de l'acheteur</label>
-              <input id="vpNom" class="form-input" placeholder="Nom (ou Anonyme)"/>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Nombre de billets</label>
-              <input id="vpNb" class="form-input" type="number" min="1" max="20" value="1"/>
-            </div>
-          </div>
-          <div class="form-group" style="margin-bottom:18px">
-            <label class="form-label">Prix unitaire ($)</label>
-            <input id="vpPrix" class="form-input" type="number" min="0" step="0.01"/>
-          </div>
-          <button class="btn btn-primary" onclick="vpVendre()">💵 Encaisser et générer billet(s)</button>
+        <div id="vpGeneresList" style="padding:16px;color:var(--muted);font-size:.85rem">
+          Sélectionnez une activité pour voir les billets pré-imprimés non vendus.
         </div>
-        <div id="vpTickets" style="margin-top:24px"></div>
       </div>
     </div>`);
 }
@@ -6370,32 +6394,77 @@ function vpLoadActivity() {
   document.getElementById('vpPrix').value = opt.dataset.prix || '0';
   document.getElementById('vpForm').style.display = 'block';
   document.getElementById('vpTickets').innerHTML = '';
+  document.getElementById('vpRefreshBtn').style.display = 'inline-flex';
+  vpRefreshGeneres();
 }
 
-async function vpVendre() {
+async function vpRefreshGeneres() {
+  const actId = document.getElementById('vpActivite').value;
+  if (!actId) return;
+  const list = document.getElementById('vpGeneresList');
+  list.innerHTML = '<div style="color:var(--muted)">⏳ Chargement...</div>';
+  try {
+    const tickets = await api(`/activities/${actId}/billets-generes`);
+    if (!tickets.length) {
+      list.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted)">✅ Aucun billet pré-imprimé en attente</div>';
+      return;
+    }
+    list.innerHTML =
+      `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span style="font-size:.82rem;color:var(--muted)">${tickets.length} billet(s) non vendu(s)</span>
+        <button class="btn btn-sm" style="color:#c62828;border-color:#ffd5d5;background:#fff5f5" onclick="vpAnnulerNonVendus('${actId}')">🗑 Annuler tous</button>
+      </div>` +
+      tickets.map(t => `
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:.84rem">${escHtml(t.acheteur_nom||'Anonyme')}</div>
+            <div style="font-size:.72rem;font-family:monospace;color:#777">${t.barcode_data}</div>
+          </div>
+          <div style="font-weight:700;color:var(--g2);font-size:.85rem">$${(t.prix||0).toFixed(2)}</div>
+          <button class="btn btn-sm btn-primary" onclick="vpMarquerVendu(${t.id})" title="Marquer comme vendu">✅ Vendu</button>
+          <a href="/ticket.html?id=${t.id}" target="_blank" class="btn btn-sm btn-ghost" title="Imprimer">🖨️</a>
+        </div>`).join('');
+  } catch(e) { list.innerHTML = '<div style="color:var(--red)">Erreur: ' + e.message + '</div>'; }
+}
+
+async function vpAction(mode) {
   const actId = document.getElementById('vpActivite').value;
   const nom = document.getElementById('vpNom').value.trim() || 'Anonyme';
   const nb = parseInt(document.getElementById('vpNb').value) || 1;
   const prix = parseFloat(document.getElementById('vpPrix').value) || 0;
   if (!actId) return toast('Choisissez une activité', true);
   try {
-    const r = await api(`/activities/${actId}/vendre`, { method: 'POST', body: JSON.stringify({ acheteur_nom: nom, nb_billets: nb, prix_unitaire: prix }) });
-    const container = document.getElementById('vpTickets');
+    const r = await api(`/activities/${actId}/vendre`, { method: 'POST', body: JSON.stringify({ acheteur_nom: nom, nb_billets: nb, prix_unitaire: prix, mode }) });
     const ids = r.tickets.map(t => t.id).join(',');
-    container.innerHTML = '<h4 style="margin-bottom:12px;color:var(--g2)">✅ ' + r.tickets.length + ' billet(s) généré(s)</h4>' +
-      '<div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">' +
-        `<a href="/print-tickets.html?ids=${ids}" target="_blank" class="btn btn-primary">🖨️ Imprimer tous (${r.tickets.length})</a>` +
-        `<a href="/print-tickets.html?ids=${ids}&size=small" target="_blank" class="btn btn-outline">🖨️ Format petit (4/page)</a>` +
-      '</div>' +
-      r.tickets.map(t => `
-        <div style="border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:8px;background:#f4f8f4;display:flex;align-items:center;justify-content:space-between;gap:10px">
-          <div>
-            <div style="font-weight:600;color:#1b5e20;font-size:.9rem">${escHtml(t.acheteur_nom)}</div>
-            <div style="font-size:.75rem;font-family:monospace;color:#777">${t.barcode}</div>
-          </div>
-          <a href="/ticket.html?id=${t.id}" target="_blank" class="btn btn-ghost btn-sm">🖨️</a>
-        </div>`).join('');
-    toast(r.tickets.length + ' billet(s) vendu(s) — ' + nom);
+    const label = mode === 'generer' ? 'pré-imprimé(s)' : 'vendu(s)';
+    const container = document.getElementById('vpTickets');
+    container.innerHTML =
+      `<div style="background:${mode==='vendre'?'#e8f5e9':'#fff8e1'};border-radius:10px;padding:12px 16px;margin-bottom:12px;font-size:.85rem">
+        ${mode==='vendre'?'✅':'🖨️'} <strong>${r.tickets.length} billet(s) ${label}</strong>${mode==='vendre'?' — revenu enregistré':' — vente à confirmer'}
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+        <a href="/print-tickets.html?ids=${ids}" target="_blank" class="btn btn-primary btn-sm">🖨️ Imprimer tous</a>
+        <a href="/print-tickets.html?ids=${ids}&size=small" target="_blank" class="btn btn-outline btn-sm">🖨️ Format petit</a>
+      </div>`;
+    toast(r.tickets.length + ' billet(s) ' + label);
+    vpRefreshGeneres();
+  } catch(e) { toast('Erreur : ' + e.message, true); }
+}
+
+async function vpMarquerVendu(ticketId) {
+  try {
+    await api(`/tickets/${ticketId}/marquer-vendu`, { method: 'POST' });
+    toast('✅ Billet marqué vendu — revenu enregistré');
+    vpRefreshGeneres();
+  } catch(e) { toast('Erreur : ' + e.message, true); }
+}
+
+async function vpAnnulerNonVendus(actId) {
+  if (!confirm('Annuler tous les billets pré-imprimés non vendus ? Aucun revenu ne sera enregistré.')) return;
+  try {
+    const r = await api(`/activities/${actId}/annuler-non-vendus`, { method: 'POST' });
+    toast(r.annules + ' billet(s) annulé(s)');
+    vpRefreshGeneres();
   } catch(e) { toast('Erreur : ' + e.message, true); }
 }
 
