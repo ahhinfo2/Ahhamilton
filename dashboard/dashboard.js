@@ -253,6 +253,12 @@ function buildSidebar() {
 function setActiveNav(viewId) {
   window._activeView = viewId;
   document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.view === viewId));
+  // Fermer le sidebar sur mobile après navigation
+  if (window.innerWidth < 900) {
+    document.getElementById('sidebar')?.classList.remove('open');
+    const ov = document.getElementById('sidebarOverlay');
+    if (ov) ov.style.display = 'none';
+  }
   ['home','activities','messages','profile'].forEach(id => {
     const el = document.getElementById('mbn-' + id);
     if (el) el.classList.toggle('active', viewId === id);
@@ -285,8 +291,18 @@ function renderUserChip() {
 }
 
 function setupTopbar() {
-  document.getElementById('sidebarToggle').onclick = () =>
-    document.getElementById('sidebar').classList.toggle('open');
+  // Overlay mobile pour fermer le sidebar en cliquant dehors
+  const overlay = document.createElement('div');
+  overlay.id = 'sidebarOverlay';
+  overlay.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:399;';
+  overlay.onclick = () => { document.getElementById('sidebar').classList.remove('open'); overlay.style.display='none'; };
+  document.body.appendChild(overlay);
+
+  document.getElementById('sidebarToggle').onclick = () => {
+    const sb = document.getElementById('sidebar');
+    sb.classList.toggle('open');
+    overlay.style.display = sb.classList.contains('open') ? 'block' : 'none';
+  };
   document.getElementById('btnLogout').onclick = logout;
   document.getElementById('alertBtn').onclick = () => showView('alerts');
   document.getElementById('msgBtn').onclick   = () => showView('annuaire');
