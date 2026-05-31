@@ -249,3 +249,106 @@ if (contactForm) {
     }, 3500);
   });
 }
+
+// ══════════════════════════════════════════════════════════
+// AUTO-REFRESH — mise à jour automatique sans rafraîchir
+// Toutes les sections dynamiques se mettent à jour seules
+// ══════════════════════════════════════════════════════════
+(function autoRefresh() {
+  const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:3001/api' : '/api';
+  const BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:3001' : '';
+
+  // Signature JSON pour détecter les changements
+  function sig(obj) { return JSON.stringify(obj); }
+
+  // ── Registre des watchers actifs ──────────────────────────
+  const watchers = [];
+
+  function watch(endpoint, intervalMs, onUpdate, { runNow = false } = {}) {
+    let lastSig = null;
+    async function check() {
+      try {
+        const r = await fetch(API + endpoint, { cache: 'no-store' });
+        if (!r.ok) return;
+        const data = await r.json();
+        const s = sig(data);
+        if (s !== lastSig) {
+          lastSig = s;
+          onUpdate(data);
+        }
+      } catch(e) {}
+    }
+    if (runNow) check();
+    const id = setInterval(check, intervalMs);
+    watchers.push(id);
+  }
+
+  // ── À la une (index.html) ─────────────────────────────────
+  if (document.getElementById('featured-activity')) {
+    watch('/activities/featured', 30000, function(act) {
+      const sec = document.getElementById('featured-activity');
+      if (!act) { sec.style.display = 'none'; return; }
+      sec.style.display = 'block';
+      document.getElementById('featured-titre').textContent = act.titre;
+      const meta = [];
+      if (act.date_debut) meta.push('📅 ' + new Date(act.date_debut).toLocaleDateString('fr-CA', {weekday:'long',day:'numeric',month:'long',year:'numeric'}));
+      if (act.lieu) meta.push('📍 ' + act.lieu);
+      if (act.prix > 0) meta.push('💳 ' + act.prix.toFixed(2) + ' $');
+      else meta.push('✅ Entrée libre');
+      document.getElementById('featured-meta').innerHTML = meta.join('&nbsp;·&nbsp;');
+      if (act.description) document.getElementById('featured-desc').textContent = act.description.substring(0, 240) + (act.description.length > 240 ? '...' : '');
+      const imgDiv = document.getElementById('featured-img');
+      if (act.flyer) imgDiv.innerHTML = '<img src="' + BASE + act.flyer + '" alt="' + act.titre + '" style="width:100%;max-width:380px;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.3);object-fit:cover;aspect-ratio:3/4;display:block">';
+      const btn = document.getElementById('featured-btn');
+      if (act.paiement_requis && act.prix > 0) { btn.href = 'billets.html?id=' + act.id; btn.textContent = '🎟️ Acheter un billet — ' + act.prix.toFixed(2) + ' $'; }
+      else if (act.qr_token) { btn.href = 'activity-checkout.html?actid=' + act.id + '&token=' + act.qr_token; btn.textContent = '✅ Confirmer ma présence'; }
+      else { btn.href = 'dashboard/login.html'; btn.textContent = '👤 S\'inscrire'; }
+    }, { runNow: true });
+  }
+
+  // ── Activités publiques (actualites.html) ─────────────────
+  if (document.getElementById('activites-grid') || document.getElementById('acts-container')) {
+    watch('/activities/public', 45000, function(acts) {
+      const el = document.getElementById('activites-grid') || document.getElementById('acts-container');
+      if (!el || !acts.length) return;
+      // Déclencher la fonction de rendu si elle existe
+      if (typeof renderActivites === 'function') renderActivites(acts);
+      else if (typeof renderActs === 'function') renderActs(acts);
+    });
+  }
+
+  // ── Annonces publiques (annonces.html) ────────────────────
+  if (document.getElementById('annonces-grid') || document.getElementById('annonces-container')) {
+    watch('/annonces/public', 45000, function(data) {
+      if (typeof renderAnnonces === 'function') renderAnnonces(data);
+    });
+  }
+
+  // ── Talents (talents.html) ────────────────────────────────
+  if (document.getElementById('talents-grid') || document.getElementById('talents-container')) {
+    watch('/talents/public', 60000, function(data) {
+      if (typeof renderTalents === 'function') renderTalents(data);
+    });
+  }
+
+  // ── Stats (index.html) ───────────────────────────────────
+  if (document.getElementById('stat-membres')) {
+    watch('/stats/public', 120000, function(s) {
+      var map = { 'stat-membres': s.membres, 'stat-activites': s.activites, 'stat-benevoles': s.benevoles, 'stat-annees': s.annees };
+      Object.entries(map).forEach(function(e) {
+        var el = document.getElementById(e[0]);
+        if (el) el.textContent = e[1] + '+';
+      });
+    });
+  }
+
+  // ── Galerie (galerie.html) ────────────────────────────────
+  if (document.getElementById('galerie-grid') || document.getElementById('gallery-grid')) {
+    watch('/gallery/public', 60000, function(data) {
+      if (typeof renderGallery === 'function') renderGallery(data);
+    });
+  }
+
+})();
