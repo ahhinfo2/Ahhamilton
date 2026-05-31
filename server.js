@@ -4133,10 +4133,11 @@ process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
       if (!existing) {
         db.prepare(`INSERT INTO users (prenom,nom,email,password_hash,role,actif,date_naissance) VALUES (?,?,?,?,'member',1,?)`)
           .run(c.prenom, c.nom, c.email, hash, c.dob);
-        console.log(`✅ Compte jeune créé : ${c.email}`);
+        console.log(`✅ Compte jeune créé : ${c.email} (naissance: ${c.dob})`);
       } else {
         db.prepare(`UPDATE users SET password_hash=?, date_naissance=?, actif=1, prenom=?, nom=? WHERE email=?`)
           .run(hash, c.dob, c.prenom, c.nom, c.email);
+        console.log(`✅ Compte jeune mis à jour : ${c.email} (naissance: ${c.dob})`);
       }
     } catch(e) { console.error('ensureTestYoung:', e.message); }
   }

@@ -36,20 +36,26 @@ function isJeune() {
   if (!TOKEN || !raw) return location.replace('login.html');
   USER = JSON.parse(raw);
 
-  // Rafraîchir depuis le serveur pour avoir date_naissance et données à jour
-  try {
-    const fresh = await fetch((window.location.hostname === 'localhost' ? 'http://localhost:3001' : '') + '/api/auth/me', { headers: { Authorization: 'Bearer ' + TOKEN } });
-    if (fresh.ok) {
-      const freshData = await fresh.json();
-      USER = { ...USER, ...freshData };
-      localStorage.setItem('ahh_user', JSON.stringify(USER));
-    }
-  } catch(e) {}
-
   buildSidebar();
   renderUserChip();
   setupTopbar();
   await showView('home');
+
+  // Rafraîchir USER depuis le serveur (date_naissance, plan, etc.) puis reconstruire si jeune détecté
+  try {
+    const apiBase = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001/api' : '/api';
+    const freshResp = await fetch(apiBase + '/auth/me', { headers: { Authorization: 'Bearer ' + TOKEN } });
+    if (freshResp.ok) {
+      const freshData = await freshResp.json();
+      const wasJeune = isJeune();
+      USER = { ...USER, ...freshData };
+      localStorage.setItem('ahh_user', JSON.stringify(USER));
+      // Reconstruire sidebar si statut jeune a changé
+      if (isJeune() !== wasJeune) {
+        buildSidebar();
+      }
+    }
+  } catch(e) {}
   pollBadges();
   initChat();
   // Synchroniser le plan/rôle depuis le serveur (détecte les changements admin)
