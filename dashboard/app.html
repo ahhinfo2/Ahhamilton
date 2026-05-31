@@ -4,6 +4,9 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Dashboard – AHH</title>
+  <!-- Preconnect pour Google Fonts (réduit la latence) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
   <link rel="icon" type="image/jpeg" href="../Public/logo1.png"/>
   <link rel="manifest" href="/manifest.json"/>
@@ -13,7 +16,22 @@
   <meta name="apple-mobile-web-app-title" content="AHH"/>
   <link rel="apple-touch-icon" href="../Public/logo1.png"/>
   <link rel="stylesheet" href="dashboard.css"/>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <!-- CSS skeleton inline pour affichage immédiat -->
+  <style>
+    .sk{background:linear-gradient(90deg,#e8f5e9 25%,#c8e6c9 50%,#e8f5e9 75%);background-size:200% 100%;animation:sk 1.4s infinite;border-radius:8px}
+    @keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+    .sk-wrap{padding:20px;display:flex;flex-direction:column;gap:16px}
+    .sk-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+    .sk-card{height:90px;border-radius:10px}
+    .sk-line{height:14px;border-radius:6px;margin-bottom:8px}
+    .sk-line.w60{width:60%} .sk-line.w40{width:40%} .sk-line.w80{width:80%}
+    .sk-greeting{height:120px;border-radius:14px;margin-bottom:20px}
+    .sk-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+    .sk-box{height:200px;border-radius:12px}
+    @media(max-width:600px){.sk-cards{grid-template-columns:1fr 1fr}.sk-grid{grid-template-columns:1fr}}
+  </style>
+  <!-- Chart.js chargé en différé -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js" defer></script>
 </head>
 <body>
 
@@ -81,9 +99,22 @@
 <div class="main-wrapper">
   <!-- Topbar supprimée (contenu fusionné dans site-nav-strip) -->
 
-  <!-- Contenu principal -->
+  <!-- Contenu principal — skeleton visible immédiatement avant JS -->
   <main class="content" id="mainContent">
-    <div class="loading-screen"><div class="spinner"></div><p>Chargement...</p></div>
+    <div id="skeleton-screen" aria-hidden="true">
+      <div class="sk sk-greeting"></div>
+      <div class="sk-cards">
+        <div class="sk sk-card"></div>
+        <div class="sk sk-card"></div>
+        <div class="sk sk-card"></div>
+        <div class="sk sk-card"></div>
+      </div>
+      <div class="sk-grid">
+        <div class="sk sk-box"></div>
+        <div class="sk sk-box"></div>
+        <div class="sk sk-box"></div>
+      </div>
+    </div>
   </main>
 </div>
 
@@ -107,8 +138,8 @@
   <div class="mbn-item" onclick="document.getElementById('sidebar').classList.toggle('open')" id="mbn-more"><div class="mbn-icon">☰</div><div>Menu</div></div>
 </nav>
 
-<script src="lang.js"></script>
-<script src="dashboard.js"></script>
+<script src="lang.js" defer></script>
+<script src="dashboard.js" defer></script>
 <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
 </body>
 </html>

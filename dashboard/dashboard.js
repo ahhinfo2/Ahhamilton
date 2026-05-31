@@ -153,7 +153,11 @@ const can = {
 };
 
 function setContent(html) {
-  document.getElementById('mainContent').innerHTML = html;
+  const mc = document.getElementById('mainContent');
+  // Supprimer le skeleton au premier rendu
+  const sk = document.getElementById('skeleton-screen');
+  if (sk) sk.remove();
+  mc.innerHTML = html;
 }
 
 // ── SIDEBAR ─────────────────────────────────────────────────────────────────
