@@ -420,7 +420,7 @@
       // Flyer / photo
       var imgDiv = document.getElementById('featured-img');
       if (act.flyer) {
-        imgDiv.innerHTML = '<img src="' + BASE_URL + '/' + act.flyer + '" alt="' + act.titre + '" style="width:100%;max-width:380px;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.3);object-fit:cover;aspect-ratio:3/4;display:block">';
+        imgDiv.innerHTML = '<img src="' + BASE_URL + act.flyer + '" alt="' + act.titre + '" style="width:100%;max-width:380px;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.3);object-fit:cover;aspect-ratio:3/4;display:block">';
       } else {
         imgDiv.innerHTML = '<div style="width:100%;max-width:380px;height:280px;border-radius:16px;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;font-size:4rem">🎉</div>';
       }
