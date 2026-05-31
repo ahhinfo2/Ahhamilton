@@ -259,14 +259,24 @@ function buildSidebar() {
       ['bienfaiteur','partenaire'].includes(USER.plan) ? { id:'mes_talents',  icon:'◈', label:'Mon talent' }   : null,
       ['bienfaiteur','partenaire'].includes(USER.plan) ? { id:'mes_annonces', icon:'◉', label:'Mes annonces' } : null,
       { id:'annuaire',     icon:'✉️', label:'Courriel' },
+      { id:'forum',        icon:'◫', label:'Forum' },
+      // ── Espace Jeunes (15-30 ans) ──────────────────────────────
+      isJeune() ? { id:'young-home',      icon:'🌟', label:'Espace Jeunes',  _section:'🌟 Espace Jeunes' } : null,
+      isJeune() ? { id:'young-jobs',       icon:'💼', label:'Stages & emplois' } : null,
+      isJeune() ? { id:'young-trainings',  icon:'📚', label:'Formations' } : null,
+      isJeune() ? { id:'young-polls',      icon:'📊', label:'Sondages' } : null,
+      isJeune() ? { id:'young-stories',    icon:'🏆', label:'Success Stories' } : null,
+      // ───────────────────────────────────────────────────────────
       { id:'profile',      icon:'◎', label:'Mon profil' },
     ].filter(Boolean);
 
-    nav.innerHTML = memberItems.map(i => `
-      <div class="nav-item" data-view="${i.id}" onclick="showView('${i.id}')">
+    nav.innerHTML = memberItems.map((i, idx) => {
+      const sectionHeader = i._section ? `<div class="nav-section">${i._section}</div>` : '';
+      return sectionHeader + `<div class="nav-item" data-view="${i.id}" onclick="showView('${i.id}')">
         <span class="nav-icon">${i.icon}</span>
         <span class="nav-label">${i.label}</span>
-      </div>`).join('');
+      </div>`;
+    }).join('');
     if (window.AHH_LANG) AHH_LANG.apply();
     return;
   }
