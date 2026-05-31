@@ -796,6 +796,7 @@ function renderActivitiesTable(data) {
           <button class="btn btn-sm btn-outline" onclick='openActivityForm(${JSON.stringify(a).replace(/'/g,"&#39;")})' title="Modifier">✏️ Modifier</button>
           <button class="btn btn-sm btn-ghost" title="Scanner billets" onclick="openScanner(${a.id})">📷 Scanner</button>
           <button class="btn btn-sm btn-ghost" onclick="showActivityReport(${a.id})" title="Rapport">📊 Rapport</button>
+          <button class="btn btn-sm ${a.featured ? 'btn-accent' : 'btn-ghost'}" onclick="toggleFeatured(${a.id},${a.featured?1:0})" title="${a.featured ? 'Retirer de la une' : 'Mettre à la une'}" style="${a.featured?'background:#f9a825;color:#000':''}">⭐${a.featured?' À LA UNE':''}</button>
           <div style="position:relative">
             <button class="btn btn-sm btn-ghost" onclick="toggleActMenu(${a.id},event)" title="Plus d'actions" style="font-weight:700;font-size:1rem;padding:4px 10px">⋮</button>
             <div class="act-more-menu" id="actMenu_${a.id}" style="display:none;position:absolute;right:0;top:100%;z-index:200;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.12);min-width:200px;padding:6px 0">
@@ -834,6 +835,15 @@ function closeActMenus() {
   document.querySelectorAll('.act-more-menu').forEach(m => m.style.display = 'none');
 }
 document.addEventListener('click', closeActMenus);
+
+async function toggleFeatured(id, isFeatured) {
+  try {
+    const endpoint = isFeatured ? 'unfeature' : 'feature';
+    await api(`/activities/${id}/${endpoint}`, { method: 'PATCH' });
+    toast(isFeatured ? 'Activité retirée de la une' : '⭐ Activité mise à la une sur le site !');
+    activities();
+  } catch(e) { toast('Erreur : ' + e.message, true); }
+}
 
 async function archiveActivity(id) {
   const a = (window._activitiesData || []).find(x => x.id === id);

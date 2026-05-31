@@ -1,4 +1,4 @@
-const CACHE = 'ahh-v29';
+const CACHE = 'ahh-v30';
 
 // Fichiers JAMAIS mis en cache — toujours chargés depuis le réseau
 const NO_CACHE = [

@@ -72,6 +72,7 @@ try { db.exec('ALTER TABLE activities ADD COLUMN prix REAL DEFAULT 0'); } catch 
 try { db.exec('ALTER TABLE activities ADD COLUMN paiement_requis INTEGER DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE activities ADD COLUMN rabais_json TEXT DEFAULT \'{}\''); } catch {}
 try { db.exec('ALTER TABLE activities ADD COLUMN qr_token TEXT'); } catch {}
+try { db.exec('ALTER TABLE activities ADD COLUMN featured INTEGER DEFAULT 0'); } catch {}
 // Paiement des inscriptions
 try { db.exec('ALTER TABLE activity_registrations ADD COLUMN paye INTEGER DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE activity_registrations ADD COLUMN montant_paye REAL DEFAULT 0'); } catch {}

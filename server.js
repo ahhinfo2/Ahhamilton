@@ -1610,6 +1610,33 @@ app.post('/api/auth/reset-password', (req, res) => {
 // PUBLIC ACTIVITIES (no auth required)
 // ══════════════════════════════════════════════════════════════════════════════
 
+// GET — activité à la une (public)
+app.get('/api/activities/featured', (req, res) => {
+  const act = db.prepare(`
+    SELECT a.id, a.titre, a.description, a.type, a.date_debut, a.date_fin, a.lieu,
+      a.prix, a.paiement_requis, a.max_participants, a.statut, a.qr_token,
+      (SELECT COUNT(*) FROM activity_registrations WHERE activity_id = a.id) AS nb_inscrits,
+      (SELECT photo_path FROM activity_photos WHERE activity_id = a.id ORDER BY ordre ASC, id ASC LIMIT 1) AS flyer
+    FROM activities a
+    WHERE a.featured = 1 AND a.statut NOT IN ('archivee','annulee')
+    LIMIT 1`).get();
+  if (!act) return res.json(null);
+  res.json(act);
+});
+
+// PATCH — mettre une activité à la une (admin/secrétaire)
+app.patch('/api/activities/:id/feature', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  db.prepare('UPDATE activities SET featured = 0').run(); // enlever l'ancienne
+  db.prepare('UPDATE activities SET featured = 1 WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// PATCH — retirer de la une
+app.patch('/api/activities/:id/unfeature', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  db.prepare('UPDATE activities SET featured = 0 WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
 app.get('/api/activities/public', (req, res) => {
   const rows = db.prepare(`
     SELECT id, titre, description, type, date_debut, date_fin, lieu, max_participants, statut, prix, paiement_requis,

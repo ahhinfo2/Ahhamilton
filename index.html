@@ -72,6 +72,27 @@
     </div>
   </section>
 
+  <!-- ===== ACTIVITÉ À LA UNE (admin-contrôlée) ===== -->
+  <section id="featured-activity" style="display:none;background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:60px 0">
+    <div class="container">
+      <div style="text-align:center;margin-bottom:8px">
+        <span style="background:rgba(255,255,255,.2);color:#fff;font-size:.75rem;font-weight:700;padding:4px 14px;border-radius:20px;letter-spacing:.08em">⭐ À LA UNE</span>
+      </div>
+      <div id="featured-card" style="display:flex;gap:40px;align-items:center;flex-wrap:wrap;margin-top:24px">
+        <div id="featured-img" style="flex:0 0 380px;max-width:100%"></div>
+        <div style="flex:1;min-width:260px;color:#fff">
+          <h2 id="featured-titre" style="font-size:2rem;font-weight:800;margin-bottom:12px;line-height:1.2"></h2>
+          <div id="featured-meta" style="font-size:.95rem;opacity:.85;margin-bottom:16px;line-height:1.8"></div>
+          <div id="featured-desc" style="font-size:.9rem;opacity:.8;margin-bottom:28px;line-height:1.7;max-width:480px"></div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap">
+            <a id="featured-btn" href="#" class="btn btn-primary" style="background:#fff;color:#1b5e20;font-weight:700;padding:14px 28px;border-radius:12px;font-size:1rem">🎟️ S'inscrire</a>
+            <a id="featured-btn2" href="actualites.html" class="btn" style="border:2px solid rgba(255,255,255,.5);color:#fff;padding:14px 22px;border-radius:12px;font-size:.95rem">Voir toutes les activités →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ===== PILLIERS ===== -->
   <section class="pillars" id="activites">
     <div class="container">
@@ -369,6 +390,53 @@
         el.setAttribute('data-target', entry[1]);
         el.textContent = entry[1] + '+';
       });
+    } catch(e) {}
+  })();
+
+  // Activité à la une
+  (async function() {
+    try {
+      var r = await fetch(BASE_API + '/activities/featured');
+      if (!r.ok) return;
+      var act = await r.json();
+      if (!act) return;
+      var sec = document.getElementById('featured-activity');
+      if (!sec) return;
+
+      document.getElementById('featured-titre').textContent = act.titre;
+
+      var meta = [];
+      if (act.date_debut) meta.push('📅 ' + new Date(act.date_debut).toLocaleDateString('fr-CA', {weekday:'long',day:'numeric',month:'long',year:'numeric'}));
+      if (act.lieu) meta.push('📍 ' + act.lieu);
+      if (act.prix > 0) meta.push('💳 ' + act.prix.toFixed(2) + ' $');
+      else meta.push('✅ Entrée libre');
+      if (act.max_participants) meta.push('👥 ' + (act.nb_inscrits||0) + ' / ' + act.max_participants + ' inscrits');
+      document.getElementById('featured-meta').innerHTML = meta.join('&nbsp;&nbsp;·&nbsp;&nbsp;');
+
+      if (act.description) document.getElementById('featured-desc').textContent = act.description.substring(0,240) + (act.description.length > 240 ? '...' : '');
+
+      // Flyer / photo
+      var imgDiv = document.getElementById('featured-img');
+      if (act.flyer) {
+        imgDiv.innerHTML = '<img src="' + BASE_URL + '/' + act.flyer + '" alt="' + act.titre + '" style="width:100%;max-width:380px;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.3);object-fit:cover;aspect-ratio:3/4;display:block">';
+      } else {
+        imgDiv.innerHTML = '<div style="width:100%;max-width:380px;height:280px;border-radius:16px;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;font-size:4rem">🎉</div>';
+      }
+
+      // Bouton inscription
+      var btn = document.getElementById('featured-btn');
+      if (act.paiement_requis && act.prix > 0) {
+        btn.href = 'billets.html?id=' + act.id;
+        btn.textContent = '🎟️ Acheter un billet — ' + act.prix.toFixed(2) + ' $';
+      } else if (act.qr_token) {
+        btn.href = 'activity-checkout.html?actid=' + act.id + '&token=' + act.qr_token;
+        btn.textContent = '✅ Confirmer ma présence';
+      } else {
+        btn.href = 'dashboard/login.html';
+        btn.textContent = '👤 S\'inscrire';
+      }
+
+      sec.style.display = 'block';
     } catch(e) {}
   })();
 
