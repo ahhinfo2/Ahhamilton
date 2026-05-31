@@ -229,7 +229,7 @@ app.post('/api/auth/login', (req, res) => {
     return res.status(401).json({ error: 'Email ou mot de passe invalide' });
 
   const token = jwt.sign(
-    { id: user.id, email: user.email, role: user.role, prenom: user.prenom, nom: user.nom },
+    { id: user.id, email: user.email, role: user.role, prenom: user.prenom, nom: user.nom, date_naissance: user.date_naissance },
     JWT_SECRET, { expiresIn: '24h' }
   );
   const { password_hash, ...safeUser } = user;
