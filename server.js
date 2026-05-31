@@ -3907,6 +3907,123 @@ app.get('/api/tickets/:id/barcode.png', async (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
+// ESPACE JEUNES (15-30 ans)
+// ══════════════════════════════════════════════════════════════════════════════
+
+function isJeune(user) {
+  if (!user.date_naissance) return false;
+  const age = Math.floor((Date.now() - new Date(user.date_naissance)) / (365.25 * 24 * 3600 * 1000));
+  return age >= 15 && age <= 30;
+}
+
+// Profil jeune de l'utilisateur connecté
+app.get('/api/young/me', authMiddleware, (req, res) => {
+  const user = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.id);
+  res.json({ is_young: isJeune(user), age: user.date_naissance ? Math.floor((Date.now() - new Date(user.date_naissance)) / (365.25*24*3600*1000)) : null });
+});
+
+// ── Stages & emplois ────────────────────────────────────────────────────────
+app.get('/api/young/jobs', authMiddleware, (req, res) => {
+  const rows = db.prepare(`SELECT j.*, u.prenom||' '||u.nom AS createur FROM young_jobs j LEFT JOIN users u ON u.id=j.cree_par WHERE j.actif=1 ORDER BY j.date_creation DESC`).all();
+  res.json(rows);
+});
+app.post('/api/young/jobs', authMiddleware, requireRole('admin','secretaire','tresoriere','delegue'), (req, res) => {
+  const { type, titre, organisation, description, lieu, date_limite, lien_externe, contact } = req.body;
+  if (!titre) return res.status(400).json({ error: 'Titre requis' });
+  const r = db.prepare(`INSERT INTO young_jobs (type,titre,organisation,description,lieu,date_limite,lien_externe,contact,cree_par) VALUES (?,?,?,?,?,?,?,?,?)`)
+    .run(type||'stage', titre, organisation||'', description||'', lieu||'', date_limite||'', lien_externe||'', contact||'', req.user.id);
+  res.status(201).json({ id: r.lastInsertRowid });
+});
+app.delete('/api/young/jobs/:id', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  db.prepare('UPDATE young_jobs SET actif=0 WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ── Formations & ateliers ────────────────────────────────────────────────────
+app.get('/api/young/trainings', authMiddleware, (req, res) => {
+  const rows = db.prepare(`SELECT t.*, u.prenom||' '||u.nom AS createur FROM young_trainings t LEFT JOIN users u ON u.id=t.cree_par WHERE t.actif=1 ORDER BY t.date_debut DESC`).all();
+  res.json(rows);
+});
+app.post('/api/young/trainings', authMiddleware, requireRole('admin','secretaire','tresoriere','delegue'), (req, res) => {
+  const { titre, description, formateur, date_debut, date_fin, lieu, places_max, prix, gratuit, lien_inscription } = req.body;
+  if (!titre) return res.status(400).json({ error: 'Titre requis' });
+  const r = db.prepare(`INSERT INTO young_trainings (titre,description,formateur,date_debut,date_fin,lieu,places_max,prix,gratuit,lien_inscription,cree_par) VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
+    .run(titre, description||'', formateur||'', date_debut||'', date_fin||'', lieu||'', parseInt(places_max)||20, parseFloat(prix)||0, gratuit?1:0, lien_inscription||'', req.user.id);
+  res.status(201).json({ id: r.lastInsertRowid });
+});
+app.delete('/api/young/trainings/:id', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  db.prepare('UPDATE young_trainings SET actif=0 WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ── Sondages ─────────────────────────────────────────────────────────────────
+app.get('/api/young/polls', authMiddleware, (req, res) => {
+  const polls = db.prepare(`SELECT p.*, u.prenom||' '||u.nom AS createur FROM young_polls p LEFT JOIN users u ON u.id=p.cree_par WHERE p.actif=1 ORDER BY p.date_creation DESC`).all();
+  const result = polls.map(p => {
+    const options = db.prepare(`SELECT o.*, (SELECT COUNT(*) FROM poll_votes WHERE option_id=o.id) AS votes FROM poll_options o WHERE o.poll_id=? ORDER BY o.ordre`).all(p.id);
+    const total = options.reduce((s, o) => s + o.votes, 0);
+    const myVote = db.prepare('SELECT option_id FROM poll_votes WHERE poll_id=? AND user_id=?').get(p.id, req.user.id);
+    return { ...p, options, total_votes: total, my_vote: myVote?.option_id || null };
+  });
+  res.json(result);
+});
+app.post('/api/young/polls', authMiddleware, requireRole('admin','secretaire','tresoriere','delegue'), (req, res) => {
+  const { question, description, options, date_fin } = req.body;
+  if (!question || !options?.length) return res.status(400).json({ error: 'Question et options requises' });
+  const r = db.prepare('INSERT INTO young_polls (question,description,cree_par,date_fin) VALUES (?,?,?,?)').run(question, description||'', req.user.id, date_fin||null);
+  const pollId = r.lastInsertRowid;
+  options.forEach((txt, i) => db.prepare('INSERT INTO poll_options (poll_id,texte,ordre) VALUES (?,?,?)').run(pollId, txt, i));
+  res.status(201).json({ id: pollId });
+});
+app.post('/api/young/polls/:id/vote', authMiddleware, (req, res) => {
+  const { option_id } = req.body;
+  const poll = db.prepare('SELECT * FROM young_polls WHERE id=? AND actif=1').get(req.params.id);
+  if (!poll) return res.status(404).json({ error: 'Sondage introuvable' });
+  const opt = db.prepare('SELECT id FROM poll_options WHERE id=? AND poll_id=?').get(option_id, poll.id);
+  if (!opt) return res.status(400).json({ error: 'Option invalide' });
+  try {
+    db.prepare('INSERT INTO poll_votes (poll_id,option_id,user_id) VALUES (?,?,?)').run(poll.id, option_id, req.user.id);
+    res.json({ ok: true });
+  } catch(e) {
+    // Changer le vote
+    db.prepare('UPDATE poll_votes SET option_id=? WHERE poll_id=? AND user_id=?').run(option_id, poll.id, req.user.id);
+    res.json({ ok: true, changed: true });
+  }
+});
+app.delete('/api/young/polls/:id', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  db.prepare('UPDATE young_polls SET actif=0 WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ── Success Stories ──────────────────────────────────────────────────────────
+app.get('/api/young/stories', authMiddleware, (req, res) => {
+  const rows = db.prepare(`SELECT s.*, u.prenom, u.nom, u.photo_url FROM success_stories s LEFT JOIN users u ON u.id=s.user_id WHERE s.approuve=1 ORDER BY s.date_creation DESC`).all();
+  res.json(rows);
+});
+app.post('/api/young/stories', authMiddleware, (req, res) => {
+  const { titre, contenu } = req.body;
+  if (!titre || !contenu) return res.status(400).json({ error: 'Titre et contenu requis' });
+  const r = db.prepare('INSERT INTO success_stories (user_id,titre,contenu,approuve) VALUES (?,?,?,?)').run(req.user.id, titre, contenu, 0);
+  res.status(201).json({ id: r.lastInsertRowid });
+});
+app.patch('/api/young/stories/:id/approve', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  db.prepare('UPDATE success_stories SET approuve=1 WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ── Stats jeunes ──────────────────────────────────────────────────────────────
+app.get('/api/young/stats', authMiddleware, (req, res) => {
+  const today = new Date();
+  const cutoff30 = new Date(today); cutoff30.setFullYear(cutoff30.getFullYear() - 30);
+  const cutoff15 = new Date(today); cutoff15.setFullYear(cutoff15.getFullYear() - 15);
+  const nb_jeunes = db.prepare(`SELECT COUNT(*) AS c FROM users WHERE actif=1 AND date_naissance IS NOT NULL AND date_naissance >= ? AND date_naissance <= ?`).get(cutoff30.toISOString().slice(0,10), cutoff15.toISOString().slice(0,10)).c;
+  const nb_jobs = db.prepare("SELECT COUNT(*) AS c FROM young_jobs WHERE actif=1").get().c;
+  const nb_trainings = db.prepare("SELECT COUNT(*) AS c FROM young_trainings WHERE actif=1").get().c;
+  const nb_polls = db.prepare("SELECT COUNT(*) AS c FROM young_polls WHERE actif=1").get().c;
+  res.json({ nb_jeunes, nb_jobs, nb_trainings, nb_polls });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
 // ICAL EXPORT
 // ══════════════════════════════════════════════════════════════════════════════
 

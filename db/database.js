@@ -74,6 +74,75 @@ try { db.exec('ALTER TABLE activities ADD COLUMN rabais_json TEXT DEFAULT \'{}\'
 try { db.exec('ALTER TABLE activities ADD COLUMN qr_token TEXT'); } catch {}
 try { db.exec('ALTER TABLE activities ADD COLUMN featured INTEGER DEFAULT 0'); } catch {}
 
+// ── Espace Jeunes (15-30 ans) ─────────────────────────────────────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS young_jobs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  type TEXT NOT NULL DEFAULT 'stage',
+  titre TEXT NOT NULL,
+  organisation TEXT,
+  description TEXT,
+  lieu TEXT,
+  date_limite TEXT,
+  lien_externe TEXT,
+  contact TEXT,
+  cree_par INTEGER REFERENCES users(id),
+  actif INTEGER DEFAULT 1,
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
+try { db.exec(`CREATE TABLE IF NOT EXISTS young_trainings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  titre TEXT NOT NULL,
+  description TEXT,
+  formateur TEXT,
+  date_debut TEXT,
+  date_fin TEXT,
+  lieu TEXT,
+  places_max INTEGER DEFAULT 20,
+  prix REAL DEFAULT 0,
+  gratuit INTEGER DEFAULT 1,
+  lien_inscription TEXT,
+  cree_par INTEGER REFERENCES users(id),
+  actif INTEGER DEFAULT 1,
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
+try { db.exec(`CREATE TABLE IF NOT EXISTS young_polls (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  question TEXT NOT NULL,
+  description TEXT,
+  cree_par INTEGER REFERENCES users(id),
+  actif INTEGER DEFAULT 1,
+  date_fin TEXT,
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
+try { db.exec(`CREATE TABLE IF NOT EXISTS poll_options (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  poll_id INTEGER NOT NULL REFERENCES young_polls(id) ON DELETE CASCADE,
+  texte TEXT NOT NULL,
+  ordre INTEGER DEFAULT 0
+)`); } catch {}
+
+try { db.exec(`CREATE TABLE IF NOT EXISTS poll_votes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  poll_id INTEGER NOT NULL REFERENCES young_polls(id) ON DELETE CASCADE,
+  option_id INTEGER NOT NULL REFERENCES poll_options(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  date_vote TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(poll_id, user_id)
+)`); } catch {}
+
+try { db.exec(`CREATE TABLE IF NOT EXISTS success_stories (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER REFERENCES users(id),
+  titre TEXT NOT NULL,
+  contenu TEXT NOT NULL,
+  photo_url TEXT,
+  approuve INTEGER DEFAULT 0,
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
 // Statistiques contrôlables par le comité
 try { db.exec(`CREATE TABLE IF NOT EXISTS stats_config (
   id INTEGER PRIMARY KEY DEFAULT 1,

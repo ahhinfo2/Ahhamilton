@@ -19,6 +19,16 @@ const EMOJIS = [
   '🇭🇹','⭐','🙌','😮','🤩','👏','💚','🏆','📢','✨'
 ];
 
+// ── Détection âge jeune (15-30 ans) ────────────────────────────────────────
+function getUserAge() {
+  if (!USER.date_naissance) return null;
+  return Math.floor((Date.now() - new Date(USER.date_naissance)) / (365.25 * 24 * 3600 * 1000));
+}
+function isJeune() {
+  const age = getUserAge();
+  return age !== null && age >= 15 && age <= 30;
+}
+
 // ── INIT ───────────────────────────────────────────────────────────────────
 (async function init() {
   TOKEN = localStorage.getItem('ahh_token');
@@ -198,6 +208,18 @@ function buildSidebar() {
       { id:'videos_mgmt',       icon:'▶', label:'Vidéos',            roles:['admin','secretaire'] },
     ]},
 
+    // ── Espace Jeunes (15-30 ans) ─────────────────────────────────
+    ...(isJeune() ? [{
+      label: '🌟 Espace Jeunes',
+      items: [
+        { id:'young-home',      icon:'🌟', label:'Tableau jeunes',  roles: ALL },
+        { id:'young-jobs',      icon:'💼', label:'Stages & emplois', roles: ALL },
+        { id:'young-trainings', icon:'📚', label:'Formations',       roles: ALL },
+        { id:'young-polls',     icon:'📊', label:'Sondages',         roles: ALL },
+        { id:'young-stories',   icon:'🏆', label:'Success Stories',  roles: ALL },
+      ]
+    }] : []),
+
     // ── Mon espace membre ─────────────────────────────────────────
     {
       label: 'Mon espace',
@@ -273,7 +295,9 @@ function setActiveNav(viewId) {
     mes_talents:'Mon talent', mes_annonces:'Mes annonces',
     inscriptions:'Inscriptions en attente', paiements:'Paiements membres',
     recus:'Reçus fiscaux', mon_paiement:'Mon paiement', annuaire:'Courriel',
-    forum:'Forum', newsletter:'Infolettre', 'vente-personne':'Vendre (Cash)'
+    forum:'Forum', newsletter:'Infolettre', 'vente-personne':'Vendre (Cash)',
+    'young-home':'Espace Jeunes', 'young-jobs':'Stages & Emplois',
+    'young-trainings':'Formations', 'young-polls':'Sondages', 'young-stories':'Success Stories'
   };
   const raw = labels[viewId] || 'Dashboard';
   document.getElementById('topbarTitle').textContent = window.AHH_LANG ? AHH_LANG.get(raw) : raw;
@@ -410,7 +434,16 @@ async function showView(viewId) {
     inscriptions, paiements, recus, mon_paiement, mes_billets, testimonials_mgmt, videos_mgmt,
     scanner, forum, newsletter
   };
-  const extViews = { 'pending-orders': pendingOrders, 'vente-personne': ventePersonne, 'stats-site': statsSite };
+  const extViews = {
+    'pending-orders': pendingOrders,
+    'vente-personne': ventePersonne,
+    'stats-site': statsSite,
+    'young-home': youngHome,
+    'young-jobs': youngJobs,
+    'young-trainings': youngTrainings,
+    'young-polls': youngPolls,
+    'young-stories': youngStories,
+  };
   if (extViews[viewId]) {
     try { await extViews[viewId](); } catch(e) { setContent(`<div class="empty-state"><div class="es-icon">⚠️</div><p>${e.message}</p></div>`); }
     return;
@@ -6627,6 +6660,297 @@ async function vpTraiterTalons() {
     </div>` : '');
 
   if (ok > 0) vpRefreshGeneres();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ESPACE JEUNES (15-30 ans)
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function youngHome() {
+  if (!isJeune()) { setContent('<div class="empty-state"><div class="es-icon">🔒</div><p>Cette section est réservée aux membres de 15 à 30 ans.</p></div>'); return; }
+  const stats = await api('/young/stats').catch(() => ({}));
+  const age = getUserAge();
+  setContent(`
+    <div style="background:linear-gradient(135deg,#1b5e20,#2e7d32);border-radius:16px;padding:28px;color:#fff;margin-bottom:20px">
+      <div style="font-size:2rem;margin-bottom:8px">🌟 Bienvenue dans l'Espace Jeunes</div>
+      <div style="opacity:.85;font-size:.95rem">Tu as ${age} ans — cet espace est fait pour toi !</div>
+      <div style="margin-top:16px;font-size:.85rem;opacity:.75">🎉 Tarif préférentiel -50% sur les activités payantes · Accès aux stages, formations et sondages</div>
+    </div>
+    <div class="cards-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="stat-card" onclick="showView('young-jobs')" style="cursor:pointer">
+        <div class="sc-icon">💼</div><div class="sc-value">${stats.nb_jobs||0}</div><div class="sc-label">Offres d'emploi</div>
+      </div>
+      <div class="stat-card" onclick="showView('young-trainings')" style="cursor:pointer">
+        <div class="sc-icon">📚</div><div class="sc-value">${stats.nb_trainings||0}</div><div class="sc-label">Formations</div>
+      </div>
+      <div class="stat-card" onclick="showView('young-polls')" style="cursor:pointer">
+        <div class="sc-icon">📊</div><div class="sc-value">${stats.nb_polls||0}</div><div class="sc-label">Sondages actifs</div>
+      </div>
+      <div class="stat-card" onclick="showView('young-stories')" style="cursor:pointer">
+        <div class="sc-icon">🏆</div><div class="sc-value" style="font-size:1.4rem">Story</div><div class="sc-label">Success Stories</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">
+      <div class="table-card" style="padding:16px">
+        <h4 style="margin-bottom:12px;color:var(--g2)">💡 Avantages jeunes</h4>
+        <ul style="list-style:none;font-size:.88rem;display:flex;flex-direction:column;gap:8px">
+          <li>🎟️ <strong>50% de rabais</strong> sur toutes les activités payantes</li>
+          <li>💼 Accès aux <strong>offres de stages & emplois</strong></li>
+          <li>📚 Formations et ateliers <strong>gratuits ou réduits</strong></li>
+          <li>📊 Participer aux <strong>sondages communautaires</strong></li>
+          <li>🏆 Partager tes <strong>succès</strong> avec la communauté</li>
+        </ul>
+      </div>
+      <div class="table-card" style="padding:16px">
+        <h4 style="margin-bottom:12px;color:var(--g2)">🚀 Actions rapides</h4>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="btn btn-primary" onclick="showView('young-jobs')">💼 Voir les offres d'emploi</button>
+          <button class="btn btn-outline" onclick="showView('young-trainings')">📚 Formations disponibles</button>
+          <button class="btn btn-outline" onclick="showView('young-polls')">📊 Voter aux sondages</button>
+          <button class="btn btn-outline" onclick="showView('young-stories')">🏆 Partager mon succès</button>
+        </div>
+      </div>
+    </div>`);
+}
+
+async function youngJobs() {
+  const [jobs, canManage] = await Promise.all([
+    api('/young/jobs').catch(() => []),
+    Promise.resolve(can.executive())
+  ]);
+  const JOB_TYPES = { stage:'Stage', job_etudiant:'Emploi étudiant', mentorat:'Mentorat', atelier:'Atelier' };
+  const JOB_COLORS = { stage:'#1565c0', job_etudiant:'#2e7d32', mentorat:'#6a1b9a', atelier:'#e65100' };
+  setContent(`
+    <div class="table-card">
+      <div class="table-card-header">
+        <h3>💼 Stages & Emplois</h3>
+        ${canManage ? '<button class="btn btn-primary btn-sm" onclick="youngJobForm()">+ Ajouter</button>' : ''}
+      </div>
+      <div style="padding:16px">
+        ${!jobs.length ? '<div class="empty-state"><div class="es-icon">💼</div><p>Aucune offre disponible pour le moment.</p></div>' :
+          jobs.map(j => `
+            <div style="border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;background:#fff">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+                <div style="flex:1;min-width:0">
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+                    <span style="background:${JOB_COLORS[j.type]||'#555'};color:#fff;font-size:.7rem;font-weight:700;padding:2px 10px;border-radius:20px">${JOB_TYPES[j.type]||j.type}</span>
+                    <strong style="font-size:.95rem">${escHtml(j.titre)}</strong>
+                  </div>
+                  ${j.organisation ? `<div style="font-size:.82rem;color:var(--muted)">🏢 ${escHtml(j.organisation)}</div>` : ''}
+                  ${j.lieu ? `<div style="font-size:.82rem;color:var(--muted)">📍 ${escHtml(j.lieu)}</div>` : ''}
+                  ${j.date_limite ? `<div style="font-size:.82rem;color:#c62828">⏰ Avant le ${fmt(j.date_limite)}</div>` : ''}
+                  ${j.description ? `<div style="font-size:.84rem;margin-top:8px;color:var(--text)">${escHtml(j.description).substring(0,200)}${j.description.length>200?'...':''}</div>` : ''}
+                  ${j.contact ? `<div style="font-size:.82rem;margin-top:6px">📧 ${escHtml(j.contact)}</div>` : ''}
+                </div>
+                <div style="display:flex;gap:6px;flex-shrink:0">
+                  ${j.lien_externe ? `<a href="${j.lien_externe}" target="_blank" class="btn btn-primary btn-sm">Postuler →</a>` : ''}
+                  ${canManage ? `<button class="btn btn-sm btn-ghost" style="color:var(--red)" onclick="youngDeleteJob(${j.id})">🗑</button>` : ''}
+                </div>
+              </div>
+            </div>`).join('')}
+      </div>
+    </div>`);
+}
+
+async function youngJobForm() {
+  const JOB_TYPES = { stage:'Stage', job_etudiant:'Emploi étudiant', mentorat:'Mentorat', atelier:'Atelier' };
+  openModal('💼 Nouvelle offre',
+    `<div class="form-group"><label class="form-label">Type</label>
+      <select id="yj_type" class="form-input">
+        ${Object.entries(JOB_TYPES).map(([v,l])=>`<option value="${v}">${l}</option>`).join('')}
+      </select></div>
+    <div class="form-group"><label class="form-label">Titre *</label><input id="yj_titre" class="form-input" placeholder="Ex: Stage en communication"/></div>
+    <div class="form-group"><label class="form-label">Organisation</label><input id="yj_org" class="form-input" placeholder="Nom de l'entreprise/organisation"/></div>
+    <div class="form-group"><label class="form-label">Lieu</label><input id="yj_lieu" class="form-input" placeholder="Hamilton, ON"/></div>
+    <div class="form-group"><label class="form-label">Date limite</label><input id="yj_date" class="form-input" type="date"/></div>
+    <div class="form-group"><label class="form-label">Description</label><textarea id="yj_desc" class="form-input" rows="4" placeholder="Détails de l'offre..."></textarea></div>
+    <div class="form-group"><label class="form-label">Contact / Email</label><input id="yj_contact" class="form-input" placeholder="recrutement@exemple.com"/></div>
+    <div class="form-group"><label class="form-label">Lien externe (optionnel)</label><input id="yj_lien" class="form-input" placeholder="https://..."/></div>
+    <div style="display:flex;gap:10px"><button class="btn btn-primary" onclick="youngSaveJob()">Publier</button><button class="btn btn-ghost" onclick="closeModal()">Annuler</button></div>`);
+}
+async function youngSaveJob() {
+  const body = { type:document.getElementById('yj_type').value, titre:document.getElementById('yj_titre').value.trim(), organisation:document.getElementById('yj_org').value, lieu:document.getElementById('yj_lieu').value, date_limite:document.getElementById('yj_date').value, description:document.getElementById('yj_desc').value, contact:document.getElementById('yj_contact').value, lien_externe:document.getElementById('yj_lien').value };
+  if (!body.titre) return toast('Titre requis', true);
+  try { await api('/young/jobs', { method:'POST', body:JSON.stringify(body) }); closeModal(); toast('Offre publiée !'); youngJobs(); } catch(e) { toast('Erreur: '+e.message,true); }
+}
+async function youngDeleteJob(id) {
+  if (!confirm('Supprimer cette offre ?')) return;
+  await api(`/young/jobs/${id}`, { method:'DELETE' }); youngJobs();
+}
+
+async function youngTrainings() {
+  const [trainings, canManage] = await Promise.all([api('/young/trainings').catch(()=>[]), Promise.resolve(can.executive())]);
+  setContent(`
+    <div class="table-card">
+      <div class="table-card-header">
+        <h3>📚 Formations & Ateliers</h3>
+        ${canManage ? '<button class="btn btn-primary btn-sm" onclick="youngTrainingForm()">+ Ajouter</button>' : ''}
+      </div>
+      <div style="padding:16px">
+        ${!trainings.length ? '<div class="empty-state"><div class="es-icon">📚</div><p>Aucune formation disponible.</p></div>' :
+          '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px">' +
+          trainings.map(t => `
+            <div style="border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#fff">
+              <div style="background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:14px 16px;color:#fff">
+                <div style="font-weight:700;font-size:.95rem">${escHtml(t.titre)}</div>
+                ${t.formateur ? `<div style="font-size:.75rem;opacity:.8;margin-top:3px">Par ${escHtml(t.formateur)}</div>` : ''}
+              </div>
+              <div style="padding:12px 16px;font-size:.84rem">
+                ${t.date_debut ? `<div style="margin-bottom:4px">📅 ${fmt(t.date_debut)}${t.date_fin ? ' → ' + fmt(t.date_fin) : ''}</div>` : ''}
+                ${t.lieu ? `<div style="margin-bottom:4px">📍 ${escHtml(t.lieu)}</div>` : ''}
+                <div style="margin-bottom:8px">${t.gratuit ? '✅ <strong>Gratuit</strong>' : `💳 <strong>$${t.prix.toFixed(2)}</strong>`} · ${t.places_max} places</div>
+                ${t.description ? `<div style="color:var(--muted);font-size:.82rem;margin-bottom:10px">${escHtml(t.description).substring(0,150)}${t.description.length>150?'...':''}</div>` : ''}
+                <div style="display:flex;gap:6px">
+                  ${t.lien_inscription ? `<a href="${t.lien_inscription}" target="_blank" class="btn btn-primary btn-sm">S'inscrire →</a>` : ''}
+                  ${canManage ? `<button class="btn btn-sm btn-ghost" style="color:var(--red)" onclick="youngDeleteTraining(${t.id})">🗑</button>` : ''}
+                </div>
+              </div>
+            </div>`).join('') + '</div>'}
+      </div>
+    </div>`);
+}
+async function youngTrainingForm() {
+  openModal('📚 Nouvelle formation',
+    `<div class="form-group"><label class="form-label">Titre *</label><input id="yt_titre" class="form-input" placeholder="Ex: Atelier communication"/></div>
+    <div class="form-group"><label class="form-label">Formateur / Animateur</label><input id="yt_form" class="form-input"/></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Date début</label><input id="yt_debut" class="form-input" type="date"/></div>
+      <div class="form-group"><label class="form-label">Date fin</label><input id="yt_fin" class="form-input" type="date"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Lieu</label><input id="yt_lieu" class="form-input"/></div>
+      <div class="form-group"><label class="form-label">Places max</label><input id="yt_places" class="form-input" type="number" value="20"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Prix ($)</label><input id="yt_prix" class="form-input" type="number" value="0" step="0.01"/></div>
+      <div class="form-group" style="display:flex;align-items:center;gap:8px;padding-top:24px"><label><input type="checkbox" id="yt_gratuit" checked/> Gratuit</label></div>
+    </div>
+    <div class="form-group"><label class="form-label">Description</label><textarea id="yt_desc" class="form-input" rows="3"></textarea></div>
+    <div class="form-group"><label class="form-label">Lien d'inscription</label><input id="yt_lien" class="form-input" placeholder="https://..."/></div>
+    <div style="display:flex;gap:10px"><button class="btn btn-primary" onclick="youngSaveTraining()">Publier</button><button class="btn btn-ghost" onclick="closeModal()">Annuler</button></div>`);
+}
+async function youngSaveTraining() {
+  const body = { titre:document.getElementById('yt_titre').value.trim(), formateur:document.getElementById('yt_form').value, date_debut:document.getElementById('yt_debut').value, date_fin:document.getElementById('yt_fin').value, lieu:document.getElementById('yt_lieu').value, places_max:document.getElementById('yt_places').value, prix:document.getElementById('yt_prix').value, gratuit:document.getElementById('yt_gratuit').checked, description:document.getElementById('yt_desc').value, lien_inscription:document.getElementById('yt_lien').value };
+  if (!body.titre) return toast('Titre requis',true);
+  try { await api('/young/trainings', { method:'POST', body:JSON.stringify(body) }); closeModal(); toast('Formation publiée !'); youngTrainings(); } catch(e) { toast('Erreur: '+e.message,true); }
+}
+async function youngDeleteTraining(id) {
+  if (!confirm('Supprimer cette formation ?')) return;
+  await api(`/young/trainings/${id}`, { method:'DELETE' }); youngTrainings();
+}
+
+async function youngPolls() {
+  const [polls, canManage] = await Promise.all([api('/young/polls').catch(()=>[]), Promise.resolve(can.executive())]);
+  setContent(`
+    <div class="table-card">
+      <div class="table-card-header">
+        <h3>📊 Sondages communautaires</h3>
+        ${canManage ? '<button class="btn btn-primary btn-sm" onclick="youngPollForm()">+ Créer un sondage</button>' : ''}
+      </div>
+      <div style="padding:16px">
+        ${!polls.length ? '<div class="empty-state"><div class="es-icon">📊</div><p>Aucun sondage actif.</p></div>' :
+          polls.map(p => {
+            const hasVoted = p.my_vote !== null;
+            return `<div style="border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px;background:#fff">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+                <div style="font-weight:700;font-size:.95rem">${escHtml(p.question)}</div>
+                ${canManage ? `<button class="btn btn-sm btn-ghost" style="color:var(--red)" onclick="youngDeletePoll(${p.id})">🗑</button>` : ''}
+              </div>
+              ${p.description ? `<div style="font-size:.82rem;color:var(--muted);margin-bottom:12px">${escHtml(p.description)}</div>` : ''}
+              <div style="display:flex;flex-direction:column;gap:8px">
+                ${p.options.map(o => {
+                  const pct = p.total_votes > 0 ? Math.round(o.votes/p.total_votes*100) : 0;
+                  const isMyVote = p.my_vote === o.id;
+                  return `<div>
+                    <div style="display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:3px">
+                      <span>${isMyVote?'✅ ':''}<strong>${escHtml(o.texte)}</strong></span>
+                      <span style="color:var(--muted)">${o.votes} vote(s) · ${pct}%</span>
+                    </div>
+                    <div style="background:#e0e0e0;border-radius:6px;height:8px">
+                      <div style="background:${isMyVote?'var(--g2)':'#90a4ae'};border-radius:6px;height:100%;width:${pct}%;transition:.3s"></div>
+                    </div>
+                    ${!hasVoted ? `<button class="btn btn-sm btn-ghost" style="margin-top:4px;font-size:.75rem" onclick="youngVote(${p.id},${o.id})">Voter pour cette option</button>` : ''}
+                  </div>`;
+                }).join('')}
+              </div>
+              <div style="font-size:.75rem;color:var(--muted);margin-top:10px">${p.total_votes} vote(s) au total · Par ${escHtml(p.createur||'')}</div>
+            </div>`;
+          }).join('')}
+      </div>
+    </div>`);
+}
+async function youngPollForm() {
+  openModal('📊 Nouveau sondage',
+    `<div class="form-group"><label class="form-label">Question *</label><input id="yp_question" class="form-input" placeholder="Ex: Quel type d'activité préférez-vous ?"/></div>
+    <div class="form-group"><label class="form-label">Description (optionnel)</label><textarea id="yp_desc" class="form-input" rows="2"></textarea></div>
+    <div class="form-group"><label class="form-label">Date de fin (optionnel)</label><input id="yp_fin" class="form-input" type="date"/></div>
+    <div class="form-group">
+      <label class="form-label">Options (minimum 2)</label>
+      <div id="yp_options">
+        <input class="form-input yp-opt" placeholder="Option 1" style="margin-bottom:6px"/>
+        <input class="form-input yp-opt" placeholder="Option 2" style="margin-bottom:6px"/>
+        <input class="form-input yp-opt" placeholder="Option 3 (optionnel)" style="margin-bottom:6px"/>
+        <input class="form-input yp-opt" placeholder="Option 4 (optionnel)" style="margin-bottom:6px"/>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px"><button class="btn btn-primary" onclick="youngSavePoll()">Publier</button><button class="btn btn-ghost" onclick="closeModal()">Annuler</button></div>`);
+}
+async function youngSavePoll() {
+  const question = document.getElementById('yp_question').value.trim();
+  const options = Array.from(document.querySelectorAll('.yp-opt')).map(i=>i.value.trim()).filter(Boolean);
+  if (!question) return toast('Question requise',true);
+  if (options.length < 2) return toast('Au moins 2 options requises',true);
+  try { await api('/young/polls', { method:'POST', body:JSON.stringify({ question, description:document.getElementById('yp_desc').value, date_fin:document.getElementById('yp_fin').value||null, options }) }); closeModal(); toast('Sondage publié !'); youngPolls(); } catch(e) { toast('Erreur: '+e.message,true); }
+}
+async function youngVote(pollId, optionId) {
+  try { await api(`/young/polls/${pollId}/vote`, { method:'POST', body:JSON.stringify({ option_id:optionId }) }); toast('Vote enregistré !'); youngPolls(); } catch(e) { toast('Erreur: '+e.message,true); }
+}
+async function youngDeletePoll(id) {
+  if (!confirm('Supprimer ce sondage ?')) return;
+  await api(`/young/polls/${id}`, { method:'DELETE' }); youngPolls();
+}
+
+async function youngStories() {
+  const [stories, canApprove] = await Promise.all([api('/young/stories').catch(()=>[]), Promise.resolve(can.executive())]);
+  setContent(`
+    <div class="table-card">
+      <div class="table-card-header">
+        <h3>🏆 Success Stories</h3>
+        <button class="btn btn-primary btn-sm" onclick="youngStoryForm()">+ Partager mon succès</button>
+      </div>
+      <div style="padding:16px">
+        ${!stories.length ? '<div class="empty-state"><div class="es-icon">🏆</div><p>Soyez le premier à partager votre succès !</p></div>' :
+          '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">' +
+          stories.map(s => {
+            const initials = ((s.prenom||'?')[0]+(s.nom||'')[0]||'').toUpperCase();
+            return `<div style="border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#fff">
+              ${s.photo_url ? `<img src="${s.photo_url}" style="width:100%;height:160px;object-fit:cover"/>` : '<div style="height:80px;background:linear-gradient(135deg,#1b5e20,#43a047);display:flex;align-items:center;justify-content:center;font-size:2.5rem">🏆</div>'}
+              <div style="padding:14px">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+                  <div style="width:36px;height:36px;border-radius:50%;background:var(--g2);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem;flex-shrink:0">${initials}</div>
+                  <div><div style="font-weight:600;font-size:.88rem">${escHtml((s.prenom||'')+' '+(s.nom||''))}</div><div style="font-size:.72rem;color:var(--muted)">${fmt(s.date_creation)}</div></div>
+                </div>
+                <div style="font-weight:700;font-size:.92rem;margin-bottom:6px">${escHtml(s.titre)}</div>
+                <div style="font-size:.83rem;color:var(--muted)">${escHtml(s.contenu).substring(0,150)}${s.contenu.length>150?'...':''}</div>
+              </div>
+            </div>`;
+          }).join('') + '</div>'}
+      </div>
+    </div>`);
+}
+async function youngStoryForm() {
+  openModal('🏆 Partager mon succès',
+    `<div style="font-size:.84rem;color:var(--muted);margin-bottom:14px">Partagez une réalisation, une promotion, un diplôme, un projet abouti... Votre histoire inspirera d'autres jeunes !</div>
+    <div class="form-group"><label class="form-label">Titre *</label><input id="ys_titre" class="form-input" placeholder="Ex: J'ai obtenu mon diplôme en marketing !"/></div>
+    <div class="form-group"><label class="form-label">Votre histoire *</label><textarea id="ys_contenu" class="form-input" rows="5" placeholder="Racontez votre parcours, vos défis et votre victoire..."></textarea></div>
+    <div style="background:#fff3cd;border-radius:8px;padding:10px;font-size:.8rem;margin-bottom:12px">⏳ Votre histoire sera publiée après validation par le comité.</div>
+    <div style="display:flex;gap:10px"><button class="btn btn-primary" onclick="youngSaveStory()">Soumettre</button><button class="btn btn-ghost" onclick="closeModal()">Annuler</button></div>`);
+}
+async function youngSaveStory() {
+  const titre = document.getElementById('ys_titre').value.trim();
+  const contenu = document.getElementById('ys_contenu').value.trim();
+  if (!titre || !contenu) return toast('Titre et contenu requis',true);
+  try { await api('/young/stories', { method:'POST', body:JSON.stringify({ titre, contenu }) }); closeModal(); toast('✅ Histoire soumise — en attente de validation !'); } catch(e) { toast('Erreur: '+e.message,true); }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
