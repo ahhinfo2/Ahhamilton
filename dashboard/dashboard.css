@@ -422,19 +422,28 @@ tr:hover td{background:#f8fdf8}
   .sidebar{transform:translateX(-100%);z-index:400}
   .sidebar.open{transform:translateX(0)}
   .main-wrapper{margin-left:0}
-  .hamburger-dash{display:flex !important;align-items:center;justify-content:center;
-    width:40px;height:40px;border-radius:8px;font-size:1.3rem;
-    background:var(--g1);color:#fff;border:none;cursor:pointer;flex-shrink:0}
+  /* Hamburger grand et visible à gauche */
+  .hamburger-dash{
+    display:flex !important;align-items:center;justify-content:center;
+    width:44px;height:44px;border-radius:10px;font-size:1.5rem;
+    background:var(--g1);color:#fff;border:none;cursor:pointer;flex-shrink:0;
+    position:relative;z-index:10;
+  }
+  /* Cacher le logo AHH sur mobile (connu via hamburger) */
+  .site-nav-logo { display:none !important }
+  /* Barre mobile = hamburger | (flex) | alertes + chip + déco */
+  .site-nav-inner { gap:8px; padding:0 10px; }
   .form-row{grid-template-columns:1fr}
   .site-nav-links  { display:none }
-  .site-nav-logo span { display:none }
   #siteNavName     { display:none }
-  .site-nav-user   { border-left:none; padding-left:4px; gap:4px; }
+  .site-nav-user   { border-left:none; padding-left:0; gap:6px; margin-left:auto; }
   /* Cacher boutons non essentiels sur mobile */
   #langSelectorWrap { display:none !important }
   #darkToggle       { display:none !important }
   #msgBtn           { display:none !important }
-  .site-nav-logout  { padding:0 8px !important; font-size:.72rem !important }
+  .site-nav-logout  { padding:0 10px !important; font-size:.78rem !important; min-height:36px; }
+  .user-chip        { font-size:.78rem !important; padding:6px 10px !important; }
+  .icon-btn         { width:40px !important; height:40px !important; }
   .table-wrapper { -webkit-overflow-scrolling:touch }
 }
 @media(max-width:600px){
