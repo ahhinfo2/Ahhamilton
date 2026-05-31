@@ -224,17 +224,17 @@ function buildSidebar() {
       { id:'videos_mgmt',       icon:'▶', label:'Vidéos',            roles:['admin','secretaire'] },
     ]},
 
-    // ── Espace Jeunes (15-30 ans) ─────────────────────────────────
-    ...(isJeune() ? [{
+    // ── Espace Jeunes (comité gère, membres y accèdent si 15-30 ans) ──
+    {
       label: '🌟 Espace Jeunes',
       items: [
-        { id:'young-home',      icon:'🌟', label:'Tableau jeunes',  roles: ALL },
-        { id:'young-jobs',      icon:'💼', label:'Stages & emplois', roles: ALL },
-        { id:'young-trainings', icon:'📚', label:'Formations',       roles: ALL },
-        { id:'young-polls',     icon:'📊', label:'Sondages',         roles: ALL },
-        { id:'young-stories',   icon:'🏆', label:'Success Stories',  roles: ALL },
+        { id:'young-home',      icon:'🌟', label:'Tableau jeunes',   roles: ALL },
+        { id:'young-jobs',      icon:'💼', label:'Stages & emplois',  roles: ALL },
+        { id:'young-trainings', icon:'📚', label:'Formations',        roles: ALL },
+        { id:'young-polls',     icon:'📊', label:'Sondages',          roles: ALL },
+        { id:'young-stories',   icon:'🏆', label:'Success Stories',   roles: ALL },
       ]
-    }] : []),
+    },
 
     // ── Mon espace membre ─────────────────────────────────────────
     {
