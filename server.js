@@ -4120,6 +4120,28 @@ process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
   } catch(e) { console.error('phantom init:', e.message); }
 })();
 
+// ── Comptes jeunes de test ───────────────────────────────────────────────────
+(function ensureTestYoung() {
+  const comptes = [
+    { prenom:'Sofia', nom:'Jean-Baptiste', email:'enfant1@ahhamilton.ca', pwd:'AHH2026!', dob:'2003-08-15' },
+    { prenom:'Marcus', nom:'Pierre-Louis', email:'enfant2@ahhamilton.ca', pwd:'AHH2026!', dob:'2007-03-20' },
+  ];
+  for (const c of comptes) {
+    try {
+      const existing = db.prepare('SELECT id FROM users WHERE email=?').get(c.email);
+      const hash = bcrypt.hashSync(c.pwd, 10);
+      if (!existing) {
+        db.prepare(`INSERT INTO users (prenom,nom,email,password_hash,role,actif,date_naissance) VALUES (?,?,?,?,'member',1,?)`)
+          .run(c.prenom, c.nom, c.email, hash, c.dob);
+        console.log(`✅ Compte jeune créé : ${c.email}`);
+      } else {
+        db.prepare(`UPDATE users SET password_hash=?, date_naissance=?, actif=1, prenom=?, nom=? WHERE email=?`)
+          .run(hash, c.dob, c.prenom, c.nom, c.email);
+      }
+    } catch(e) { console.error('ensureTestYoung:', e.message); }
+  }
+})();
+
 // ── Start ───────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`\n✅ AHH Server démarré sur http://localhost:${PORT}`);
