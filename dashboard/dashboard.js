@@ -36,6 +36,16 @@ function isJeune() {
   if (!TOKEN || !raw) return location.replace('login.html');
   USER = JSON.parse(raw);
 
+  // Rafraîchir depuis le serveur pour avoir date_naissance et données à jour
+  try {
+    const fresh = await fetch((window.location.hostname === 'localhost' ? 'http://localhost:3001' : '') + '/api/auth/me', { headers: { Authorization: 'Bearer ' + TOKEN } });
+    if (fresh.ok) {
+      const freshData = await fresh.json();
+      USER = { ...USER, ...freshData };
+      localStorage.setItem('ahh_user', JSON.stringify(USER));
+    }
+  } catch(e) {}
+
   buildSidebar();
   renderUserChip();
   setupTopbar();
