@@ -21,25 +21,26 @@
   /* ── GRIDS ── */
   .grid-normal{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
   .grid-small {display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-  .grid-stub  {display:grid;grid-template-columns:1fr;gap:20px}
+  .grid-stub  {display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 
   /* ── TICKET STANDARD ── */
   .ticket{background:#fff;border-radius:12px;border:2px solid #1b5e20;overflow:hidden;break-inside:avoid;page-break-inside:avoid}
   .ticket-hdr{background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:10px 14px;display:flex;align-items:center;gap:8px}
-  .ticket-hdr img{width:36px;height:36px;border-radius:7px;object-fit:cover;border:2px solid rgba(255,255,255,.3)}
+  .ticket-hdr{padding:7px 10px;display:flex;align-items:center;gap:6px;background:linear-gradient(135deg,#1b5e20,#2e7d32)}
+  .ticket-hdr img{width:26px;height:26px;border-radius:5px;object-fit:cover;border:1.5px solid rgba(255,255,255,.3)}
   .ticket-hdr-txt{color:#fff}
-  .ticket-hdr-txt strong{font-size:.82rem;display:block}
-  .ticket-hdr-txt span{font-size:.62rem;opacity:.8}
-  .ticket-body{padding:10px 14px;border-bottom:1.5px dashed #c8e6c9}
-  .ticket-title{font-size:1rem;font-weight:700;color:#1b5e20;margin-bottom:3px}
-  .ticket-meta{font-size:.72rem;color:#555}
-  .ticket-buyer{font-size:.75rem;color:#333;margin-top:6px;background:#f4f8f4;padding:5px 8px;border-radius:6px}
-  .ticket-codes{padding:10px 14px;text-align:center}
-  .ticket-codes-lbl{font-size:.6rem;color:#999;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
-  .ticket-qr img{width:120px;height:120px;border:3px solid #1b5e20;border-radius:8px;margin:0 auto 8px;display:block}
-  .ticket-bc img{max-width:100%;height:44px;display:block;margin:0 auto 3px}
-  .ticket-bc-val{font-size:.62rem;color:#999;font-family:monospace}
-  .ticket-footer{background:#f4f8f4;padding:6px 14px;font-size:.62rem;color:#888;text-align:center}
+  .ticket-hdr-txt strong{font-size:.7rem;display:block}
+  .ticket-hdr-txt span{font-size:.56rem;opacity:.8}
+  .ticket-body{padding:7px 10px;border-bottom:1.5px dashed #c8e6c9}
+  .ticket-title{font-size:.85rem;font-weight:700;color:#1b5e20;margin-bottom:2px}
+  .ticket-meta{font-size:.64rem;color:#555}
+  .ticket-buyer{font-size:.66rem;color:#333;margin-top:4px;background:#f4f8f4;padding:3px 6px;border-radius:5px}
+  .ticket-codes{padding:7px 10px;text-align:center}
+  .ticket-codes-lbl{font-size:.55rem;color:#999;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}
+  .ticket-qr img{width:90px;height:90px;border:2px solid #1b5e20;border-radius:7px;margin:0 auto 6px;display:block}
+  .ticket-bc img{max-width:100%;height:34px;display:block;margin:0 auto 2px}
+  .ticket-bc-val{font-size:.56rem;color:#999;font-family:monospace}
+  .ticket-footer{background:#f4f8f4;padding:4px 10px;font-size:.55rem;color:#888;text-align:center}
 
   /* ── TICKET AVEC TALON ── */
   .ticket-stub-wrap{
@@ -56,19 +57,19 @@
     background:#fff;padding:4px;font-size:.8rem;color:#888;
   }
   .ticket-stub-part{
-    width:140px;flex-shrink:0;
+    width:90px;flex-shrink:0;
     background:linear-gradient(135deg,#1b5e20,#2e7d32);
     display:flex;flex-direction:column;align-items:center;justify-content:center;
-    padding:14px 10px;text-align:center;
+    padding:8px 6px;text-align:center;
   }
-  .stub-label{color:rgba(255,255,255,.7);font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
-  .stub-activite{color:#fff;font-weight:700;font-size:.78rem;margin-bottom:8px;line-height:1.3}
-  .stub-code{background:rgba(255,255,255,.2);color:#fff;font-family:monospace;font-size:.85rem;font-weight:800;padding:6px 10px;border-radius:8px;letter-spacing:.06em;margin-bottom:6px;word-break:break-all}
-  .stub-prix{color:rgba(255,255,255,.9);font-size:.75rem;margin-bottom:4px}
-  .stub-bc img{width:110px;height:30px;display:block;margin:6px auto 0;filter:invert(1)}
-  .stub-acheteur{color:rgba(255,255,255,.8);font-size:.68rem;margin-top:6px}
-  .stub-vendeur{color:rgba(255,255,255,.6);font-size:.6rem;margin-top:2px}
-  .stub-footer{color:rgba(255,255,255,.5);font-size:.58rem;margin-top:8px;border-top:1px solid rgba(255,255,255,.2);padding-top:6px}
+  .stub-label{color:rgba(255,255,255,.7);font-size:.52rem;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+  .stub-activite{color:#fff;font-weight:700;font-size:.65rem;margin-bottom:5px;line-height:1.2}
+  .stub-code{background:rgba(255,255,255,.2);color:#fff;font-family:monospace;font-size:.7rem;font-weight:800;padding:4px 6px;border-radius:5px;letter-spacing:.04em;margin-bottom:4px;word-break:break-all}
+  .stub-prix{color:rgba(255,255,255,.9);font-size:.62rem;margin-bottom:3px}
+  .stub-bc img{width:76px;height:22px;display:block;margin:4px auto 0;filter:invert(1)}
+  .stub-acheteur{color:rgba(255,255,255,.8);font-size:.58rem;margin-top:4px}
+  .stub-vendeur{color:rgba(255,255,255,.6);font-size:.52rem;margin-top:1px}
+  .stub-footer{color:rgba(255,255,255,.5);font-size:.5rem;margin-top:6px;border-top:1px solid rgba(255,255,255,.2);padding-top:4px}
 
   /* ── PETIT FORMAT ── */
   .ticket-small{background:#fff;border-radius:8px;border:1.5px solid #1b5e20;overflow:hidden;break-inside:avoid;page-break-inside:avoid;font-size:.8rem}
