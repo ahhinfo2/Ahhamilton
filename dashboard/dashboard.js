@@ -182,9 +182,10 @@ function buildSidebar() {
 
     // ── Rapports & Admin ──────────────────────────────────────────
     { label: 'Rapports', items: [
-      { id:'reports', icon:'◆', label:'Rapports', roles:STAFF },
-      { id:'letters', icon:'◎', label:'Lettres',  roles:['admin','secretaire'] },
-      { id:'alerts',  icon:'◇', label:'Alertes',  roles:['admin','tresoriere'] },
+      { id:'reports',    icon:'◆', label:'Rapports',         roles:STAFF },
+      { id:'letters',    icon:'◎', label:'Lettres',          roles:['admin','secretaire'] },
+      { id:'alerts',     icon:'◇', label:'Alertes',          roles:['admin','tresoriere'] },
+      { id:'stats-site', icon:'📊', label:'Stats du site',   roles:EXEC },
     ]},
 
     // ── Contenu (fonctions rares en bas) ──────────────────────────
@@ -409,7 +410,7 @@ async function showView(viewId) {
     inscriptions, paiements, recus, mon_paiement, mes_billets, testimonials_mgmt, videos_mgmt,
     scanner, forum, newsletter
   };
-  const extViews = { 'pending-orders': pendingOrders, 'vente-personne': ventePersonne };
+  const extViews = { 'pending-orders': pendingOrders, 'vente-personne': ventePersonne, 'stats-site': statsSite };
   if (extViews[viewId]) {
     try { await extViews[viewId](); } catch(e) { setContent(`<div class="empty-state"><div class="es-icon">⚠️</div><p>${e.message}</p></div>`); }
     return;
@@ -6485,6 +6486,93 @@ async function vpMarquerVendu(ticketId) {
     await api(`/tickets/${ticketId}/marquer-vendu`, { method: 'POST' });
     toast('✅ Billet marqué vendu — revenu enregistré');
     vpRefreshGeneres();
+  } catch(e) { toast('Erreur : ' + e.message, true); }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// STATISTIQUES DU SITE (contrôlables par le comité)
+// ══════════════════════════════════════════════════════════════════════════════
+async function statsSite() {
+  const cfg = await api('/stats/config').catch(() => ({}));
+  setContent(`
+    <div class="table-card" style="max-width:100%">
+      <div class="table-card-header">
+        <h3>📊 Statistiques du site public</h3>
+      </div>
+      <div style="padding:20px">
+
+        <div style="background:#e8f5e9;border-left:4px solid #1b5e20;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:.85rem">
+          <strong>Comment ça fonctionne :</strong> Les stats <b>Réelles</b> viennent de la base de données.
+          Les stats <b>Globales</b> sont les valeurs que vous souhaitez afficher publiquement
+          (ex: inclure d'anciens membres). Laissez vide pour afficher la valeur réelle.
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:24px">
+
+          <!-- Membres actifs -->
+          <div class="table-card" style="padding:16px">
+            <div style="font-size:.8rem;color:var(--muted);text-transform:uppercase;font-weight:700;margin-bottom:10px">👥 Membres actifs</div>
+            <div style="display:flex;gap:12px;align-items:flex-start">
+              <div style="flex:1">
+                <label class="form-label">Réel (base de données)</label>
+                <div style="font-size:2rem;font-weight:800;color:var(--g2)">${cfg.membres_reel || 0}</div>
+              </div>
+              <div style="flex:1">
+                <label class="form-label">Global (affiché sur le site)</label>
+                <input id="cfg_membres" class="form-input" type="number" min="0" placeholder="${cfg.membres_reel || 0} (réel)" value="${cfg.membres_global || ''}"/>
+              </div>
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:.84rem;cursor:pointer">
+              <input type="checkbox" id="cfg_show_membres" ${cfg.show_membres !== 0 ? 'checked' : ''}/>
+              Afficher sur le site public
+            </label>
+          </div>
+
+          <!-- Heures de bénévolat -->
+          <div class="table-card" style="padding:16px">
+            <div style="font-size:.8rem;color:var(--muted);text-transform:uppercase;font-weight:700;margin-bottom:10px">🤝 Heures de bénévolat</div>
+            <div style="display:flex;gap:12px;align-items:flex-start">
+              <div style="flex:1">
+                <label class="form-label">Réel (base de données)</label>
+                <div style="font-size:2rem;font-weight:800;color:var(--g2)">${Math.round(cfg.benevoles_reel || 0)}h</div>
+              </div>
+              <div style="flex:1">
+                <label class="form-label">Global (affiché sur le site)</label>
+                <input id="cfg_benevoles" class="form-input" type="number" min="0" placeholder="${Math.round(cfg.benevoles_reel || 0)} (réel)" value="${cfg.benevoles_global || ''}"/>
+              </div>
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:.84rem;cursor:pointer">
+              <input type="checkbox" id="cfg_show_benevoles" ${cfg.show_benevoles !== 0 ? 'checked' : ''}/>
+              Afficher sur le site public
+            </label>
+          </div>
+
+          <!-- Années de service -->
+          <div class="table-card" style="padding:16px">
+            <div style="font-size:.8rem;color:var(--muted);text-transform:uppercase;font-weight:700;margin-bottom:10px">🏛️ Années de service</div>
+            <div>
+              <label class="form-label">Valeur affichée (fondée en janvier 2008)</label>
+              <input id="cfg_annees" class="form-input" type="number" min="1" value="${cfg.annees_service || 18}"/>
+              <div style="font-size:.75rem;color:var(--muted);margin-top:4px">Calculé automatiquement : ${new Date().getFullYear() - 2008} ans</div>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" onclick="saveStatsSite()">💾 Enregistrer et publier</button>
+      </div>
+    </div>`);
+}
+
+async function saveStatsSite() {
+  try {
+    await api('/stats/config', { method: 'PUT', body: JSON.stringify({
+      membres_global:   document.getElementById('cfg_membres').value,
+      benevoles_global: document.getElementById('cfg_benevoles').value,
+      annees_service:   document.getElementById('cfg_annees').value,
+      show_membres:     document.getElementById('cfg_show_membres').checked ? 1 : 0,
+      show_benevoles:   document.getElementById('cfg_show_benevoles').checked ? 1 : 0,
+    })});
+    toast('✅ Statistiques mises à jour sur le site public !');
   } catch(e) { toast('Erreur : ' + e.message, true); }
 }
 

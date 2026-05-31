@@ -73,6 +73,18 @@ try { db.exec('ALTER TABLE activities ADD COLUMN paiement_requis INTEGER DEFAULT
 try { db.exec('ALTER TABLE activities ADD COLUMN rabais_json TEXT DEFAULT \'{}\''); } catch {}
 try { db.exec('ALTER TABLE activities ADD COLUMN qr_token TEXT'); } catch {}
 try { db.exec('ALTER TABLE activities ADD COLUMN featured INTEGER DEFAULT 0'); } catch {}
+
+// Statistiques contrôlables par le comité
+try { db.exec(`CREATE TABLE IF NOT EXISTS stats_config (
+  id INTEGER PRIMARY KEY DEFAULT 1,
+  membres_global INTEGER,
+  benevoles_global INTEGER,
+  annees_service INTEGER DEFAULT 18,
+  show_membres INTEGER DEFAULT 1,
+  show_benevoles INTEGER DEFAULT 1
+)`); } catch {}
+// Insérer la ligne par défaut si absente
+try { db.exec(`INSERT OR IGNORE INTO stats_config (id, annees_service) VALUES (1, 18)`); } catch {}
 // Paiement des inscriptions
 try { db.exec('ALTER TABLE activity_registrations ADD COLUMN paye INTEGER DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE activity_registrations ADD COLUMN montant_paye REAL DEFAULT 0'); } catch {}

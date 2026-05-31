@@ -335,13 +335,33 @@ if (contactForm) {
 
   // ── Stats (index.html) ───────────────────────────────────
   if (document.getElementById('stat-membres')) {
-    watch('/stats/public', 120000, function(s) {
-      var map = { 'stat-membres': s.membres, 'stat-activites': s.activites, 'stat-benevoles': s.benevoles, 'stat-annees': s.annees };
-      Object.entries(map).forEach(function(e) {
-        var el = document.getElementById(e[0]);
-        if (el) el.textContent = e[1] + '+';
-      });
-    });
+    watch('/stats/public', 60000, function(s) {
+      // Membres actifs : respect du show_membres
+      var elM = document.getElementById('stat-membres');
+      if (elM) {
+        if (s.show_membres === 0 || s.show_membres === false) {
+          var row = elM.closest('.stat-item'); if (row) row.style.display = 'none';
+        } else {
+          var row2 = elM.closest('.stat-item'); if (row2) row2.style.display = '';
+          elM.textContent = s.membres + '+';
+          elM.setAttribute('data-target', s.membres);
+        }
+      }
+      // Heures bénévolat : respect du show_benevoles
+      var elB = document.getElementById('stat-benevoles');
+      if (elB) {
+        if (s.show_benevoles === 0 || s.show_benevoles === false) {
+          var rowB = elB.closest('.stat-item'); if (rowB) rowB.style.display = 'none';
+        } else {
+          var rowB2 = elB.closest('.stat-item'); if (rowB2) rowB2.style.display = '';
+          elB.textContent = s.benevoles + '+';
+          elB.setAttribute('data-target', s.benevoles);
+        }
+      }
+      // Activités et années (toujours visibles)
+      var elA = document.getElementById('stat-activites'); if (elA) { elA.textContent = s.activites + '+'; }
+      var elAn = document.getElementById('stat-annees'); if (elAn) { elAn.textContent = s.annees + '+'; }
+    }, { runNow: true });
   }
 
   // ── Galerie (galerie.html) ────────────────────────────────

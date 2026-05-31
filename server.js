@@ -1324,12 +1324,48 @@ app.get('/api/reports/members', authMiddleware, requireRole('admin', 'secretaire
 
 // ── Stats publiques (pour la page d'accueil) ─────────────────────────────────
 app.get('/api/stats/public', (req, res) => {
+  const cfg = db.prepare('SELECT * FROM stats_config WHERE id=1').get() || {};
+  const membres_reel    = db.prepare("SELECT COUNT(*) AS c FROM users WHERE actif=1 AND (phantom IS NULL OR phantom=0)").get().c;
+  const benevoles_reel  = db.prepare("SELECT COALESCE(SUM(heures),0) AS c FROM volunteer_hours WHERE statut='approuve'").get().c;
+  const activites_reel  = db.prepare("SELECT COUNT(*) AS c FROM activities WHERE statut NOT IN ('annulee','archivee')").get().c;
   res.json({
-    membres:    db.prepare("SELECT COUNT(*) AS c FROM users WHERE actif=1").get().c,
-    activites:  db.prepare("SELECT COUNT(*) AS c FROM activities WHERE statut != 'annulee'").get().c,
-    benevoles:  db.prepare("SELECT COALESCE(SUM(heures),0) AS c FROM volunteer_hours WHERE statut='approuve'").get().c,
-    annees:     17,
+    membres:           cfg.membres_global  ?? membres_reel,
+    membres_reel,
+    benevoles:         cfg.benevoles_global ?? benevoles_reel,
+    benevoles_reel,
+    activites:         activites_reel,
+    annees:            cfg.annees_service ?? 18,
+    show_membres:      cfg.show_membres  ?? 1,
+    show_benevoles:    cfg.show_benevoles ?? 1,
   });
+});
+
+// ── Configuration des stats (comité) ─────────────────────────────────────────
+app.get('/api/stats/config', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  const cfg = db.prepare('SELECT * FROM stats_config WHERE id=1').get() || {};
+  const membres_reel   = db.prepare("SELECT COUNT(*) AS c FROM users WHERE actif=1 AND (phantom IS NULL OR phantom=0)").get().c;
+  const benevoles_reel = db.prepare("SELECT COALESCE(SUM(heures),0) AS c FROM volunteer_hours WHERE statut='approuve'").get().c;
+  res.json({ ...cfg, membres_reel, benevoles_reel });
+});
+
+app.put('/api/stats/config', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  const { membres_global, benevoles_global, annees_service, show_membres, show_benevoles } = req.body;
+  db.prepare(`INSERT INTO stats_config (id, membres_global, benevoles_global, annees_service, show_membres, show_benevoles)
+    VALUES (1, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      membres_global=excluded.membres_global,
+      benevoles_global=excluded.benevoles_global,
+      annees_service=excluded.annees_service,
+      show_membres=excluded.show_membres,
+      show_benevoles=excluded.show_benevoles`)
+    .run(
+      membres_global  !== undefined ? (membres_global  === '' ? null : parseInt(membres_global))  : null,
+      benevoles_global !== undefined ? (benevoles_global === '' ? null : parseInt(benevoles_global)) : null,
+      parseInt(annees_service) || 18,
+      show_membres  ? 1 : 0,
+      show_benevoles ? 1 : 0
+    );
+  res.json({ ok: true });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
