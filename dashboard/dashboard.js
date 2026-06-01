@@ -2099,6 +2099,21 @@ async function approveVol(id, statut) {
 }
 
 // ══ NOTES ══════════════════════════════════════════════════════════════════
+
+function notePreview(html) {
+  if (!html) return '<em>Vide — cliquez pour éditer</em>';
+  // Extraire texte brut depuis HTML (exécuté côté client)
+  const d = document.createElement('div');
+  d.innerHTML = html;
+  let txt = (d.textContent || d.innerText || '').trim();
+  // Si le contenu ressemble à du JSON ou est corrompu
+  if (txt.startsWith('{') || txt.startsWith('[') || txt.startsWith('"langue"') || txt.includes('"date_debut"')) {
+    return '<span style="color:#c62828">⚠️ Note corrompue — cliquez pour nettoyer le contenu</span>';
+  }
+  txt = txt.substring(0, 250);
+  return escHtml(txt) + (txt.length >= 250 ? '…' : '');
+}
+
 async function notes() {
   const [data, allActs] = await Promise.all([api('/notes'), api('/activities')]);
   setContent(`
@@ -2120,14 +2135,8 @@ async function notes() {
             ${n.auteur_id===USER.id||can.admin() ? `<button class="btn btn-sm btn-danger" onclick="deleteNote(${n.id})">🗑️</button>` : ''}
           </div>
         </div>
-        <div style="padding:16px 20px;font-size:.88rem;color:var(--text);max-height:120px;overflow:hidden;line-height:1.7;cursor:pointer" onclick='openNoteForm(${JSON.stringify(n)},${JSON.stringify(allActs)})'>
-          ${(() => {
-            // Extraire le texte brut du HTML pour l'aperçu (évite d'afficher JSON ou balises)
-            const tmp = document.createElement('div');
-            tmp.innerHTML = n.contenu || n.contenu_corrige || '';
-            const txt = tmp.textContent || tmp.innerText || '–';
-            return escHtml(txt.substring(0, 300)) + (txt.length > 300 ? '…' : '');
-          })()}
+        <div style="padding:12px 20px;font-size:.85rem;color:var(--muted);cursor:pointer;border-top:1px solid var(--border)" onclick='openNoteForm(${JSON.stringify(n)},${JSON.stringify(allActs)})'>
+          ${notePreview(n.contenu_corrige || n.contenu || '')}
         </div>
       </div>
     `).join('') || '<div class="empty-state"><div class="es-icon">📝</div><p>Aucune note de réunion</p></div>'}
