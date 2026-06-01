@@ -157,6 +157,8 @@ function setContent(html) {
   // Supprimer le skeleton au premier rendu
   const sk = document.getElementById('skeleton-screen');
   if (sk) sk.remove();
+  // Stopper l'auto-save des notes si on change de vue
+  if (_noteAutoSave) { clearInterval(_noteAutoSave); _noteAutoSave = null; }
   mc.innerHTML = html;
 }
 
@@ -2123,36 +2125,179 @@ async function notes() {
   `);
 }
 
+let _noteAutoSave = null;
+
 function openNoteForm(n, allActs) {
-  const isEdit = !!n;
-  openModal(isEdit ? 'Modifier la note' : 'Nouvelle note de réunion', `
-    <div class="form-group"><label>Titre</label><input id="n_titre" value="${n?.titre||''}"/></div>
-    <div class="form-row">
-      <div class="form-group"><label>Date de réunion</label><input type="date" id="n_date" value="${n?.date_reunion||''}"/></div>
-      <div class="form-group"><label>Langue</label>
-        <select id="n_lang">
-          <option value="fr" ${(!n||n.langue==='fr')?'selected':''}>🇫🇷 Français</option>
-          <option value="en" ${n?.langue==='en'?'selected':''}>🇬🇧 Anglais</option>
-          <option value="ht" ${n?.langue==='ht'?'selected':''}>🇭🇹 Créole haïtien</option>
-        </select></div>
-    </div>
-    <div class="form-group"><label>Activité liée</label>
-      <select id="n_act"><option value="">– Aucune –</option>
-        ${allActs.map(a=>`<option value="${a.id}" ${n?.activity_id===a.id?'selected':''}>${a.titre}</option>`).join('')}
-      </select></div>
-    <div class="form-group">
-      <div class="note-toolbar">
-        <label>Notes</label>
-        <button type="button" class="btn btn-sm btn-accent" onclick="correctNote()">🪄 Corriger automatiquement</button>
+  const noteId = n?.id || null;
+  const today = new Date().toISOString().slice(0,10);
+
+  setContent(`
+    <!-- Éditeur plein écran style Word -->
+    <div id="wordEditor" style="display:flex;flex-direction:column;height:calc(100vh - var(--strip-h) - 8px);background:#e0e0e0">
+
+      <!-- Barre d'outils Word -->
+      <div style="background:#fff;border-bottom:1px solid #d0d0d0;padding:8px 16px;display:flex;align-items:center;gap:4px;flex-wrap:wrap;box-shadow:0 1px 4px rgba(0,0,0,.08);position:sticky;top:0;z-index:10">
+
+        <!-- Méta document -->
+        <div style="display:flex;gap:8px;align-items:center;margin-right:12px;padding-right:12px;border-right:1px solid #ddd;flex-wrap:wrap">
+          <input id="n_titre" style="border:1px solid #ddd;border-radius:6px;padding:5px 10px;font-size:.88rem;font-weight:600;width:220px" placeholder="Titre de la note" value="${escHtml(n?.titre||'')}"/>
+          <input type="date" id="n_date" style="border:1px solid #ddd;border-radius:6px;padding:5px 8px;font-size:.82rem" value="${n?.date_reunion||today}"/>
+          <select id="n_lang" style="border:1px solid #ddd;border-radius:6px;padding:5px 8px;font-size:.82rem">
+            <option value="fr" ${(!n||n.langue==='fr')?'selected':''}>🇫🇷 FR</option>
+            <option value="en" ${n?.langue==='en'?'selected':''}>🇬🇧 EN</option>
+            <option value="ht" ${n?.langue==='ht'?'selected':''}>🇭🇹 HT</option>
+          </select>
+          <select id="n_act" style="border:1px solid #ddd;border-radius:6px;padding:5px 8px;font-size:.82rem">
+            <option value="">📎 Aucune activité</option>
+            ${allActs.map(a=>`<option value="${a.id}" ${n?.activity_id===a.id?'selected':''}>${escHtml(a.titre)}</option>`).join('')}
+          </select>
+        </div>
+
+        <!-- Taille de police -->
+        <select id="fontSize" onchange="document.execCommand('fontSize',false,this.value)" style="border:1px solid #ddd;border-radius:5px;padding:4px 6px;font-size:.8rem;width:60px">
+          <option value="1">8</option><option value="2">10</option><option value="3" selected>12</option>
+          <option value="4">14</option><option value="5">18</option><option value="6">24</option><option value="7">36</option>
+        </select>
+
+        <!-- Séparateur -->
+        <div style="width:1px;height:24px;background:#ddd;margin:0 4px"></div>
+
+        <!-- Formatage texte -->
+        <button class="we-btn" onclick="document.execCommand('bold')" title="Gras (Ctrl+B)"><b>G</b></button>
+        <button class="we-btn" onclick="document.execCommand('italic')" title="Italique (Ctrl+I)"><i>I</i></button>
+        <button class="we-btn" onclick="document.execCommand('underline')" title="Souligner (Ctrl+U)"><u>S</u></button>
+        <button class="we-btn" onclick="document.execCommand('strikeThrough')" title="Barré"><s>B</s></button>
+
+        <!-- Séparateur -->
+        <div style="width:1px;height:24px;background:#ddd;margin:0 4px"></div>
+
+        <!-- Titres -->
+        <button class="we-btn" onclick="document.execCommand('formatBlock',false,'h1')" title="Titre 1" style="font-size:.75rem;font-weight:800">H1</button>
+        <button class="we-btn" onclick="document.execCommand('formatBlock',false,'h2')" title="Titre 2" style="font-size:.75rem;font-weight:700">H2</button>
+        <button class="we-btn" onclick="document.execCommand('formatBlock',false,'h3')" title="Titre 3" style="font-size:.75rem;font-weight:600">H3</button>
+        <button class="we-btn" onclick="document.execCommand('formatBlock',false,'p')" title="Paragraphe normal" style="font-size:.75rem">¶</button>
+
+        <!-- Séparateur -->
+        <div style="width:1px;height:24px;background:#ddd;margin:0 4px"></div>
+
+        <!-- Listes -->
+        <button class="we-btn" onclick="document.execCommand('insertUnorderedList')" title="Liste à puces">• ≡</button>
+        <button class="we-btn" onclick="document.execCommand('insertOrderedList')" title="Liste numérotée">1. ≡</button>
+
+        <!-- Séparateur -->
+        <div style="width:1px;height:24px;background:#ddd;margin:0 4px"></div>
+
+        <!-- Alignement -->
+        <button class="we-btn" onclick="document.execCommand('justifyLeft')" title="Aligner à gauche">⬅</button>
+        <button class="we-btn" onclick="document.execCommand('justifyCenter')" title="Centrer">⬛</button>
+        <button class="we-btn" onclick="document.execCommand('justifyRight')" title="Aligner à droite">➡</button>
+
+        <!-- Séparateur -->
+        <div style="width:1px;height:24px;background:#ddd;margin:0 4px"></div>
+
+        <!-- Actions -->
+        <button class="we-btn" onclick="document.execCommand('undo')" title="Annuler">↩</button>
+        <button class="we-btn" onclick="document.execCommand('redo')" title="Rétablir">↪</button>
+
+        <!-- Spacer -->
+        <div style="flex:1"></div>
+
+        <!-- Statut + actions -->
+        <span id="noteStatus" style="font-size:.75rem;color:var(--muted);margin-right:8px"></span>
+        <button class="btn btn-sm btn-ghost" onclick="notes()" title="Fermer">✕ Fermer</button>
+        <button class="btn btn-sm btn-primary" onclick="saveNoteEditor(${noteId})" title="Sauvegarder">💾 Sauvegarder</button>
       </div>
-      <textarea class="note-area" id="n_contenu">${n?.contenu||''}</textarea>
-      <div class="corrected-box" id="n_corrected">${n?.contenu_corrige||''}</div>
-    </div>
-    <div class="form-actions">
-      <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
-      <button type="button" class="btn btn-primary" onclick="saveNote(${isEdit?n.id:'null'})">Enregistrer</button>
+
+      <!-- Zone de saisie style papier Word -->
+      <div style="flex:1;overflow-y:auto;padding:32px 0;background:#e0e0e0">
+        <div id="wordPage" style="
+          width:794px;max-width:calc(100vw - 40px);
+          min-height:1123px;
+          margin:0 auto;
+          background:#fff;
+          box-shadow:0 2px 16px rgba(0,0,0,.18);
+          padding:72px 80px;
+          font-family:'Times New Roman',serif;
+          font-size:12pt;
+          line-height:1.6;
+          color:#000;
+          outline:none;
+        " contenteditable="true" spellcheck="true" id="n_editor"
+          oninput="noteChanged()">${n?.contenu || '<p><br></p>'}</div>
+      </div>
     </div>
   `);
+
+  // Styles des boutons toolbar
+  const style = document.createElement('style');
+  style.textContent = `
+    .we-btn{background:none;border:1px solid transparent;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:.88rem;color:#333;transition:.15s;min-width:28px}
+    .we-btn:hover{background:#f0f0f0;border-color:#ccc}
+    .we-btn:active{background:#e0e0e0}
+    #wordPage h1{font-size:22pt;margin:16px 0 8px;font-family:'Times New Roman',serif}
+    #wordPage h2{font-size:16pt;margin:14px 0 6px;font-family:'Times New Roman',serif}
+    #wordPage h3{font-size:13pt;margin:12px 0 4px;font-family:'Times New Roman',serif}
+    #wordPage ul,#wordPage ol{margin:6px 0 6px 24px}
+    #wordPage li{margin:2px 0}
+    #wordPage p{margin:4px 0}
+  `;
+  document.head.appendChild(style);
+
+  // Focus
+  setTimeout(() => document.getElementById('n_editor')?.focus(), 100);
+
+  // Auto-sauvegarde toutes les 30 secondes
+  clearInterval(_noteAutoSave);
+  _noteAutoSave = setInterval(() => {
+    const editor = document.getElementById('n_editor');
+    if (editor) autoSaveNote(noteId);
+  }, 30000);
+}
+
+async function autoSaveNote(id) {
+  try {
+    await _doSaveNote(id, true);
+    const s = document.getElementById('noteStatus');
+    if (s) { s.textContent = '✅ Sauvegardé ' + new Date().toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'}); }
+  } catch(e) {}
+}
+
+function noteChanged() {
+  const s = document.getElementById('noteStatus');
+  if (s) s.textContent = '● Modifications non sauvegardées';
+}
+
+async function _doSaveNote(id, silent = false) {
+  const editor = document.getElementById('n_editor');
+  if (!editor) return;
+  const body = {
+    titre: document.getElementById('n_titre')?.value || 'Sans titre',
+    contenu: editor.innerHTML,
+    langue: document.getElementById('n_lang')?.value || 'fr',
+    date_reunion: document.getElementById('n_date')?.value || new Date().toISOString().slice(0,10),
+    activity_id: parseInt(document.getElementById('n_act')?.value) || null,
+  };
+  if (id) await api(`/notes/${id}`, { method:'PUT', body:JSON.stringify(body) });
+  else {
+    const r = await api('/notes', { method:'POST', body:JSON.stringify(body) });
+    // Mettre à jour l'URL avec le nouvel ID pour les sauvegardes suivantes
+    if (r?.id) {
+      document.querySelectorAll('[onclick^="saveNoteEditor"]').forEach(el => {
+        el.setAttribute('onclick', `saveNoteEditor(${r.id})`);
+      });
+      clearInterval(_noteAutoSave);
+      _noteAutoSave = setInterval(() => autoSaveNote(r.id), 30000);
+    }
+  }
+  if (!silent) { toast('Note sauvegardée ✅'); }
+}
+
+async function saveNoteEditor(id) {
+  try {
+    await _doSaveNote(id, false);
+    const s = document.getElementById('noteStatus');
+    if (s) s.textContent = '✅ Sauvegardé ' + new Date().toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'});
+  } catch(e) { toast('Erreur: ' + e.message, true); }
 }
 
 async function correctNote() {
@@ -2173,15 +2318,8 @@ async function correctNote() {
 }
 
 async function saveNote(id) {
-  const body = { titre:document.getElementById('n_titre').value, contenu:document.getElementById('n_contenu').value,
-    langue:document.getElementById('n_lang').value, date_reunion:document.getElementById('n_date').value,
-    activity_id:parseInt(document.getElementById('n_act').value)||null,
-    contenu_corrige:document.getElementById('n_corrected').textContent||null };
-  try {
-    if (id) await api(`/notes/${id}`, { method:'PUT', body:JSON.stringify(body) });
-    else    await api('/notes', { method:'POST', body:JSON.stringify(body) });
-    closeModal(); toast('Note enregistrée'); notes();
-  } catch(ex) { toast(ex.message,'error'); }
+  // Kept for backward compatibility — redirects to new editor
+  await saveNoteEditor(id);
 }
 
 async function deleteNote(id) {
