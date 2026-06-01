@@ -136,6 +136,7 @@ window.AHH_T = {
     'Trésorière': 'Treasurer',
     'Secrétaire': 'Secretary',
     'Délégué': 'Accompanier',
+    'Conseillé': 'Advisor',
 
     // ── about.html ─────────────────────────────────────────────────────────
     'about.h1': 'About AHH',
@@ -289,6 +290,7 @@ window.AHH_T = {
     'Secrétaire': 'Sekretè',
     'Délégué': 'Akonpanatè',
     'Accompagnateur': 'Akonpanatè',
+    'Conseillé': 'Konseye',
 
     // ── about.html ─────────────────────────────────────────────────────────
     'about.h1': 'Sou AHH',
