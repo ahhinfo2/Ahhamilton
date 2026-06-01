@@ -2120,7 +2120,15 @@ async function notes() {
             ${n.auteur_id===USER.id||can.admin() ? `<button class="btn btn-sm btn-danger" onclick="deleteNote(${n.id})">🗑️</button>` : ''}
           </div>
         </div>
-        <div style="padding:16px 20px;white-space:pre-wrap;font-size:.88rem;color:var(--text);max-height:180px;overflow-y:auto;line-height:1.7">${n.contenu_corrige||n.contenu||'–'}</div>
+        <div style="padding:16px 20px;font-size:.88rem;color:var(--text);max-height:120px;overflow:hidden;line-height:1.7;cursor:pointer" onclick='openNoteForm(${JSON.stringify(n)},${JSON.stringify(allActs)})'>
+          ${(() => {
+            // Extraire le texte brut du HTML pour l'aperçu (évite d'afficher JSON ou balises)
+            const tmp = document.createElement('div');
+            tmp.innerHTML = n.contenu || n.contenu_corrige || '';
+            const txt = tmp.textContent || tmp.innerText || '–';
+            return escHtml(txt.substring(0, 300)) + (txt.length > 300 ? '…' : '');
+          })()}
+        </div>
       </div>
     `).join('') || '<div class="empty-state"><div class="es-icon">📝</div><p>Aucune note de réunion</p></div>'}
   `);
