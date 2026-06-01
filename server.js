@@ -970,8 +970,7 @@ app.get('/api/notes', authMiddleware, (req, res) => {
     LEFT JOIN users eb ON eb.id = n.editing_by
     LEFT JOIN activities a ON a.id = n.activity_id
     WHERE (n.auteur_id = ? OR ? IN ('admin','secretaire','tresoriere','delegue'))
-      AND (phantom IS NULL OR phantom = 0 OR n.auteur_id IS NOT NULL)
-    ORDER BY n.date_modification DESC, n.date_reunion DESC
+    ORDER BY COALESCE(n.date_modification, n.date_reunion) DESC
   `).all(req.user.id, req.user.role);
   // Nettoyer les sessions d'édition inactives (>5 min)
   db.prepare("UPDATE meeting_notes SET editing_by=NULL, editing_since=NULL WHERE editing_since < datetime('now','-5 minutes')").run();
