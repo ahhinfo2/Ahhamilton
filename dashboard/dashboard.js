@@ -2211,7 +2211,7 @@ function openNoteForm(n, allActs) {
 
       <!-- Zone de saisie style papier Word -->
       <div style="flex:1;overflow-y:auto;padding:32px 0;background:#e0e0e0">
-        <div id="wordPage" style="
+        <div style="
           width:794px;max-width:calc(100vw - 40px);
           min-height:1123px;
           margin:0 auto;
@@ -2235,12 +2235,12 @@ function openNoteForm(n, allActs) {
     .we-btn{background:none;border:1px solid transparent;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:.88rem;color:#333;transition:.15s;min-width:28px}
     .we-btn:hover{background:#f0f0f0;border-color:#ccc}
     .we-btn:active{background:#e0e0e0}
-    #wordPage h1{font-size:22pt;margin:16px 0 8px;font-family:'Times New Roman',serif}
-    #wordPage h2{font-size:16pt;margin:14px 0 6px;font-family:'Times New Roman',serif}
-    #wordPage h3{font-size:13pt;margin:12px 0 4px;font-family:'Times New Roman',serif}
-    #wordPage ul,#wordPage ol{margin:6px 0 6px 24px}
-    #wordPage li{margin:2px 0}
-    #wordPage p{margin:4px 0}
+    #n_editor h1{font-size:22pt;margin:16px 0 8px;font-family:'Times New Roman',serif}
+    #n_editor h2{font-size:16pt;margin:14px 0 6px;font-family:'Times New Roman',serif}
+    #n_editor h3{font-size:13pt;margin:12px 0 4px;font-family:'Times New Roman',serif}
+    #n_editor ul,#n_editor ol{margin:6px 0 6px 24px}
+    #n_editor li{margin:2px 0}
+    #n_editor p{margin:4px 0}
   `;
   document.head.appendChild(style);
 
