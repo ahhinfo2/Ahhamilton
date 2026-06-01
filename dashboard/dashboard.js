@@ -157,8 +157,9 @@ function setContent(html) {
   // Supprimer le skeleton au premier rendu
   const sk = document.getElementById('skeleton-screen');
   if (sk) sk.remove();
-  // Stopper l'auto-save des notes si on change de vue
+  // Stopper l'auto-save et le debounce des notes si on change de vue
   if (_noteAutoSave) { clearInterval(_noteAutoSave); _noteAutoSave = null; }
+  if (_noteDebounce) { clearTimeout(_noteDebounce); _noteDebounce = null; }
   mc.innerHTML = html;
 }
 
@@ -2246,25 +2247,45 @@ function openNoteForm(n, allActs) {
   // Focus
   setTimeout(() => document.getElementById('n_editor')?.focus(), 100);
 
-  // Auto-sauvegarde toutes les 30 secondes
+  // Auto-sauvegarde toutes les 10 secondes (intervalle de sécurité)
   clearInterval(_noteAutoSave);
   _noteAutoSave = setInterval(() => {
     const editor = document.getElementById('n_editor');
     if (editor) autoSaveNote(noteId);
-  }, 30000);
+  }, 10000);
 }
+
+let _noteDebounce = null;
 
 async function autoSaveNote(id) {
   try {
     await _doSaveNote(id, true);
     const s = document.getElementById('noteStatus');
-    if (s) { s.textContent = '✅ Sauvegardé ' + new Date().toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'}); }
-  } catch(e) {}
+    if (s) {
+      s.style.color = '#2e7d32';
+      s.textContent = '✅ Sauvegardé automatiquement à ' + new Date().toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'});
+    }
+  } catch(e) {
+    const s = document.getElementById('noteStatus');
+    if (s) { s.style.color = '#c62828'; s.textContent = '❌ Erreur de sauvegarde'; }
+  }
 }
 
 function noteChanged() {
   const s = document.getElementById('noteStatus');
-  if (s) s.textContent = '● Modifications non sauvegardées';
+  if (s) { s.style.color = '#e65100'; s.textContent = '● Modifications en cours...'; }
+  // Sauvegarde automatique 3 secondes après la dernière frappe
+  clearTimeout(_noteDebounce);
+  _noteDebounce = setTimeout(() => {
+    const editor = document.getElementById('n_editor');
+    if (editor) {
+      // Récupérer le noteId depuis le bouton sauvegarder
+      const btn = document.querySelector('[onclick^="saveNoteEditor"]');
+      const match = btn?.getAttribute('onclick')?.match(/saveNoteEditor\((\d+|null)\)/);
+      const id = match ? (match[1] === 'null' ? null : parseInt(match[1])) : null;
+      autoSaveNote(id);
+    }
+  }, 3000);
 }
 
 async function _doSaveNote(id, silent = false) {
