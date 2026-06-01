@@ -1227,9 +1227,18 @@ app.get('/api/email/sent', authMiddleware, requireRole(...COMITE_ROLES), (req, r
   res.json(rows);
 });
 
+// ── Helper : courriel IMAP selon l'utilisateur ────────────────────────────
+// Utilise email_org de l'utilisateur s'il se termine par @ahhamilton.ca,
+// sinon utilise la boîte partagée contact@ahhamilton.ca
+function getUserImapEmail(user) {
+  const personal = user?.email_org;
+  if (personal && personal.endsWith('@ahhamilton.ca') && personal !== 'contact@ahhamilton.ca') return personal;
+  return process.env.ORG_EMAIL || 'contact@ahhamilton.ca';
+}
+
 app.get('/api/email/inbox', authMiddleware, requireRole(...COMITE_ROLES), async (req, res) => {
-  // Shared org inbox — always contact@ahhamilton.ca, visible to all committee members
-  const orgEmail = process.env.ORG_EMAIL || 'contact@ahhamilton.ca';
+  const user = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.id);
+  const orgEmail = getUserImapEmail(user);
   const orgPass  = process.env.ORG_SMTP_PASS;
   if (!orgPass) return res.status(500).json({ error: 'ORG_SMTP_PASS non configuré sur le serveur' });
   try {
@@ -1242,7 +1251,8 @@ app.get('/api/email/inbox', authMiddleware, requireRole(...COMITE_ROLES), async 
 });
 
 app.get('/api/email/inbox/:uid', authMiddleware, requireRole(...COMITE_ROLES), async (req, res) => {
-  const orgEmail = process.env.ORG_EMAIL || 'contact@ahhamilton.ca';
+  const user = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.id);
+  const orgEmail = getUserImapEmail(user);
   const orgPass  = process.env.ORG_SMTP_PASS;
   if (!orgPass) return res.status(500).json({ error: 'ORG_SMTP_PASS non configuré' });
   const uid = parseInt(req.params.uid);
@@ -1256,7 +1266,8 @@ app.get('/api/email/inbox/:uid', authMiddleware, requireRole(...COMITE_ROLES), a
 });
 
 app.put('/api/email/inbox/:uid/read', authMiddleware, requireRole(...COMITE_ROLES), async (req, res) => {
-  const orgEmail = process.env.ORG_EMAIL || 'contact@ahhamilton.ca';
+  const user = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.id);
+  const orgEmail = getUserImapEmail(user);
   const orgPass  = process.env.ORG_SMTP_PASS;
   if (!orgPass) return res.status(500).json({ error: 'ORG_SMTP_PASS non configuré' });
   const uid = parseInt(req.params.uid);
@@ -1270,7 +1281,8 @@ app.put('/api/email/inbox/:uid/read', authMiddleware, requireRole(...COMITE_ROLE
 });
 
 app.delete('/api/email/inbox/:uid', authMiddleware, requireRole(...COMITE_ROLES), async (req, res) => {
-  const orgEmail = process.env.ORG_EMAIL || 'contact@ahhamilton.ca';
+  const user = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.id);
+  const orgEmail = getUserImapEmail(user);
   const orgPass  = process.env.ORG_SMTP_PASS;
   if (!orgPass) return res.status(500).json({ error: 'ORG_SMTP_PASS non configuré' });
   const uid = parseInt(req.params.uid);
@@ -4118,6 +4130,20 @@ process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
       db.prepare('UPDATE users SET phantom = 1 WHERE email = ?').run('pj@ahhamilton.ca');
     }
   } catch(e) { console.error('phantom init:', e.message); }
+})();
+
+// ── Courriels org @ahhamilton.ca par membre comité ───────────────────────────
+(function assignOrgEmails() {
+  const assignments = [
+    { email: 'vp@ahhamilton.ca',          email_org: 'jeanraymond@ahhamilton.ca' },
+    { email: 'presidente@ahhamilton.ca',   email_org: 'jean-carme@ahhamilton.ca' },
+  ];
+  for (const a of assignments) {
+    try {
+      db.prepare('UPDATE users SET email_org=? WHERE email=?').run(a.email_org, a.email);
+    } catch(e) {}
+  }
+  console.log('✅ Courriels org @ahhamilton.ca assignés');
 })();
 
 // ── Comptes jeunes de test ───────────────────────────────────────────────────
