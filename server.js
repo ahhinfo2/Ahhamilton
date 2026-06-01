@@ -955,26 +955,68 @@ app.delete('/api/volunteer/:id', authMiddleware, requireRole('admin'), (req, res
 // MEETING NOTES
 // ══════════════════════════════════════════════════════════════════════════════
 
+// Notes — toutes visibles au comité (style Google Docs partagé)
 app.get('/api/notes', authMiddleware, (req, res) => {
-  const rows = db.prepare(`SELECT n.*, u.prenom || ' ' || u.nom AS auteur, a.titre AS activite
-    FROM meeting_notes n LEFT JOIN users u ON u.id = n.auteur_id LEFT JOIN activities a ON a.id = n.activity_id
-    WHERE n.auteur_id = ? OR ? IN ('admin','secretaire','tresoriere','delegue')
-    ORDER BY n.date_reunion DESC`).all(req.user.id, req.user.role);
+  const COMITE = ['admin','tresoriere','secretaire','delegue'];
+  const rows = db.prepare(`
+    SELECT n.*,
+      u.prenom || ' ' || u.nom AS auteur,
+      a.titre AS activite,
+      le.prenom || ' ' || le.nom AS last_editor_nom,
+      eb.prenom || ' ' || eb.nom AS editing_by_nom
+    FROM meeting_notes n
+    LEFT JOIN users u  ON u.id  = n.auteur_id
+    LEFT JOIN users le ON le.id = n.last_editor_id
+    LEFT JOIN users eb ON eb.id = n.editing_by
+    LEFT JOIN activities a ON a.id = n.activity_id
+    WHERE (n.auteur_id = ? OR ? IN ('admin','secretaire','tresoriere','delegue'))
+      AND (phantom IS NULL OR phantom = 0 OR n.auteur_id IS NOT NULL)
+    ORDER BY n.date_modification DESC, n.date_reunion DESC
+  `).all(req.user.id, req.user.role);
+  // Nettoyer les sessions d'édition inactives (>5 min)
+  db.prepare("UPDATE meeting_notes SET editing_by=NULL, editing_since=NULL WHERE editing_since < datetime('now','-5 minutes')").run();
   res.json(rows);
 });
 
 app.post('/api/notes', authMiddleware, (req, res) => {
   const { titre, contenu, langue, date_reunion, activity_id } = req.body;
-  const r = db.prepare(`INSERT INTO meeting_notes (auteur_id, titre, contenu, langue, date_reunion, activity_id)
-    VALUES (?, ?, ?, ?, ?, ?)`).run(req.user.id, titre||'Sans titre', contenu||'', langue||'fr', date_reunion||'', activity_id||null);
+  const r = db.prepare(`INSERT INTO meeting_notes (auteur_id, titre, contenu, langue, date_reunion, activity_id, last_editor_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?)`).run(req.user.id, titre||'Sans titre', contenu||'', langue||'fr', date_reunion||'', activity_id||null, req.user.id);
   res.status(201).json({ id: r.lastInsertRowid });
 });
 
 app.put('/api/notes/:id', authMiddleware, (req, res) => {
-  const { titre, contenu, contenu_corrige, langue } = req.body;
-  db.prepare(`UPDATE meeting_notes SET titre=?, contenu=?, contenu_corrige=?, langue=?, date_modification=CURRENT_TIMESTAMP WHERE id=?`)
-    .run(titre||'', contenu||'', contenu_corrige||null, langue||'fr', req.params.id);
-  res.json({ message: 'Note mise à jour' });
+  const { titre, contenu, contenu_corrige, langue, date_reunion, activity_id } = req.body;
+  db.prepare(`UPDATE meeting_notes SET titre=?, contenu=?, contenu_corrige=?, langue=?,
+    date_reunion=COALESCE(?,date_reunion), activity_id=?,
+    date_modification=CURRENT_TIMESTAMP, last_editor_id=?, editing_by=NULL, editing_since=NULL
+    WHERE id=?`)
+    .run(titre||'', contenu||'', contenu_corrige||null, langue||'fr',
+      date_reunion||null, activity_id||null, req.user.id, req.params.id);
+  res.json({ ok: true });
+});
+
+// Marquer "en train d'éditer"
+app.post('/api/notes/:id/editing', authMiddleware, (req, res) => {
+  db.prepare("UPDATE meeting_notes SET editing_by=?, editing_since=CURRENT_TIMESTAMP WHERE id=?").run(req.user.id, req.params.id);
+  res.json({ ok: true });
+});
+
+// Libérer la session d'édition
+app.delete('/api/notes/:id/editing', authMiddleware, (req, res) => {
+  db.prepare("UPDATE meeting_notes SET editing_by=NULL, editing_since=NULL WHERE id=? AND editing_by=?").run(req.params.id, req.user.id);
+  res.json({ ok: true });
+});
+
+// Lire une note spécifique (pour sync en temps réel)
+app.get('/api/notes/:id', authMiddleware, (req, res) => {
+  const n = db.prepare(`SELECT n.*, le.prenom AS le_prenom, le.nom AS le_nom, eb.prenom AS eb_prenom, eb.nom AS eb_nom
+    FROM meeting_notes n
+    LEFT JOIN users le ON le.id = n.last_editor_id
+    LEFT JOIN users eb ON eb.id = n.editing_by
+    WHERE n.id=?`).get(req.params.id);
+  if (!n) return res.status(404).json({ error: 'Introuvable' });
+  res.json(n);
 });
 
 app.delete('/api/notes/:id', authMiddleware, (req, res) => {

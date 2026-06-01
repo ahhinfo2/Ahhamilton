@@ -157,9 +157,12 @@ function setContent(html) {
   // Supprimer le skeleton au premier rendu
   const sk = document.getElementById('skeleton-screen');
   if (sk) sk.remove();
-  // Stopper l'auto-save et le debounce des notes si on change de vue
+  // Stopper l'auto-save, debounce et refresh des notes si on change de vue
   if (_noteAutoSave) { clearInterval(_noteAutoSave); _noteAutoSave = null; }
   if (_noteDebounce) { clearTimeout(_noteDebounce); _noteDebounce = null; }
+  if (_notesRefreshInterval) { clearInterval(_notesRefreshInterval); _notesRefreshInterval = null; }
+  // Libérer la session d'édition si on quittait une note
+  if (_noteEditingId) { api(`/notes/${_noteEditingId}/editing`, { method:'DELETE' }).catch(()=>{}); _noteEditingId = null; }
   mc.innerHTML = html;
 }
 
@@ -2114,39 +2117,70 @@ function notePreview(html) {
   return escHtml(txt) + (txt.length >= 250 ? '…' : '');
 }
 
+let _notesRefreshInterval = null;
+
 async function notes() {
   const [data, allActs] = await Promise.all([api('/notes'), api('/activities')]);
   setContent(`
     <div class="page-header">
-      <div><h2>Notes de réunion</h2><p>Avec correction automatique FR / EN / Créole haïtien</p></div>
+      <div>
+        <h2>📝 Notes de réunion <span style="font-size:.75rem;background:#e8f5e9;color:#1b5e20;padding:3px 10px;border-radius:20px;font-weight:600;margin-left:8px">🔗 Partagées avec le comité</span></h2>
+        <p style="font-size:.82rem;color:var(--muted)">Toutes les notes sont visibles et éditables par tous les membres du comité</p>
+      </div>
       <div class="page-actions">
         <button class="btn btn-primary" onclick='openNoteForm(null,${JSON.stringify(allActs)})'>+ Nouvelle note</button>
       </div>
     </div>
-    ${data.map(n=>`
-      <div class="table-card" style="margin-bottom:16px">
+    <div id="notesList">
+    ${data.map(n=>{
+      const isEditing = n.editing_by && n.editing_by !== USER.id;
+      const editingLabel = isEditing ? `<span style="background:#fff3cd;color:#856404;font-size:.72rem;padding:2px 8px;border-radius:12px;font-weight:600">✏️ ${escHtml(n.editing_by_nom||'Quelqu\'un')} édite...</span>` : '';
+      const lastEditorLabel = n.last_editor_nom ? `Modifié par <strong>${escHtml(n.last_editor_nom)}</strong>` : `Créé par <strong>${escHtml(n.auteur||'')}</strong>`;
+      return `
+      <div class="table-card" style="margin-bottom:12px;${isEditing?'border-left:3px solid #f9a825':''}">
         <div class="table-card-header">
-          <div>
-            <h3>${n.titre}</h3>
-            <small style="color:var(--muted)">${n.auteur} · ${fmt(n.date_reunion)} · ${n.langue.toUpperCase()} ${n.activite?'· 📎 '+n.activite:''}</small>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <h3 style="margin:0">${escHtml(n.titre)}</h3>
+              ${editingLabel}
+            </div>
+            <small style="color:var(--muted)">${lastEditorLabel} · ${fmt(n.date_modification||n.date_reunion)} · ${(n.langue||'fr').toUpperCase()} ${n.activite?'· 📎 '+escHtml(n.activite):''}</small>
           </div>
           <div class="tc-actions">
-            <button class="btn btn-sm btn-outline" onclick='openNoteForm(${JSON.stringify(n)},${JSON.stringify(allActs)})'>✏️ Modifier</button>
+            <button class="btn btn-sm btn-primary" onclick='openNoteForm(${JSON.stringify(n)},${JSON.stringify(allActs)})'>✏️ Ouvrir</button>
             ${n.auteur_id===USER.id||can.admin() ? `<button class="btn btn-sm btn-danger" onclick="deleteNote(${n.id})">🗑️</button>` : ''}
           </div>
         </div>
-        <div style="padding:12px 20px;font-size:.85rem;color:var(--muted);cursor:pointer;border-top:1px solid var(--border)" onclick='openNoteForm(${JSON.stringify(n)},${JSON.stringify(allActs)})'>
+        <div style="padding:10px 20px;font-size:.83rem;color:var(--muted);cursor:pointer;border-top:1px solid var(--border)" onclick='openNoteForm(${JSON.stringify(n)},${JSON.stringify(allActs)})'>
           ${notePreview(n.contenu_corrige || n.contenu || '')}
         </div>
-      </div>
-    `).join('') || '<div class="empty-state"><div class="es-icon">📝</div><p>Aucune note de réunion</p></div>'}
+      </div>`}).join('') || '<div class="empty-state"><div class="es-icon">📝</div><p>Aucune note — créez la première !</p></div>'}
+    </div>
   `);
+
+  // Auto-refresh de la liste toutes les 20 secondes
+  clearInterval(_notesRefreshInterval);
+  _notesRefreshInterval = setInterval(async () => {
+    if (!document.getElementById('notesList')) { clearInterval(_notesRefreshInterval); return; }
+    const fresh = await api('/notes').catch(() => null);
+    if (fresh) {
+      // Mettre à jour seulement les indicateurs d'édition
+      fresh.forEach(n => {
+        const isEditing = n.editing_by && n.editing_by !== USER.id;
+        const card = document.querySelector(`[data-note-id="${n.id}"]`);
+        if (card) card.style.borderLeft = isEditing ? '3px solid #f9a825' : '';
+      });
+    }
+  }, 20000);
 }
 
 let _noteAutoSave = null;
+let _noteEditingId = null;
+let _noteSyncInterval = null;
 
 function openNoteForm(n, allActs) {
   const noteId = n?.id || null;
+  _noteEditingId = noteId;
   const today = new Date().toISOString().slice(0,10);
 
   setContent(`
@@ -2222,7 +2256,7 @@ function openNoteForm(n, allActs) {
 
         <!-- Statut + actions -->
         <span id="noteStatus" style="font-size:.75rem;color:var(--muted);margin-right:8px"></span>
-        <button class="btn btn-sm btn-ghost" onclick="notes()" title="Fermer">✕ Fermer</button>
+        <button class="btn btn-sm btn-ghost" onclick="if(_noteEditingId)api('/notes/'+_noteEditingId+'/editing',{method:'DELETE'}).catch(()=>{});clearInterval(_noteSyncInterval);notes()" title="Fermer">✕ Fermer</button>
         <button class="btn btn-sm btn-primary" onclick="saveNoteEditor(${noteId})" title="Sauvegarder">💾 Sauvegarder</button>
       </div>
 
@@ -2270,6 +2304,29 @@ function openNoteForm(n, allActs) {
     const editor = document.getElementById('n_editor');
     if (editor) autoSaveNote(noteId);
   }, 10000);
+
+  // Marquer "en train d'éditer" pour les autres
+  if (noteId) {
+    api(`/notes/${noteId}/editing`, { method:'POST' }).catch(()=>{});
+    // Renouveler toutes les 3 minutes (session expire après 5 min)
+    clearInterval(_noteSyncInterval);
+    _noteSyncInterval = setInterval(async () => {
+      if (!document.getElementById('n_editor')) { clearInterval(_noteSyncInterval); return; }
+      // Signaler qu'on édite encore
+      if (noteId) api(`/notes/${noteId}/editing`, { method:'POST' }).catch(()=>{});
+      // Vérifier si quelqu'un d'autre a sauvegardé
+      try {
+        const fresh = await api(`/notes/${noteId}`);
+        if (fresh && fresh.last_editor_id && fresh.last_editor_id !== USER.id) {
+          const s = document.getElementById('noteStatus');
+          if (s) {
+            s.style.color = '#1565c0';
+            s.textContent = `🔄 ${fresh.le_prenom || ''} ${fresh.le_nom || ''} a modifié cette note`;
+          }
+        }
+      } catch(e) {}
+    }, 30000);
+  }
 }
 
 let _noteDebounce = null;
