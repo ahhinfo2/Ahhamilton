@@ -3244,7 +3244,7 @@ app.get('/api/reports/membres', authMiddleware, requireRole(...REPORT_ROLES), (r
     SELECT u.*, COUNT(ar.id) AS nb_activites,
       SUM(CASE WHEN ar.paye=1 THEN ar.montant_paye ELSE 0 END) AS total_paye_activites
     FROM users u LEFT JOIN activity_registrations ar ON ar.user_id = u.id
-    WHERE u.actif = 1 GROUP BY u.id ORDER BY u.role, u.nom
+    WHERE u.actif = 1 AND (u.phantom IS NULL OR u.phantom = 0) GROUP BY u.id ORDER BY u.role, u.nom
   `).all();
   res.json(rows.map(u => { const {password_hash,...safe}=u; return safe; }));
 });
