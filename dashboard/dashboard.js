@@ -270,14 +270,16 @@ function buildSidebar() {
       ['bienfaiteur','partenaire'].includes(USER.plan) ? { id:'mes_annonces', icon:'◉', label:'Mes annonces' } : null,
       { id:'annuaire',     icon:'✉️', label:'Courriel' },
       { id:'forum',        icon:'◫', label:'Forum' },
-      // ── Espace Jeunes (15-30 ans) ──────────────────────────────
-      isJeune() ? { id:'young-home',      icon:'🌟', label:'Espace Jeunes',  _section:'🌟 Espace Jeunes' } : null,
-      isJeune() ? { id:'young-jobs',       icon:'💼', label:'Stages & emplois' } : null,
-      isJeune() ? { id:'young-trainings',  icon:'📚', label:'Formations' } : null,
-      isJeune() ? { id:'young-polls',      icon:'📊', label:'Sondages' } : null,
-      isJeune() ? { id:'young-stories',    icon:'🏆', label:'Success Stories' } : null,
-      // ───────────────────────────────────────────────────────────
-      { id:'profile',      icon:'◎', label:'Mon profil' },
+      // ── Stages & emplois (visible à tous les membres) ──────────
+      // ── Stages & emplois + Formations (tous les membres) ────────
+      { id:'young-jobs',      icon:'💼', label:'Stages & emplois', _section:'💼 Opportunités' },
+      { id:'young-trainings', icon:'📚', label:'Formations' },
+      // ── Espace Jeunes extra (15-30 ans seulement) ───────────────
+      isJeune() ? { id:'young-home',   icon:'🌟', label:'Espace Jeunes', _section:'🌟 Espace Jeunes' } : null,
+      isJeune() ? { id:'young-polls',  icon:'📊', label:'Sondages' } : null,
+      isJeune() ? { id:'young-stories',icon:'🏆', label:'Success Stories' } : null,
+      // ────────────────────────────────────────────────────────────
+      { id:'profile', icon:'◎', label:'Mon profil' },
     ].filter(Boolean);
 
     nav.innerHTML = memberItems.map((i, idx) => {
