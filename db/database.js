@@ -661,9 +661,9 @@ function init() {
     insert.run('Jean', 'Carme', 'presidente@ahhamilton.ca', '905-818-8269', hash, 'admin');
     insert.run('Jean', 'Raymond', 'vp@ahhamilton.ca', '905-818-8269', hash, 'admin');
     insert.run('Aviole', 'AHH', 'tresoriere@ahhamilton.ca', '', hash, 'tresoriere');
-    insert.run('Pierre', 'Jeens', 'jeens@ahhamilton.ca', '', hash, 'secretaire');
-    insert.run('Garry', 'AHH', 'garry@ahhamilton.ca', '', hash, 'delegue');
-    insert.run('Dricoll', 'AHH', 'dricoll@ahhamilton.ca', '', hash, 'delegue');
+    insert.run('Pierre', 'Jeens', 'secretaire@ahhamilton.ca', '', hash, 'secretaire');
+    insert.run('Garry', 'AHH', 'delegue1@ahhamilton.ca', '', hash, 'delegue');
+    insert.run('Dricoll', 'AHH', 'delegue2@ahhamilton.ca', '', hash, 'delegue');
 
     // Seed account info
     db.prepare(`INSERT INTO account_info (institution, numero_compte, nom_titulaire, solde)
@@ -700,6 +700,31 @@ function init() {
     }
   });
   console.log('✅ Comptes mamb1–mamb9 synchronisés (mot de passe: mam123456)');
+
+  // ── Comptes comité (adresses génériques réassignables) ────────────────
+  // Si un délégué/secrétaire quitte un jour, son successeur reprend la même
+  // adresse (delegueX@, secretaire@) sans avoir à recréer un compte.
+  const COMMITTEE_PWD = 'AHH2026!';
+  const hashCommittee = bcrypt.hashSync(COMMITTEE_PWD, 10);
+  const committeeAccounts = [
+    { oldEmails: [],                          email: 'presidente@ahhamilton.ca', prenom: 'Jean',    nom: 'Carme', role: 'admin'      },
+    { oldEmails: [],                          email: 'tresoriere@ahhamilton.ca', prenom: 'Aviole',  nom: 'AHH',   role: 'tresoriere' },
+    { oldEmails: ['jeens@ahhamilton.ca'],     email: 'secretaire@ahhamilton.ca', prenom: 'Pierre',  nom: 'Jeens', role: 'secretaire' },
+    { oldEmails: ['garry@ahhamilton.ca'],     email: 'delegue1@ahhamilton.ca',   prenom: 'Garry',   nom: 'AHH',   role: 'delegue'    },
+    { oldEmails: ['dricoll@ahhamilton.ca'],   email: 'delegue2@ahhamilton.ca',   prenom: 'Dricoll', nom: 'AHH',   role: 'delegue'    },
+  ];
+  committeeAccounts.forEach(c => {
+    let user = null;
+    for (const e of [c.email, ...c.oldEmails]) {
+      user = db.prepare('SELECT id FROM users WHERE email = ?').get(e);
+      if (user) break;
+    }
+    if (user) {
+      db.prepare('UPDATE users SET email = ?, password_hash = ?, actif = 1 WHERE id = ?')
+        .run(c.email, hashCommittee, user.id);
+    }
+  });
+  console.log('✅ Comptes comité synchronisés (mot de passe: AHH2026!)');
 
   // ── Salons de chat par défaut ──────────────────────────────────────────
   const existingRoom = db.prepare("SELECT id FROM chat_rooms WHERE type = 'general'").get();
