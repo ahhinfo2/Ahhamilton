@@ -73,6 +73,39 @@ try { db.exec('ALTER TABLE activities ADD COLUMN paiement_requis INTEGER DEFAULT
 try { db.exec('ALTER TABLE activities ADD COLUMN rabais_json TEXT DEFAULT \'{}\''); } catch {}
 try { db.exec('ALTER TABLE activities ADD COLUMN qr_token TEXT'); } catch {}
 try { db.exec('ALTER TABLE activities ADD COLUMN featured INTEGER DEFAULT 0'); } catch {}
+// Push notifications subscriptions
+try { db.exec(`CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  endpoint TEXT NOT NULL UNIQUE,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+// Votes/élections
+try { db.exec(`CREATE TABLE IF NOT EXISTS votes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  titre TEXT NOT NULL,
+  description TEXT,
+  type TEXT DEFAULT 'election',
+  statut TEXT DEFAULT 'brouillon',
+  date_debut TEXT,
+  date_fin TEXT,
+  options_json TEXT NOT NULL,
+  cree_par INTEGER REFERENCES users(id),
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+try { db.exec(`CREATE TABLE IF NOT EXISTS vote_responses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  vote_id INTEGER NOT NULL REFERENCES votes(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  option_index INTEGER NOT NULL,
+  date_vote TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(vote_id, user_id)
+)`); } catch {}
+// Parrainage
+try { db.exec('ALTER TABLE users ADD COLUMN referral_code TEXT'); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN referred_by INTEGER REFERENCES users(id)'); } catch {}
 // Collaboration notes : dernier éditeur + qui édite en ce moment
 try { db.exec('ALTER TABLE meeting_notes ADD COLUMN last_editor_id INTEGER REFERENCES users(id)'); } catch {}
 try { db.exec('ALTER TABLE meeting_notes ADD COLUMN editing_by INTEGER REFERENCES users(id)'); } catch {}

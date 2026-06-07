@@ -4,12 +4,20 @@ const BASE = window.location.hostname === 'localhost' || window.location.hostnam
 let   USER = null;
 let   TOKEN = null;
 
+// ── NOTES STATE (déclarés tôt — référencés par setContent dès le chargement) ─
+let _notesRefreshInterval = null;
+let _noteAutoSave = null;
+let _noteEditingId = null;
+let _noteSyncInterval = null;
+let _noteDebounce = null;
+
 // ── CHAT STATE ──────────────────────────────────────────────────────────────
 const CHAT = {
   open:      false,
   rooms:     [],
   activeId:  null,
   lastMsgAt: {},
+  lastMsgId: {},
   pollTimer: null,
 };
 
@@ -39,7 +47,12 @@ function isJeune() {
   buildSidebar();
   renderUserChip();
   setupTopbar();
-  await showView('home');
+
+  try {
+    await showView('home');
+  } catch (e) {
+    console.error('Erreur showView(home):', e);
+  }
 
   // Rafraîchir USER depuis le serveur (date_naissance, plan, etc.) puis reconstruire si jeune détecté
   try {
@@ -218,10 +231,16 @@ function buildSidebar() {
 
     // ── Rapports & Admin ──────────────────────────────────────────
     { label: 'Rapports', items: [
-      { id:'reports',    icon:'◆', label:'Rapports',         roles:STAFF },
-      { id:'letters',    icon:'◎', label:'Lettres',          roles:['admin','secretaire'] },
-      { id:'alerts',     icon:'◇', label:'Alertes',          roles:['admin','tresoriere'] },
-      { id:'stats-site', icon:'📊', label:'Stats du site',   roles:EXEC },
+      { id:'reports',      icon:'◆', label:'Rapports',        roles:STAFF },
+      { id:'stats-growth', icon:'📈', label:'Statistiques',   roles:EXEC },
+      { id:'letters',      icon:'◎', label:'Lettres',         roles:['admin','secretaire'] },
+      { id:'alerts',       icon:'◇', label:'Alertes',         roles:['admin','tresoriere'] },
+      { id:'stats-site',   icon:'📊', label:'Stats du site',  roles:EXEC },
+    ]},
+    // ── Gouvernance ───────────────────────────────────────────────
+    { label: 'Gouvernance', items: [
+      { id:'votes',      icon:'🗳️', label:'Votes & Élections', roles:EXEC },
+      { id:'parrainage', icon:'🤝', label:'Parrainage',         roles: ALL },
     ]},
 
     // ── Contenu (fonctions rares en bas) ──────────────────────────
@@ -335,7 +354,8 @@ function setActiveNav(viewId) {
     recus:'Reçus fiscaux', mon_paiement:'Mon paiement', annuaire:'Courriel',
     forum:'Forum', newsletter:'Infolettre', 'vente-personne':'Vendre (Cash)',
     'young-home':'Espace Jeunes', 'young-jobs':'Stages & Emplois',
-    'young-trainings':'Formations', 'young-polls':'Sondages', 'young-stories':'Success Stories'
+    'young-trainings':'Formations', 'young-polls':'Sondages', 'young-stories':'Success Stories',
+    'votes':'Votes & Élections', 'parrainage':'Parrainage', 'stats-growth':'Statistiques'
   };
   const raw = labels[viewId] || 'Dashboard';
   document.getElementById('topbarTitle').textContent = window.AHH_LANG ? AHH_LANG.get(raw) : raw;
@@ -374,6 +394,42 @@ function setupTopbar() {
   setupDarkMode();
   setupSearch();
   setupLangSelector();
+  initPushNotifications();
+}
+
+// ── Notifications Push ────────────────────────────────────────────────────────
+async function initPushNotifications() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const existing = await reg.pushManager.getSubscription();
+    if (existing) return; // Déjà abonné
+    // Demander la permission automatiquement après 5 secondes
+    setTimeout(async () => {
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') return;
+      try {
+        const keyResp = await fetch(API + '/push/vapid-key');
+        const { publicKey } = await keyResp.json();
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey)
+        });
+        await fetch(API + '/push/subscribe', {
+          method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+TOKEN },
+          body: JSON.stringify(sub)
+        });
+        toast('🔔 Notifications activées !');
+      } catch(e) {}
+    }, 5000);
+  } catch(e) {}
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
 }
 
 function setupLangSelector() {
@@ -481,6 +537,9 @@ async function showView(viewId) {
     'young-trainings': youngTrainings,
     'young-polls': youngPolls,
     'young-stories': youngStories,
+    'votes': votesView,
+    'parrainage': parrainageView,
+    'stats-growth': statsGrowthView,
   };
   if (extViews[viewId]) {
     try { await extViews[viewId](); } catch(e) { setContent(`<div class="empty-state"><div class="es-icon">⚠️</div><p>${e.message}</p></div>`); }
@@ -2119,8 +2178,6 @@ function notePreview(html) {
   return escHtml(txt) + (txt.length >= 250 ? '…' : '');
 }
 
-let _notesRefreshInterval = null;
-
 async function notes() {
   const [data, allActs] = await Promise.all([api('/notes'), api('/activities')]);
   setContent(`
@@ -2175,10 +2232,6 @@ async function notes() {
     }
   }, 20000);
 }
-
-let _noteAutoSave = null;
-let _noteEditingId = null;
-let _noteSyncInterval = null;
 
 function openNoteForm(n, allActs) {
   const noteId = n?.id || null;
@@ -2330,8 +2383,6 @@ function openNoteForm(n, allActs) {
     }, 30000);
   }
 }
-
-let _noteDebounce = null;
 
 async function autoSaveNote(id) {
   try {
@@ -3732,18 +3783,31 @@ async function openRoom(roomId) {
   if (CHAT.open) startChatPolling();
 }
 
-async function loadMessages(roomId, since) {
+async function loadMessages(roomId, afterId) {
   try {
-    const url = since ? `/chat/rooms/${roomId}/messages?since=${encodeURIComponent(since)}` : `/chat/rooms/${roomId}/messages`;
+    const url = afterId
+      ? `/chat/rooms/${roomId}/messages?after_id=${encodeURIComponent(afterId)}`
+      : `/chat/rooms/${roomId}/messages`;
     const msgs = await api(url);
     if (!msgs?.length) {
-      if (!since) document.getElementById('chatMessages').innerHTML = '<div class="chat-empty"><div class="ce-icon">💬</div><p>Aucun message encore.<br/>Soyez le premier à écrire!</p></div>';
+      if (!afterId) document.getElementById('chatMessages').innerHTML = '<div class="chat-empty"><div class="ce-icon">💬</div><p>Aucun message encore.<br/>Soyez le premier à écrire!</p></div>';
       return;
     }
-    renderMessages(msgs, !!since);
-    if (msgs.length) CHAT.lastMsgAt[roomId] = msgs[msgs.length - 1].created_at;
+    renderMessages(msgs, !!afterId);
+    if (msgs.length) {
+      CHAT.lastMsgAt[roomId] = msgs[msgs.length - 1].created_at;
+      CHAT.lastMsgId[roomId] = msgs[msgs.length - 1].id;
+    }
     loadChatRooms(); // refresh unread
   } catch {}
+}
+
+function formatChatTime(timestamp) {
+  if (!timestamp) return '';
+  const normalized = typeof timestamp === 'string' ? timestamp.replace(' ', 'T') : timestamp;
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) return timestamp;
+  return date.toLocaleTimeString('fr-CA', { hour:'2-digit', minute:'2-digit' });
 }
 
 function renderMessages(msgs, append) {
@@ -3753,7 +3817,7 @@ function renderMessages(msgs, append) {
   const html = msgs.map(m => {
     const isMe = m.sender_id === USER.id;
     const initials = `${m.prenom[0]}${m.nom[0]}`.toUpperCase();
-    const time = new Date(m.created_at).toLocaleTimeString('fr-CA', { hour:'2-digit', minute:'2-digit' });
+    const time = formatChatTime(m.created_at);
     return `<div class="chat-msg ${isMe ? 'me' : ''}">
       ${!isMe ? `<div class="chat-avatar-sm">${initials}</div>` : ''}
       <div class="chat-bubble">
@@ -3791,7 +3855,7 @@ async function sendChatMessage() {
     await api(`/chat/rooms/${CHAT.activeId}/messages`, {
       method: 'POST', body: JSON.stringify({ content })
     });
-    await loadMessages(CHAT.activeId, CHAT.lastMsgAt[CHAT.activeId]);
+    await loadMessages(CHAT.activeId, CHAT.lastMsgId[CHAT.activeId]);
   } catch(ex) { toast(ex.message, 'error'); }
 }
 
@@ -3812,8 +3876,8 @@ function startChatPolling() {
   stopChatPolling();
   CHAT.pollTimer = setInterval(async () => {
     if (!CHAT.activeId || !CHAT.open) return;
-    const since = CHAT.lastMsgAt[CHAT.activeId];
-    if (since) await loadMessages(CHAT.activeId, since);
+    const afterId = CHAT.lastMsgId[CHAT.activeId];
+    if (afterId) await loadMessages(CHAT.activeId, afterId);
   }, 3000);
 }
 function stopChatPolling() {
@@ -6925,6 +6989,209 @@ async function vpTraiterTalons() {
     </div>` : '');
 
   if (ok > 0) vpRefreshGeneres();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 2. GRAPHIQUES DE CROISSANCE
+// ══════════════════════════════════════════════════════════════════════════════
+async function statsGrowthView() {
+  const s = await api('/stats/growth').catch(() => ({}));
+  setContent(`
+    <div class="page-header"><div><h2>📈 Statistiques & Croissance</h2></div>
+      <div class="page-actions"><button class="btn btn-outline" onclick="window.print()">🖨️ Imprimer</button></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+      <div class="table-card" style="padding:16px">
+        <h4 style="margin-bottom:12px">👥 Nouveaux membres (12 mois)</h4>
+        <canvas id="chartMembres" height="200"></canvas>
+      </div>
+      <div class="table-card" style="padding:16px">
+        <h4 style="margin-bottom:12px">💰 Revenus mensuels</h4>
+        <canvas id="chartRevenus" height="200"></canvas>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <div class="table-card" style="padding:16px">
+        <h4 style="margin-bottom:12px">📅 Présence aux activités</h4>
+        <canvas id="chartPresence" height="200"></canvas>
+      </div>
+      <div class="table-card" style="padding:16px">
+        <h4 style="margin-bottom:12px">👤 Répartition par rôle</h4>
+        <canvas id="chartRoles" height="200"></canvas>
+      </div>
+    </div>`);
+
+  setTimeout(() => {
+    if (!window.Chart) return;
+    const months = s.membres?.map(m => m.mois) || [];
+    const green = '#2e7d32', lightGreen = 'rgba(46,125,50,.15)', accent = '#f9a825';
+
+    if (document.getElementById('chartMembres')) new Chart('chartMembres', { type:'bar',
+      data:{ labels:months, datasets:[{ label:'Membres', data:s.membres?.map(m=>m.nb)||[], backgroundColor:lightGreen, borderColor:green, borderWidth:2 }]},
+      options:{ responsive:true, plugins:{legend:{display:false}} }});
+
+    if (document.getElementById('chartRevenus')) new Chart('chartRevenus', { type:'line',
+      data:{ labels:s.revenus?.map(r=>r.mois)||[], datasets:[{ label:'Revenus $', data:s.revenus?.map(r=>r.total)||[], borderColor:accent, backgroundColor:'rgba(249,168,37,.1)', tension:.4, fill:true }]},
+      options:{ responsive:true, plugins:{legend:{display:false}} }});
+
+    if (document.getElementById('chartPresence')) new Chart('chartPresence', { type:'bar',
+      data:{ labels:s.presence?.map(p=>p.titre.substring(0,15))||[], datasets:[
+        { label:'Inscrits', data:s.presence?.map(p=>p.inscrits)||[], backgroundColor:'rgba(46,125,50,.3)' },
+        { label:'Présents', data:s.presence?.map(p=>p.presents)||[], backgroundColor:green }
+      ]},
+      options:{ responsive:true, scales:{ x:{ stacked:false }}}});
+
+    if (document.getElementById('chartRoles')) {
+      const roles = s.parRole||[];
+      new Chart('chartRoles', { type:'doughnut',
+        data:{ labels:roles.map(r=>r.role), datasets:[{ data:roles.map(r=>r.nb), backgroundColor:['#1b5e20','#2e7d32','#43a047','#66bb6a','#a5d6a7','#c8e6c9'] }]},
+        options:{ responsive:true }});
+    }
+  }, 300);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 4. VOTES & ÉLECTIONS
+// ══════════════════════════════════════════════════════════════════════════════
+async function votesView() {
+  const votes = await api('/votes').catch(() => []);
+  const canManage = can.executive();
+  setContent(`
+    <div class="page-header">
+      <div><h2>🗳️ Votes & Élections</h2><p>Votes officiels et sondages de gouvernance</p></div>
+      ${canManage ? '<div class="page-actions"><button class="btn btn-primary" onclick="voteNewForm()">+ Créer un vote</button></div>' : ''}
+    </div>
+    ${!votes.length ? '<div class="empty-state"><div class="es-icon">🗳️</div><p>Aucun vote pour le moment</p></div>' :
+      votes.map(v => {
+        const opts = JSON.parse(v.options_json||'[]');
+        const badge = v.statut==='ouvert' ? '<span style="background:#e8f5e9;color:#1b5e20;padding:2px 10px;border-radius:12px;font-size:.75rem;font-weight:700">🟢 OUVERT</span>' :
+          v.statut==='ferme' ? '<span style="background:#fdecea;color:#c62828;padding:2px 10px;border-radius:12px;font-size:.75rem;font-weight:700">🔴 FERMÉ</span>' :
+          '<span style="background:#fff3cd;color:#856404;padding:2px 10px;border-radius:12px;font-size:.75rem;font-weight:700">📝 BROUILLON</span>';
+        return `<div class="table-card" style="margin-bottom:14px;padding:18px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+            <div>
+              <div style="font-weight:700;font-size:.95rem">${escHtml(v.titre)} ${badge}</div>
+              ${v.description ? `<div style="font-size:.82rem;color:var(--muted);margin-top:4px">${escHtml(v.description)}</div>` : ''}
+              <div style="font-size:.75rem;color:var(--muted);margin-top:4px">${v.nb_votes||0} vote(s) · Par ${escHtml(v.createur||'')}</div>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              ${v.statut==='ouvert' ? `<button class="btn btn-primary btn-sm" onclick="voteParticiper(${v.id})">Voter</button>` : ''}
+              ${v.statut!=='brouillon' ? `<button class="btn btn-outline btn-sm" onclick="voteResultats(${v.id})">Résultats</button>` : ''}
+              ${canManage ? `<button class="btn btn-sm btn-ghost" onclick="voteChangeStatut(${v.id},'${v.statut}')">${v.statut==='brouillon'?'▶ Ouvrir':v.statut==='ouvert'?'⏹ Fermer':'🔁 Rouvrir'}</button>` : ''}
+              ${canManage ? `<button class="btn btn-sm btn-ghost" style="color:var(--red)" onclick="voteDelete(${v.id})">🗑</button>` : ''}
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            ${opts.map((o,i) => `<span style="background:var(--off);border-radius:20px;padding:3px 10px;font-size:.78rem">${escHtml(o)}</span>`).join('')}
+          </div>
+        </div>`;
+      }).join('')}`);
+}
+
+async function voteNewForm() {
+  openModal('🗳️ Nouveau vote',
+    `<div class="form-group"><label class="form-label">Titre *</label><input id="vt_titre" class="form-input" placeholder="Ex: Élection du président"/></div>
+    <div class="form-group"><label class="form-label">Description</label><textarea id="vt_desc" class="form-input" rows="2"></textarea></div>
+    <div class="form-group"><label class="form-label">Type</label>
+      <select id="vt_type" class="form-input">
+        <option value="election">Élection</option>
+        <option value="decision">Décision</option>
+        <option value="consultation">Consultation</option>
+      </select></div>
+    <div class="form-group">
+      <label class="form-label">Options (une par ligne) *</label>
+      <textarea id="vt_options" class="form-input" rows="4" placeholder="Option 1&#10;Option 2&#10;Option 3"></textarea>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-primary" onclick="voteSave()">Créer</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+    </div>`);
+}
+
+async function voteSave() {
+  const titre = document.getElementById('vt_titre').value.trim();
+  const options = document.getElementById('vt_options').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  if (!titre || options.length < 2) return toast('Titre et au moins 2 options requis', true);
+  try {
+    await api('/votes', { method:'POST', body:JSON.stringify({ titre, description:document.getElementById('vt_desc').value, type:document.getElementById('vt_type').value, options }) });
+    closeModal(); toast('Vote créé !'); votesView();
+  } catch(e) { toast('Erreur: '+e.message,true); }
+}
+
+async function voteChangeStatut(id, current) {
+  const next = current==='brouillon'?'ouvert':current==='ouvert'?'ferme':'ouvert';
+  await api(`/votes/${id}/statut`, { method:'PATCH', body:JSON.stringify({ statut:next }) });
+  toast(`Vote ${next}`); votesView();
+}
+
+async function voteParticiper(id) {
+  const r = await api(`/votes/${id}/resultats`);
+  const opts = JSON.parse(r.vote.options_json||'[]');
+  openModal('🗳️ ' + escHtml(r.vote.titre),
+    `<p style="font-size:.85rem;color:var(--muted);margin-bottom:14px">${escHtml(r.vote.description||'')}</p>
+    ${r.myVote !== null ? `<div style="background:#e8f5e9;border-radius:8px;padding:10px 14px;font-size:.85rem;color:#1b5e20;margin-bottom:14px">✅ Vous avez déjà voté pour : <strong>${escHtml(opts[r.myVote]||'')}</strong></div>` : ''}
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${opts.map((o,i) => `<button class="btn ${r.myVote===i?'btn-primary':'btn-outline'}" onclick="voteCast(${id},${i})">${escHtml(o)}</button>`).join('')}
+    </div>`);
+}
+
+async function voteCast(id, idx) {
+  try { await api(`/votes/${id}/voter`, { method:'POST', body:JSON.stringify({ option_index:idx }) }); closeModal(); toast('✅ Vote enregistré !'); } catch(e) { toast(e.message,true); }
+}
+
+async function voteResultats(id) {
+  const r = await api(`/votes/${id}/resultats`);
+  const opts = JSON.parse(r.vote.options_json||'[]');
+  openModal('📊 Résultats — ' + escHtml(r.vote.titre),
+    `<p style="font-size:.82rem;color:var(--muted);margin-bottom:14px">${r.total} vote(s) au total</p>` +
+    r.resultats.map(res => `
+      <div style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;font-size:.84rem;margin-bottom:4px">
+          <span>${escHtml(res.option)}</span>
+          <span style="font-weight:700">${res.nb} (${res.pct}%)</span>
+        </div>
+        <div style="background:var(--off);border-radius:6px;height:10px">
+          <div style="background:var(--g2);border-radius:6px;height:100%;width:${res.pct}%;transition:.3s"></div>
+        </div>
+      </div>`).join('') +
+    `<button class="btn btn-ghost" style="margin-top:12px" onclick="closeModal()">Fermer</button>`);
+}
+
+async function voteDelete(id) {
+  if (!confirm('Supprimer ce vote ?')) return;
+  await api(`/votes/${id}`, { method:'DELETE' }); toast('Vote supprimé'); votesView();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 7. PARRAINAGE
+// ══════════════════════════════════════════════════════════════════════════════
+async function parrainageView() {
+  const r = await api('/referral/my-code').catch(() => ({}));
+  setContent(`
+    <div class="page-header"><div><h2>🤝 Parrainage</h2><p>Invitez vos amis et famille à rejoindre l'AHH</p></div></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <div class="table-card" style="padding:20px">
+        <h4 style="margin-bottom:16px;color:var(--g2)">Votre lien de parrainage</h4>
+        <div style="background:var(--off);border-radius:10px;padding:14px;text-align:center;margin-bottom:16px">
+          <div style="font-size:1.8rem;font-weight:800;color:var(--g2);letter-spacing:.1em;font-family:monospace">${r.code||'–'}</div>
+          <div style="font-size:.78rem;color:var(--muted);margin-top:4px">Votre code unique</div>
+        </div>
+        <input class="form-input" value="${r.lien||''}" readonly onclick="this.select()" style="margin-bottom:10px"/>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="navigator.clipboard&&navigator.clipboard.writeText('${r.lien||''}').then(()=>toast('Lien copié !'))">📋 Copier</button>
+          <a href="https://wa.me/?text=${encodeURIComponent('Rejoignez l\'AHH Hamilton ! '+(r.lien||''))}" target="_blank" class="btn btn-outline">WhatsApp 📱</a>
+          <a href="https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(r.lien||'')}" target="_blank" class="btn btn-outline">Facebook</a>
+        </div>
+      </div>
+      <div class="table-card" style="padding:20px">
+        <h4 style="margin-bottom:14px;color:var(--g2)">🏆 Vos filleuls (${r.nb||0})</h4>
+        ${r.parrainages?.length ? r.parrainages.map(p=>`
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+            <div style="width:34px;height:34px;border-radius:50%;background:var(--g2);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700">${(p.prenom||'?')[0]}${(p.nom||'')[0]||''}</div>
+            <div><div style="font-weight:600;font-size:.85rem">${escHtml(p.prenom)} ${escHtml(p.nom)}</div><div style="font-size:.72rem;color:var(--muted)">${fmt(p.date_inscription)}</div></div>
+          </div>`).join('') : '<div style="color:var(--muted);text-align:center;padding:24px">Aucun filleul encore — partagez votre lien !</div>'}
+      </div>
+    </div>`);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

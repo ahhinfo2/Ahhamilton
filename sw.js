@@ -22,6 +22,22 @@ self.addEventListener('activate', e => {
   );
 });
 
+self.addEventListener('push', e => {
+  const data = e.data ? e.data.json() : { title:'AHH', body:'Nouvelle notification' };
+  e.waitUntil(self.registration.showNotification(data.title, {
+    body: data.body,
+    icon: '/Public/logo1.png',
+    badge: '/Public/logo1.png',
+    data: { url: data.url || '/dashboard/app.html' },
+    vibrate: [200, 100, 200]
+  }));
+});
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  e.waitUntil(clients.openWindow(e.notification.data?.url || '/dashboard/app.html'));
+});
+
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   // API calls et fichiers critiques: toujours réseau

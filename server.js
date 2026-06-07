@@ -511,7 +511,7 @@ app.delete('/api/users/:id', authMiddleware, requireRole('admin','secretaire','d
 app.get('/api/activities', authMiddleware, (req, res) => {
   const rows = db.prepare(`
     SELECT a.*, u.prenom || ' ' || u.nom AS createur,
-    (SELECT COUNT(*) FROM activity_registrations WHERE activity_id = a.id AND paye = 1) +
+    (SELECT COUNT(*) FROM activity_registrations WHERE activity_id = a.id) +
     (SELECT COUNT(*) FROM tickets WHERE activity_id = a.id AND payment_status = 'paid') AS nb_inscrits,
     (SELECT COUNT(*) FROM activity_registrations WHERE activity_id = a.id AND user_id = ?) AS user_registered
     FROM activities a LEFT JOIN users u ON u.id = a.cree_par ORDER BY a.date_debut DESC
@@ -1527,13 +1527,18 @@ app.get('/api/chat/rooms/:id/messages', authMiddleware, (req, res) => {
     .get(req.params.id, req.user.id);
   if (!member) return res.status(403).json({ error: 'Accès refusé' });
 
+  const afterId = parseInt(req.query.after_id, 10);
   const since = req.query.since || '1970-01-01';
-  const msgs = db.prepare(`
-    SELECT cm.*, u.prenom, u.nom, u.role
-    FROM chat_messages cm JOIN users u ON u.id = cm.sender_id
-    WHERE cm.room_id = ? AND cm.created_at > ?
-    ORDER BY cm.created_at ASC LIMIT 100
-  `).all(req.params.id, since);
+  const query = afterId
+    ? `SELECT cm.*, u.prenom, u.nom, u.role
+       FROM chat_messages cm JOIN users u ON u.id = cm.sender_id
+       WHERE cm.room_id = ? AND cm.id > ?
+       ORDER BY cm.id ASC LIMIT 100`
+    : `SELECT cm.*, u.prenom, u.nom, u.role
+       FROM chat_messages cm JOIN users u ON u.id = cm.sender_id
+       WHERE cm.room_id = ? AND cm.created_at > ?
+       ORDER BY cm.created_at ASC LIMIT 100`;
+  const msgs = db.prepare(query).all(req.params.id, afterId || since);
 
   // Mark as read
   db.prepare('UPDATE chat_room_members SET last_read_at = CURRENT_TIMESTAMP WHERE room_id = ? AND user_id = ?')
@@ -4074,6 +4079,311 @@ app.get('/api/young/stats', authMiddleware, (req, res) => {
   const nb_trainings = db.prepare("SELECT COUNT(*) AS c FROM young_trainings WHERE actif=1").get().c;
   const nb_polls = db.prepare("SELECT COUNT(*) AS c FROM young_polls WHERE actif=1").get().c;
   res.json({ nb_jeunes, nb_jobs, nb_trainings, nb_polls });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 1. PUSH NOTIFICATIONS
+// ══════════════════════════════════════════════════════════════════════════════
+const webpush = require('web-push');
+webpush.setVapidDetails(
+  'mailto:contact@ahhamilton.ca',
+  process.env.VAPID_PUBLIC || 'BCneznMVD6fk4DNOyioQKnhkA7m7RviLOCV2BuX0dlL9mARU4fMT9qiFjtJx7Y0Hy3elMhUxGZJdAdB3vqRN4zA',
+  process.env.VAPID_PRIVATE || 'gLHJygCDcJmeJlIZZjgc1tOCLFonnaGxFDuppWNdnw0'
+);
+
+app.get('/api/push/vapid-key', (req, res) => {
+  res.json({ publicKey: process.env.VAPID_PUBLIC || 'BCneznMVD6fk4DNOyioQKnhkA7m7RviLOCV2BuX0dlL9mARU4fMT9qiFjtJx7Y0Hy3elMhUxGZJdAdB3vqRN4zA' });
+});
+
+app.post('/api/push/subscribe', authMiddleware, (req, res) => {
+  const { endpoint, keys } = req.body;
+  if (!endpoint || !keys?.p256dh || !keys?.auth) return res.status(400).json({ error: 'Données manquantes' });
+  db.prepare(`INSERT OR REPLACE INTO push_subscriptions (user_id, endpoint, p256dh, auth) VALUES (?,?,?,?)`)
+    .run(req.user.id, endpoint, keys.p256dh, keys.auth);
+  res.json({ ok: true });
+});
+
+app.delete('/api/push/unsubscribe', authMiddleware, (req, res) => {
+  db.prepare('DELETE FROM push_subscriptions WHERE user_id=?').run(req.user.id);
+  res.json({ ok: true });
+});
+
+// Envoyer une notification push à tous les membres actifs (admin seulement)
+app.post('/api/push/send', authMiddleware, requireRole('admin','secretaire'), async (req, res) => {
+  const { title, body, url } = req.body;
+  const subs = db.prepare('SELECT * FROM push_subscriptions').all();
+  let ok = 0, errors = 0;
+  for (const s of subs) {
+    try {
+      await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+        JSON.stringify({ title: title||'AHH', body: body||'', url: url||'/' }));
+      ok++;
+    } catch(e) {
+      if (e.statusCode === 410) db.prepare('DELETE FROM push_subscriptions WHERE id=?').run(s.id);
+      errors++;
+    }
+  }
+  res.json({ ok, errors, total: subs.length });
+});
+
+async function sendPushToUser(userId, title, body, url='/dashboard/app.html') {
+  const subs = db.prepare('SELECT * FROM push_subscriptions WHERE user_id=?').all(userId);
+  for (const s of subs) {
+    try {
+      await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+        JSON.stringify({ title, body, url }));
+    } catch(e) {
+      if (e.statusCode === 410) db.prepare('DELETE FROM push_subscriptions WHERE id=?').run(s.id);
+    }
+  }
+}
+
+async function sendPushToAll(title, body, url='/dashboard/app.html') {
+  const subs = db.prepare('SELECT * FROM push_subscriptions').all();
+  for (const s of subs) {
+    try {
+      await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+        JSON.stringify({ title, body, url }));
+    } catch(e) {
+      if (e.statusCode === 410) db.prepare('DELETE FROM push_subscriptions WHERE id=?').run(s.id);
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 2. GRAPHIQUES STATISTIQUES
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.get('/api/stats/growth', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  // Membres par mois (12 derniers mois)
+  const membres = db.prepare(`
+    SELECT strftime('%Y-%m', date_inscription) AS mois, COUNT(*) AS nb
+    FROM users WHERE actif=1 AND date_inscription >= date('now','-12 months')
+    AND (phantom IS NULL OR phantom=0)
+    GROUP BY mois ORDER BY mois`).all();
+
+  // Revenus par mois
+  const revenus = db.prepare(`
+    SELECT strftime('%Y-%m', date_transaction) AS mois, SUM(montant) AS total
+    FROM transactions WHERE type='revenu' AND date_transaction >= date('now','-12 months')
+    GROUP BY mois ORDER BY mois`).all();
+
+  // Présence activités
+  const presence = db.prepare(`
+    SELECT a.titre, COUNT(ar.id) AS inscrits,
+      SUM(CASE WHEN ar.checked_in=1 THEN 1 ELSE 0 END) AS presents
+    FROM activities a LEFT JOIN activity_registrations ar ON ar.activity_id=a.id
+    WHERE a.date_debut >= date('now','-6 months') AND a.statut!='annulee'
+    GROUP BY a.id ORDER BY a.date_debut DESC LIMIT 8`).all();
+
+  // Total membres par rôle
+  const parRole = db.prepare(`
+    SELECT role, COUNT(*) AS nb FROM users
+    WHERE actif=1 AND (phantom IS NULL OR phantom=0)
+    GROUP BY role`).all();
+
+  res.json({ membres, revenus, presence, parRole });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 3. RAPPELS AUTOMATIQUES PAIEMENT
+// ══════════════════════════════════════════════════════════════════════════════
+const cron = require('node-cron');
+
+// Tous les jours à 9h00 — vérifier les paiements en retard
+cron.schedule('0 9 * * *', async () => {
+  try {
+    const moisCourant = new Date().toISOString().substring(0,7);
+    const retards = db.prepare(`
+      SELECT u.* FROM users u
+      WHERE u.actif=1 AND u.plan IN ('bienfaiteur','partenaire')
+      AND (u.phantom IS NULL OR u.phantom=0)
+      AND NOT EXISTS (SELECT 1 FROM payments WHERE user_id=u.id AND statut='approuve' AND mois=?)
+    `).all(moisCourant);
+
+    for (const u of retards) {
+      try {
+        await mailer.sendRappelPaiement(u);
+        await sendPushToUser(u.id, '💳 Rappel paiement AHH',
+          `Votre cotisation ${u.plan} de ${moisCourant} est en attente.`,
+          '/dashboard/app.html#mon_paiement');
+        console.log(`[RAPPEL] Paiement — ${u.email}`);
+      } catch(e) { console.error('[RAPPEL] Erreur:', e.message); }
+    }
+  } catch(e) { console.error('[CRON rappels]', e.message); }
+});
+
+// Notification de nouvelle activité publiée (appelé depuis POST /api/activities)
+async function notifyNewActivity(act) {
+  try {
+    await sendPushToAll(`🎉 Nouvelle activité : ${act.titre}`,
+      `${act.date_debut ? new Date(act.date_debut).toLocaleDateString('fr-CA') : ''} ${act.lieu ? '· ' + act.lieu : ''}`,
+      '/actualites.html');
+  } catch(e) {}
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 4. VOTES / ÉLECTIONS
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.get('/api/votes', authMiddleware, (req, res) => {
+  const rows = db.prepare(`SELECT v.*, u.prenom||' '||u.nom AS createur,
+    (SELECT COUNT(DISTINCT user_id) FROM vote_responses WHERE vote_id=v.id) AS nb_votes
+    FROM votes v LEFT JOIN users u ON u.id=v.cree_par ORDER BY v.date_creation DESC`).all();
+  res.json(rows);
+});
+
+app.post('/api/votes', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  const { titre, description, type, options, date_debut, date_fin } = req.body;
+  if (!titre || !options?.length) return res.status(400).json({ error: 'Titre et options requis' });
+  const r = db.prepare(`INSERT INTO votes (titre,description,type,options_json,date_debut,date_fin,cree_par,statut)
+    VALUES (?,?,?,?,?,?,'brouillon')`).run(titre, description||'', type||'election',
+    JSON.stringify(options), date_debut||null, date_fin||null, req.user.id);
+  res.status(201).json({ id: r.lastInsertRowid });
+});
+
+app.patch('/api/votes/:id/statut', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  const { statut } = req.body;
+  db.prepare('UPDATE votes SET statut=? WHERE id=?').run(statut, req.params.id);
+  if (statut === 'ouvert') {
+    const v = db.prepare('SELECT * FROM votes WHERE id=?').get(req.params.id);
+    sendPushToAll(`🗳️ Vote ouvert : ${v.titre}`, 'Votre voix compte ! Votez maintenant.', '/dashboard/app.html');
+  }
+  res.json({ ok: true });
+});
+
+app.post('/api/votes/:id/voter', authMiddleware, (req, res) => {
+  const { option_index } = req.body;
+  const vote = db.prepare("SELECT * FROM votes WHERE id=? AND statut='ouvert'").get(req.params.id);
+  if (!vote) return res.status(400).json({ error: 'Vote fermé ou introuvable' });
+  const options = JSON.parse(vote.options_json || '[]');
+  if (option_index < 0 || option_index >= options.length) return res.status(400).json({ error: 'Option invalide' });
+  try {
+    db.prepare('INSERT INTO vote_responses (vote_id,user_id,option_index) VALUES (?,?,?)').run(vote.id, req.user.id, option_index);
+    res.json({ ok: true });
+  } catch(e) {
+    res.status(400).json({ error: 'Vous avez déjà voté' });
+  }
+});
+
+app.get('/api/votes/:id/resultats', authMiddleware, (req, res) => {
+  const vote = db.prepare('SELECT * FROM votes WHERE id=?').get(req.params.id);
+  if (!vote) return res.status(404).json({ error: 'Introuvable' });
+  const options = JSON.parse(vote.options_json || '[]');
+  const responses = db.prepare('SELECT option_index, COUNT(*) AS nb FROM vote_responses WHERE vote_id=? GROUP BY option_index').all(req.params.id);
+  const total = responses.reduce((s,r) => s+r.nb, 0);
+  const myVote = db.prepare('SELECT option_index FROM vote_responses WHERE vote_id=? AND user_id=?').get(req.params.id, req.user.id);
+  const resultats = options.map((opt, i) => {
+    const nb = responses.find(r => r.option_index === i)?.nb || 0;
+    return { option: opt, nb, pct: total ? Math.round(nb/total*100) : 0 };
+  });
+  res.json({ vote, resultats, total, myVote: myVote?.option_index ?? null });
+});
+
+app.delete('/api/votes/:id', authMiddleware, requireRole('admin'), (req, res) => {
+  db.prepare('DELETE FROM votes WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 5. PARTAGE RÉSEAUX SOCIAUX
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.get('/api/share/activity/:id', (req, res) => {
+  const act = db.prepare('SELECT * FROM activities WHERE id=?').get(req.params.id);
+  if (!act) return res.status(404).json({ error: 'Introuvable' });
+  const siteUrl = process.env.SITE_URL || 'https://ahhamilton.ca';
+  const text = `🎉 ${act.titre}${act.date_debut ? ' — ' + new Date(act.date_debut).toLocaleDateString('fr-CA') : ''}${act.lieu ? ' à ' + act.lieu : ''}\n\nAssociation Haïtienne de Hamilton`;
+  const url = `${siteUrl}/actualites.html`;
+  res.json({
+    facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}&quote=${encodeURIComponent(text)}`,
+    instagram_text: text + '\n\n👉 ' + url,
+    whatsapp: `https://wa.me/?text=${encodeURIComponent(text + '\n\n' + url)}`,
+    twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`,
+    copyText: text + '\n\n' + url
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 6. RAPPORT FISCAL ANNUEL PDF
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.get('/api/reports/fiscal-annuel/:annee', authMiddleware, requireRole('admin','tresoriere'), (req, res) => {
+  const annee = parseInt(req.params.annee) || new Date().getFullYear();
+  const reçus = db.prepare(`
+    SELECT tr.*, u.prenom, u.nom, u.email, u.adresse
+    FROM tax_receipts tr JOIN users u ON u.id=tr.user_id
+    WHERE tr.annee=? ORDER BY u.nom`).all(annee);
+  const totalDons = reçus.reduce((s,r) => s + (r.montant_total||0), 0);
+  const nbReçus = reçus.length;
+
+  // Générer HTML du rapport
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/>
+  <title>Rapport fiscal ${annee} — AHH</title>
+  <style>
+    body{font-family:Arial,sans-serif;padding:40px;color:#333}
+    h1{color:#1b5e20;border-bottom:3px solid #1b5e20;padding-bottom:10px}
+    table{width:100%;border-collapse:collapse;margin-top:20px}
+    th{background:#1b5e20;color:#fff;padding:10px;text-align:left}
+    td{padding:8px 10px;border-bottom:1px solid #ddd}
+    tr:nth-child(even)td{background:#f9f9f9}
+    .total{font-weight:700;font-size:1.1rem;margin-top:20px;text-align:right}
+    .header{display:flex;align-items:center;gap:20px;margin-bottom:30px}
+    .header img{width:60px;height:60px;border-radius:10px}
+    @media print{body{padding:20px}}
+  </style></head><body>
+  <div class="header">
+    <img src="/Public/logo1.png" alt="AHH"/>
+    <div><h1>Rapport fiscal ${annee}</h1>
+    <div>Association Haïtienne de Hamilton · 231 Fernwood Crescent, Hamilton, ON L8T 3L7</div></div>
+  </div>
+  <p>Ce rapport résume tous les reçus fiscaux émis pour l'année ${annee}.</p>
+  <table>
+    <thead><tr><th>#</th><th>Membre</th><th>Email</th><th>Montant</th><th>Date</th></tr></thead>
+    <tbody>
+    ${reçus.map((r,i) => `<tr><td>${i+1}</td><td>${r.prenom} ${r.nom}</td><td>${r.email}</td><td>$${(r.montant_total||0).toFixed(2)}</td><td>${r.date_generation||''}</td></tr>`).join('')}
+    </tbody>
+  </table>
+  <div class="total">Total : ${nbReçus} reçus · ${totalDons.toFixed(2)} $</div>
+  <p style="margin-top:40px;color:#888;font-size:.8rem">Généré le ${new Date().toLocaleDateString('fr-CA')} · Confidentiel</p>
+  <script>window.onload=()=>window.print()</script>
+  </body></html>`;
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(html);
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 7. PARRAINAGE MEMBRE
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Générer code de parrainage unique
+function generateReferralCode(prenom, id) {
+  const base = (prenom||'AHH').substring(0,3).toUpperCase();
+  return base + String(id).padStart(4,'0');
+}
+
+app.get('/api/referral/my-code', authMiddleware, (req, res) => {
+  let user = db.prepare('SELECT id, prenom, referral_code FROM users WHERE id=?').get(req.user.id);
+  if (!user.referral_code) {
+    const code = generateReferralCode(user.prenom, user.id);
+    db.prepare('UPDATE users SET referral_code=? WHERE id=?').run(code, user.id);
+    user.referral_code = code;
+  }
+  const parrainages = db.prepare('SELECT prenom, nom, date_inscription FROM users WHERE referred_by=? AND actif=1').all(req.user.id);
+  const siteUrl = process.env.SITE_URL || 'https://ahhamilton.ca';
+  res.json({
+    code: user.referral_code,
+    lien: `${siteUrl}/adhesion.html?ref=${user.referral_code}`,
+    parrainages,
+    nb: parrainages.length
+  });
+});
+
+app.post('/api/referral/use/:code', (req, res) => {
+  const parrain = db.prepare('SELECT id, prenom, nom FROM users WHERE referral_code=? AND actif=1').get(req.params.code);
+  if (!parrain) return res.status(404).json({ error: 'Code invalide' });
+  res.json({ parrain: parrain.prenom + ' ' + parrain.nom, parrain_id: parrain.id });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
