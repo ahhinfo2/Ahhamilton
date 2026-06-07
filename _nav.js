@@ -180,6 +180,9 @@
           <a href="https://www.instagram.com/ahhinfo/" target="_blank" rel="noopener" class="social-icon" aria-label="Instagram">ig</a>
           <a href="https://www.youtube.com/channel/UCwtpIkOjjVt5luago0UnXow" target="_blank" rel="noopener" class="social-icon" aria-label="YouTube">▶</a>
         </div>
+        <div class="footer-flags">
+          <img class="footer-flag-photo" src="${pre}Public/Galerie/drapeau.jpg" alt="Drapeaux d'Haïti et du Canada flottant au vent" loading="lazy"/>
+        </div>
       </div>
       <div class="footer-links">
         <h5 data-i18n="Association">Association</h5>

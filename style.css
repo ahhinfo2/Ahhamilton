@@ -482,6 +482,22 @@ img   { display: block; max-width: 100%; }
 }
 .footer-bottom p { font-size: .75rem; }
 
+.footer-flags { display: flex; margin-top: 18px; }
+.footer-flag-photo {
+  display: block; width: 140px; height: 80px; object-fit: cover;
+  border-radius: 10px; border: 1px solid rgba(255,255,255,.15);
+  box-shadow: 0 8px 18px rgba(0,0,0,.35);
+  animation: footer-flag-float 3.6s ease-in-out infinite;
+  will-change: transform;
+}
+@keyframes footer-flag-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .footer-flag-photo { animation: none; }
+}
+
 /* ═══════════════════════════════════════════════
    SCROLL PROGRESS + BACK TO TOP + WHATSAPP
 ═══════════════════════════════════════════════ */

@@ -707,11 +707,11 @@ function init() {
   const COMMITTEE_PWD = 'AHH2026!';
   const hashCommittee = bcrypt.hashSync(COMMITTEE_PWD, 10);
   const committeeAccounts = [
-    { oldEmails: [],                          email: 'presidente@ahhamilton.ca', prenom: 'Jean',    nom: 'Carme', role: 'admin'      },
-    { oldEmails: [],                          email: 'tresoriere@ahhamilton.ca', prenom: 'Aviole',  nom: 'AHH',   role: 'tresoriere' },
-    { oldEmails: ['jeens@ahhamilton.ca'],     email: 'secretaire@ahhamilton.ca', prenom: 'Pierre',  nom: 'Jeens', role: 'secretaire' },
-    { oldEmails: ['garry@ahhamilton.ca'],     email: 'delegue1@ahhamilton.ca',   prenom: 'Garry',   nom: 'AHH',   role: 'delegue'    },
-    { oldEmails: ['dricoll@ahhamilton.ca'],   email: 'delegue2@ahhamilton.ca',   prenom: 'Dricoll', nom: 'AHH',   role: 'delegue'    },
+    { oldEmails: ['jean-carme@ahhamilton.ca'], email: 'presidente@ahhamilton.ca', prenom: 'Jean',    nom: 'Carme', role: 'admin'      },
+    { oldEmails: ['aviole@ahhamilton.ca'],     email: 'tresoriere@ahhamilton.ca', prenom: 'Aviole',  nom: 'AHH',   role: 'tresoriere' },
+    { oldEmails: ['jeens@ahhamilton.ca'],      email: 'secretaire@ahhamilton.ca', prenom: 'Pierre',  nom: 'Jeens', role: 'secretaire' },
+    { oldEmails: ['garry@ahhamilton.ca'],      email: 'delegue1@ahhamilton.ca',   prenom: 'Garry',   nom: 'AHH',   role: 'delegue'    },
+    { oldEmails: ['driscoll@ahhamilton.ca'],   email: 'delegue2@ahhamilton.ca',   prenom: 'Dricoll', nom: 'AHH',   role: 'delegue'    },
   ];
   committeeAccounts.forEach(c => {
     let user = null;
