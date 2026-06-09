@@ -228,6 +228,8 @@
 
   // Appliquer la langue sauvegardée au chargement
   applyTranslations();
+  // Lever le masque anti-flash FOAIT dès que les traductions sont en place
+  document.body.style.visibility = 'visible';
 
   // ── Hamburger mobile ──────────────────────────────────────────────────────
   var ham = document.getElementById('hamburger');

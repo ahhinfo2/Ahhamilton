@@ -24,7 +24,10 @@
 }
 
 html  { scroll-behavior: smooth; font-size: 16px; }
-body  { font-family: 'Poppins', sans-serif; color: var(--text); background: #fff; line-height: 1.65; overflow-x: hidden; }
+/* Anti-flash FOAIT : caché jusqu'à ce que _nav.js applique les traductions */
+body  { font-family: 'Poppins', sans-serif; color: var(--text); background: #fff; line-height: 1.65; overflow-x: hidden;
+        visibility: hidden; animation: _ahh-show 0s 0.5s forwards; }
+@keyframes _ahh-show { to { visibility: visible; } }
 a     { text-decoration: none; color: inherit; }
 img   { display: block; max-width: 100%; }
 
@@ -834,16 +837,24 @@ img   { display: block; max-width: 100%; }
     border-bottom: 1px solid rgba(255,255,255,.08); font-size: 1.05rem;
     font-weight: 600; color: #fff; text-shadow: none;
     justify-content: space-between;
+    -webkit-tap-highlight-color: transparent;
   }
+  /* Retour visuel immédiat au toucher */
+  .dropdown-toggle:active { background: rgba(255,255,255,.15); }
+  /* Rotation du chevron quand le sous-menu est ouvert */
+  .dropdown:has(.dropdown-menu.open) .dropdown-caret { transform: rotate(180deg); }
+  .dropdown-caret { font-size: .9rem; opacity: 1; }
   .dropdown-menu {
     position: static; box-shadow: none; border-radius: 0;
-    background: rgba(0,0,0,.18); border: none; padding: 0;
+    background: rgba(255,255,255,.07); border: none; padding: 0;
     margin: 0; display: none;
+    border-left: 3px solid rgba(255,255,255,.2);
   }
   .dropdown-menu.open { display: block; }
   .dropdown-menu a {
     padding: 13px 36px; color: rgba(255,255,255,.92);
     border-bottom: 1px solid rgba(255,255,255,.05); font-size: .97rem; font-weight: 500;
   }
-  .dropdown-menu a:hover { background: rgba(255,255,255,.1); color: #fff; }
+  .dropdown-menu a:active,
+  .dropdown-menu a:hover { background: rgba(255,255,255,.12); color: #fff; }
 }

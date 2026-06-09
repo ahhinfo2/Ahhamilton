@@ -179,6 +179,17 @@ app.get('/script.js', (req, res) => {
   res.sendFile(path.join(__dirname, 'script.js'));
 });
 
+// Bloquer les fichiers RAW (CR2, NEF, ARW…) — ne jamais servir publiquement
+app.use('/Public', (req, res, next) => {
+  if (/\.(cr2|cr3|nef|nrw|arw|raf|orf|dng|rw2|raw)$/i.test(req.path)) {
+    return res.status(403).end();
+  }
+  next();
+});
+
+// Images publiques : cache 7 jours (doit être avant le handler racine)
+app.use('/Public', express.static(path.join(__dirname, 'Public'), { maxAge: 604800000 }));
+
 app.use('/', express.static(path.join(__dirname)));
 
 // ── Multer : invoice photos ─────────────────────────────────────────────────
