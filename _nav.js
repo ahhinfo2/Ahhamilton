@@ -96,6 +96,57 @@
         </div>
       </a>
 
+      <!-- Overlay mobile -->
+      <div class="nav-overlay" id="navOverlay"></div>
+
+      <!-- Navigation principale -->
+      <nav class="nav-links" id="navLinks">
+        <!-- Header mobile -->
+        <div class="nav-mobile-header">
+          <img src="${pre}Public/logo1.png" alt="AHH" class="logo-img" style="width:32px;height:32px"/>
+          <span style="color:#fff;font-weight:600;font-size:.75rem">Association Haïtienne de Hamilton</span>
+          <button class="nav-close" id="navClose">✕</button>
+        </div>
+
+        <a href="${pre}index.html" class="${active('index.html')}" data-i18n="Accueil">Accueil</a>
+
+        <!-- Dropdown : Association -->
+        <div class="dropdown">
+          <button class="${activeDrop(['equipe.html'])} dropdown-toggle">
+            <span data-i18n="Association">Association</span> <span class="dropdown-caret">▾</span>
+          </button>
+          <div class="dropdown-menu">
+            <a href="${pre}equipe.html"   class="${active('equipe.html')}"   data-i18n="Notre équipe">Notre équipe</a>
+            <a href="${pre}adhesion.html" class="${active('adhesion.html')}" data-i18n="Devenir membre">Devenir membre</a>
+          </div>
+        </div>
+
+        <!-- Dropdown : Activités -->
+        <div class="dropdown">
+          <button class="${activeDrop(['actualites.html','galerie.html'])} dropdown-toggle">
+            <span data-i18n="Activités">Activités</span> <span class="dropdown-caret">▾</span>
+          </button>
+          <div class="dropdown-menu">
+            <a href="${pre}actualites.html" class="${active('actualites.html')}" data-i18n="Événements">Événements</a>
+            <a href="${pre}galerie.html"    class="${active('galerie.html')}"    data-i18n="Galerie photos">Galerie photos</a>
+          </div>
+        </div>
+
+        <!-- Dropdown : Communauté -->
+        <div class="dropdown">
+          <button class="${activeDrop(['talents.html','annonces.html'])} dropdown-toggle">
+            <span data-i18n="Communauté">Communauté</span> <span class="dropdown-caret">▾</span>
+          </button>
+          <div class="dropdown-menu">
+            <a href="${pre}talents.html"  class="${active('talents.html')}"  data-i18n="Nos talents">Nos talents</a>
+            <a href="${pre}annonces.html" class="${active('annonces.html')}" data-i18n="Petites annonces">Petites annonces</a>
+          </div>
+        </div>
+
+        <a href="${pre}about.html" class="${active('about.html')}" data-i18n="À propos">À propos</a>
+        <a href="${pre}dashboard/login.html" class="btn btn-login" data-i18n="Connexion">Connexion</a>
+      </nav>
+
       <!-- Sélecteur de langue -->
       <div class="pub-lang-selector" id="pubLangSel">
         <button class="pub-lang-btn" id="pubLangBtn" aria-label="Langue">
@@ -113,54 +164,7 @@
         <span></span><span></span><span></span>
       </button>
     </div>
-  </header>
-
-  <!-- Overlay mobile (hors du header pour éviter l'héritage du backdrop-filter) -->
-  <div class="nav-overlay" id="navOverlay"></div>
-
-  <!-- Menu mobile (hors du header — position:fixed relatif au viewport) -->
-  <nav class="nav-links" id="navLinks">
-    <div class="nav-mobile-header">
-      <img src="${pre}Public/logo1.png" alt="AHH" class="logo-img" style="width:32px;height:32px"/>
-      <span style="color:#fff;font-weight:600;font-size:.75rem">Association Haïtienne de Hamilton</span>
-      <button class="nav-close" id="navClose">✕</button>
-    </div>
-
-    <a href="${pre}index.html" class="${active('index.html')}" data-i18n="Accueil">Accueil</a>
-
-    <div class="dropdown">
-      <button class="${activeDrop(['equipe.html'])} dropdown-toggle">
-        <span data-i18n="Association">Association</span> <span class="dropdown-caret">▾</span>
-      </button>
-      <div class="dropdown-menu">
-        <a href="${pre}equipe.html"   class="${active('equipe.html')}"   data-i18n="Notre équipe">Notre équipe</a>
-        <a href="${pre}adhesion.html" class="${active('adhesion.html')}" data-i18n="Devenir membre">Devenir membre</a>
-      </div>
-    </div>
-
-    <div class="dropdown">
-      <button class="${activeDrop(['actualites.html','galerie.html'])} dropdown-toggle">
-        <span data-i18n="Activités">Activités</span> <span class="dropdown-caret">▾</span>
-      </button>
-      <div class="dropdown-menu">
-        <a href="${pre}actualites.html" class="${active('actualites.html')}" data-i18n="Événements">Événements</a>
-        <a href="${pre}galerie.html"    class="${active('galerie.html')}"    data-i18n="Galerie photos">Galerie photos</a>
-      </div>
-    </div>
-
-    <div class="dropdown">
-      <button class="${activeDrop(['talents.html','annonces.html'])} dropdown-toggle">
-        <span data-i18n="Communauté">Communauté</span> <span class="dropdown-caret">▾</span>
-      </button>
-      <div class="dropdown-menu">
-        <a href="${pre}talents.html"  class="${active('talents.html')}"  data-i18n="Nos talents">Nos talents</a>
-        <a href="${pre}annonces.html" class="${active('annonces.html')}" data-i18n="Petites annonces">Petites annonces</a>
-      </div>
-    </div>
-
-    <a href="${pre}about.html" class="${active('about.html')}" data-i18n="À propos">À propos</a>
-    <a href="${pre}dashboard/login.html" class="btn btn-login" data-i18n="Connexion">Connexion</a>
-  </nav>`;
+  </header>`;
 
   // ── FOOTER ────────────────────────────────────────────────────────────────
   var footerHTML = `

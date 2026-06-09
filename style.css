@@ -66,9 +66,7 @@ img   { display: block; max-width: 100%; }
   position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
   height: var(--nav-h); transition: var(--tr);
   padding: 0;
-  background: rgba(15,50,15,.72);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: rgba(15,50,15,.92);
 }
 .navbar.scrolled {
   background: rgba(255,255,255,.97);
