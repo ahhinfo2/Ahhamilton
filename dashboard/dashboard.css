@@ -161,6 +161,16 @@ img{display:block;max-width:100%}
   box-shadow:var(--shadow);
 }
 .hamburger-dash{display:none;background:none;border:none;font-size:1.3rem;cursor:pointer;padding:4px}
+/* Bouton retour au site public — caché sur desktop, visible sur mobile */
+.site-home-mobile-btn {
+  display: none; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
+  font-size: 1.2rem; text-decoration: none;
+  background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.25);
+  transition: background .2s;
+}
+.site-home-mobile-btn:hover,
+.site-home-mobile-btn:active { background: rgba(255,255,255,.3); }
 .topbar-title{font-size:1rem;font-weight:700;color:var(--text);white-space:nowrap;margin-right:8px}
 .topbar-right{display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:auto}
 .icon-btn{position:relative;background:var(--off);border:1px solid var(--border);border-radius:8px;width:36px;height:36px;font-size:1rem;cursor:pointer;transition:var(--tr);display:flex;align-items:center;justify-content:center}
@@ -431,6 +441,8 @@ tr:hover td{background:#f8fdf8}
   }
   /* Cacher le logo AHH sur mobile (connu via hamburger) */
   .site-nav-logo { display:none !important }
+  /* Afficher le bouton retour au site public */
+  .site-home-mobile-btn { display:flex !important }
   /* Barre mobile = hamburger | (flex) | alertes + chip + déco */
   .site-nav-inner { gap:8px; padding:0 10px; }
   .form-row{grid-template-columns:1fr}
