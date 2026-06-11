@@ -2791,19 +2791,26 @@ async function gallery_mgmt() {
         albumPhotos.forEach(p => {
           const idx = photos.indexOf(p);
           const src = `${BASE}${p.photo_path}`;
+          const featClass = p.featured ? 'gmc-featured-on' : '';
+          const featTitle = p.featured ? 'Retirer de l\'accueil' : 'Mettre à la une sur l\'accueil';
           catHtml += `
-            <div class="gallery-mgmt-card" id="gmc-${p.id}" data-photoidx="${idx}">
+            <div class="gallery-mgmt-card ${featClass}" id="gmc-${p.id}" data-photoidx="${idx}">
               <div class="gmc-img" data-photoidx="${idx}" style="cursor:zoom-in">
                 <img src="${src}" alt="${(p.titre||'').replace(/"/g,'&quot;')}"
                   onerror="this.style.display='none'" loading="lazy"/>
+                ${p.featured ? '<div class="gmc-featured-badge">⭐ Accueil</div>' : ''}
               </div>
               <div class="gmc-info">
                 <div class="gmc-title">${p.titre || '(Sans titre)'}</div>
                 <div class="gmc-meta">${fmt(p.date_upload)} · ${p.uploadeur || '–'}</div>
               </div>
-              <button class="gmc-delete"
-                data-delid="${p.id}"
-                title="Supprimer">🗑️</button>
+              <div style="display:flex;gap:4px">
+                <button class="gmc-feature" data-featid="${p.id}" data-featured="${p.featured||0}"
+                  title="${featTitle}" style="background:${p.featured?'#f9a825':'var(--off)'};border:1px solid ${p.featured?'#f9a825':'var(--border)'};border-radius:8px;padding:4px 8px;cursor:pointer;font-size:.8rem;transition:.2s">
+                  ${p.featured ? '⭐' : '☆'}
+                </button>
+                <button class="gmc-delete" data-delid="${p.id}" title="Supprimer">🗑️</button>
+              </div>
             </div>`;
         });
         catHtml += `</div></div>`;
@@ -2917,6 +2924,13 @@ async function gallery_mgmt() {
   // Délégation d'événements sur mainContent (aucun onclick inline)
   const mc = document.getElementById('mainContent');
   mc.addEventListener('click', function galDelegate(e) {
+    // Clic sur le bouton "mettre à la une"
+    const featBtn = e.target.closest('[data-featid]');
+    if (featBtn) {
+      e.stopPropagation();
+      toggleGalleryFeatured(parseInt(featBtn.dataset.featid), featBtn);
+      return;
+    }
     // Clic sur le bouton supprimer
     const delBtn = e.target.closest('[data-delid]');
     if (delBtn) {
@@ -2924,8 +2938,8 @@ async function gallery_mgmt() {
       deleteGalleryPhoto(parseInt(delBtn.dataset.delid));
       return;
     }
-    // Clic sur une image (pas sur le bouton supprimer)
-    if (e.target.closest('.gmc-delete')) return;
+    // Clic sur une image
+    if (e.target.closest('.gmc-delete') || e.target.closest('.gmc-feature')) return;
     const imgDiv = e.target.closest('.gmc-img[data-photoidx]');
     if (!imgDiv) return;
     galOpen(parseInt(imgDiv.dataset.photoidx));
@@ -2941,6 +2955,38 @@ async function deleteGalleryPhoto(id) {
     if (card) { card.style.opacity = '0'; setTimeout(() => card.remove(), 300); }
     window._galPhotos = window._galPhotos.filter(p => p.id !== id);
   } catch(ex) { toast(ex.message, 'error'); }
+}
+
+async function toggleGalleryFeatured(id, btn) {
+  try {
+    const res = await api(`/gallery/${id}/featured`, { method: 'PATCH' });
+    const isFeatured = res.featured === 1;
+    // Mise à jour de l'état local
+    const photo = (window._galPhotos || []).find(p => p.id === id);
+    if (photo) photo.featured = res.featured;
+    // Mise à jour UI du bouton
+    btn.dataset.featured = res.featured;
+    btn.innerHTML = isFeatured ? '⭐' : '☆';
+    btn.title = isFeatured ? 'Retirer de l\'accueil' : 'Mettre à la une sur l\'accueil';
+    btn.style.background = isFeatured ? '#f9a825' : 'var(--off)';
+    btn.style.borderColor = isFeatured ? '#f9a825' : 'var(--border)';
+    // Badge sur l'image
+    const card = document.getElementById(`gmc-${id}`);
+    if (card) {
+      card.classList.toggle('gmc-featured-on', isFeatured);
+      const imgDiv = card.querySelector('.gmc-img');
+      let badge = imgDiv && imgDiv.querySelector('.gmc-featured-badge');
+      if (isFeatured && imgDiv && !badge) {
+        badge = document.createElement('div');
+        badge.className = 'gmc-featured-badge';
+        badge.textContent = '⭐ Accueil';
+        imgDiv.appendChild(badge);
+      } else if (!isFeatured && badge) {
+        badge.remove();
+      }
+    }
+    toast(isFeatured ? '⭐ Photo mise à la une sur l\'accueil' : 'Photo retirée de l\'accueil');
+  } catch(ex) { toast(ex.message || 'Erreur', 'error'); }
 }
 
 // ── LIGHTBOX ────────────────────────────────────────────────────────────────

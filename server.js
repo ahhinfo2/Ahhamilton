@@ -1490,6 +1490,30 @@ app.post('/api/gallery', authMiddleware, requireRole('admin', 'secretaire'),
   }
 );
 
+app.get('/api/gallery/featured', (req, res) => {
+  const featured = db.prepare(`
+    SELECT gp.*, u.prenom || ' ' || u.nom AS uploadeur
+    FROM gallery_photos gp LEFT JOIN users u ON u.id = gp.cree_par
+    WHERE gp.actif = 1 AND gp.featured = 1 ORDER BY gp.date_upload DESC
+  `).all();
+  if (featured.length) return res.json(featured);
+  // Fallback : 6 photos les plus récentes si aucune mise en avant
+  const recent = db.prepare(`
+    SELECT gp.*, u.prenom || ' ' || u.nom AS uploadeur
+    FROM gallery_photos gp LEFT JOIN users u ON u.id = gp.cree_par
+    WHERE gp.actif = 1 ORDER BY gp.date_upload DESC LIMIT 6
+  `).all();
+  res.json(recent);
+});
+
+app.patch('/api/gallery/:id/featured', authMiddleware, requireRole('admin', 'secretaire'), (req, res) => {
+  const photo = db.prepare('SELECT * FROM gallery_photos WHERE id = ?').get(req.params.id);
+  if (!photo) return res.status(404).json({ error: 'Photo introuvable' });
+  const newVal = photo.featured ? 0 : 1;
+  db.prepare('UPDATE gallery_photos SET featured = ? WHERE id = ?').run(newVal, photo.id);
+  res.json({ featured: newVal });
+});
+
 app.delete('/api/gallery/:id', authMiddleware, requireRole('admin', 'secretaire'), (req, res) => {
   const photo = db.prepare('SELECT * FROM gallery_photos WHERE id = ?').get(req.params.id);
   if (!photo) return res.status(404).json({ error: 'Photo introuvable' });

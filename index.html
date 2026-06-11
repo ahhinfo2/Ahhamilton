@@ -651,7 +651,7 @@
   // ── Galerie mise en avant ──
   (async function() {
     try {
-      var r = await fetch(BASE_API + '/gallery');
+      var r = await fetch(BASE_API + '/gallery/featured');
       if (!r.ok) return;
       var list = await r.json();
       if (!list || !list.length) return;

@@ -417,6 +417,16 @@ tr:hover td{background:#f8fdf8}
 .gallery-mgmt-card:hover .gmc-delete { opacity: 1; }
 .gmc-delete:hover { background: var(--red); transform: scale(1.1); }
 
+/* Badge et style "mise à la une" galerie */
+.gmc-featured-badge {
+  position: absolute; bottom: 6px; left: 6px;
+  background: #f9a825; color: #1a2e1a;
+  font-size: .65rem; font-weight: 800;
+  padding: 2px 8px; border-radius: 50px;
+  letter-spacing: .04em; pointer-events: none;
+}
+.gmc-featured-on { outline: 3px solid #f9a825; outline-offset: 2px; }
+
 /* ── RESPONSIVE ────────────────────────────────────────────────────────── */
 @media(max-width:900px){
   .sidebar{transform:translateX(-100%);z-index:400}

@@ -401,6 +401,7 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS newsletter_subscribers (
   date_inscription TEXT DEFAULT CURRENT_TIMESTAMP,
   actif INTEGER DEFAULT 1
 )`); } catch {}
+try { db.exec(`ALTER TABLE gallery_photos ADD COLUMN featured INTEGER DEFAULT 0`); } catch {}
 
 function init() {
   db.exec(`
