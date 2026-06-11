@@ -257,6 +257,15 @@
         '</div>';
       }
 
+      const siteUrl = 'https://ahhamilton.ca/actualites.html';
+      const shareText = encodeURIComponent('🎉 ' + ev.titre + (ev.date_debut ? ' — ' + new Date(ev.date_debut).toLocaleDateString('fr-CA') : '') + (ev.lieu ? ' à ' + ev.lieu : '') + '\n\nAssociation Haïtienne de Hamilton\n' + siteUrl);
+      const shareBar = '<div class="share-bar">' +
+        '<span class="share-label">Partager :</span>' +
+        '<a class="share-btn share-btn-fb" href="https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(siteUrl) + '" target="_blank" rel="noopener">f Facebook</a>' +
+        '<a class="share-btn share-btn-wa" href="https://wa.me/?text=' + shareText + '" target="_blank" rel="noopener">📲 WhatsApp</a>' +
+        '<button class="share-btn share-btn-copy" onclick="navigator.clipboard.writeText(\'' + siteUrl + '\');this.textContent=\'✓ Copié!\';setTimeout(()=>this.textContent=\'🔗 Copier\',1800)">🔗 Copier</button>' +
+        '</div>';
+
       return '<div class="event-card" data-type="' + ev.type + '" data-reveal>' +
         headerHtml +
         '<div class="event-body">' +
@@ -269,6 +278,7 @@
           '</div>' +
           '<p>' + desc + '</p>' +
           btnHtml +
+          shareBar +
         '</div>' +
       '</div>';
     }

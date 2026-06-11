@@ -394,6 +394,13 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS newsletter_sends (
 )`); } catch {}
 try { db.exec(`ALTER TABLE newsletter_sends ADD COLUMN archive INTEGER DEFAULT 0`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN phantom INTEGER DEFAULT 0`); } catch {}
+try { db.exec(`CREATE TABLE IF NOT EXISTS newsletter_subscribers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT UNIQUE NOT NULL,
+  prenom TEXT,
+  date_inscription TEXT DEFAULT CURRENT_TIMESTAMP,
+  actif INTEGER DEFAULT 1
+)`); } catch {}
 
 function init() {
   db.exec(`

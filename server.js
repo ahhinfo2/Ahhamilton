@@ -4316,6 +4316,28 @@ app.get('/api/share/activity/:id', (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
+// 5b. ABONNEMENT NEWSLETTER PUBLIC
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.post('/api/newsletter/subscribe', (req, res) => {
+  const { email, prenom } = req.body;
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: 'Courriel invalide' });
+  }
+  try {
+    db.prepare('INSERT OR IGNORE INTO newsletter_subscribers (email, prenom) VALUES (?,?)')
+      .run(email.trim().toLowerCase(), (prenom || '').trim());
+    res.json({ ok: true });
+  } catch(e) {
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+app.get('/api/newsletter/subscribers', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  res.json(db.prepare('SELECT * FROM newsletter_subscribers WHERE actif=1 ORDER BY date_inscription DESC').all());
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
 // 6. RAPPORT FISCAL ANNUEL PDF
 // ══════════════════════════════════════════════════════════════════════════════
 

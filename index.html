@@ -25,6 +25,28 @@
 </head>
 <body>
 
+  <!-- Bande drapeau haïtien sous la navbar -->
+  <div class="flag-stripe"></div>
+
+  <!-- ===== POPUP BIENVENUE (1ère visite) ===== -->
+  <div id="welcome-popup">
+    <div class="welcome-card">
+      <div class="welcome-banner">
+        <button class="welcome-close" id="welcomeClose" aria-label="Fermer">✕</button>
+        <div class="wb-flag">🇭🇹🤝🇨🇦</div>
+        <h2>Bienvenue dans la communauté AHH !</h2>
+        <p>Association Haïtienne de Hamilton — Culture, solidarité et entraide depuis 2009.</p>
+      </div>
+      <div class="welcome-body">
+        <p>Rejoignez notre communauté grandissante. Accédez aux activités, aux événements culturels et au réseau d'entraide haïtien-canadien.</p>
+        <div class="welcome-actions">
+          <a href="adhesion.html" class="btn btn-primary">Devenir membre →</a>
+          <button class="btn btn-outline" id="welcomeDismiss">Explorer le site</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ===== HERO ===== -->
   <section class="hero" id="accueil">
     <div class="hero-photo-bg"></div>
@@ -89,6 +111,36 @@
             <a id="featured-btn2" href="actualites.html" class="btn" style="border:2px solid rgba(255,255,255,.5);color:#fff;padding:14px 22px;border-radius:12px;font-size:.95rem">Voir toutes les activités →</a>
           </div>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== FIL D'ACTUALITÉ EN TEMPS RÉEL ===== -->
+  <section class="feed-section" id="feed-section" style="display:none">
+    <div class="container">
+      <div class="section-header" data-reveal>
+        <span class="section-badge blue"><span class="feed-live-dot"></span>En direct</span>
+        <h2>Prochaines activités</h2>
+        <p>Restez connecté aux événements de votre communauté.</p>
+      </div>
+      <div class="feed-grid" id="feedGrid"></div>
+      <div style="text-align:center;margin-top:32px">
+        <a href="actualites.html" class="btn btn-outline">Voir toutes les activités →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== GALERIE MISE EN AVANT ===== -->
+  <section class="gallery-preview-section" id="gallery-preview-section" style="display:none">
+    <div class="container">
+      <div class="section-header" data-reveal>
+        <span class="section-badge red">Galerie</span>
+        <h2>Nos plus beaux moments</h2>
+        <p>Une fenêtre sur la vie et la culture de notre communauté.</p>
+      </div>
+      <div class="gallery-preview-grid" id="galleryPreviewGrid"></div>
+      <div style="text-align:center;margin-top:32px">
+        <a href="galerie.html" class="btn btn-outline">Voir toute la galerie →</a>
       </div>
     </div>
   </section>
@@ -279,6 +331,23 @@
   })();
   </script>
 
+  <!-- ===== NEWSLETTER ===== -->
+  <section class="newsletter-section">
+    <div class="container newsletter-inner">
+      <div class="newsletter-text">
+        <h2>Restez informé</h2>
+        <p>Recevez nos nouvelles, invitations et annonces directement dans votre boîte courriel. Gratuit, sans publicité.</p>
+      </div>
+      <div class="newsletter-form-wrap">
+        <div class="newsletter-form" id="newsletterForm">
+          <input type="email" class="newsletter-input" id="nlEmail" placeholder="votre@courriel.com" autocomplete="email"/>
+          <button class="newsletter-btn" id="nlBtn" type="button">S'abonner</button>
+        </div>
+        <div class="newsletter-msg" id="nlMsg"></div>
+      </div>
+    </div>
+  </section>
+
   <!-- ===== CONTACT ===== -->
   <section class="contact-section" id="contact">
     <div class="container contact-grid">
@@ -323,6 +392,11 @@
       </div>
       <form class="contact-form" id="contactForm" data-reveal data-delay="150">
         <h3 class="form-title">Envoyez-nous un message</h3>
+        <div class="contact-success" id="contactSuccess">
+          <div class="cs-icon">✅</div>
+          <h3>Message envoyé !</h3>
+          <p>Merci de nous avoir contactés. Nous vous répondrons dans les plus brefs délais.</p>
+        </div>
         <div id="contactMsg" style="display:none;padding:10px 14px;border-radius:8px;font-size:.82rem;margin-bottom:14px"></div>
         <div class="form-row">
           <div class="form-group">
@@ -447,44 +521,153 @@
   })();
 
   document.addEventListener('DOMContentLoaded', function() {
+    // ── Formulaire contact amélioré ──
     var form = document.getElementById('contactForm');
-    if (!form) return;
-    form.addEventListener('submit', async function(e) {
-      e.preventDefault();
-      var btn = document.getElementById('cf_btn');
-      var msg = document.getElementById('contactMsg');
-      if (!btn || !msg) return;
-      var nom = ((document.getElementById('cf_prenom')||{}).value||'') + ' ' +
-                ((document.getElementById('cf_nom')||{}).value||'');
-      nom = nom.trim();
-      var email   = (document.getElementById('cf_email')||{}).value || '';
-      var sujet   = (document.getElementById('cf_sujet')||{}).value || 'Contact';
-      var message = (document.getElementById('cf_message')||{}).value || '';
-      if (!nom || !email || !message) {
-        msg.style.cssText = 'display:block;background:#fdecea;color:#c62828;border-left:3px solid #c62828;padding:10px 14px;border-radius:8px;font-size:.82rem;margin-bottom:14px';
-        msg.textContent = 'Veuillez remplir tous les champs obligatoires.';
-        return;
-      }
-      btn.disabled = true; btn.textContent = 'Envoi en cours…';
-      msg.style.display = 'none';
-      try {
-        var res = await fetch(BASE_API + '/contact', {
-          method: 'POST', headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({ nom: nom, email: email, sujet: sujet, message: message })
-        });
-        var data = await res.json().catch(function(){ return {}; });
-        if (!res.ok) throw new Error(data.error || 'Erreur serveur');
-        msg.style.cssText = 'display:block;background:#e8f5e9;color:#1b5e20;border-left:3px solid #2e7d32;padding:10px 14px;border-radius:8px;font-size:.82rem;margin-bottom:14px';
-        msg.textContent = '✅ Message envoyé ! Nous vous répondrons sous peu.';
-        form.reset();
-      } catch(ex) {
-        msg.style.cssText = 'display:block;background:#fdecea;color:#c62828;border-left:3px solid #c62828;padding:10px 14px;border-radius:8px;font-size:.82rem;margin-bottom:14px';
-        msg.textContent = ex.message || 'Erreur lors de l\'envoi. Vérifiez votre connexion.';
-      } finally {
-        btn.disabled = false; btn.textContent = 'Envoyer le message';
-      }
-    });
+    if (form) {
+      form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        var btn     = document.getElementById('cf_btn');
+        var msg     = document.getElementById('contactMsg');
+        var success = document.getElementById('contactSuccess');
+        if (!btn) return;
+        var nom = ((document.getElementById('cf_prenom')||{}).value||'') + ' ' +
+                  ((document.getElementById('cf_nom')||{}).value||'');
+        nom = nom.trim();
+        var email   = (document.getElementById('cf_email')||{}).value || '';
+        var sujet   = (document.getElementById('cf_sujet')||{}).value || 'Contact';
+        var message = (document.getElementById('cf_message')||{}).value || '';
+        if (!nom || !email || !message) {
+          if (msg) { msg.style.cssText = 'display:block;background:#fdecea;color:#c62828;border-left:3px solid #c62828;padding:10px 14px;border-radius:8px;font-size:.82rem;margin-bottom:14px'; msg.textContent = 'Veuillez remplir tous les champs obligatoires.'; }
+          return;
+        }
+        btn.disabled = true; btn.textContent = 'Envoi en cours…';
+        if (msg) msg.style.display = 'none';
+        try {
+          var res = await fetch(BASE_API + '/contact', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ nom: nom, email: email, sujet: sujet, message: message })
+          });
+          var data = await res.json().catch(function(){ return {}; });
+          if (!res.ok) throw new Error(data.error || 'Erreur serveur');
+          // Masquer le formulaire, afficher la confirmation animée
+          form.querySelectorAll('label,input,select,textarea,button,h3.form-title,.form-row,.form-group').forEach(function(el){ el.style.display='none'; });
+          if (success) success.classList.add('show');
+        } catch(ex) {
+          if (msg) { msg.style.cssText = 'display:block;background:#fdecea;color:#c62828;border-left:3px solid #c62828;padding:10px 14px;border-radius:8px;font-size:.82rem;margin-bottom:14px'; msg.textContent = ex.message || 'Erreur lors de l\'envoi.'; }
+          btn.disabled = false; btn.textContent = 'Envoyer le message';
+        }
+      });
+    }
+
+    // ── Popup bienvenue ──
+    if (!localStorage.getItem('ahh_welcomed')) {
+      setTimeout(function() {
+        var popup = document.getElementById('welcome-popup');
+        if (popup) popup.classList.add('open');
+      }, 2200);
+    }
+    function closeWelcome() {
+      var popup = document.getElementById('welcome-popup');
+      if (popup) popup.classList.remove('open');
+      localStorage.setItem('ahh_welcomed', '1');
+    }
+    var wc = document.getElementById('welcomeClose');
+    var wd = document.getElementById('welcomeDismiss');
+    if (wc) wc.addEventListener('click', closeWelcome);
+    if (wd) wd.addEventListener('click', closeWelcome);
+    var wp = document.getElementById('welcome-popup');
+    if (wp) wp.addEventListener('click', function(e) { if (e.target === this) closeWelcome(); });
+
+    // ── Newsletter ──
+    var nlBtn = document.getElementById('nlBtn');
+    if (nlBtn) {
+      nlBtn.addEventListener('click', async function() {
+        var email = (document.getElementById('nlEmail')||{}).value || '';
+        var nlMsg = document.getElementById('nlMsg');
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          if (nlMsg) { nlMsg.textContent = '❌ Veuillez entrer un courriel valide.'; nlMsg.classList.add('show'); }
+          return;
+        }
+        nlBtn.disabled = true; nlBtn.textContent = '…';
+        try {
+          var r = await fetch(BASE_API + '/newsletter/subscribe', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ email: email })
+          });
+          if (!r.ok) throw new Error();
+          if (nlMsg) { nlMsg.textContent = '✅ Abonnement confirmé ! Merci de rejoindre notre communauté.'; nlMsg.classList.add('show'); }
+          document.getElementById('nlEmail').value = '';
+        } catch(e) {
+          if (nlMsg) { nlMsg.textContent = '❌ Erreur. Veuillez réessayer.'; nlMsg.classList.add('show'); }
+        } finally {
+          nlBtn.disabled = false; nlBtn.textContent = 'S\'abonner';
+        }
+      });
+    }
   });
+
+  // ── Fil d'actualité en temps réel ──
+  var FEED_TYPE_ICONS = {
+    culturel:  { icon:'🌺', color:'linear-gradient(135deg,#1b5e20,#43a047)' },
+    benevolat: { icon:'🤝', color:'linear-gradient(135deg,#0277bd,#29b6f6)' },
+    social:    { icon:'🍽️', color:'linear-gradient(135deg,#00695c,#26a69a)' },
+    reunion:   { icon:'📋', color:'linear-gradient(135deg,#37474f,#546e7a)' },
+    general:   { icon:'✨', color:'linear-gradient(135deg,#6a1b9a,#ab47bc)' },
+  };
+  async function loadFeed() {
+    try {
+      var r = await fetch(BASE_API + '/activities/public');
+      if (!r.ok) return;
+      var list = await r.json();
+      if (!list || !list.length) return;
+      var grid = document.getElementById('feedGrid');
+      var section = document.getElementById('feed-section');
+      if (!grid || !section) return;
+      var upcoming = list.slice(0, 3);
+      grid.innerHTML = upcoming.map(function(ev) {
+        var t = FEED_TYPE_ICONS[ev.type] || FEED_TYPE_ICONS.general;
+        var d = ev.date_debut ? new Date(ev.date_debut) : null;
+        var dateStr = d ? d.toLocaleDateString('fr-CA', {day:'numeric',month:'long',year:'numeric'}) : '';
+        var imgPart = ev.thumbnail
+          ? '<img class="feed-card-img" src="' + BASE_URL + ev.thumbnail + '" alt="' + ev.titre + '" loading="lazy"/>'
+          : '<div style="height:6px;background:' + t.color + '"></div>';
+        return '<div class="feed-card">' + imgPart +
+          '<div class="feed-card-body">' +
+          (dateStr ? '<div class="feed-card-date">📅 ' + dateStr + '</div>' : '') +
+          '<div class="feed-card-title">' + ev.titre + '</div>' +
+          '<div class="feed-card-meta">' +
+          (ev.lieu ? '<span>📍 ' + ev.lieu + '</span>' : '') +
+          '<span>👥 ' + (ev.nb_inscrits||0) + (ev.max_participants ? '/' + ev.max_participants : '') + '</span>' +
+          '</div>' +
+          '<a href="actualites.html" class="feed-card-cta">Voir les détails →</a>' +
+          '</div></div>';
+      }).join('');
+      section.style.display = '';
+    } catch(e) {}
+  }
+  loadFeed();
+  setInterval(loadFeed, 30000);
+
+  // ── Galerie mise en avant ──
+  (async function() {
+    try {
+      var r = await fetch(BASE_API + '/gallery');
+      if (!r.ok) return;
+      var list = await r.json();
+      if (!list || !list.length) return;
+      var grid = document.getElementById('galleryPreviewGrid');
+      var section = document.getElementById('gallery-preview-section');
+      if (!grid || !section) return;
+      var photos = list.slice(0, 6);
+      grid.innerHTML = photos.map(function(p) {
+        return '<div class="gp-item" onclick="window.location=\'galerie.html\'">' +
+          '<img src="' + BASE_URL + p.photo_path + '" alt="' + (p.titre||'Photo AHH') + '" loading="lazy"/>' +
+          '<div class="gp-item-overlay"><span>' + (p.titre||'') + '</span></div>' +
+          '</div>';
+      }).join('');
+      section.style.display = '';
+    } catch(e) {}
+  })();
   </script>
   <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
   <script>
