@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<title>QR Code — Adhésion AHH</title>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #fff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+  }
+  .card {
+    border: 3px solid #003F87;
+    border-radius: 20px;
+    padding: 36px 40px;
+    text-align: center;
+    max-width: 420px;
+    width: 100%;
+    box-shadow: 0 4px 24px rgba(0,63,135,.12);
+  }
+  .logo-band {
+    background: linear-gradient(135deg, #003F87, #CE1126);
+    border-radius: 12px;
+    padding: 14px 20px;
+    margin-bottom: 28px;
+  }
+  .logo-band h1 {
+    color: #fff;
+    font-size: 1.15rem;
+    font-weight: 800;
+    letter-spacing: .02em;
+  }
+  .logo-band p {
+    color: rgba(255,255,255,.85);
+    font-size: .8rem;
+    margin-top: 3px;
+  }
+  #qrcode {
+    display: flex;
+    justify-content: center;
+    margin: 4px 0 20px;
+  }
+  #qrcode canvas, #qrcode img {
+    border: 6px solid #fff;
+    outline: 2px solid #003F87;
+    border-radius: 8px;
+  }
+  .scan-label {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #003F87;
+    margin-bottom: 6px;
+  }
+  .url {
+    font-size: .75rem;
+    color: #888;
+    word-break: break-all;
+    margin-bottom: 20px;
+  }
+  .steps {
+    background: #f0f4ff;
+    border-radius: 10px;
+    padding: 14px 18px;
+    text-align: left;
+    margin-bottom: 20px;
+  }
+  .steps p {
+    font-size: .82rem;
+    color: #444;
+    line-height: 1.8;
+  }
+  .steps strong { color: #003F87; }
+  .footer {
+    font-size: .72rem;
+    color: #aaa;
+  }
+  .haiti-bar {
+    height: 5px;
+    background: linear-gradient(90deg, #003F87 50%, #CE1126 50%);
+    border-radius: 3px;
+    margin-top: 22px;
+  }
+  @media print {
+    body { min-height: unset; padding: 0; }
+    .card { box-shadow: none; border: 2px solid #003F87; }
+    .no-print { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo-band">
+    <h1>🇭🇹 Association Haïtienne de Hamilton</h1>
+    <p>Communauté · Solidarité · Culture</p>
+  </div>
+
+  <div class="scan-label">Scannez pour vous inscrire</div>
+  <div id="qrcode"></div>
+  <div class="url">www.ahhamilton.ca/adhesion.html</div>
+
+  <div class="steps">
+    <p>
+      <strong>1.</strong> Ouvrez l'appareil photo de votre téléphone<br/>
+      <strong>2.</strong> Pointez vers le code QR<br/>
+      <strong>3.</strong> Appuyez sur le lien qui apparaît<br/>
+      <strong>4.</strong> Remplissez le formulaire d'adhésion
+    </p>
+  </div>
+
+  <div class="footer">
+    231 Fernwood Crescent, Hamilton, ON L8T 3L7<br/>
+    contact@ahhamilton.ca
+  </div>
+  <div class="haiti-bar"></div>
+
+  <p class="no-print" style="margin-top:18px;font-size:.8rem;color:#888">
+    <button onclick="window.print()" style="background:#003F87;color:#fff;border:none;padding:8px 20px;border-radius:8px;cursor:pointer;font-size:.85rem">🖨️ Imprimer</button>
+  </p>
+</div>
+
+<script>
+  new QRCode(document.getElementById('qrcode'), {
+    text: 'https://www.ahhamilton.ca/adhesion.html',
+    width: 220,
+    height: 220,
+    colorDark: '#003F87',
+    colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.H
+  });
+</script>
+</body>
+</html>
