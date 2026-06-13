@@ -215,9 +215,34 @@ async function deleteEmail(emailAddr, password, uid) {
   }
 }
 
+async function deleteBulk(emailAddr, password, uids) {
+  if (!IMAP_HOST || !emailAddr || !password || !uids?.length) return 0;
+
+  const client = _makeClient(emailAddr, password);
+  try {
+    await client.connect();
+    const lock = await client.getMailboxLock('INBOX');
+    try {
+      for (const uid of uids) {
+        try { await client.messageDelete(`${uid}`, { uid: true }); } catch {}
+      }
+    } finally {
+      lock.release();
+    }
+    await client.logout();
+    invalidateCache(emailAddr);
+    console.log(`[IMAP] ${uids.length} message(s) deleted from ${emailAddr}`);
+    return uids.length;
+  } catch (e) {
+    console.error('[IMAP] deleteBulk error:', e.message);
+    try { await client.logout(); } catch {}
+    throw e;
+  }
+}
+
 // Invalidate cache for an account (call after sending a reply)
 function invalidateCache(emailAddr) {
   _cache.delete(emailAddr);
 }
 
-module.exports = { fetchEmails, fetchEmailBody, markAsRead, deleteEmail, invalidateCache };
+module.exports = { fetchEmails, fetchEmailBody, markAsRead, deleteEmail, deleteBulk, invalidateCache };

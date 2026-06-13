@@ -1400,6 +1400,21 @@ app.delete('/api/email/inbox/:uid', authMiddleware, requireRole(...COMITE_ROLES)
   }
 });
 
+app.delete('/api/email/inbox', authMiddleware, requireRole(...COMITE_ROLES), async (req, res) => {
+  const user = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.id);
+  const orgEmail = getUserImapEmail(user);
+  const orgPass  = getUserImapPass(user);
+  if (!orgPass) return res.status(500).json({ error: 'Mot de passe IMAP non configuré' });
+  const uids = (req.body?.uids || []).map(Number).filter(Boolean);
+  if (!uids.length) return res.status(400).json({ error: 'UIDs requis' });
+  try {
+    const deleted = await imap.deleteBulk(orgEmail, orgPass, uids);
+    res.json({ ok: true, deleted });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ══════════════════════════════════════════════════════════════════════════════
 // REPORTS
 // ══════════════════════════════════════════════════════════════════════════════

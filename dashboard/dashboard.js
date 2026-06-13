@@ -3303,34 +3303,119 @@ async function gmLoadSent() {
   gmRenderList(sent, 'sent');
 }
 
+let _extEmails   = [];
+let _extSelected = new Set();
+
 async function gmLoadExternal() {
   const el = document.getElementById('gmMain');
   if (!el) return;
+  _extSelected = new Set();
   el.innerHTML = '<div class="loading-screen"><div class="spinner"></div><p style="margin-top:12px;color:var(--muted)">Connexion à la boîte @ahhamilton.ca…</p></div>';
   try {
-    const emails = await api('/email/inbox');
-    if (!emails.length) {
+    _extEmails = await api('/email/inbox');
+    if (!_extEmails.length) {
       el.innerHTML = '<div class="gm-empty"><div style="font-size:3rem">📭</div><p>Aucun email reçu</p></div>';
       return;
     }
-    const rows = emails.map(e => {
-      const date = (e.date||'').substring(0,16).replace('T',' ');
-      const bold = e.seen ? '' : 'font-weight:700';
-      const safeE = JSON.stringify({uid:e.uid,date:e.date,from:e.from,fromName:e.fromName,subject:e.subject,seen:e.seen}).replace(/"/g,'&quot;');
-      return `<div class="gm-row" data-extuid="${e.uid}" style="${bold};cursor:pointer" onclick="gmShowExternal(${safeE})">
-        <div class="gm-row-from">${escHtml(e.fromName||e.from)}</div>
-        <div class="gm-row-subj">${escHtml(e.subject)}</div>
-        <div class="gm-row-date" style="display:flex;align-items:center;gap:8px">
-          <span>${date}</span>
-          <button class="gm-tb-btn" style="color:#d93025;padding:2px 6px;font-size:.8rem" title="Supprimer"
-            onclick="event.stopPropagation();gmExtDeleteFromList(${e.uid})">🗑</button>
-        </div>
-      </div>`;
-    }).join('');
-    el.innerHTML = `<div class="gm-list">${rows}</div>`;
+    gmRenderExternal();
   } catch(e) {
     el.innerHTML = `<div class="gm-empty"><div style="font-size:2rem">⚠️</div><p>${e.message}</p><p style="font-size:.82rem;color:var(--muted)">Configurez votre email @ahhamilton.ca dans votre profil (Modifier le membre).</p></div>`;
   }
+}
+
+function gmRenderExternal() {
+  const el = document.getElementById('gmMain');
+  if (!el) return;
+  const rows = _extEmails.map(e => {
+    const date = (e.date||'').substring(0,10);
+    const bold = e.seen ? '' : 'font-weight:700';
+    const safeE = JSON.stringify({uid:e.uid,date:e.date,from:e.from,fromName:e.fromName,subject:e.subject,seen:e.seen}).replace(/"/g,'&quot;');
+    const chk = _extSelected.has(e.uid) ? 'checked' : '';
+    return `<div class="gm-row" data-extuid="${e.uid}" style="${bold}">
+      <input type="checkbox" ${chk} style="width:15px;height:15px;accent-color:var(--g2);flex-shrink:0;cursor:pointer;margin-right:4px"
+        onclick="event.stopPropagation();gmExtToggle(${e.uid},this.checked)"/>
+      <div style="flex:1;min-width:0;cursor:pointer;display:contents" onclick="gmShowExternal(${safeE})">
+        <div class="gm-row-from">${escHtml(e.fromName||e.from)}</div>
+        <div class="gm-row-subj">${escHtml(e.subject)}</div>
+      </div>
+      <div class="gm-row-date" style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+        <span style="font-size:.78rem;color:var(--muted)">${date}</span>
+        <button class="gm-tb-btn" style="color:#d93025;padding:2px 5px;font-size:.78rem" title="Supprimer"
+          onclick="event.stopPropagation();gmExtDeleteOne(${e.uid})">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--gm-border);background:var(--off);flex-shrink:0;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:.82rem;color:var(--muted)">
+        <input type="checkbox" id="gmExtSelAll" style="width:15px;height:15px;accent-color:var(--g2)" onchange="gmExtSelAll(this.checked)"/>
+        Tout
+      </label>
+      <button class="gm-tb-btn" onclick="gmNav('external')" title="Actualiser">↻</button>
+      <div id="gmExtBulkBar" style="display:none;gap:6px;align-items:center">
+        <button class="btn btn-sm" style="color:#d93025;border:1px solid #d93025;background:transparent;padding:3px 10px;font-size:.82rem" onclick="gmExtBulkDelete()">
+          🗑 Supprimer sélectionnés (<span id="gmExtSelCount">0</span>)
+        </button>
+      </div>
+      <button class="btn btn-sm" style="color:#d93025;border:1px solid #d93025;background:transparent;padding:3px 10px;font-size:.82rem;margin-left:auto" onclick="gmExtDeleteAll()">
+        🗑 Tout supprimer (${_extEmails.length})
+      </button>
+    </div>
+    <div class="gm-list" id="gmExtList">${rows}</div>`;
+}
+
+function gmExtToggle(uid, checked) {
+  if (checked) _extSelected.add(uid); else _extSelected.delete(uid);
+  gmExtSyncBar();
+}
+
+function gmExtSelAll(checked) {
+  _extSelected = checked ? new Set(_extEmails.map(e => e.uid)) : new Set();
+  document.querySelectorAll('#gmExtList input[type=checkbox]').forEach(cb => cb.checked = checked);
+  gmExtSyncBar();
+}
+
+function gmExtSyncBar() {
+  const bar = document.getElementById('gmExtBulkBar');
+  const cnt = document.getElementById('gmExtSelCount');
+  const sa  = document.getElementById('gmExtSelAll');
+  const n   = _extSelected.size;
+  const tot = _extEmails.length;
+  if (bar) bar.style.display = n ? 'flex' : 'none';
+  if (cnt) cnt.textContent = n;
+  if (sa)  { sa.indeterminate = n > 0 && n < tot; sa.checked = n === tot && tot > 0; }
+}
+
+async function gmExtBulkDelete() {
+  const n = _extSelected.size;
+  if (!n) return;
+  if (!confirm(`Supprimer définitivement ${n} email${n>1?'s':''} ?`)) return;
+  try {
+    await api('/email/inbox', { method:'DELETE', body:JSON.stringify({ uids:[..._extSelected] }) });
+    toast(`${n} email${n>1?'s':''} supprimé${n>1?'s':''}`);
+    gmNav('external');
+  } catch(err) { toast('Erreur : ' + err.message, 'error'); }
+}
+
+async function gmExtDeleteAll() {
+  if (!_extEmails.length) return;
+  if (!confirm(`Supprimer définitivement TOUS les ${_extEmails.length} emails de cette boîte ?`)) return;
+  try {
+    const uids = _extEmails.map(e => e.uid);
+    await api('/email/inbox', { method:'DELETE', body:JSON.stringify({ uids }) });
+    toast(`${uids.length} email${uids.length>1?'s':''} supprimé${uids.length>1?'s':''}`);
+    gmNav('external');
+  } catch(err) { toast('Erreur : ' + err.message, 'error'); }
+}
+
+async function gmExtDeleteOne(uid) {
+  if (!confirm('Supprimer cet email définitivement ?')) return;
+  try {
+    await api(`/email/inbox/${uid}`, { method:'DELETE' });
+    toast('Email supprimé');
+    gmNav('external');
+  } catch(err) { toast('Erreur suppression : ' + err.message, 'error'); }
 }
 
 let _extCurrent = null; // { e, body } for the open external email
@@ -3388,26 +3473,13 @@ function gmExtForward() {
 }
 
 async function gmExtDelete(uid) {
-  if (!confirm('Supprimer cet email définitivement de la boîte contact@ahhamilton.ca ?')) return;
+  if (!confirm('Supprimer cet email définitivement ?')) return;
   try {
-    await api(`/email/inbox/${uid}`, { method: 'DELETE' });
+    await api(`/email/inbox/${uid}`, { method:'DELETE' });
     toast('Email supprimé');
     _extCurrent = null;
     gmNav('external');
-  } catch(err) {
-    toast('Erreur suppression : ' + err.message, 'error');
-  }
-}
-
-async function gmExtDeleteFromList(uid) {
-  if (!confirm('Supprimer cet email définitivement ?')) return;
-  try {
-    await api(`/email/inbox/${uid}`, { method: 'DELETE' });
-    toast('Email supprimé');
-    gmNav('external'); // Refresh list (cache invalidated server-side)
-  } catch(err) {
-    toast('Erreur suppression : ' + err.message, 'error');
-  }
+  } catch(err) { toast('Erreur suppression : ' + err.message, 'error'); }
 }
 
 // ── Liste courriels ─────────────────────────────────────────────────────────
