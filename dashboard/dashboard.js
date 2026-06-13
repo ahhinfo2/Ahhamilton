@@ -6450,10 +6450,36 @@ async function showActivityReport(actId) {
         '</tr>').join('') +
       '</tbody></table>' : '') +
 
+    // Liste membres inscrits (arrivés + non arrivés)
+    (() => {
+      const ARRIVES = ['present','confirme','accepte'];
+      const arrived    = inscrits.filter(r => ARRIVES.includes(r.statut) || r.checked_in === 1);
+      const notArrived = inscrits.filter(r => !ARRIVES.includes(r.statut) && r.checked_in !== 1);
+      const rowMembre = (r, isArrived) => {
+        const name = escHtml((r.prenom||'') + ' ' + (r.nom||''));
+        const badge = isArrived
+          ? '<span style="background:#e8f5e9;color:#1b5e20;border-radius:20px;padding:2px 8px;font-size:.72rem;font-weight:700">✅ Arrivé</span>'
+          : '<span style="background:#fff3e0;color:#e65100;border-radius:20px;padding:2px 8px;font-size:.72rem;font-weight:700">⏳ Non arrivé</span>';
+        return '<tr style="border-bottom:1px solid var(--border)">' +
+          '<td style="padding:6px 10px;font-weight:600">' + name + '</td>' +
+          '<td style="padding:6px 10px;font-size:.75rem;color:var(--muted)">' + (r.email||'') + '</td>' +
+          '<td style="padding:6px 10px">' + badge + '</td>' +
+        '</tr>';
+      };
+      if (!inscrits.length) return '';
+      return '<h4 style="font-size:.8rem;color:var(--muted);margin:14px 0 6px">MEMBRES INSCRITS (' + inscrits.length + ')</h4>' +
+        '<div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:14px">' +
+        '<table style="width:100%;border-collapse:collapse;font-size:.82rem">' +
+          '<thead><tr style="background:var(--off);position:sticky;top:0"><th style="padding:6px 10px;text-align:left">Nom</th><th style="text-align:left">Courriel</th><th style="text-align:left">Statut</th></tr></thead>' +
+          '<tbody>' + arrived.map(r => rowMembre(r, true)).join('') + notArrived.map(r => rowMembre(r, false)).join('') + '</tbody>' +
+        '</table></div>';
+    })() +
+
     // Liste billets
     (billets.length ? '<h4 style="font-size:.8rem;color:var(--muted);margin-bottom:6px">DÉTAIL BILLETS</h4>' +
-    '<table style="width:100%;border-collapse:collapse;font-size:.8rem;margin-bottom:14px">' +
-      '<thead><tr style="background:var(--off)"><th style="padding:6px 8px;text-align:left">Acheteur</th><th>Type</th><th>Méthode</th><th>Entrée</th><th>$</th></tr></thead><tbody>' +
+    '<div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:14px">' +
+    '<table style="width:100%;border-collapse:collapse;font-size:.8rem">' +
+      '<thead><tr style="background:var(--off);position:sticky;top:0"><th style="padding:6px 8px;text-align:left">Acheteur</th><th>Type</th><th>Méthode</th><th>Entrée</th><th>$</th></tr></thead><tbody>' +
       billets.map(b =>
         '<tr style="border-bottom:1px solid var(--border);' + (b.checked_in ? 'background:#f1f8e9' : '') + '">' +
           '<td style="padding:5px 8px">' + escHtml(b.acheteur_nom||'') + (b.acheteur_email ? '<br/><small style="color:var(--muted)">' + escHtml(b.acheteur_email) + '</small>' : '') + '</td>' +
@@ -6462,7 +6488,7 @@ async function showActivityReport(actId) {
           '<td style="padding:5px 8px">' + (b.checked_in ? '✅ ' + (b.date_checkin ? new Date(b.date_checkin).toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'}) : '') : '–') + '</td>' +
           '<td style="padding:5px 8px">$' + (b.prix||0).toFixed(2) + '</td>' +
         '</tr>').join('') +
-      '</tbody></table>' : '') +
+      '</tbody></table></div>' : '') +
 
     '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">' +
       '<button class="btn btn-outline btn-sm" onclick="printSection(\'Rapport — ' + act.titre + '\')">🖨️ Imprimer</button>' +
