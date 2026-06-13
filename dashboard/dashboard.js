@@ -816,13 +816,18 @@ async function memberHome() {
   ]);
   const planLabel = { gratuit:'Gratuit', bienfaiteur:'Bienfaiteur', partenaire:'Partenaire' };
 
+  const initials = `${(USER.prenom||'?')[0]}${(USER.nom||'')[0]}`.toUpperCase();
+  const avatarHtml = USER.photo_url
+    ? `<img src="${BASE}${USER.photo_url}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:3px solid rgba(255,255,255,.45);flex-shrink:0"/>`
+    : `<div style="width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.2);border:3px solid rgba(255,255,255,.45);color:#fff;font-size:1.6rem;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;letter-spacing:-.02em">${initials}</div>`;
+
   setContent(`
     <div class="home-greeting">
       <div class="home-greeting-text">
         <h2>Bonjour, <span style="color:var(--g3)">${USER.prenom}</span> 👋</h2>
         <p>Bienvenue dans votre espace AHH · <strong>${planLabel[USER.plan] || 'Gratuit'}</strong></p>
       </div>
-      <div style="font-size:2.8rem">🌟</div>
+      ${avatarHtml}
     </div>
 
     <div class="cards-grid" style="margin-bottom:28px">
@@ -838,7 +843,7 @@ async function memberHome() {
       </div>
       <div class="stat-card">
         <div class="sc-icon">🏷️</div>
-        <div class="sc-value">${planLabel[USER.plan] || 'Gratuit'}</div>
+        <div class="sc-value" style="font-size:clamp(.9rem,3.5vw,1.3rem);word-break:break-word;line-height:1.2">${planLabel[USER.plan] || 'Gratuit'}</div>
         <div class="sc-label">Mon abonnement</div>
       </div>
     </div>
@@ -947,14 +952,31 @@ function showCalDay(day, month, year) {
         <div style="padding:14px;border-radius:12px;border-left:4px solid ${a.status==='inscrit'?'var(--g2)':'#1565c0'};background:var(--off)">
           <div style="font-weight:700;font-size:.92rem">${a.titre}</div>
           ${a.lieu ? `<div style="font-size:.8rem;color:var(--muted);margin-top:4px">📍 ${a.lieu}</div>` : ''}
-          <div style="margin-top:6px">
+          ${a.date_debut ? `<div style="font-size:.78rem;color:var(--muted);margin-top:2px">🕐 ${new Date(a.date_debut).toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'})}</div>` : ''}
+          <div style="margin-top:10px;display:flex;align-items:center;justify-content:space-between;gap:8px">
             <span style="font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:50px;background:${a.status==='inscrit'?'#e8f5e9':'#e3f2fd'};color:${a.status==='inscrit'?'var(--g2)':'#1565c0'}">
               ${a.status === 'inscrit' ? '✓ Inscrit' : '• Disponible'}
             </span>
+            ${a.status !== 'inscrit' ? `
+            <button class="btn btn-primary btn-sm" onclick="calDayRegister(${a.id},${day},${month},${year})">
+              + S'inscrire
+            </button>` : ''}
           </div>
         </div>`).join('')}
     </div>
   `);
+}
+
+async function calDayRegister(actId, day, month, year) {
+  try {
+    await api(`/activities/${actId}/register`, { method:'POST' });
+    toast('✅ Inscription confirmée !');
+    // Mettre à jour le statut dans _calActs et rafraîchir
+    const act = (window._calActs || []).find(a => a.id === actId);
+    if (act) act.status = 'inscrit';
+    renderMemberCal();
+    showCalDay(day, month, year);
+  } catch(ex) { toast(ex.message, 'error'); }
 }
 
 // ══ ACTIVITIES ═══════════════════════════════════════════════════════════════
