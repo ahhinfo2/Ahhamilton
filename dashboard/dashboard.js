@@ -7991,27 +7991,45 @@ async function carteScanSearch() {
     const actEl = document.getElementById('scanActivities');
     if (actEl) {
       actEl.style.display = 'block';
+
+      const inscrits   = r.activities.filter(a => a.reg_statut);
+      const disponibles = r.activities.filter(a => !a.reg_statut);
+
+      const rowInscrire = (a) => `
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap">
+          <div style="width:8px;height:8px;border-radius:50%;background:#2e7d32;flex-shrink:0"></div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:.88rem">${escHtml(a.titre)}</div>
+            <div style="font-size:.74rem;color:var(--muted)">${a.date_debut ? new Date(a.date_debut).toLocaleDateString('fr-CA',{weekday:'short',month:'short',day:'numeric'}) : '–'}${a.lieu ? ' · ' + escHtml(a.lieu) : ''}</div>
+          </div>
+          ${a.reg_statut === 'confirme'
+            ? '<span style="color:#2e7d32;font-weight:700;font-size:.8rem;white-space:nowrap">✅ Présent confirmé</span>'
+            : `<button class="btn btn-sm btn-primary" style="background:#2e7d32;white-space:nowrap" onclick="carteScanPresencer(${a.id})">✅ Confirmer présence</button>`}
+        </div>`;
+
+      const rowDisponible = (a) => `
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid #e3f2fd;flex-wrap:wrap">
+          <div style="width:8px;height:8px;border-radius:50%;background:#1565c0;flex-shrink:0"></div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:.88rem">${escHtml(a.titre)}</div>
+            <div style="font-size:.74rem;color:var(--muted)">${a.date_debut ? new Date(a.date_debut).toLocaleDateString('fr-CA',{weekday:'short',month:'short',day:'numeric'}) : '–'}${a.lieu ? ' · ' + escHtml(a.lieu) : ''}</div>
+          </div>
+          <button class="btn btn-sm btn-outline" style="border-color:#1565c0;color:#1565c0;white-space:nowrap" onclick="carteScanPresencer(${a.id})">+ Ajouter présence</button>
+        </div>`;
+
       actEl.innerHTML = `
-        <div class="table-card">
-          <div class="table-card-header"><h3>📅 Marquer présence à une activité</h3></div>
-          <div style="padding:8px 16px">
-            ${!r.activities.length ? '<div class="empty-state" style="padding:24px"><p>Aucune activité planifiée</p></div>' :
-              r.activities.map(a => `
-                <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
-                  <div style="flex:1;min-width:0">
-                    <div style="font-weight:600;font-size:.88rem">${escHtml(a.titre)}</div>
-                    <div style="font-size:.75rem;color:var(--muted)">
-                      ${a.date_debut ? new Date(a.date_debut).toLocaleDateString('fr-CA',{weekday:'short',month:'short',day:'numeric'}) : '–'}
-                      ${a.prix > 0 ? ` · <strong style="color:#c62828">$${parseFloat(a.prix).toFixed(2)}</strong>` : ' · Gratuit'}
-                    </div>
-                  </div>
-                  ${a.is_present
-                    ? '<span style="color:#2e7d32;font-weight:700;font-size:.82rem;white-space:nowrap">✅ Présent</span>'
-                    : a.prix > 0
-                      ? `<button class="btn btn-sm btn-primary" style="white-space:nowrap" onclick="carteScanPresencer(${a.id},true)">✅ Présent + $${parseFloat(a.prix).toFixed(2)}</button>
-                         <button class="btn btn-sm btn-ghost" style="white-space:nowrap" onclick="carteScanPresencer(${a.id},false)">Exonéré</button>`
-                      : `<button class="btn btn-sm btn-primary" style="white-space:nowrap" onclick="carteScanPresencer(${a.id},false)">✅ Marquer présent</button>`}
-                </div>`).join('')}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:920px">
+          <div class="table-card">
+            <div class="table-card-header" style="background:#e8f5e9">
+              <h3 style="color:#2e7d32">🟢 Inscrit(e) (${inscrits.length})</h3>
+            </div>
+            ${inscrits.length ? inscrits.map(rowInscrire).join('') : '<div style="padding:16px;text-align:center;font-size:.82rem;color:var(--muted)">Non inscrit(e) à aucune activité</div>'}
+          </div>
+          <div class="table-card">
+            <div class="table-card-header" style="background:#e3f2fd">
+              <h3 style="color:#1565c0">🔵 Disponible (${disponibles.length})</h3>
+            </div>
+            ${disponibles.length ? disponibles.map(rowDisponible).join('') : '<div style="padding:16px;text-align:center;font-size:.82rem;color:var(--muted)">Toutes les activités sont cochées</div>'}
           </div>
         </div>`;
     }
@@ -8022,12 +8040,12 @@ async function carteScanSearch() {
   }
 }
 
-async function carteScanPresencer(actId, debiter) {
+async function carteScanPresencer(actId) {
   const userId = window._scanUserId;
   if (!userId) return;
   try {
-    await api('/carte-scan/presencer', { method:'POST', body: JSON.stringify({ user_id:userId, activity_id:actId, debiter }) });
-    toast(debiter ? '✅ Présence + paiement enregistrés !' : '✅ Présence enregistrée !');
+    await api('/carte-scan/presencer', { method:'POST', body: JSON.stringify({ user_id:userId, activity_id:actId }) });
+    toast('✅ Présence enregistrée !');
     await carteScanSearch();
   } catch(e) { toast(e.message, true); }
 }

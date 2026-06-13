@@ -4688,39 +4688,27 @@ app.get('/api/carte-scan/:qr', authMiddleware, requireRole(...CARTE_ROLES), (req
   const expired = expiration ? new Date() > new Date(expiration) : false;
 
   const activities = db.prepare(`
-    SELECT a.id, a.titre, a.date_debut, COALESCE(a.prix,0) AS prix,
-      (SELECT 1 FROM activity_registrations WHERE activity_id=a.id AND user_id=? AND statut='confirme') AS is_present
-    FROM activities a WHERE a.statut='planifiee' ORDER BY a.date_debut LIMIT 30
+    SELECT a.id, a.titre, a.date_debut, a.lieu,
+      (SELECT statut FROM activity_registrations WHERE activity_id=a.id AND user_id=? LIMIT 1) AS reg_statut
+    FROM activities a WHERE a.statut='planifiee' ORDER BY a.date_debut LIMIT 40
   `).all(userId);
 
   res.json({ member: { ...member, expiration, expired }, activities });
 });
 
-// Marquer présence via scanner carte
+// Marquer présence via scanner carte (présence uniquement, pas de paiement)
 app.post('/api/carte-scan/presencer', authMiddleware, requireRole(...CARTE_ROLES), (req, res) => {
-  const { user_id, activity_id, debiter } = req.body;
+  const { user_id, activity_id } = req.body;
   if (!user_id || !activity_id) return res.status(400).json({ error: 'Paramètres manquants' });
 
   const existing = db.prepare('SELECT * FROM activity_registrations WHERE user_id=? AND activity_id=?').get(user_id, activity_id);
   if (existing) {
-    if (existing.statut !== 'confirme')
-      db.prepare("UPDATE activity_registrations SET statut='confirme',paye=? WHERE user_id=? AND activity_id=?")
-        .run(debiter ? 1 : 0, user_id, activity_id);
+    db.prepare("UPDATE activity_registrations SET statut='confirme' WHERE user_id=? AND activity_id=?")
+      .run(user_id, activity_id);
   } else {
-    db.prepare("INSERT INTO activity_registrations (user_id, activity_id, statut, paye) VALUES (?,?,'confirme',?)")
-      .run(user_id, activity_id, debiter ? 1 : 0);
+    db.prepare("INSERT INTO activity_registrations (user_id, activity_id, statut) VALUES (?,?,'confirme')")
+      .run(user_id, activity_id);
   }
-
-  if (debiter) {
-    const act = db.prepare('SELECT titre, prix FROM activities WHERE id=?').get(activity_id);
-    if (act && act.prix > 0) {
-      const today = new Date().toISOString().split('T')[0];
-      db.prepare(`INSERT INTO payments (user_id, montant, type, methode, note, statut, date_approbation, approuve_par)
-        VALUES (?,?,'activite','scanner',?,'approuve',?,?)`)
-        .run(user_id, act.prix, `Activité : ${act.titre}`, today, req.user.id);
-    }
-  }
-
   res.json({ ok: true });
 });
 
