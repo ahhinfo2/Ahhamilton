@@ -194,7 +194,10 @@ async function sendPaiementApprouve(user, montant, mois) {
   });
 }
 
-async function sendRecuFiscal(user, annee, montant, recuId) {
+async function sendRecuFiscal(user, annee, montant, recuId, printToken) {
+  const printUrl = printToken
+    ? `${siteUrl}/api/receipts/${recuId}/print?token=${printToken}`
+    : `${siteUrl}/api/receipts/${recuId}/print`;
   await sendMail({
     to: user.email,
     subject: `Votre reçu fiscal ${annee} — AHH`,
@@ -202,8 +205,8 @@ async function sendRecuFiscal(user, annee, montant, recuId) {
       <p>Bonjour <strong>${user.prenom} ${user.nom}</strong>,</p>
       <p>Votre reçu fiscal pour l'année <strong>${annee}</strong> est disponible.</p>
       <p><strong>Total des contributions :</strong> $${Number(montant).toFixed(2)} CAD</p>
-      <p>Vous pouvez l'imprimer depuis votre espace membre :</p>
-      <a href="${siteUrl}/api/receipts/${recuId}/print" class="btn">Voir mon reçu fiscal</a>
+      <p>Cliquez sur le bouton ci-dessous pour voir et imprimer votre reçu :</p>
+      <a href="${printUrl}" class="btn">Voir mon reçu fiscal</a>
       <hr class="divider"/>
       <p style="font-size:.82rem;color:#888">Conservez ce document pour votre déclaration de revenus.</p>
     `)

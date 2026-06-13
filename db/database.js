@@ -73,6 +73,7 @@ try { db.exec('ALTER TABLE activities ADD COLUMN paiement_requis INTEGER DEFAULT
 try { db.exec('ALTER TABLE activities ADD COLUMN rabais_json TEXT DEFAULT \'{}\''); } catch {}
 try { db.exec('ALTER TABLE activities ADD COLUMN qr_token TEXT'); } catch {}
 try { db.exec('ALTER TABLE activities ADD COLUMN featured INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE tax_receipts ADD COLUMN print_token TEXT'); } catch {}
 // Push notifications subscriptions
 try { db.exec(`CREATE TABLE IF NOT EXISTS push_subscriptions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

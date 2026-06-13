@@ -2249,15 +2249,16 @@ app.post('/api/receipts', authMiddleware, requireRole('admin','tresoriere'), (re
 
   const contenu = `REÇU FISCAL ${annee}\nAssociation Haïtienne de Hamilton\n231 Fernwood Crescent, Hamilton, ON L8T 3L7\n\nRemis à : ${u.prenom} ${u.nom}\nCourriel : ${u.email}\n\nDons et cotisations approuvés pour ${annee} : $${total.toFixed(2)}\n\nCe reçu confirme les contributions à l'Association Haïtienne de Hamilton pour l'année fiscale ${annee}.\n\nSigné par : ${req.user.prenom} ${req.user.nom}`;
 
-  const r = db.prepare('INSERT INTO tax_receipts (user_id, annee, montant_total, genere_par, contenu) VALUES (?,?,?,?,?)')
-    .run(user_id, annee, total, req.user.id, contenu);
+  const print_token = crypto.randomBytes(24).toString('hex');
+  const r = db.prepare('INSERT INTO tax_receipts (user_id, annee, montant_total, genere_par, contenu, print_token) VALUES (?,?,?,?,?,?)')
+    .run(user_id, annee, total, req.user.id, contenu, print_token);
 
   // Envoyer le reçu au membre
   const msgR = db.prepare("INSERT INTO messages (expediteur_id, sujet, contenu, type) VALUES (?,?,?,'individuel')")
     .run(req.user.id, `🧾 Votre reçu fiscal ${annee} — AHH`, contenu);
   db.prepare('INSERT INTO message_recipients (message_id, destinataire_id) VALUES (?,?)').run(msgR.lastInsertRowid, user_id);
   createAlert(user_id, 'paiement', `🧾 Reçu fiscal ${annee} disponible`, `Total: $${total.toFixed(2)}`);
-  mailer.sendRecuFiscal(u, annee, total, r.lastInsertRowid).catch(()=>{});
+  mailer.sendRecuFiscal(u, annee, total, r.lastInsertRowid, print_token).catch(()=>{});
 
   res.status(201).json({ id: r.lastInsertRowid, montant_total: total, contenu });
 });
@@ -2287,11 +2288,12 @@ app.post('/api/receipts/bulk', authMiddleware, requireRole('admin','tresoriere')
       if (!u) continue;
       const total = db.prepare(`SELECT COALESCE(SUM(montant),0) AS t FROM payments WHERE user_id=? AND statut='approuve' AND substr(date_soumission,1,4)=?`).get(user_id, String(annee)).t;
       const contenu = `REÇU FISCAL ${annee}\nAssociation Haïtienne de Hamilton\n231 Fernwood Crescent, Hamilton, ON L8T 3L7\n\nRemis à : ${u.prenom} ${u.nom}\nCourriel : ${u.email}\n\nDons et cotisations approuvés pour ${annee} : $${total.toFixed(2)}\n\nCe reçu confirme les contributions à l'Association Haïtienne de Hamilton pour l'année fiscale ${annee}.\n\nSigné par : ${req.user.prenom} ${req.user.nom}`;
-      const r = db.prepare('INSERT INTO tax_receipts (user_id, annee, montant_total, genere_par, contenu) VALUES (?,?,?,?,?)').run(user_id, annee, total, req.user.id, contenu);
+      const print_token = crypto.randomBytes(24).toString('hex');
+      const r = db.prepare('INSERT INTO tax_receipts (user_id, annee, montant_total, genere_par, contenu, print_token) VALUES (?,?,?,?,?,?)').run(user_id, annee, total, req.user.id, contenu, print_token);
       const msgR = db.prepare("INSERT INTO messages (expediteur_id, sujet, contenu, type) VALUES (?,?,?,'individuel')").run(req.user.id, `🧾 Votre reçu fiscal ${annee} — AHH`, contenu);
       db.prepare('INSERT INTO message_recipients (message_id, destinataire_id) VALUES (?,?)').run(msgR.lastInsertRowid, user_id);
       createAlert(user_id, 'paiement', `🧾 Reçu fiscal ${annee} disponible`, `Total: $${total.toFixed(2)}`);
-      mailer.sendRecuFiscal(u, annee, total, r.lastInsertRowid).catch(() => {});
+      mailer.sendRecuFiscal(u, annee, total, r.lastInsertRowid, print_token).catch(() => {});
       results.push({ user_id, nom: `${u.prenom} ${u.nom}`, montant: total, ok: true });
     } catch(e) {
       results.push({ user_id, ok: false, error: e.message });
@@ -2300,8 +2302,8 @@ app.post('/api/receipts/bulk', authMiddleware, requireRole('admin','tresoriere')
   res.json({ generated: results.filter(r => r.ok).length, results });
 });
 
-// Reçu fiscal — page HTML imprimable (protégée par token)
-app.get('/api/receipts/:id/print', authMiddleware, (req, res) => {
+// Reçu fiscal — page HTML imprimable (token public OU JWT)
+app.get('/api/receipts/:id/print', (req, res) => {
   const r = db.prepare(`SELECT tr.*, u.prenom, u.nom, u.email, u.adresse, u.telephone,
     g.prenom AS gen_prenom, g.nom AS gen_nom
     FROM tax_receipts tr
@@ -2309,8 +2311,22 @@ app.get('/api/receipts/:id/print', authMiddleware, (req, res) => {
     LEFT JOIN users g ON g.id = tr.genere_par
     WHERE tr.id = ?`).get(req.params.id);
   if (!r) return res.status(404).send('Reçu introuvable');
-  if (req.user.role !== 'admin' && req.user.role !== 'tresoriere' && req.user.id !== r.user_id)
-    return res.status(403).send('Accès refusé');
+
+  const { token } = req.query;
+  if (token) {
+    // Accès par lien email — valider le token
+    if (!r.print_token || r.print_token !== token)
+      return res.status(403).send('<h2>Lien invalide ou expiré. Connectez-vous au tableau de bord pour accéder à votre reçu.</h2>');
+  } else {
+    // Accès via JWT (tableau de bord)
+    const bearer = req.headers.authorization?.split(' ')[1];
+    if (!bearer) return res.status(401).json({ error: 'Non autorisé' });
+    try {
+      const payload = jwt.verify(bearer, JWT_SECRET);
+      if (payload.role !== 'admin' && payload.role !== 'tresoriere' && payload.id !== r.user_id)
+        return res.status(403).send('Accès refusé');
+    } catch { return res.status(401).json({ error: 'Non autorisé' }); }
+  }
 
   const html = `<!DOCTYPE html><html lang="fr"><head>
 <meta charset="UTF-8"/>
