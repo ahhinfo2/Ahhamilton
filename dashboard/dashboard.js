@@ -4054,17 +4054,23 @@ async function gmSend() {
   try {
     if (!_M.members.length) _M.members = await api('/annuaire');
 
-    const internal = toArr.filter(c => _M.members.find(u => u.email === c.email));
-    const external = toArr.filter(c => !_M.members.find(u => u.email === c.email));
+    // Membres du système (reçoivent un message interne)
+    const memberRecips = toArr.filter(c => _M.members.find(u => u.email === c.email));
+    // Non-membres (SMTP seulement)
+    const nonMemberRecips = toArr.filter(c => !_M.members.find(u => u.email === c.email));
+    // Membres avec email non-@ahhamilton.ca → aussi SMTP externe (ex: @gmail.com)
+    const memberAlsoEmail = memberRecips.filter(c => !c.email.toLowerCase().endsWith('@ahhamilton.ca'));
+    // Tous les destinataires SMTP
+    const smtpRecips = [...nonMemberRecips, ...memberAlsoEmail];
 
-    if (!internal.length && !external.length) {
+    if (!memberRecips.length && !nonMemberRecips.length) {
       toast('Ajoutez au moins un destinataire valide', 'error');
       btn.disabled=false; btn.textContent='Envoyer'; return;
     }
 
-    // Envoi interne (membres du système)
-    if (internal.length) {
-      const ids = internal.map(c => _M.members.find(u => u.email === c.email).id);
+    // Envoi interne (tous les membres du système)
+    if (memberRecips.length) {
+      const ids = memberRecips.map(c => _M.members.find(u => u.email === c.email).id);
       const attachment = fileEl?.files?.[0];
       if (attachment) {
         const fd = new FormData();
@@ -4082,8 +4088,8 @@ async function gmSend() {
       }
     }
 
-    // Envoi externe (adresses hors du système) via SMTP
-    for (const c of external) {
+    // Envoi SMTP externe : non-membres + membres avec email hors @ahhamilton.ca
+    for (const c of smtpRecips) {
       await api('/email/send', { method: 'POST', body: JSON.stringify({ to: c.email, subject, body }) });
     }
 
@@ -4091,13 +4097,12 @@ async function gmSend() {
     if (fileEl) fileEl.value = '';
     document.getElementById('mc-attach') && (document.getElementById('mc-attach').innerHTML = '');
 
-    // Si on était dans le contexte externe, retourner à la boîte externe
-    if (external.length && _M.view === 'external') {
-      toast('✅ Courriel envoyé via @ahhamilton.ca !');
+    const extNote = smtpRecips.length ? ` + courriel externe à ${smtpRecips.length} personne${smtpRecips.length>1?'s':''}` : '';
+    if (_M.view === 'external') {
+      toast('✅ Courriel envoyé' + extNote + ' !');
       gmLoadExternal();
     } else {
-      const extNote = external.length ? ` (+ ${external.length} externe${external.length>1?'s':''} par courriel)` : '';
-      toast('✅ Message envoyé' + extNote + '!');
+      toast('✅ Message envoyé' + extNote + ' !');
       gmNav('sent');
     }
   } catch(ex) {
