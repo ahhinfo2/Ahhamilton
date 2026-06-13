@@ -178,6 +178,9 @@ function setContent(html) {
   if (_notesRefreshInterval) { clearInterval(_notesRefreshInterval); _notesRefreshInterval = null; }
   // Libérer la session d'édition si on quittait une note
   if (_noteEditingId) { api(`/notes/${_noteEditingId}/editing`, { method:'DELETE' }).catch(()=>{}); _noteEditingId = null; }
+  // Réinitialiser le mode flex-fill (utilisé par certaines vues pleine hauteur)
+  mc.style.display = '';
+  mc.style.flexDirection = '';
   mc.innerHTML = html;
 }
 
@@ -1102,41 +1105,47 @@ async function activities() {
   window._activitiesData = data;
 
   setContent(`
-    <div class="page-header">
-      <div><h2>Activités</h2><p>Toutes les activités communautaires</p></div>
-      <div class="page-actions">
-        ${canCreateActivity() ? '<button class="btn btn-primary" onclick=\'openActivityForm(null)\'>+ Nouvelle</button>' : ''}
-        <button class="btn btn-ghost" onclick="activityCalendar()">🗓️ Calendrier</button>
-        <button class="btn btn-outline" onclick="printSection('Activités')">🖨️ Imprimer</button>
+    <div style="display:flex;flex-direction:column;flex:1;gap:0;height:100%">
+      <div class="page-header">
+        <div><h2>Activités</h2><p>Toutes les activités communautaires</p></div>
+        <div class="page-actions">
+          ${canCreateActivity() ? '<button class="btn btn-primary" onclick=\'openActivityForm(null)\'>+ Nouvelle</button>' : ''}
+          <button class="btn btn-ghost" onclick="activityCalendar()">🗓️ Calendrier</button>
+          <button class="btn btn-outline" onclick="printSection(\'Activités\')">🖨️ Imprimer</button>
+        </div>
+      </div>
+      <div class="members-toolbar">
+        <input id="actSearch" type="text" class="members-search" placeholder="🔍 Rechercher par titre, lieu, type…" oninput="filterActivities()"/>
+        <select id="actStatut" class="members-filter" onchange="filterActivities()">
+          <option value="">Tous les statuts</option>
+          <option value="planifiee">Planifiée</option>
+          <option value="en_cours">En cours</option>
+          <option value="terminee">Terminée</option>
+          <option value="archivee">Archivée</option>
+          <option value="annulee">Annulée</option>
+        </select>
+        <select id="actType" class="members-filter" onchange="filterActivities()">
+          <option value="">Tous les types</option>
+          <option value="general">Général</option>
+          <option value="culturel">Culturel</option>
+          <option value="benevolat">Bénévolat</option>
+          <option value="reunion">Réunion</option>
+          <option value="social">Social</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="resetActivitiesFilter()">✕ Effacer</button>
+      </div>
+      <div class="table-card" style="flex:1;display:flex;flex-direction:column;margin-bottom:0">
+        <div class="table-wrapper" style="flex:1"><table id="activitiesTable">
+          <thead><tr><th>Titre</th><th>Type</th><th>Date</th><th>Lieu</th><th>Participants</th><th>Statut</th><th>Actions</th></tr></thead>
+          <tbody id="activitiesBody"></tbody>
+        </table></div>
       </div>
     </div>
-    <div class="members-toolbar">
-      <input id="actSearch" type="text" class="members-search" placeholder="🔍 Rechercher par titre, lieu, type…" oninput="filterActivities()"/>
-      <select id="actStatut" class="members-filter" onchange="filterActivities()">
-        <option value="">Tous les statuts</option>
-        <option value="planifiee">Planifiée</option>
-        <option value="en_cours">En cours</option>
-        <option value="terminee">Terminée</option>
-        <option value="archivee">Archivée</option>
-        <option value="annulee">Annulée</option>
-      </select>
-      <select id="actType" class="members-filter" onchange="filterActivities()">
-        <option value="">Tous les types</option>
-        <option value="general">Général</option>
-        <option value="culturel">Culturel</option>
-        <option value="benevolat">Bénévolat</option>
-        <option value="reunion">Réunion</option>
-        <option value="social">Social</option>
-      </select>
-      <button class="btn btn-ghost btn-sm" onclick="resetActivitiesFilter()">✕ Effacer</button>
-    </div>
-    <div class="table-card">
-      <div class="table-wrapper"><table id="activitiesTable">
-        <thead><tr><th>Titre</th><th>Type</th><th>Date</th><th>Lieu</th><th>Participants</th><th>Statut</th><th>Actions</th></tr></thead>
-        <tbody id="activitiesBody"></tbody>
-      </table></div>
-    </div>
   `);
+  // Mode pleine hauteur : #mainContent devient flex colonne
+  const _mc = document.getElementById('mainContent');
+  _mc.style.display = 'flex';
+  _mc.style.flexDirection = 'column';
 
   filterActivities();
 }
