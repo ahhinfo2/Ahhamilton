@@ -5580,13 +5580,24 @@ async function inscriptions() {
 
     '<div class="table-card"><div class="table-card-header"><h3>Historique (' + processed.length + ')</h3></div>' +
     '<div class="table-wrapper"><table>' +
-    '<thead><tr><th>Nom</th><th>Email</th><th>Plan</th><th>Statut</th><th>Soumis</th><th>Traité</th></tr></thead><tbody>' +
+    '<thead><tr><th>Nom</th><th>Email</th><th>Plan</th><th>Statut</th><th>Soumis</th><th>Traité</th><th></th></tr></thead><tbody>' +
     (processed.map(p =>
       '<tr><td>' + p.prenom + ' ' + p.nom + '</td><td>' + p.email + '</td><td>' + (p.plan||'gratuit') + '</td>' +
-      '<td>' + statutPill(p.statut) + '</td><td>' + fmt(p.date_soumission) + '</td><td>' + fmt(p.date_traitement) + '</td></tr>'
-    ).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--muted)">Aucun historique</td></tr>') +
+      '<td>' + statutPill(p.statut) + '</td><td>' + fmt(p.date_soumission) + '</td><td>' + fmt(p.date_traitement) + '</td>' +
+      '<td><button class="btn btn-sm" style="color:var(--red);border:1px solid var(--red);background:transparent;padding:2px 8px" ' +
+      'onclick="supprimerInscription(' + p.id + ',\'' + (p.prenom+' '+p.nom).replace(/'/g,'') + '\')" title="Supprimer de l\'historique">🗑</button></td></tr>'
+    ).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--muted)">Aucun historique</td></tr>') +
     '</tbody></table></div></div>'
   );
+}
+
+async function supprimerInscription(id, nom) {
+  if (!confirm(`Supprimer "${nom}" de l'historique ?`)) return;
+  try {
+    await api('/inscriptions/' + id, { method: 'DELETE' });
+    toast('Entrée supprimée');
+    inscriptions();
+  } catch(ex) { toast(ex.message, 'error'); }
 }
 
 async function approuverInscription(id) {

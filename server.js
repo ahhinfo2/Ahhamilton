@@ -375,6 +375,13 @@ app.patch('/api/inscriptions/:id/refuser', authMiddleware, requireRole('admin','
   res.json({ message: 'Demande refusée' });
 });
 
+app.delete('/api/inscriptions/:id', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  const p = db.prepare('SELECT * FROM pending_registrations WHERE id = ? AND statut != ?').get(req.params.id, 'en_attente');
+  if (!p) return res.status(404).json({ error: 'Entrée introuvable ou encore en attente' });
+  db.prepare('DELETE FROM pending_registrations WHERE id = ?').run(p.id);
+  res.json({ message: 'Supprimé' });
+});
+
 app.get('/api/auth/me', authMiddleware, (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
@@ -2091,6 +2098,13 @@ function runRenewalJob() {
 
 // Lancer le job renouvellements toutes les 24h
 setTimeout(() => { runRenewalJob(); setInterval(runRenewalJob, 24 * 60 * 60 * 1000); }, 60000);
+
+// Nettoyage automatique : supprimer les inscriptions traitées de plus de 10 jours
+function purgeOldInscriptions() {
+  const result = db.prepare(`DELETE FROM pending_registrations WHERE statut != 'en_attente' AND date_traitement < datetime('now', '-10 days')`).run();
+  if (result.changes > 0) console.log(`[PURGE] ${result.changes} inscription(s) traitée(s) supprimée(s) (>10 jours)`);
+}
+setTimeout(() => { purgeOldInscriptions(); setInterval(purgeOldInscriptions, 24 * 60 * 60 * 1000); }, 90000);
 
 // ══════════════════════════════════════════════════════════════════════════════
 // PAIEMENTS MEMBRES
