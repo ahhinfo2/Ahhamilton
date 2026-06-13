@@ -2247,9 +2247,11 @@ async function volunteer() {
         <td>${fmt(v.date_service)}</td>
         <td>${v.description||'–'}</td>
         <td>${statusPill(v.statut)}</td>
-        <td>${can.adminOrSec() && v.statut==='en_attente' ? `
+        <td style="display:flex;gap:4px;flex-wrap:wrap">
+          ${can.adminOrSec() && v.statut==='en_attente' ? `
           <button class="btn btn-sm btn-primary" onclick="approveVol(${v.id},'approuve')">✅</button>
           <button class="btn btn-sm btn-danger" onclick="approveVol(${v.id},'rejete')">❌</button>` : ''}
+          ${can.admin() ? `<button class="btn btn-sm" style="color:var(--red);border:1px solid var(--red);background:transparent" onclick="deleteVol(${v.id})">🗑</button>` : ''}
         </td>
       </tr>`).join('')}</tbody>
     </table></div></div>
@@ -2295,6 +2297,14 @@ function openVolForm(allUsers, allActs) {
 async function approveVol(id, statut) {
   await api(`/volunteer/${id}/approve`, { method:'PUT', body:JSON.stringify({ statut }) });
   toast(statut==='approuve' ? 'Approuvé' : 'Rejeté'); volunteer();
+}
+
+async function deleteVol(id) {
+  if (!confirm('Supprimer cette entrée de bénévolat ?')) return;
+  try {
+    await api(`/volunteer/${id}`, { method: 'DELETE' });
+    toast('Entrée supprimée'); volunteer();
+  } catch(ex) { toast(ex.message, 'error'); }
 }
 
 // ══ NOTES ══════════════════════════════════════════════════════════════════
