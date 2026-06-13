@@ -563,45 +563,53 @@ async function home() {
   const upcoming = stats.prochaines_activites || [];
   const unreadAlerts = alerts.filter(a => !a.lu).slice(0, 4);
 
+  const _days   = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+  const _months = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  const _now    = new Date();
+  const _dateStr = `${_days[_now.getDay()]} ${_now.getDate()} ${_months[_now.getMonth()]} ${_now.getFullYear()}`;
+
   const quickActions = [
-    canCreateActivity ? { icon:'🎉', label:'Nouvelle activité', action:"openActivityForm()" } : null,
-    can.adminOrSec() ? { icon:'✉️', label:'Envoyer un message', action:"showView('messages')" } : null,
-    can.adminOrSec() ? { icon:'🤝', label:'Heures bénévolat', action:"showView('volunteer')" } : null,
-    can.adminOrSec() ? { icon:'🖼️', label:'Gérer la galerie', action:"showView('gallery_mgmt')" } : null,
-    can.adminOrTre() ? { icon:'💰', label:'Voir la finance', action:"showView('finance')" } : null,
+    canCreateActivity ? { icon:'🎉', label:'Nouvelle activité',  action:"openActivityForm()",        cls:'qa-red'    } : null,
+    can.adminOrSec() ?  { icon:'✉️', label:'Envoyer un message', action:"showView('messages')",       cls:'qa-blue'   } : null,
+    can.adminOrSec() ?  { icon:'🤝', label:'Heures bénévolat',   action:"showView('volunteer')",      cls:'qa-gold'   } : null,
+    can.adminOrSec() ?  { icon:'🖼️', label:'Gérer la galerie',   action:"showView('gallery_mgmt')",   cls:'qa-purple' } : null,
+    can.adminOrTre() ?  { icon:'💰', label:'Voir la finance',     action:"showView('finance')",        cls:'qa-green'  } : null,
   ].filter(Boolean);
+
+  const roleEmoji = { admin:'👑', tresoriere:'💰', secretaire:'📋', delegue:'🤝', member:'🌟' };
 
   setContent(`
     <!-- Salutation -->
     <div class="home-greeting">
       <div class="home-greeting-text">
-        <h2>Bonjour, <span style="color:var(--g3)">${USER.prenom}</span> 👋</h2>
-        <p>Bienvenue dans votre espace AHH · <strong>${roleName(USER.role)}</strong></p>
+        <h2>Bonjour, <span style="color:#ffd6d6">${USER.prenom}</span> 👋</h2>
+        <div class="home-greeting-date">📅 ${_dateStr}</div>
+        <div class="home-greeting-role">${roleName(USER.role)}</div>
       </div>
-      <div style="font-size:2.8rem">
-        ${{ admin:'👑', tresoriere:'💰', secretaire:'📋', delegue:'🤝', member:'🌟' }[USER.role] || '👤'}
+      <div style="font-size:3.2rem;filter:drop-shadow(0 2px 8px rgba(0,0,0,.3))">
+        ${roleEmoji[USER.role] || '👤'}
       </div>
     </div>
 
     <!-- Stats cards -->
     <div class="cards-grid" style="margin-bottom:28px">
       ${USER.role !== 'member' ? `
-      <div class="stat-card">
+      <div class="stat-card card-blue">
         <div class="sc-icon">👥</div>
         <div class="sc-value">${stats.total_membres}</div>
         <div class="sc-label">Membres actifs</div>
       </div>` : ''}
-      <div class="stat-card">
+      <div class="stat-card card-red">
         <div class="sc-icon">🎉</div>
         <div class="sc-value">${stats.total_activites}</div>
         <div class="sc-label">Activités</div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card card-gold">
         <div class="sc-icon">🤝</div>
         <div class="sc-value">${stats.total_heures}h</div>
         <div class="sc-label">Bénévolat approuvé</div>
       </div>
-      <div class="stat-card ${stats.messages_non_lus > 0 ? 'has-notif' : ''}">
+      <div class="stat-card card-navy ${stats.messages_non_lus > 0 ? 'has-notif' : ''}">
         <div class="sc-icon">✉️</div>
         <div class="sc-value">${stats.messages_non_lus}</div>
         <div class="sc-label">Messages non lus</div>
@@ -620,7 +628,7 @@ async function home() {
         <div class="table-card-header"><h3>⚡ Actions rapides</h3></div>
         <div class="quick-actions-grid">
           ${quickActions.map(a => `
-            <button class="quick-action-btn" onclick="${a.action}">
+            <button class="quick-action-btn ${a.cls || ''}" onclick="${a.action}">
               <span class="qa-icon">${a.icon}</span>
               <span class="qa-label">${a.label}</span>
             </button>`).join('')}

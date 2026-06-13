@@ -1540,3 +1540,84 @@ html.dark .search-results { background: var(--white); }
 /* ── MENU CONTEXTUEL ACTIVITÉS ─────────────────────────────────────────── */
 .act-menu-item{padding:8px 16px;font-size:.84rem;cursor:pointer;color:var(--text);transition:background .15s;white-space:nowrap}
 .act-menu-item:hover{background:var(--off)}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   DRAPEAU HAÏTIEN — redesign sidebar + tableau de bord
+   Bleu : #003F87  |  Rouge : #CE1126
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Sidebar couleurs drapeau ───────────────────────────────────────────── */
+.sidebar { background: linear-gradient(180deg, #003F87 0%, #001f5c 100%); }
+.sidebar-brand { border-bottom-color: rgba(206,17,38,.35); }
+.nav-section {
+  color: rgba(255,170,170,.65);
+  font-size: .62rem; font-weight: 800; letter-spacing: .12em;
+  padding: 12px 10px 4px; margin-top: 6px;
+}
+.nav-item { border-left: 3px solid transparent; padding-left: 7px; }
+.nav-item:hover { background: rgba(255,255,255,.1); border-left-color: rgba(206,17,38,.45); color: #fff; }
+.nav-item.active {
+  background: rgba(255,255,255,.18);
+  border-left-color: #CE1126;
+  color: #fff; font-weight: 700;
+}
+.nav-item .nav-icon { font-size: 1rem; width: 20px; }
+.sidebar-footer { border-top-color: rgba(206,17,38,.25); }
+
+/* ── Greeting drapeau haïtien ───────────────────────────────────────────── */
+.home-greeting {
+  background: linear-gradient(120deg, #003F87 0%, #002060 55%, #CE1126 100%);
+  position: relative; overflow: hidden;
+}
+.home-greeting::before {
+  content: '';
+  position: absolute; top: 0; right: 0; bottom: 0;
+  width: 5px; background: #CE1126;
+}
+.home-greeting-date {
+  font-size: .78rem; color: rgba(255,255,255,.6);
+  margin-top: 6px; font-weight: 400;
+}
+.home-greeting-role {
+  display: inline-block; background: rgba(206,17,38,.35);
+  color: #fff; font-size: .72rem; font-weight: 700;
+  padding: 2px 10px; border-radius: 50px;
+  margin-top: 8px; letter-spacing: .05em;
+}
+
+/* ── Stat cards colorées ────────────────────────────────────────────────── */
+.stat-card .sc-value { font-size: 2rem; }
+.stat-card .sc-trend {
+  font-size: .72rem; font-weight: 600; margin-top: 2px;
+  display: flex; align-items: center; gap: 3px;
+}
+.stat-card.card-blue  { background: linear-gradient(135deg,#003F87,#1565c0); border-color:transparent; }
+.stat-card.card-red   { background: linear-gradient(135deg,#CE1126,#e53935); border-color:transparent; }
+.stat-card.card-gold  { background: linear-gradient(135deg,#e65100,#f9a825); border-color:transparent; }
+.stat-card.card-navy  { background: linear-gradient(135deg,#1a237e,#283593); border-color:transparent; }
+.stat-card.card-blue  .sc-value,.stat-card.card-blue  .sc-label,.stat-card.card-blue  .sc-icon,
+.stat-card.card-blue  .sc-trend { color: #fff; }
+.stat-card.card-red   .sc-value,.stat-card.card-red   .sc-label,.stat-card.card-red   .sc-icon,
+.stat-card.card-red   .sc-trend { color: #fff; }
+.stat-card.card-gold  .sc-value,.stat-card.card-gold  .sc-label,.stat-card.card-gold  .sc-icon,
+.stat-card.card-gold  .sc-trend { color: #fff; }
+.stat-card.card-navy  .sc-value,.stat-card.card-navy  .sc-label,.stat-card.card-navy  .sc-icon,
+.stat-card.card-navy  .sc-trend { color: #fff; }
+
+/* ── Quick actions colorées ─────────────────────────────────────────────── */
+.quick-action-btn { font-size: .8rem; }
+.quick-action-btn.qa-red    { background:linear-gradient(135deg,#CE1126,#e53935); border-color:transparent; }
+.quick-action-btn.qa-red    .qa-icon,.quick-action-btn.qa-red    .qa-label { color:#fff; }
+.quick-action-btn.qa-blue   { background:linear-gradient(135deg,#003F87,#1565c0); border-color:transparent; }
+.quick-action-btn.qa-blue   .qa-icon,.quick-action-btn.qa-blue   .qa-label { color:#fff; }
+.quick-action-btn.qa-gold   { background:linear-gradient(135deg,#bf360c,#f9a825); border-color:transparent; }
+.quick-action-btn.qa-gold   .qa-icon,.quick-action-btn.qa-gold   .qa-label { color:#fff; }
+.quick-action-btn.qa-purple { background:linear-gradient(135deg,#6a1b9a,#9c27b0); border-color:transparent; }
+.quick-action-btn.qa-purple .qa-icon,.quick-action-btn.qa-purple .qa-label { color:#fff; }
+.quick-action-btn.qa-green  { background:linear-gradient(135deg,#1b5e20,#43a047); border-color:transparent; }
+.quick-action-btn.qa-green  .qa-icon,.quick-action-btn.qa-green  .qa-label { color:#fff; }
+.quick-action-btn.qa-red:hover,.quick-action-btn.qa-blue:hover,
+.quick-action-btn.qa-gold:hover,.quick-action-btn.qa-purple:hover,
+.quick-action-btn.qa-green:hover { transform:translateY(-3px); box-shadow:0 6px 20px rgba(0,0,0,.28); border-color:transparent; }
+.qa-icon { font-size: 1.8rem; }
+.qa-label { font-size: .73rem; font-weight: 600; text-align: center; line-height: 1.3; }
