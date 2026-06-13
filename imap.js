@@ -86,22 +86,9 @@ async function fetchEmailBody(emailAddr, password, uid) {
     await client.connect();
     const lock = await client.getMailboxLock('INBOX');
     try {
-      let text = '';
-      try {
-        const msg = await client.fetchOne(`${uid}`, { bodyParts: ['TEXT'] }, { uid: true });
-        text = msg?.bodyParts?.get('TEXT')?.toString() || '';
-      } catch (e1) {
-        console.warn('[IMAP] bodyParts TEXT failed, trying source:', e1.message);
-        try {
-          const msg = await client.fetchOne(`${uid}`, { source: true }, { uid: true });
-          const src = msg?.source?.toString() || '';
-          const m = src.match(/\r?\n\r?\n([\s\S]*)/);
-          text = m ? m[1] : src;
-        } catch (e2) {
-          console.error('[IMAP] source fallback also failed:', e2.message);
-        }
-      }
-      body = text.replace(/<[^>]+>/g, '').replace(/\r?\n/g, '\n').trim().substring(0, 4000);
+      const msg = await client.fetchOne(String(uid), { source: true }, { uid: true });
+      const src = msg?.source?.toString('utf-8') || '';
+      body = _parseMimeBody(src);
     } finally {
       lock.release();
     }
@@ -111,6 +98,61 @@ async function fetchEmailBody(emailAddr, password, uid) {
     try { await client.logout(); } catch {}
   }
   return body;
+}
+
+// ── Extraction du corps depuis source MIME brute ──────────────────────────
+function _parseMimeBody(src) {
+  if (!src) return '';
+  const sepIdx = src.search(/\r?\n\r?\n/);
+  if (sepIdx < 0) return '';
+  const headers = src.slice(0, sepIdx);
+  const rawBody = src.slice(sepIdx + src.slice(sepIdx).match(/^\r?\n\r?\n/)[0].length);
+
+  const ct      = (headers.match(/^Content-Type:\s*(.+)/im) || [])[1] || '';
+  const enc     = (headers.match(/^Content-Transfer-Encoding:\s*(\S+)/im) || [])[1] || '';
+  const bndM    = ct.match(/boundary="?([^";\r\n]+)"?/i);
+
+  if (bndM) {
+    // Courriel multipart : chercher text/plain d'abord, puis text/html
+    const bnd   = bndM[1].trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const parts = rawBody.split(new RegExp('--' + bnd + '(?:--|\\r?\\n|$)'));
+    let html = '';
+    for (const p of parts) {
+      const si = p.search(/\r?\n\r?\n/);
+      if (si < 0) continue;
+      const ph  = p.slice(0, si);
+      const pb  = p.slice(si + p.slice(si).match(/^\r?\n\r?\n/)[0].length);
+      const pct = (ph.match(/^Content-Type:\s*(\S+)/im) || [])[1]?.toLowerCase() || '';
+      const pe  = (ph.match(/^Content-Transfer-Encoding:\s*(\S+)/im) || [])[1] || '';
+      if (pct.startsWith('text/plain')) return _decode(pb, pe).trim().substring(0, 4000);
+      if (pct.startsWith('text/html') && !html) html = _decode(pb, pe);
+    }
+    return html ? _stripHtml(html).substring(0, 4000) : '';
+  }
+
+  // Courriel simple
+  const decoded = _decode(rawBody, enc);
+  return (ct.toLowerCase().includes('text/html') ? _stripHtml(decoded) : decoded).trim().substring(0, 4000);
+}
+
+function _decode(text, enc) {
+  const e = (enc || '').toLowerCase();
+  if (e === 'quoted-printable') {
+    return text.replace(/=\r?\n/g, '').replace(/=[0-9A-F]{2}/gi, m => String.fromCharCode(parseInt(m.slice(1), 16)));
+  }
+  if (e === 'base64') {
+    try { return Buffer.from(text.replace(/\s/g, ''), 'base64').toString('utf-8'); } catch { return text; }
+  }
+  return text;
+}
+
+function _stripHtml(html) {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+    .replace(/\s+/g, ' ').trim();
 }
 
 function _makeClient(emailAddr, password) {
