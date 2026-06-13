@@ -4688,7 +4688,7 @@ app.get('/api/carte-scan/:qr', authMiddleware, requireRole(...CARTE_ROLES), (req
   const expired = expiration ? new Date() > new Date(expiration) : false;
 
   const activities = db.prepare(`
-    SELECT a.id, a.titre, a.date_debut, a.prix, a.gratuit,
+    SELECT a.id, a.titre, a.date_debut, COALESCE(a.prix,0) AS prix,
       (SELECT 1 FROM activity_registrations WHERE activity_id=a.id AND user_id=? AND statut='confirme') AS is_present
     FROM activities a WHERE a.statut='planifiee' ORDER BY a.date_debut LIMIT 30
   `).all(userId);
