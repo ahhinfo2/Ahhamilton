@@ -125,37 +125,50 @@
 </div>
 
 <script>
-  const qr = new QRCode(document.getElementById('qrcode'), {
-    text: 'https://www.ahhamilton.ca/adhesion.html',
-    width: 240,
-    height: 240,
-    colorDark: '#003F87',
-    colorLight: '#ffffff',
-    correctLevel: QRCode.CorrectLevel.H
-  });
+  const LOGO_URL = window.location.origin + '/Public/logo1.png';
 
-  // Insérer le logo au centre du canvas QR
-  setTimeout(() => {
-    const canvas = document.querySelector('#qrcode canvas');
-    if (!canvas) return;
+  // Charger le logo d'abord, puis générer le QR code
+  const logoImg = new Image();
+  logoImg.crossOrigin = 'anonymous';
+  logoImg.src = LOGO_URL;
+
+  function overlayLogo(canvas) {
     const ctx = canvas.getContext('2d');
-    const logo = new Image();
-    logo.src = '/Public/logo1.png';
-    logo.onload = () => {
-      const logoSize = Math.round(canvas.width * 0.22);
-      const x = Math.round((canvas.width  - logoSize) / 2);
-      const y = Math.round((canvas.height - logoSize) / 2);
-      // Fond blanc arrondi derrière le logo
-      const pad = 5;
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.roundRect(x - pad, y - pad, logoSize + pad*2, logoSize + pad*2, 6);
-      ctx.fill();
-      // Logo
-      ctx.drawImage(logo, x, y, logoSize, logoSize);
+    const s   = Math.round(canvas.width * 0.22);
+    const x   = Math.round((canvas.width  - s) / 2);
+    const y   = Math.round((canvas.height - s) / 2);
+    const pad = 6;
+    // Fond blanc derrière le logo
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(x - pad, y - pad, s + pad * 2, s + pad * 2);
+    ctx.drawImage(logoImg, x, y, s, s);
+  }
+
+  function initQR() {
+    new QRCode(document.getElementById('qrcode'), {
+      text: 'https://www.ahhamilton.ca/adhesion.html',
+      width: 240,
+      height: 240,
+      colorDark: '#003F87',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.H
+    });
+    // Attendre que le canvas soit rendu
+    const tryOverlay = (attempts) => {
+      const canvas = document.querySelector('#qrcode canvas');
+      if (canvas) { overlayLogo(canvas); return; }
+      if (attempts > 0) setTimeout(() => tryOverlay(attempts - 1), 100);
     };
-    logo.onerror = () => {}; // silencieux si logo absent
-  }, 200);
+    setTimeout(() => tryOverlay(10), 150);
+  }
+
+  // Démarrer quand le logo est prêt (ou immédiatement si déjà chargé)
+  if (logoImg.complete) {
+    initQR();
+  } else {
+    logoImg.onload  = initQR;
+    logoImg.onerror = initQR; // générer le QR même sans logo
+  }
 </script>
 </body>
 </html>
