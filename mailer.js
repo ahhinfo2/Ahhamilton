@@ -90,10 +90,13 @@ function wrap(titre, corps) {
 async function sendMail({ to, subject, html, text, from, replyTo, attachments }) {
   const t = getTransporter();
   if (!t) {
-    console.log(`📧 [DEV] Email non envoyé (SMTP non configuré)\n  À: ${to}\n  Sujet: ${subject}`);
-    return false;
+    const msg = `SMTP non configuré — email non envoyé à ${to} | ${subject}`;
+    console.error(`📧 ${msg}`);
+    throw new Error(msg);
   }
-  await t.sendMail({ from: from || FROM, to, subject, html, text, replyTo, attachments });
+  // Version texte brut automatique si absente (améliore la délivrabilité et réduit le spam)
+  const plainText = text || (html ? html.replace(/<style[\s\S]*?<\/style>/gi,'').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim() : '');
+  await t.sendMail({ from: from || FROM, to, subject, html, text: plainText, replyTo, attachments });
   console.log(`✉️  Email envoyé → ${to} | ${subject}`);
 }
 
@@ -392,7 +395,8 @@ async function sendExternalEmail({ to, subject, bodyHtml, senderName, senderEmai
       });
       await t.verify();  // teste l'authentification avant d'envoyer
       const from = `"${senderName} — AHH" <${orgEmail}>`;
-      await t.sendMail({ from, to, subject, html });
+      const plainText = html.replace(/<style[\s\S]*?<\/style>/gi,'').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim();
+      await t.sendMail({ from, to, subject, html, text: plainText });
       console.log(`✉️  Email envoyé (org ${orgEmail}) → ${to} | ${subject}`);
       return;
     } catch(authErr) {
