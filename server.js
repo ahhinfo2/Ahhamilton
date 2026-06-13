@@ -4574,6 +4574,43 @@ app.post('/api/referral/use/:code', (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
+// ESPACE MEMBRE — Préférences notification + Résumé annuel
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.get('/api/member/notif-prefs', authMiddleware, (req, res) => {
+  const u = db.prepare('SELECT notif_activites, notif_paiements, notif_messages, notif_forum FROM users WHERE id=?').get(req.user.id);
+  res.json(u || { notif_activites:1, notif_paiements:1, notif_messages:1, notif_forum:1 });
+});
+
+app.put('/api/member/notif-prefs', authMiddleware, (req, res) => {
+  const { notif_activites, notif_paiements, notif_messages, notif_forum } = req.body;
+  db.prepare('UPDATE users SET notif_activites=?, notif_paiements=?, notif_messages=?, notif_forum=? WHERE id=?')
+    .run(notif_activites?1:0, notif_paiements?1:0, notif_messages?1:0, notif_forum?1:0, req.user.id);
+  res.json({ ok: true });
+});
+
+app.get('/api/member/annual-recap', authMiddleware, (req, res) => {
+  const year = new Date().getFullYear();
+  const debut = `${year}-01-01`;
+  const fin   = `${year}-12-31`;
+  const nb_activites = db.prepare(
+    `SELECT COUNT(*) AS c FROM activity_registrations ar
+     JOIN activities a ON a.id=ar.activity_id
+     WHERE ar.user_id=? AND a.date_debut BETWEEN ? AND ? AND ar.statut='confirme'`
+  ).get(req.user.id, debut, fin).c;
+  const heures_benevolat = db.prepare(
+    `SELECT COALESCE(SUM(heures),0) AS c FROM volunteer_hours WHERE user_id=? AND statut='approuve' AND date_service BETWEEN ? AND ?`
+  ).get(req.user.id, debut, fin).c;
+  const cotisations = db.prepare(
+    `SELECT COALESCE(SUM(montant),0) AS c FROM payments WHERE user_id=? AND statut='approuve' AND date_paiement BETWEEN ? AND ?`
+  ).get(req.user.id, debut, fin).c;
+  const heures_all = db.prepare(
+    `SELECT COALESCE(SUM(heures),0) AS c FROM volunteer_hours WHERE user_id=? AND statut='approuve'`
+  ).get(req.user.id).c;
+  res.json({ year, nb_activites, heures_benevolat, cotisations, heures_all });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
 // ICAL EXPORT
 // ══════════════════════════════════════════════════════════════════════════════
 

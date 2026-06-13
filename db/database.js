@@ -107,6 +107,11 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS vote_responses (
 // Parrainage
 try { db.exec('ALTER TABLE users ADD COLUMN referral_code TEXT'); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN referred_by INTEGER REFERENCES users(id)'); } catch {}
+// Préférences de notification membres
+try { db.exec('ALTER TABLE users ADD COLUMN notif_activites INTEGER DEFAULT 1'); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN notif_paiements INTEGER DEFAULT 1'); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN notif_messages INTEGER DEFAULT 1'); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN notif_forum INTEGER DEFAULT 1'); } catch {}
 // Collaboration notes : dernier éditeur + qui édite en ce moment
 try { db.exec('ALTER TABLE meeting_notes ADD COLUMN last_editor_id INTEGER REFERENCES users(id)'); } catch {}
 try { db.exec('ALTER TABLE meeting_notes ADD COLUMN editing_by INTEGER REFERENCES users(id)'); } catch {}

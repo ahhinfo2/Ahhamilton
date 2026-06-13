@@ -292,13 +292,18 @@ function buildSidebar() {
       ['bienfaiteur','partenaire'].includes(USER.plan) ? { id:'mes_annonces', icon:'◉', label:'Mes annonces' } : null,
       { id:'annuaire',     icon:'✉️', label:'Courriel' },
       { id:'forum',        icon:'◫', label:'Forum' },
-      // ── Stages & emplois (visible à tous les membres) ──────────
+      // ── Mon espace membres ───────────────────────────────────────
+      { id:'carte-membre',  icon:'🪪', label:'Ma carte membre',   _section:'✨ Mon espace' },
+      { id:'mon_paiement',  icon:'💳', label:'Mes cotisations' },
+      { id:'actualites',    icon:'📰', label:'Actualités' },
+      { id:'young-polls',   icon:'📊', label:'Sondages' },
+      { id:'parrainage',    icon:'🤝', label:'Parrainage' },
+      { id:'notif-prefs',   icon:'🔔', label:'Notifications' },
       // ── Stages & emplois + Formations (tous les membres) ────────
       { id:'young-jobs',      icon:'💼', label:'Stages & emplois', _section:'💼 Opportunités' },
       { id:'young-trainings', icon:'📚', label:'Formations' },
       // ── Espace Jeunes extra (15-30 ans seulement) ───────────────
       isJeune() ? { id:'young-home',   icon:'🌟', label:'Espace Jeunes', _section:'🌟 Espace Jeunes' } : null,
-      isJeune() ? { id:'young-polls',  icon:'📊', label:'Sondages' } : null,
       isJeune() ? { id:'young-stories',icon:'🏆', label:'Success Stories' } : null,
       // ────────────────────────────────────────────────────────────
       { id:'profile', icon:'◎', label:'Mon profil' },
@@ -358,7 +363,8 @@ function setActiveNav(viewId) {
     forum:'Forum', newsletter:'Infolettre', 'vente-personne':'Vendre (Cash)',
     'young-home':'Espace Jeunes', 'young-jobs':'Stages & Emplois',
     'young-trainings':'Formations', 'young-polls':'Sondages', 'young-stories':'Success Stories',
-    'votes':'Votes & Élections', 'parrainage':'Parrainage', 'stats-growth':'Statistiques'
+    'votes':'Votes & Élections', 'parrainage':'Parrainage', 'stats-growth':'Statistiques',
+    'carte-membre':'Ma carte membre', 'actualites':'Actualités', 'notif-prefs':'Notifications'
   };
   const raw = labels[viewId] || 'Dashboard';
   document.getElementById('topbarTitle').textContent = window.AHH_LANG ? AHH_LANG.get(raw) : raw;
@@ -659,6 +665,9 @@ async function showView(viewId) {
     'votes': votesView,
     'parrainage': parrainageView,
     'stats-growth': statsGrowthView,
+    'carte-membre': carteMembreView,
+    'actualites': actualitesView,
+    'notif-prefs': notifPrefsView,
   };
   if (extViews[viewId]) {
     try { await extViews[viewId](); } catch(e) { setContent(`<div class="empty-state"><div class="es-icon">⚠️</div><p>${e.message}</p></div>`); }
@@ -810,9 +819,10 @@ async function home() {
 
 // ══ HOME MEMBRE ═══════════════════════════════════════════════════════════════
 async function memberHome() {
-  const [calActs, stats] = await Promise.all([
+  const [calActs, stats, recap] = await Promise.all([
     api('/activities/my-calendar'),
-    api('/stats')
+    api('/stats'),
+    api('/member/annual-recap').catch(() => ({ year: new Date().getFullYear(), nb_activites:0, heures_benevolat:0, cotisations:0, heures_all:0 }))
   ]);
   const planLabel = { gratuit:'Gratuit', bienfaiteur:'Bienfaiteur', partenaire:'Partenaire' };
 
@@ -820,6 +830,54 @@ async function memberHome() {
   const avatarHtml = USER.photo_url
     ? `<img src="${BASE}${USER.photo_url}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:3px solid rgba(255,255,255,.45);flex-shrink:0"/>`
     : `<div style="width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.2);border:3px solid rgba(255,255,255,.45);color:#fff;font-size:1.6rem;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;letter-spacing:-.02em">${initials}</div>`;
+
+  // Feature 3: Compte à rebours — prochain événement inscrit
+  const now = new Date();
+  const prochainEvt = calActs
+    .filter(a => a.status === 'inscrit' && a.date_debut)
+    .map(a => { const mm = (a.date_debut||'').match(/^(\d{4})-(\d{2})-(\d{2})/); if(!mm) return null; const d=new Date(+mm[1],+mm[2]-1,+mm[3]); return {...a, _ts:d}; })
+    .filter(a => a && a._ts >= now)
+    .sort((a,b) => a._ts - b._ts)[0];
+  const countdownHtml = prochainEvt ? (() => {
+    const days = Math.ceil((prochainEvt._ts - now) / 86400000);
+    return `<div class="table-card" style="margin-bottom:20px;background:linear-gradient(135deg,#1b5e20,#2e7d32);color:#fff;border:none">
+      <div style="padding:18px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+        <div style="font-size:2.8rem;font-weight:900;line-height:1;min-width:60px;text-align:center">${days}</div>
+        <div>
+          <div style="font-size:.72rem;opacity:.8;text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px">⏳ Prochain événement dans</div>
+          <div style="font-weight:700;font-size:1rem">${escHtml(prochainEvt.titre)}</div>
+          <div style="font-size:.8rem;opacity:.8;margin-top:2px">${days === 1 ? 'demain !' : `jour${days>1?'s':''}`}</div>
+        </div>
+        <button class="btn btn-sm" style="margin-left:auto;background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.4)" onclick="showView('mes_billets')">Mes billets →</button>
+      </div>
+    </div>`;
+  })() : '';
+
+  // Feature 2: Barre de progression bénévolat
+  const heures = recap.heures_all || 0;
+  const paliers = [{h:100,label:'Or 🥇',color:'#f9a825'},{h:50,label:'Argent 🥈',color:'#9e9e9e'},{h:25,label:'Bronze 🥉',color:'#bf8a30'}];
+  const palierActuel = paliers.find(p => heures >= p.h) || null;
+  const palierSuivant = paliers.slice().reverse().find(p => heures < p.h) || paliers[0];
+  const pct = palierSuivant ? Math.min(100, Math.round(heures / palierSuivant.h * 100)) : 100;
+  const benevHtml = `
+    <div class="table-card" style="margin-bottom:20px">
+      <div style="padding:16px 20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+          <div>
+            <span style="font-weight:700;font-size:.9rem">🤝 Bénévolat</span>
+            ${palierActuel ? `<span style="margin-left:8px;background:#fff3cd;color:#856404;border-radius:20px;padding:2px 10px;font-size:.75rem;font-weight:700">${palierActuel.label}</span>` : ''}
+          </div>
+          <span style="font-size:.82rem;color:var(--muted)">${heures}h / ${palierSuivant?.h||100}h</span>
+        </div>
+        <div style="background:#e0e0e0;border-radius:8px;height:12px;overflow:hidden">
+          <div style="background:${palierSuivant?.color||'var(--g2)'};border-radius:8px;height:100%;width:${pct}%;transition:width .6s ease"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted);margin-top:6px">
+          <span>0h</span>
+          ${paliers.slice().reverse().map(p=>`<span>${p.h}h ${p.label}</span>`).join('')}
+        </div>
+      </div>
+    </div>`;
 
   setContent(`
     <div class="home-greeting">
@@ -830,7 +888,20 @@ async function memberHome() {
       ${avatarHtml}
     </div>
 
-    <div class="cards-grid" style="margin-bottom:28px">
+    <!-- Feature 10: Résumé annuel -->
+    <div style="background:linear-gradient(135deg,var(--g2),var(--g3));border-radius:14px;padding:16px 20px;margin-bottom:20px;color:#fff">
+      <div style="font-size:.75rem;opacity:.8;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">✨ Votre ${recap.year} en chiffres</div>
+      <div style="display:flex;gap:24px;flex-wrap:wrap">
+        <div style="text-align:center"><div style="font-size:1.8rem;font-weight:900">${recap.nb_activites}</div><div style="font-size:.72rem;opacity:.8">Activité${recap.nb_activites!==1?'s':''}</div></div>
+        <div style="text-align:center"><div style="font-size:1.8rem;font-weight:900">${recap.heures_benevolat}h</div><div style="font-size:.72rem;opacity:.8">Bénévolat</div></div>
+        <div style="text-align:center"><div style="font-size:1.8rem;font-weight:900">$${(recap.cotisations||0).toFixed(0)}</div><div style="font-size:.72rem;opacity:.8">Cotisations</div></div>
+        <div style="margin-left:auto;display:flex;align-items:center">
+          <button onclick="showView('carte-membre')" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:8px;padding:8px 14px;font-size:.82rem;cursor:pointer">🪪 Ma carte →</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="cards-grid" style="margin-bottom:20px">
       <div class="stat-card">
         <div class="sc-icon">🎉</div>
         <div class="sc-value">${calActs.filter(a=>a.status==='inscrit').length}</div>
@@ -847,6 +918,9 @@ async function memberHome() {
         <div class="sc-label">Mon abonnement</div>
       </div>
     </div>
+
+    ${countdownHtml}
+    ${benevHtml}
 
     <div class="table-card" style="margin-bottom:20px">
       <div class="table-card-header">
@@ -7632,6 +7706,179 @@ async function parrainageView() {
           </div>`).join('') : '<div style="color:var(--muted);text-align:center;padding:24px">Aucun filleul encore — partagez votre lien !</div>'}
       </div>
     </div>`);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 1. CARTE DE MEMBRE NUMÉRIQUE
+// ══════════════════════════════════════════════════════════════════════════════
+async function carteMembreView() {
+  const me = await api('/auth/me').catch(() => USER);
+  const planLabel = { gratuit:'Gratuit', bienfaiteur:'Bienfaiteur', partenaire:'Partenaire' };
+  const planColor = { gratuit:'#546e7a', bienfaiteur:'#1565c0', partenaire:'#4a148c' };
+  const initials = `${(me.prenom||'?')[0]}${(me.nom||'')[0]}`.toUpperCase();
+  const numMembre = String(me.id).padStart(5, '0');
+  const qrData = encodeURIComponent(`AHH-${numMembre}-${me.referral_code || me.id}`);
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${qrData}&bgcolor=ffffff&color=1a237e`;
+
+  setContent(`
+    <div class="page-header"><div><h2>🪪 Ma carte de membre</h2><p>Votre identité numérique AHH Hamilton</p></div></div>
+    <div style="display:flex;justify-content:center;margin-bottom:24px">
+      <div id="carteMembre" style="width:min(420px,95vw);border-radius:20px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.25);background:linear-gradient(135deg,${planColor[me.plan]||'#1a237e'},${planColor[me.plan]||'#1a237e'}cc);color:#fff;position:relative">
+        <!-- En-tête -->
+        <div style="padding:22px 24px 14px;display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div style="font-size:.62rem;letter-spacing:.15em;opacity:.7;text-transform:uppercase;margin-bottom:4px">Association Haïtienne Hamilton</div>
+            <div style="font-size:1.05rem;font-weight:800;letter-spacing:.04em">AHH HAMILTON</div>
+          </div>
+          <div style="background:rgba(255,255,255,.15);border-radius:8px;padding:6px 12px;font-size:.72rem;font-weight:700;letter-spacing:.06em">${(planLabel[me.plan]||'GRATUIT').toUpperCase()}</div>
+        </div>
+        <!-- Photo + nom -->
+        <div style="padding:0 24px 16px;display:flex;align-items:center;gap:16px">
+          ${me.photo_url
+            ? `<img src="${BASE}${me.photo_url}" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid rgba(255,255,255,.5)"/>`
+            : `<div style="width:72px;height:72px;border-radius:50%;background:rgba(255,255,255,.2);border:3px solid rgba(255,255,255,.5);font-size:1.8rem;font-weight:900;display:flex;align-items:center;justify-content:center">${initials}</div>`}
+          <div>
+            <div style="font-size:1.25rem;font-weight:800;line-height:1.1">${escHtml(me.prenom)}</div>
+            <div style="font-size:1.25rem;font-weight:800;line-height:1.1">${escHtml(me.nom)}</div>
+            <div style="font-size:.72rem;opacity:.7;margin-top:5px">Membre depuis ${me.date_inscription ? new Date(me.date_inscription).getFullYear() : '–'}</div>
+          </div>
+        </div>
+        <!-- QR + numéro -->
+        <div style="background:rgba(0,0,0,.2);padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px">
+          <div>
+            <div style="font-size:.6rem;opacity:.65;text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px">N° de membre</div>
+            <div style="font-size:1.4rem;font-weight:900;letter-spacing:.12em;font-family:monospace">#${numMembre}</div>
+            <div style="font-size:.65rem;opacity:.55;margin-top:6px">Valide · ${new Date().getFullYear()}</div>
+          </div>
+          <div style="background:#fff;border-radius:10px;padding:6px">
+            <img src="${qrUrl}" alt="QR" style="width:90px;height:90px;display:block"/>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:center;gap:12px;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="carteMembePrint()">🖨️ Imprimer</button>
+      <button class="btn btn-outline" onclick="carteMembeSave()">💾 Enregistrer en image</button>
+    </div>
+    <p style="text-align:center;font-size:.78rem;color:var(--muted);margin-top:12px">Présentez cette carte lors des événements AHH Hamilton</p>
+  `);
+}
+
+function carteMembePrint() {
+  const el = document.getElementById('carteMembre');
+  if (!el) return;
+  const win = window.open('', '_blank', 'width=600,height=400');
+  win.document.write(`<html><head><title>Carte membre AHH</title><style>body{margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#f0f0f0;font-family:sans-serif}@media print{body{background:none}}</style></head><body>${el.outerHTML}<script>window.print()<\/script></body></html>`);
+  win.document.close();
+}
+
+async function carteMembeSave() {
+  toast('Faites une capture d\'écran de la carte pour l\'enregistrer');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 7. FIL D'ACTUALITÉS COMMUNAUTAIRE
+// ══════════════════════════════════════════════════════════════════════════════
+async function actualitesView() {
+  const [galerie, activites, forumTopics] = await Promise.all([
+    api('/gallery').catch(() => []),
+    api('/activities').catch(() => []),
+    api('/forum/topics').catch(() => [])
+  ]);
+
+  const feed = [];
+  galerie.slice(0, 5).forEach(g => feed.push({
+    type:'photo', date: g.date_upload, icon:'🖼️',
+    titre: g.titre || 'Photo AHH',
+    desc: `Photo ajoutée par ${escHtml(g.uploadeur||'AHH')}`,
+    action: `showView('gallery_mgmt')`, color:'#7b1fa2'
+  }));
+  activites.filter(a => a.statut === 'planifiee').slice(0, 5).forEach(a => feed.push({
+    type:'activite', date: a.date_creation || a.date_debut, icon:'🎉',
+    titre: a.titre,
+    desc: `📍 ${a.lieu||'–'} · ${a.date_debut ? new Date(a.date_debut).toLocaleDateString('fr-CA') : ''}`,
+    action: `showView('activities')`, color:'#c62828'
+  }));
+  forumTopics.slice(0, 5).forEach(t => feed.push({
+    type:'forum', date: t.date_creation, icon:'💬',
+    titre: t.titre,
+    desc: `${t.nb_posts||0} réponse(s) · Par ${escHtml(t.auteur||'membre')}`,
+    action: `showView('forum')`, color:'#1565c0'
+  }));
+
+  feed.sort((a, b) => new Date(b.date||0) - new Date(a.date||0));
+
+  setContent(`
+    <div class="page-header"><div><h2>📰 Actualités</h2><p>Le fil de vie de votre communauté AHH</p></div></div>
+    ${!feed.length ? '<div class="empty-state"><div class="es-icon">📰</div><p>Aucune actualité pour le moment</p></div>' :
+      `<div style="display:flex;flex-direction:column;gap:12px">
+        ${feed.map(item => `
+          <div style="border:1px solid var(--border);border-radius:12px;background:#fff;overflow:hidden;cursor:pointer" onclick="${item.action}">
+            <div style="display:flex;align-items:flex-start;gap:14px;padding:14px 16px">
+              <div style="width:40px;height:40px;border-radius:10px;background:${item.color};color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0">${item.icon}</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:700;font-size:.9rem;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(item.titre)}</div>
+                <div style="font-size:.78rem;color:var(--muted)">${item.desc}</div>
+              </div>
+              <div style="font-size:.7rem;color:var(--muted);flex-shrink:0;margin-top:2px">${item.date ? fmt(item.date) : ''}</div>
+            </div>
+          </div>`).join('')}
+      </div>`}
+  `);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 9. PRÉFÉRENCES DE NOTIFICATION
+// ══════════════════════════════════════════════════════════════════════════════
+async function notifPrefsView() {
+  const prefs = await api('/member/notif-prefs').catch(() => ({ notif_activites:1, notif_paiements:1, notif_messages:1, notif_forum:1 }));
+  const cats = [
+    { key:'notif_activites', icon:'🎉', label:'Activités & événements', desc:'Nouvelles activités, rappels, confirmations d\'inscription' },
+    { key:'notif_paiements', icon:'💳', label:'Paiements & cotisations', desc:'Confirmations de paiement, rappels, reçus fiscaux' },
+    { key:'notif_messages',  icon:'✉️', label:'Messages',               desc:'Messages reçus de l\'équipe ou d\'autres membres' },
+    { key:'notif_forum',     icon:'💬', label:'Forum',                  desc:'Nouvelles réponses à vos sujets' },
+  ];
+  setContent(`
+    <div class="page-header"><div><h2>🔔 Préférences de notification</h2><p>Choisissez les communications que vous souhaitez recevoir</p></div></div>
+    <div class="table-card" style="max-width:560px">
+      <div style="padding:20px">
+        ${cats.map(c => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--border)">
+            <div style="display:flex;align-items:center;gap:12px">
+              <div style="font-size:1.4rem">${c.icon}</div>
+              <div>
+                <div style="font-weight:700;font-size:.9rem">${c.label}</div>
+                <div style="font-size:.76rem;color:var(--muted);margin-top:2px">${c.desc}</div>
+              </div>
+            </div>
+            <label style="position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0">
+              <input type="checkbox" id="notif_${c.key}" ${prefs[c.key]?'checked':''} style="opacity:0;width:0;height:0"/>
+              <span style="position:absolute;inset:0;border-radius:24px;background:${prefs[c.key]?'var(--g2)':'#ccc'};cursor:pointer;transition:.3s" onclick="this.previousElementSibling.click();this.style.background=this.previousElementSibling.checked?'var(--g2)':'#ccc'">
+                <span style="position:absolute;left:${prefs[c.key]?'22':'2'}px;top:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.3s;pointer-events:none" id="thumb_${c.key}"></span>
+              </span>
+            </label>
+          </div>`).join('')}
+        <div style="margin-top:20px;display:flex;gap:10px">
+          <button class="btn btn-primary" onclick="notifPrefsSave()">Enregistrer</button>
+          <span id="notifStatus" style="line-height:38px;font-size:.82rem;color:var(--muted)"></span>
+        </div>
+      </div>
+    </div>
+  `);
+}
+
+async function notifPrefsSave() {
+  const body = {
+    notif_activites: document.getElementById('notif_notif_activites')?.checked ? 1 : 0,
+    notif_paiements: document.getElementById('notif_notif_paiements')?.checked ? 1 : 0,
+    notif_messages:  document.getElementById('notif_notif_messages')?.checked  ? 1 : 0,
+    notif_forum:     document.getElementById('notif_notif_forum')?.checked      ? 1 : 0,
+  };
+  try {
+    await api('/member/notif-prefs', { method:'PUT', body: JSON.stringify(body) });
+    const el = document.getElementById('notifStatus');
+    if (el) { el.textContent = '✅ Enregistré !'; setTimeout(() => { if(el) el.textContent=''; }, 3000); }
+  } catch(e) { toast('Erreur: ' + e.message, true); }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
