@@ -1299,6 +1299,47 @@ app.delete('/api/projects/:id', authMiddleware, requireRole('admin'), (req, res)
 
 const COMITE_ROLES = ['admin','tresoriere','secretaire','delegue'];
 
+// ── Test SMTP ────────────────────────────────────────────────────────────────
+app.get('/api/email/test-smtp', authMiddleware, requireRole(...COMITE_ROLES), async (req, res) => {
+  const nodemailer = require('nodemailer');
+  const user = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.id);
+  const orgEmail   = user?.email_org || null;
+  const orgPass    = user?.smtp_pass_org || process.env.ORG_SMTP_PASS || '';
+  const smtpHost   = process.env.SMTP_HOST || '';
+  const results    = [];
+
+  if (!smtpHost) return res.json({ ok: false, results: [], error: 'SMTP_HOST non défini dans .env' });
+
+  if (orgEmail && orgPass) {
+    for (const [port, secure] of [[465, true],[587, false]]) {
+      try {
+        const t = nodemailer.createTransport({ host: smtpHost, port, secure,
+          auth: { user: orgEmail, pass: orgPass }, tls: { rejectUnauthorized: false },
+          connectionTimeout: 8000, socketTimeout: 10000 });
+        await t.verify();
+        results.push({ compte: orgEmail, port, secure, ok: true });
+      } catch(e) {
+        results.push({ compte: orgEmail, port, secure, ok: false, error: e.message });
+      }
+    }
+  }
+
+  // Test compte principal
+  try {
+    const t = nodemailer.createTransport({ host: smtpHost,
+      port: parseInt(process.env.SMTP_PORT)||587, secure: parseInt(process.env.SMTP_PORT)===465,
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+      tls: { rejectUnauthorized: false }, connectionTimeout: 8000, socketTimeout: 10000 });
+    await t.verify();
+    results.push({ compte: process.env.SMTP_USER, port: parseInt(process.env.SMTP_PORT)||587, ok: true });
+  } catch(e) {
+    results.push({ compte: process.env.SMTP_USER, port: parseInt(process.env.SMTP_PORT)||587, ok: false, error: e.message });
+  }
+
+  const anyOk = results.some(r => r.ok);
+  res.json({ ok: anyOk, results, smtpHost, orgEmail });
+});
+
 app.post('/api/email/send', authMiddleware, requireRole(...COMITE_ROLES), async (req, res) => {
   const { to, subject, body } = req.body;
   if (!to || !subject || !body) return res.status(400).json({ error: 'Champs manquants' });

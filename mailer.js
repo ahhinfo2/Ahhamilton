@@ -389,22 +389,28 @@ async function sendExternalEmail({ to, subject, bodyHtml, senderName, senderEmai
   const effectivePass = orgSmtpPass || ORG_SMTP_PASS;
 
   // Tentative via le compte @ahhamilton.ca du membre
+  // Essaie SSL/465 d'abord (Hostinger), puis STARTTLS/587 en fallback
   if (orgEmail && effectivePass) {
-    try {
-      const t = nodemailer.createTransport({
-        host: SMTP_HOST, port: parseInt(SMTP_PORT) || 587, secure: false,
-        auth: { user: orgEmail, pass: effectivePass },
-        tls: { rejectUnauthorized: false }
-      });
-      await t.verify();  // teste l'authentification avant d'envoyer
-      const from = `"${senderName} — AHH" <${orgEmail}>`;
-      const plainText = html.replace(/<style[\s\S]*?<\/style>/gi,'').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim();
-      await t.sendMail({ from, to, subject, html, text: plainText });
-      console.log(`✉️  Email envoyé (org ${orgEmail}) → ${to} | ${subject}`);
-      return;
-    } catch(authErr) {
-      console.error(`[sendExternalEmail] Échec auth ${orgEmail}: ${authErr.message} — fallback contact@`);
+    for (const [port, secure] of [[465, true],[587, false]]) {
+      try {
+        const t = nodemailer.createTransport({
+          host: SMTP_HOST, port, secure,
+          auth: { user: orgEmail, pass: effectivePass },
+          tls: { rejectUnauthorized: false },
+          connectionTimeout: 10000, socketTimeout: 15000
+        });
+        await t.verify();
+        const from = `"${senderName} — AHH" <${orgEmail}>`;
+        const plainText = html.replace(/<style[\s\S]*?<\/style>/gi,'').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim();
+        await t.sendMail({ from, to, subject, html, text: plainText });
+        console.log(`✉️  Email envoyé (org ${orgEmail} port ${port}) → ${to} | ${subject}`);
+        return;
+      } catch(e) {
+        console.error(`[sendExternalEmail] ${orgEmail} port ${port}: ${e.message}`);
+      }
     }
+    // Les deux ports ont échoué avec le compte personnel
+    console.warn(`[sendExternalEmail] Tous les ports SMTP échoués pour ${orgEmail} — fallback contact@`);
   }
 
   // Fallback : compte principal contact@ahhamilton.ca

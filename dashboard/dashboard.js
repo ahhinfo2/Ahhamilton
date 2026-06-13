@@ -3480,7 +3480,10 @@ async function gmLoadExternal(forceRefresh = false) {
         Pour activer la boîte externe, allez dans <strong>Annuaire → Modifier le membre</strong>
         et renseignez votre adresse <em>@ahhamilton.ca</em> et le mot de passe Hostinger.
       </p>
-      <button class="btn btn-outline btn-sm" style="margin-top:14px" onclick="gmLoadExternal(true)">↻ Réessayer</button>
+      <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;justify-content:center">
+        <button class="btn btn-outline btn-sm" onclick="gmLoadExternal(true)">↻ Réessayer</button>
+        <button class="btn btn-sm" style="background:#1565c0;color:#fff" onclick="gmTestSmtp()">🔧 Tester SMTP</button>
+      </div>
     </div>`;
   }
 }
@@ -3570,6 +3573,30 @@ async function gmLoadExtSent() {
 function gmExtToggle(uid, checked) {
   if (checked) _extSelected.add(uid); else _extSelected.delete(uid);
   gmExtSyncBar();
+}
+
+async function gmTestSmtp() {
+  toast('🔧 Test SMTP en cours…');
+  try {
+    const r = await api('/email/test-smtp', { timeout: 30000 });
+    const rows = r.results.map(x =>
+      `<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:6px 10px">${x.compte||'—'}</td>
+        <td style="padding:6px 10px;text-align:center">${x.port}</td>
+        <td style="padding:6px 10px;text-align:center">${x.ok ? '✅ OK' : '❌ ' + (x.error||'Erreur')}</td>
+      </tr>`).join('');
+    openModal('🔧 Diagnostic SMTP — ' + (r.smtpHost||'?'),
+      `<p style="font-size:.85rem;color:var(--muted);margin-bottom:12px">Serveur : <strong>${r.smtpHost||'non défini'}</strong> · Compte org : <strong>${r.orgEmail||'non configuré'}</strong></p>
+      <table style="width:100%;border-collapse:collapse;font-size:.82rem">
+        <thead><tr style="background:var(--off)"><th style="padding:6px 10px;text-align:left">Compte</th><th>Port</th><th>Résultat</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      ${!r.ok ? '<p style="margin-top:14px;font-size:.82rem;color:#c62828">⚠️ Aucune connexion SMTP ne fonctionne. Vérifiez votre mot de passe Hostinger dans <strong>Annuaire → Modifier le membre</strong>.</p>' :
+        '<p style="margin-top:14px;font-size:.82rem;color:#1b5e20">✅ Au moins un compte SMTP fonctionne. L\'envoi devrait marcher.</p>'}`
+    );
+  } catch(e) {
+    toast('❌ ' + e.message, 'error');
+  }
 }
 
 function gmExtSelAll(checked) {
