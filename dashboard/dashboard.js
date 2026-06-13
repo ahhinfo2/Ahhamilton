@@ -866,16 +866,7 @@ async function memberHome() {
 
     <div class="table-card">
       <div class="table-card-header"><h3>🎟 Mes prochaines activités</h3></div>
-      <div style="padding:8px 16px">
-        ${calActs.filter(a=>a.status==='inscrit').length ? calActs.filter(a=>a.status==='inscrit').map(a=>`
-          <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)">
-            <div style="width:38px;height:38px;border-radius:10px;background:var(--g2);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;flex-shrink:0;text-align:center;line-height:1.1">
-              ${a.date_debut ? new Date(a.date_debut).getDate()+'<br>'+new Date(a.date_debut).toLocaleDateString('fr-CA',{month:'short'}) : '–'}
-            </div>
-            <div><strong style="font-size:.88rem">${a.titre}</strong>${a.lieu?`<div style="font-size:.76rem;color:var(--muted)">📍 ${a.lieu}</div>`:''}</div>
-          </div>`).join('')
-        : '<div class="empty-state" style="padding:24px"><div class="es-icon">📅</div><p>Aucune activité inscrite</p></div>'}
-      </div>
+      <div id="prochActivites" style="padding:8px 16px"></div>
     </div>
   `);
 
@@ -883,6 +874,48 @@ async function memberHome() {
   window._calYear = new Date().getFullYear();
   window._calMonth = new Date().getMonth();
   renderMemberCal();
+  renderProchActivites();
+}
+
+function renderProchActivites() {
+  const el = document.getElementById('prochActivites');
+  if (!el) return;
+  const inscrites = (window._calActs || [])
+    .filter(a => a.status === 'inscrit')
+    .sort((a, b) => new Date(a.date_debut||0) - new Date(b.date_debut||0));
+  if (!inscrites.length) {
+    el.innerHTML = '<div class="empty-state" style="padding:24px"><div class="es-icon">📅</div><p>Aucune activité inscrite</p></div>';
+    return;
+  }
+  el.innerHTML = inscrites.map(a => {
+    const m = (a.date_debut||'').match(/^(\d{4})-(\d{2})-(\d{2})/);
+    const [jour, moisStr] = m
+      ? [parseInt(m[3]), new Date(+m[1],+m[2]-1,+m[3]).toLocaleDateString('fr-CA',{month:'short'})]
+      : ['–', ''];
+    return `
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)">
+      <div style="width:38px;height:38px;border-radius:10px;background:var(--g2);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;flex-shrink:0;text-align:center;line-height:1.1">
+        ${jour}<br>${moisStr}
+      </div>
+      <div style="flex:1;min-width:0">
+        <strong style="font-size:.88rem">${a.titre}</strong>
+        ${a.lieu?`<div style="font-size:.76rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📍 ${a.lieu}</div>`:''}
+      </div>
+      <button class="btn btn-sm" style="color:#d32f2f;border:1px solid #d32f2f;background:transparent;white-space:nowrap;padding:3px 8px;font-size:.75rem;flex-shrink:0"
+        onclick="calUnregister(${a.id})">✕ Se désinscrire</button>
+    </div>`;
+  }).join('');
+}
+
+async function calUnregister(actId) {
+  if (!confirm('Se désinscrire de cette activité ?')) return;
+  try {
+    await api(`/activities/${actId}/register`, { method:'DELETE' });
+    toast('Désinscription confirmée');
+    window._calActs = (window._calActs || []).filter(a => a.id !== actId);
+    renderMemberCal();
+    renderProchActivites();
+  } catch(ex) { toast(ex.message, 'error'); }
 }
 
 function calNav(dir) {
@@ -898,15 +931,15 @@ function renderMemberCal() {
   const MOIS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
   document.getElementById('calMonthLabel').textContent = `${MOIS[month]} ${year}`;
 
-  // Grouper activités par jour
+  // Grouper activités par jour (parsing local pour éviter le décalage UTC)
   const byDay = {};
   acts.forEach(a => {
-    if (!a.date_debut) return;
-    const d = new Date(a.date_debut);
-    if (d.getFullYear() === year && d.getMonth() === month) {
-      const k = d.getDate();
-      if (!byDay[k]) byDay[k] = [];
-      byDay[k].push(a);
+    const mm = (a.date_debut || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!mm) return;
+    const [, dy, dm, dd] = mm.map(Number);
+    if (dy === year && dm - 1 === month) {
+      if (!byDay[dd]) byDay[dd] = [];
+      byDay[dd].push(a);
     }
   });
 
@@ -941,9 +974,9 @@ function renderMemberCal() {
 
 function showCalDay(day, month, year) {
   const acts = (window._calActs || []).filter(a => {
-    if (!a.date_debut) return false;
-    const d = new Date(a.date_debut);
-    return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day;
+    const mm = (a.date_debut || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!mm) return false;
+    return +mm[1] === year && +mm[2] - 1 === month && +mm[3] === day;
   });
   const MOIS = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
   openModal(`📅 ${day} ${MOIS[month]} ${year}`, `
@@ -971,10 +1004,10 @@ async function calDayRegister(actId, day, month, year) {
   try {
     await api(`/activities/${actId}/register`, { method:'POST' });
     toast('✅ Inscription confirmée !');
-    // Mettre à jour le statut dans _calActs et rafraîchir
     const act = (window._calActs || []).find(a => a.id === actId);
     if (act) act.status = 'inscrit';
     renderMemberCal();
+    renderProchActivites();
     showCalDay(day, month, year);
   } catch(ex) { toast(ex.message, 'error'); }
 }
