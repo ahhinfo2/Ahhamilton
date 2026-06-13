@@ -478,8 +478,10 @@ let _prevAlertCount = 0;
 })();
 
 function showNotifCard(titre, desc, { icon = '🔔', color = '#003F87' } = {}) {
-  const stack = document.getElementById('notif-stack');
-  const card  = document.createElement('div');
+  let stack = document.getElementById('notif-stack');
+  if (!stack) { stack = document.createElement('div'); stack.id = 'notif-stack'; document.body.appendChild(stack); }
+
+  const card = document.createElement('div');
   card.className = 'notif-card';
   card.style.borderLeftColor = color;
   card.innerHTML = `
@@ -496,12 +498,15 @@ function showNotifCard(titre, desc, { icon = '🔔', color = '#003F87' } = {}) {
 
   stack.prepend(card);
 
+  let dismissed = false;
   const dismiss = () => {
+    if (dismissed) return;
+    dismissed = true;
     card.classList.add('out');
     setTimeout(() => card.remove(), 320);
   };
-  card.addEventListener('click', dismiss);
-  card.querySelector('.notif-card-close').addEventListener('click', e => { e.stopPropagation(); dismiss(); });
+  // Seul le bouton ✕ ferme la carte manuellement (évite fermeture accidentelle par clic parasite)
+  card.querySelector('.notif-card-close').addEventListener('click', dismiss);
   setTimeout(dismiss, 30000);
 }
 

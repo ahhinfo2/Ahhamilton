@@ -1542,6 +1542,61 @@ html.dark .search-results { background: var(--white); }
 .act-menu-item:hover{background:var(--off)}
 
 /* ══════════════════════════════════════════════════════════════════════════
+   NOTIFICATIONS TEMPS RÉEL — carte bottom-right
+   ══════════════════════════════════════════════════════════════════════════ */
+#notif-stack {
+  position: fixed;
+  bottom: 24px; right: 24px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 370px;
+  pointer-events: none;
+}
+.notif-card {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 8px 40px rgba(0,0,0,.18), 0 2px 10px rgba(0,0,0,.10);
+  overflow: hidden;
+  pointer-events: all;
+  cursor: pointer;
+  animation: notifIn .38s cubic-bezier(.34,1.56,.64,1) backwards;
+  border-left: 5px solid #003F87;
+  margin-bottom: 10px;
+  transition: box-shadow .2s;
+}
+.notif-card:hover { box-shadow: 0 12px 48px rgba(0,0,0,.22); transform: translateY(-2px); }
+.notif-card.out { animation: notifOut .3s ease forwards; }
+.notif-card-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 14px 10px;
+}
+.notif-card-icon { font-size: 2rem; flex-shrink: 0; line-height: 1; }
+.notif-card-content { flex: 1; min-width: 0; }
+.notif-card-title { font-weight: 700; font-size: .9rem; color: #1c2b1c; margin-bottom: 3px; line-height: 1.3; }
+.notif-card-desc  { font-size: .79rem; color: #5a7a5a; line-height: 1.45; }
+.notif-card-time  { font-size: .7rem; color: #aaa; margin-top: 4px; }
+.notif-card-close {
+  background: none; border: none; font-size: .85rem; cursor: pointer;
+  color: #bbb; padding: 0; line-height: 1; flex-shrink: 0; margin-top: 2px;
+  transition: color .15s;
+}
+.notif-card-close:hover { color: #e53935; }
+.notif-card-bar {
+  height: 3px;
+  background: currentColor;
+  transform-origin: left;
+  animation: notifBar 30s linear forwards;
+}
+@keyframes notifIn  { from { transform: translateX(110%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes notifOut { from { transform: translateX(0); opacity: 1; max-height: 200px; margin-bottom: 0; }
+                      to   { transform: translateX(110%); opacity: 0; max-height: 0; margin-bottom: -10px; } }
+@keyframes notifBar { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+/* ══════════════════════════════════════════════════════════════════════════
    DRAPEAU HAÏTIEN — redesign sidebar + tableau de bord
    Bleu : #003F87  |  Rouge : #CE1126
    ══════════════════════════════════════════════════════════════════════════ */
