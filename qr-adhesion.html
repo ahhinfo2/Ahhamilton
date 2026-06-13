@@ -96,7 +96,7 @@
 <body>
 <div class="card">
   <div class="logo-band">
-    <h1>🇭🇹 Association Haïtienne de Hamilton</h1>
+    <h1>Association Haïtienne de Hamilton</h1>
     <p>Communauté · Solidarité · Culture</p>
   </div>
 
@@ -125,14 +125,37 @@
 </div>
 
 <script>
-  new QRCode(document.getElementById('qrcode'), {
+  const qr = new QRCode(document.getElementById('qrcode'), {
     text: 'https://www.ahhamilton.ca/adhesion.html',
-    width: 220,
-    height: 220,
+    width: 240,
+    height: 240,
     colorDark: '#003F87',
     colorLight: '#ffffff',
     correctLevel: QRCode.CorrectLevel.H
   });
+
+  // Insérer le logo au centre du canvas QR
+  setTimeout(() => {
+    const canvas = document.querySelector('#qrcode canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const logo = new Image();
+    logo.src = '/Public/logo1.png';
+    logo.onload = () => {
+      const logoSize = Math.round(canvas.width * 0.22);
+      const x = Math.round((canvas.width  - logoSize) / 2);
+      const y = Math.round((canvas.height - logoSize) / 2);
+      // Fond blanc arrondi derrière le logo
+      const pad = 5;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.roundRect(x - pad, y - pad, logoSize + pad*2, logoSize + pad*2, 6);
+      ctx.fill();
+      // Logo
+      ctx.drawImage(logo, x, y, logoSize, logoSize);
+    };
+    logo.onerror = () => {}; // silencieux si logo absent
+  }, 200);
 </script>
 </body>
 </html>
