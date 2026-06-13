@@ -96,13 +96,14 @@ async function syncUserFromServer() {
 
 // ── API HELPER ─────────────────────────────────────────────────────────────
 async function api(path, opts = {}) {
+  const { timeout: tms = 8000, ...fetchOpts } = opts;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000); // 8s timeout
+  const timer = setTimeout(() => controller.abort(), tms);
   try {
     const res = await fetch(API + path, {
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}`, ...opts.headers },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}`, ...fetchOpts.headers },
       signal: controller.signal,
-      ...opts
+      ...fetchOpts
     });
     clearTimeout(timer);
     if (res.status === 401) { logout(); return null; }
@@ -3392,7 +3393,7 @@ async function gmExtBulkDelete() {
   if (!n) return;
   if (!confirm(`Supprimer définitivement ${n} email${n>1?'s':''} ?`)) return;
   try {
-    await api('/email/inbox', { method:'DELETE', body:JSON.stringify({ uids:[..._extSelected] }) });
+    await api('/email/inbox', { method:'DELETE', body:JSON.stringify({ uids:[..._extSelected] }), timeout:25000 });
     toast(`${n} email${n>1?'s':''} supprimé${n>1?'s':''}`);
     gmNav('external');
   } catch(err) { toast('Erreur : ' + err.message, 'error'); }
@@ -3403,7 +3404,7 @@ async function gmExtDeleteAll() {
   if (!confirm(`Supprimer définitivement TOUS les ${_extEmails.length} emails de cette boîte ?`)) return;
   try {
     const uids = _extEmails.map(e => e.uid);
-    await api('/email/inbox', { method:'DELETE', body:JSON.stringify({ uids }) });
+    await api('/email/inbox', { method:'DELETE', body:JSON.stringify({ uids }), timeout:25000 });
     toast(`${uids.length} email${uids.length>1?'s':''} supprimé${uids.length>1?'s':''}`);
     gmNav('external');
   } catch(err) { toast('Erreur : ' + err.message, 'error'); }
@@ -3412,7 +3413,7 @@ async function gmExtDeleteAll() {
 async function gmExtDeleteOne(uid) {
   if (!confirm('Supprimer cet email définitivement ?')) return;
   try {
-    await api(`/email/inbox/${uid}`, { method:'DELETE' });
+    await api(`/email/inbox/${uid}`, { method:'DELETE', timeout:25000 });
     toast('Email supprimé');
     gmNav('external');
   } catch(err) { toast('Erreur suppression : ' + err.message, 'error'); }
@@ -3475,7 +3476,7 @@ function gmExtForward() {
 async function gmExtDelete(uid) {
   if (!confirm('Supprimer cet email définitivement ?')) return;
   try {
-    await api(`/email/inbox/${uid}`, { method:'DELETE' });
+    await api(`/email/inbox/${uid}`, { method:'DELETE', timeout:25000 });
     toast('Email supprimé');
     _extCurrent = null;
     gmNav('external');

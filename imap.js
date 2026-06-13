@@ -223,9 +223,8 @@ async function deleteBulk(emailAddr, password, uids) {
     await client.connect();
     const lock = await client.getMailboxLock('INBOX');
     try {
-      for (const uid of uids) {
-        try { await client.messageDelete(`${uid}`, { uid: true }); } catch {}
-      }
+      // Une seule commande IMAP pour N messages (beaucoup plus rapide que N appels)
+      await client.messageDelete(uids.map(String).join(','), { uid: true });
     } finally {
       lock.release();
     }
