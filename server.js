@@ -4634,19 +4634,6 @@ process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
   } catch(e) { console.error('phantom init:', e.message); }
 })();
 
-// ── Courriels org @ahhamilton.ca par membre comité ───────────────────────────
-(function assignOrgEmails() {
-  const assignments = [
-    { email: 'vp@ahhamilton.ca',          email_org: 'jeanraymond@ahhamilton.ca' },
-    { email: 'presidente@ahhamilton.ca',   email_org: 'jean-carme@ahhamilton.ca' },
-  ];
-  for (const a of assignments) {
-    try {
-      db.prepare('UPDATE users SET email_org=? WHERE email=?').run(a.email_org, a.email);
-    } catch(e) {}
-  }
-  console.log('✅ Courriels org @ahhamilton.ca assignés');
-})();
 
 // ── Comptes jeunes de test ───────────────────────────────────────────────────
 (function ensureTestYoung() {
