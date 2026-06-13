@@ -7728,7 +7728,7 @@ async function carteMembreView() {
         <div style="padding:22px 24px 14px;display:flex;justify-content:space-between;align-items:flex-start">
           <div>
             <div style="font-size:.62rem;letter-spacing:.15em;opacity:.7;text-transform:uppercase;margin-bottom:4px">Association Haïtienne Hamilton</div>
-            <div style="font-size:1.05rem;font-weight:800;letter-spacing:.04em">AHH HAMILTON</div>
+            <div style="font-size:1.05rem;font-weight:800;letter-spacing:.04em">AHH</div>
           </div>
           <div style="background:rgba(255,255,255,.15);border-radius:8px;padding:6px 12px;font-size:.72rem;font-weight:700;letter-spacing:.06em">${(planLabel[me.plan]||'GRATUIT').toUpperCase()}</div>
         </div>
@@ -7750,8 +7750,11 @@ async function carteMembreView() {
             <div style="font-size:1.4rem;font-weight:900;letter-spacing:.12em;font-family:monospace">#${numMembre}</div>
             <div style="font-size:.65rem;opacity:.55;margin-top:6px">Valide · ${new Date().getFullYear()}</div>
           </div>
-          <div style="background:#fff;border-radius:10px;padding:6px">
-            <img src="${qrUrl}" alt="QR" style="width:90px;height:90px;display:block"/>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+            <img src="/Public/logo1.png" alt="AHH" style="width:38px;height:38px;border-radius:6px;object-fit:cover"/>
+            <div style="background:#fff;border-radius:10px;padding:5px">
+              <img src="${qrUrl}" alt="QR" style="width:80px;height:80px;display:block"/>
+            </div>
           </div>
         </div>
       </div>
