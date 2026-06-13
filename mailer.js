@@ -415,10 +415,37 @@ async function sendExternalEmail({ to, subject, bodyHtml, senderName, senderEmai
   return sendMail({ to, subject, html, from, replyTo });
 }
 
+async function sendCarteRenewal(user, expirationDate) {
+  const siteUrl = process.env.SITE_URL || 'https://ahhamilton.ca';
+  const to      = user.email;
+  const subject = '🪪 Renouvellement de votre carte membre AHH Hamilton';
+  const html = `
+    <div style="font-family:sans-serif;max-width:560px;margin:auto">
+      <div style="background:linear-gradient(135deg,#1565c0,#1a237e);border-radius:12px 12px 0 0;padding:28px 32px;text-align:center;color:#fff">
+        <div style="font-size:2rem;margin-bottom:8px">🪪</div>
+        <h2 style="margin:0;font-size:1.3rem">Renouvellement de carte membre</h2>
+      </div>
+      <div style="background:#fff;border:1px solid #e0e0e0;border-top:none;border-radius:0 0 12px 12px;padding:28px 32px">
+        <p>Bonjour <strong>${user.prenom} ${user.nom}</strong>,</p>
+        <p>Votre carte de membre AHH Hamilton arrive à expiration le <strong>${new Date(expirationDate).toLocaleDateString('fr-CA', {year:'numeric',month:'long',day:'numeric'})}</strong>.</p>
+        <p>Pour continuer à profiter de tous vos avantages membres, veuillez contacter l'équipe AHH Hamilton ou vous connecter à votre espace membre pour effectuer le renouvellement.</p>
+        <div style="text-align:center;margin:24px 0">
+          <a href="${siteUrl}/dashboard.html" style="background:#1565c0;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block">
+            Accéder à mon espace membre
+          </a>
+        </div>
+        <p style="font-size:.85rem;color:#666">Si vous avez des questions, répondez directement à cet email ou contactez-nous à <a href="mailto:contact@ahhamilton.ca">contact@ahhamilton.ca</a>.</p>
+        <hr style="border:none;border-top:1px solid #eee;margin:20px 0"/>
+        <p style="font-size:.78rem;color:#999;text-align:center">AHH Hamilton — Association Haïtienne Hamilton</p>
+      </div>
+    </div>`;
+  return sendMail({ to, subject, html });
+}
+
 module.exports = {
   sendMail, sendSMS, sendBienvenue, sendInscriptionRefusee, sendResetPassword,
   sendContact, sendRappelPaiement, sendPaiementApprouve, sendRappelAdhesion,
   sendRecuFiscal, sendInscriptionActivite, sendNouvelleAdhesion, sendHeuresBenevolat,
   sendBilletInterac, sendBilletQR, sendNouvelleCommandeBillet, sendExternalEmail,
-  SMS_GATEWAYS
+  sendCarteRenewal, SMS_GATEWAYS
 };

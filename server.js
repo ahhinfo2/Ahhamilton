@@ -2114,6 +2114,24 @@ function runRenewalJob() {
 
   if (allTalents.length + allAnnonces.length > 0)
     console.log(`✅ Job renouvellement : ${allTalents.length} talents + ${allAnnonces.length} annonces vérifiés`);
+
+  // Cartes de membre : rappel 30 jours avant expiration (2 ans après date_inscription)
+  const membres = db.prepare(`SELECT * FROM users WHERE actif=1 AND role='member'
+    AND (phantom IS NULL OR phantom=0) AND (carte_notif_renouv IS NULL OR carte_notif_renouv=0)
+    AND date_inscription IS NOT NULL`).all();
+  const adminId = db.prepare("SELECT id FROM users WHERE role='admin' LIMIT 1").get()?.id;
+  membres.forEach(m => {
+    const inscrit = new Date(m.date_inscription);
+    const expiration = new Date(inscrit.getFullYear() + 2, inscrit.getMonth(), inscrit.getDate());
+    const daysLeft = Math.ceil((expiration - now) / 86400000);
+    if (daysLeft > 30 || daysLeft < 0) return;
+    mailer.sendCarteRenewal(m, expiration.toISOString().split('T')[0]).catch(() => {});
+    if (adminId) createAlert(adminId, 'carte',
+      `🪪 Carte expire dans ${daysLeft}j : ${m.prenom} ${m.nom}`,
+      `Membre #${String(m.id).padStart(5,'0')} — Renouveler depuis Gestion des cartes`);
+    db.prepare('UPDATE users SET carte_notif_renouv=1 WHERE id=?').run(m.id);
+    console.log(`[CARTE] rappel envoyé à ${m.email} (expire dans ${daysLeft}j)`);
+  });
 }
 
 // Lancer le job renouvellements toutes les 24h
@@ -4602,12 +4620,108 @@ app.get('/api/member/annual-recap', authMiddleware, (req, res) => {
     `SELECT COALESCE(SUM(heures),0) AS c FROM volunteer_hours WHERE user_id=? AND statut='approuve' AND date_service BETWEEN ? AND ?`
   ).get(req.user.id, debut, fin).c;
   const cotisations = db.prepare(
-    `SELECT COALESCE(SUM(montant),0) AS c FROM payments WHERE user_id=? AND statut='approuve' AND date_paiement BETWEEN ? AND ?`
+    `SELECT COALESCE(SUM(montant),0) AS c FROM payments WHERE user_id=? AND statut='approuve' AND COALESCE(date_approbation, date_soumission) BETWEEN ? AND ?`
   ).get(req.user.id, debut, fin).c;
   const heures_all = db.prepare(
     `SELECT COALESCE(SUM(heures),0) AS c FROM volunteer_hours WHERE user_id=? AND statut='approuve'`
   ).get(req.user.id).c;
   res.json({ year, nb_activites, heures_benevolat, cotisations, heures_all });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GESTION CARTES DE MEMBRE
+// ══════════════════════════════════════════════════════════════════════════════
+
+function carteExpiration(dateInscription) {
+  if (!dateInscription) return null;
+  const d = new Date(dateInscription);
+  return new Date(d.getFullYear() + 2, d.getMonth(), d.getDate()).toISOString().split('T')[0];
+}
+
+const CARTE_ROLES = ['admin','tresoriere','secretaire','delegue'];
+
+app.get('/api/admin/cartes', authMiddleware, requireRole(...CARTE_ROLES), (req, res) => {
+  const members = db.prepare(`
+    SELECT id, prenom, nom, email, plan, date_inscription, photo_url,
+           carte_photo_approuvee, carte_notif_renouv
+    FROM users WHERE actif=1 AND role='member' AND (phantom IS NULL OR phantom=0)
+    ORDER BY nom, prenom
+  `).all();
+  const now = new Date();
+  const result = members.map(m => {
+    const expiration = carteExpiration(m.date_inscription);
+    const daysLeft = expiration ? Math.ceil((new Date(expiration) - now) / 86400000) : null;
+    return { ...m, expiration, days_left: daysLeft };
+  });
+  res.json(result);
+});
+
+app.post('/api/admin/cartes/:id/approuver-photo', authMiddleware, requireRole(...CARTE_ROLES), (req, res) => {
+  db.prepare('UPDATE users SET carte_photo_approuvee=1 WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+app.post('/api/admin/cartes/:id/rejeter-photo', authMiddleware, requireRole(...CARTE_ROLES), (req, res) => {
+  db.prepare('UPDATE users SET carte_photo_approuvee=0, photo_url=NULL WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+app.post('/api/admin/cartes/:id/renouveler', authMiddleware, requireRole(...CARTE_ROLES), (req, res) => {
+  const today = new Date().toISOString().split('T')[0];
+  db.prepare('UPDATE users SET date_inscription=?, carte_notif_renouv=0 WHERE id=?').run(today, req.params.id);
+  const u = db.prepare('SELECT prenom, nom FROM users WHERE id=?').get(req.params.id);
+  createAlert(req.user.id, 'carte', `🪪 Carte renouvelée : ${u.prenom} ${u.nom}`, `Expire maintenant le ${carteExpiration(today)}`);
+  res.json({ ok: true, expiration: carteExpiration(today) });
+});
+
+// Scanner QR carte — chercher un membre
+app.get('/api/carte-scan/:qr', authMiddleware, requireRole(...CARTE_ROLES), (req, res) => {
+  const parts = decodeURIComponent(req.params.qr).split('-');
+  const userId = parts[0] === 'AHH' && parts[1] ? parseInt(parts[1]) : null;
+  if (!userId || isNaN(userId)) return res.status(404).json({ error: 'QR invalide' });
+
+  const member = db.prepare(`SELECT id, prenom, nom, email, plan, photo_url, carte_photo_approuvee, date_inscription
+    FROM users WHERE id=? AND actif=1`).get(userId);
+  if (!member) return res.status(404).json({ error: 'Membre introuvable' });
+
+  const expiration = carteExpiration(member.date_inscription);
+  const expired = expiration ? new Date() > new Date(expiration) : false;
+
+  const activities = db.prepare(`
+    SELECT a.id, a.titre, a.date_debut, a.prix, a.gratuit,
+      (SELECT 1 FROM activity_registrations WHERE activity_id=a.id AND user_id=? AND statut='confirme') AS is_present
+    FROM activities a WHERE a.statut='planifiee' ORDER BY a.date_debut LIMIT 30
+  `).all(userId);
+
+  res.json({ member: { ...member, expiration, expired }, activities });
+});
+
+// Marquer présence via scanner carte
+app.post('/api/carte-scan/presencer', authMiddleware, requireRole(...CARTE_ROLES), (req, res) => {
+  const { user_id, activity_id, debiter } = req.body;
+  if (!user_id || !activity_id) return res.status(400).json({ error: 'Paramètres manquants' });
+
+  const existing = db.prepare('SELECT * FROM activity_registrations WHERE user_id=? AND activity_id=?').get(user_id, activity_id);
+  if (existing) {
+    if (existing.statut !== 'confirme')
+      db.prepare("UPDATE activity_registrations SET statut='confirme',paye=? WHERE user_id=? AND activity_id=?")
+        .run(debiter ? 1 : 0, user_id, activity_id);
+  } else {
+    db.prepare("INSERT INTO activity_registrations (user_id, activity_id, statut, paye) VALUES (?,?,'confirme',?)")
+      .run(user_id, activity_id, debiter ? 1 : 0);
+  }
+
+  if (debiter) {
+    const act = db.prepare('SELECT titre, prix FROM activities WHERE id=?').get(activity_id);
+    if (act && act.prix > 0) {
+      const today = new Date().toISOString().split('T')[0];
+      db.prepare(`INSERT INTO payments (user_id, montant, type, methode, note, statut, date_approbation, approuve_par)
+        VALUES (?,?,'activite','scanner',?,'approuve',?,?)`)
+        .run(user_id, act.prix, `Activité : ${act.titre}`, today, req.user.id);
+    }
+  }
+
+  res.json({ ok: true });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════

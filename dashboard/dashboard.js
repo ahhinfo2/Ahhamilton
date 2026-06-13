@@ -201,6 +201,8 @@ function buildSidebar() {
       { id:'members',       icon:'◎', label:'Annuaire',         roles:['admin','secretaire','delegue'] },
       { id:'inscriptions',  icon:'◈', label:'Inscriptions',     roles:EXEC },
       { id:'volunteer',     icon:'◇', label:'Bénévolat',        roles:['admin','secretaire'] },
+      { id:'carte-gestion', icon:'🪪', label:'Cartes membres',  roles:['admin','secretaire','tresoriere','delegue'] },
+      { id:'carte-scanner', icon:'📷', label:'Scanner cartes',  roles:['admin','secretaire','tresoriere','delegue'] },
     ]},
 
     // ── Activités ─────────────────────────────────────────────────
@@ -364,7 +366,8 @@ function setActiveNav(viewId) {
     'young-home':'Espace Jeunes', 'young-jobs':'Stages & Emplois',
     'young-trainings':'Formations', 'young-polls':'Sondages', 'young-stories':'Success Stories',
     'votes':'Votes & Élections', 'parrainage':'Parrainage', 'stats-growth':'Statistiques',
-    'carte-membre':'Ma carte membre', 'actualites':'Actualités', 'notif-prefs':'Notifications'
+    'carte-membre':'Ma carte membre', 'actualites':'Actualités', 'notif-prefs':'Notifications',
+    'carte-gestion':'Gestion des cartes', 'carte-scanner':'Scanner cartes'
   };
   const raw = labels[viewId] || 'Dashboard';
   document.getElementById('topbarTitle').textContent = window.AHH_LANG ? AHH_LANG.get(raw) : raw;
@@ -668,6 +671,8 @@ async function showView(viewId) {
     'carte-membre': carteMembreView,
     'actualites': actualitesView,
     'notif-prefs': notifPrefsView,
+    'carte-gestion': carteGestionView,
+    'carte-scanner': carteScannerView,
   };
   if (extViews[viewId]) {
     try { await extViews[viewId](); } catch(e) { setContent(`<div class="empty-state"><div class="es-icon">⚠️</div><p>${e.message}</p></div>`); }
@@ -7732,29 +7737,31 @@ async function carteMembreView() {
           </div>
           <div style="background:rgba(255,255,255,.15);border-radius:8px;padding:6px 12px;font-size:.72rem;font-weight:700;letter-spacing:.06em">${(planLabel[me.plan]||'GRATUIT').toUpperCase()}</div>
         </div>
-        <!-- Photo + nom -->
-        <div style="padding:0 24px 16px;display:flex;align-items:center;gap:16px">
-          ${me.photo_url
-            ? `<img src="${BASE}${me.photo_url}" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid rgba(255,255,255,.5)"/>`
-            : `<div style="width:72px;height:72px;border-radius:50%;background:rgba(255,255,255,.2);border:3px solid rgba(255,255,255,.5);font-size:1.8rem;font-weight:900;display:flex;align-items:center;justify-content:center">${initials}</div>`}
-          <div>
+        <!-- Photo + nom + logo -->
+        <div style="padding:0 24px 16px;display:flex;align-items:center;gap:14px">
+          ${me.photo_url && me.carte_photo_approuvee
+            ? `<img src="${BASE}${me.photo_url}" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid rgba(255,255,255,.5);flex-shrink:0"/>`
+            : `<div style="width:72px;height:72px;border-radius:50%;background:rgba(255,255,255,.2);border:3px solid rgba(255,255,255,.5);font-size:1.8rem;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0">${initials}</div>`}
+          <div style="flex:1;min-width:0">
             <div style="font-size:1.25rem;font-weight:800;line-height:1.1">${escHtml(me.prenom)}</div>
             <div style="font-size:1.25rem;font-weight:800;line-height:1.1">${escHtml(me.nom)}</div>
             <div style="font-size:.72rem;opacity:.7;margin-top:5px">Membre depuis ${me.date_inscription ? new Date(me.date_inscription).getFullYear() : '–'}</div>
           </div>
+          <img src="/Public/logo1.png" alt="AHH" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid rgba(255,255,255,.35);flex-shrink:0"/>
         </div>
-        <!-- QR + numéro -->
+        <!-- QR + numéro + expiration -->
         <div style="background:rgba(0,0,0,.2);padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px">
           <div>
             <div style="font-size:.6rem;opacity:.65;text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px">N° de membre</div>
             <div style="font-size:1.4rem;font-weight:900;letter-spacing:.12em;font-family:monospace">#${numMembre}</div>
-            <div style="font-size:.65rem;opacity:.55;margin-top:6px">Valide · ${new Date().getFullYear()}</div>
-          </div>
-          <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
-            <img src="/Public/logo1.png" alt="AHH" style="width:38px;height:38px;border-radius:6px;object-fit:cover"/>
-            <div style="background:#fff;border-radius:10px;padding:5px">
-              <img src="${qrUrl}" alt="QR" style="width:80px;height:80px;display:block"/>
+            <div style="font-size:.65rem;opacity:.55;margin-top:6px">
+              Expire · ${me.date_inscription
+                ? new Date(new Date(me.date_inscription).setFullYear(new Date(me.date_inscription).getFullYear()+2)).toLocaleDateString('fr-CA',{year:'numeric',month:'short'})
+                : new Date().getFullYear() + 2}
             </div>
+          </div>
+          <div style="background:#fff;border-radius:10px;padding:6px">
+            <img src="${qrUrl}" alt="QR" style="width:90px;height:90px;display:block"/>
           </div>
         </div>
       </div>
@@ -7777,6 +7784,192 @@ function carteMembePrint() {
 
 async function carteMembeSave() {
   toast('Faites une capture d\'écran de la carte pour l\'enregistrer');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GESTION DES CARTES DE MEMBRE (comité)
+// ══════════════════════════════════════════════════════════════════════════════
+async function carteGestionView() {
+  const membres = await api('/admin/cartes').catch(() => []);
+  const planLabel = { gratuit:'Gratuit', bienfaiteur:'Bienfaiteur', partenaire:'Partenaire' };
+
+  setContent(`
+    <div class="page-header">
+      <div><h2>🪪 Gestion des cartes membres</h2><p>Approuver les photos · Gérer les expirations · Renouveler</p></div>
+      <div class="page-actions"><button class="btn btn-outline" onclick="carteGestionView()">↻ Actualiser</button></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+      <button class="btn btn-sm ${window._carteFilter==='all'||!window._carteFilter?'btn-primary':'btn-ghost'}" onclick="window._carteFilter='all';carteGestionView()">Tous (${membres.length})</button>
+      <button class="btn btn-sm ${window._carteFilter==='expire'?'btn-primary':'btn-ghost'}" onclick="window._carteFilter='expire';carteGestionView()" style="color:#c62828">Expirés / ≤30j (${membres.filter(m=>m.days_left!==null&&m.days_left<=30).length})</button>
+      <button class="btn btn-sm ${window._carteFilter==='photo'?'btn-primary':'btn-ghost'}" onclick="window._carteFilter='photo';carteGestionView()">Photo à approuver (${membres.filter(m=>m.photo_url&&!m.carte_photo_approuvee).length})</button>
+    </div>
+    <div class="table-card">
+      <table class="data-table">
+        <thead><tr>
+          <th>Membre</th><th>Plan</th><th>Photo</th><th>Expiration</th><th>Statut</th><th>Actions</th>
+        </tr></thead>
+        <tbody>
+          ${membres.filter(m => {
+            const f = window._carteFilter || 'all';
+            if (f === 'expire') return m.days_left !== null && m.days_left <= 30;
+            if (f === 'photo') return m.photo_url && !m.carte_photo_approuvee;
+            return true;
+          }).map(m => {
+            const dj = m.days_left;
+            const statusBadge = !m.expiration ? '<span style="color:var(--muted)">–</span>'
+              : dj < 0 ? '<span style="color:#c62828;font-weight:700">⛔ Expirée</span>'
+              : dj <= 30 ? `<span style="color:#e65100;font-weight:700">⚠️ ${dj}j restants</span>`
+              : `<span style="color:#2e7d32">✅ ${dj}j</span>`;
+            return `<tr>
+              <td>
+                <div style="display:flex;align-items:center;gap:8px">
+                  ${m.photo_url
+                    ? `<img src="${BASE}${m.photo_url}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid ${m.carte_photo_approuvee?'#2e7d32':'#e65100'}"/>`
+                    : `<div style="width:32px;height:32px;border-radius:50%;background:var(--g2);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700">${(m.prenom||'?')[0]}${(m.nom||'')[0]||''}</div>`}
+                  <div><div style="font-weight:600;font-size:.85rem">${escHtml(m.prenom)} ${escHtml(m.nom)}</div><div style="font-size:.72rem;color:var(--muted)">#${String(m.id).padStart(5,'0')}</div></div>
+                </div>
+              </td>
+              <td>${planLabel[m.plan]||m.plan}</td>
+              <td>${m.photo_url
+                  ? (m.carte_photo_approuvee
+                    ? '<span style="color:#2e7d32;font-size:.8rem">✅ Approuvée</span>'
+                    : `<span style="color:#e65100;font-size:.8rem;font-weight:700">⏳ En attente</span>`)
+                  : '<span style="color:var(--muted);font-size:.8rem">Aucune</span>'}</td>
+              <td style="font-size:.82rem">${m.expiration ? fmt(m.expiration) : '–'}</td>
+              <td>${statusBadge}</td>
+              <td style="white-space:nowrap;display:flex;gap:6px;flex-wrap:wrap">
+                ${m.photo_url && !m.carte_photo_approuvee
+                  ? `<button class="btn btn-sm btn-primary" onclick="carteApprouverPhoto(${m.id})" title="Approuver photo">✅</button>
+                     <button class="btn btn-sm btn-ghost" style="color:#c62828" onclick="carteRejeterPhoto(${m.id})" title="Rejeter photo">✗</button>`
+                  : ''}
+                <button class="btn btn-sm btn-outline" onclick="carteRenouveler(${m.id},'${escHtml(m.prenom)} ${escHtml(m.nom)}')" title="Renouveler 2 ans">🔄</button>
+              </td>
+            </tr>`;
+          }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">Aucun résultat</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `);
+}
+
+async function carteApprouverPhoto(id) {
+  await api(`/admin/cartes/${id}/approuver-photo`, { method:'POST' });
+  toast('✅ Photo approuvée');
+  carteGestionView();
+}
+async function carteRejeterPhoto(id) {
+  if (!confirm('Rejeter et supprimer la photo de profil de ce membre ?')) return;
+  await api(`/admin/cartes/${id}/rejeter-photo`, { method:'POST' });
+  toast('Photo rejetée');
+  carteGestionView();
+}
+async function carteRenouveler(id, nom) {
+  if (!confirm(`Renouveler la carte de ${nom} pour 2 ans à partir d'aujourd'hui ?`)) return;
+  const r = await api(`/admin/cartes/${id}/renouveler`, { method:'POST' });
+  toast(`✅ Carte renouvelée jusqu'au ${fmt(r.expiration)}`);
+  carteGestionView();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SCANNER CARTES DE MEMBRE (comité)
+// ══════════════════════════════════════════════════════════════════════════════
+async function carteScannerView() {
+  setContent(`
+    <div class="page-header"><div><h2>📷 Scanner de cartes membres</h2><p>Scannez le QR code d'un membre pour l'inscrire à une activité</p></div></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:900px">
+
+      <!-- Entrée QR -->
+      <div class="table-card" style="padding:20px">
+        <h4 style="margin-bottom:16px;color:var(--g2)">📷 Lire un QR code</h4>
+        <div style="margin-bottom:14px">
+          <label class="form-label">Code QR (scanner ou saisir manuellement)</label>
+          <input id="scanQrInput" class="form-input" placeholder="AHH-00007-..." autofocus
+            oninput="if(this.value.startsWith('AHH-'))carteScanSearch()"/>
+          <button class="btn btn-primary" style="margin-top:10px;width:100%" onclick="carteScanSearch()">🔍 Rechercher</button>
+        </div>
+        <div style="text-align:center;padding:12px;background:var(--off);border-radius:10px">
+          <div style="font-size:.78rem;color:var(--muted);margin-bottom:8px">Ou utilisez un lecteur de code-barres USB/Bluetooth</div>
+          <div style="font-size:2rem">📷</div>
+        </div>
+      </div>
+
+      <!-- Résultat -->
+      <div id="scanResult" class="table-card" style="padding:20px">
+        <div class="empty-state" style="padding:24px">
+          <div class="es-icon">🪪</div>
+          <p>Scannez un QR code pour voir le profil du membre</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Activités (apparaît après scan) -->
+    <div id="scanActivities" style="display:none;margin-top:20px;max-width:900px"></div>
+  `);
+}
+
+async function carteScanSearch() {
+  const qr = document.getElementById('scanQrInput')?.value?.trim();
+  if (!qr) return;
+  const resultEl = document.getElementById('scanResult');
+  resultEl.innerHTML = '<div style="text-align:center;padding:24px"><div class="spinner"></div></div>';
+
+  try {
+    const r = await api(`/carte-scan/${encodeURIComponent(qr)}`);
+    const m = r.member;
+    const planLabel = { gratuit:'Gratuit', bienfaiteur:'Bienfaiteur', partenaire:'Partenaire' };
+    const initials = `${(m.prenom||'?')[0]}${(m.nom||'')[0]}`.toUpperCase();
+    const expiColor = m.expired ? '#c62828' : '#2e7d32';
+
+    resultEl.innerHTML = `
+      <div style="text-align:center;margin-bottom:16px">
+        ${m.photo_url && m.carte_photo_approuvee
+          ? `<img src="${BASE}${m.photo_url}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid ${expiColor};margin-bottom:8px"/>`
+          : `<div style="width:80px;height:80px;border-radius:50%;background:var(--g2);color:#fff;font-size:2rem;font-weight:900;display:flex;align-items:center;justify-content:center;margin:0 auto 8px">${initials}</div>`}
+        <div style="font-size:1.1rem;font-weight:800">${escHtml(m.prenom)} ${escHtml(m.nom)}</div>
+        <div style="font-size:.8rem;color:var(--muted)">#${String(m.id).padStart(5,'0')} · ${planLabel[m.plan]||''}</div>
+        <div style="margin-top:8px;font-size:.82rem;font-weight:700;color:${expiColor}">
+          ${m.expired ? '⛔ Carte EXPIRÉE' : `✅ Valide jusqu'au ${fmt(m.expiration)}`}
+        </div>
+      </div>`;
+
+    // Activités
+    window._scanUserId = m.id;
+    const actEl = document.getElementById('scanActivities');
+    actEl.style.display = 'block';
+    actEl.innerHTML = `
+      <div class="table-card">
+        <div class="table-card-header"><h3>📅 Marquer présence à une activité</h3></div>
+        <div style="padding:16px">
+          ${!r.activities.length ? '<div class="empty-state"><p>Aucune activité planifiée</p></div>' :
+            r.activities.map(a => `
+              <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
+                <div style="flex:1;min-width:0">
+                  <div style="font-weight:600;font-size:.88rem">${escHtml(a.titre)}</div>
+                  <div style="font-size:.75rem;color:var(--muted)">${a.date_debut ? new Date(a.date_debut).toLocaleDateString('fr-CA') : '–'} ${a.prix > 0 ? `· <strong>$${a.prix.toFixed(2)}</strong>` : '· Gratuit'}</div>
+                </div>
+                ${a.is_present
+                  ? '<span style="color:#2e7d32;font-size:.82rem;font-weight:700">✅ Présent</span>'
+                  : a.prix > 0
+                    ? `<button class="btn btn-sm btn-primary" onclick="carteScanPresencer(${a.id},true)">Présent + $${a.prix.toFixed(2)}</button>
+                       <button class="btn btn-sm btn-ghost" onclick="carteScanPresencer(${a.id},false)">Présent (exonéré)</button>`
+                    : `<button class="btn btn-sm btn-primary" onclick="carteScanPresencer(${a.id},false)">Marquer présent</button>`}
+              </div>`).join('')}
+        </div>
+      </div>`;
+  } catch(e) {
+    resultEl.innerHTML = `<div class="empty-state"><div class="es-icon">⚠️</div><p>${escHtml(e.message)}</p></div>`;
+    document.getElementById('scanActivities').style.display = 'none';
+  }
+}
+
+async function carteScanPresencer(actId, debiter) {
+  const userId = window._scanUserId;
+  if (!userId) return;
+  try {
+    await api('/carte-scan/presencer', { method:'POST', body: JSON.stringify({ user_id:userId, activity_id:actId, debiter }) });
+    toast(debiter ? '✅ Présence + paiement enregistrés' : '✅ Présence enregistrée');
+    carteScanSearch();
+  } catch(e) { toast(e.message, true); }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
