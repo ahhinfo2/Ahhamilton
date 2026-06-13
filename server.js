@@ -1337,25 +1337,29 @@ function getUserImapEmail(user) {
   return process.env.ORG_EMAIL || 'contact@ahhamilton.ca';
 }
 
+function getUserImapPass(user) {
+  return user?.smtp_pass_org || process.env.ORG_SMTP_PASS || '';
+}
+
 app.get('/api/email/inbox', authMiddleware, requireRole(...COMITE_ROLES), async (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.id);
   const orgEmail = getUserImapEmail(user);
-  const orgPass  = process.env.ORG_SMTP_PASS;
-  if (!orgPass) return res.status(500).json({ error: 'ORG_SMTP_PASS non configuré sur le serveur' });
+  const orgPass  = getUserImapPass(user);
+  if (!orgPass) return res.status(500).json({ error: 'Mot de passe IMAP non configuré. Définissez votre mot de passe Hostinger dans votre profil.' });
   try {
     const emails = await imap.fetchEmails(orgEmail, orgPass);
     res.json(emails);
   } catch(e) {
     console.error(`[inbox] ERREUR pour ${orgEmail}:`, e.message);
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: `Connexion IMAP échouée pour ${orgEmail} : ${e.message}` });
   }
 });
 
 app.get('/api/email/inbox/:uid', authMiddleware, requireRole(...COMITE_ROLES), async (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.id);
   const orgEmail = getUserImapEmail(user);
-  const orgPass  = process.env.ORG_SMTP_PASS;
-  if (!orgPass) return res.status(500).json({ error: 'ORG_SMTP_PASS non configuré' });
+  const orgPass  = getUserImapPass(user);
+  if (!orgPass) return res.status(500).json({ error: 'Mot de passe IMAP non configuré' });
   const uid = parseInt(req.params.uid);
   if (!uid) return res.status(400).json({ error: 'UID invalide' });
   try {
@@ -1369,8 +1373,8 @@ app.get('/api/email/inbox/:uid', authMiddleware, requireRole(...COMITE_ROLES), a
 app.put('/api/email/inbox/:uid/read', authMiddleware, requireRole(...COMITE_ROLES), async (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.id);
   const orgEmail = getUserImapEmail(user);
-  const orgPass  = process.env.ORG_SMTP_PASS;
-  if (!orgPass) return res.status(500).json({ error: 'ORG_SMTP_PASS non configuré' });
+  const orgPass  = getUserImapPass(user);
+  if (!orgPass) return res.status(500).json({ error: 'Mot de passe IMAP non configuré' });
   const uid = parseInt(req.params.uid);
   if (!uid) return res.status(400).json({ error: 'UID invalide' });
   try {
@@ -1384,8 +1388,8 @@ app.put('/api/email/inbox/:uid/read', authMiddleware, requireRole(...COMITE_ROLE
 app.delete('/api/email/inbox/:uid', authMiddleware, requireRole(...COMITE_ROLES), async (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.id);
   const orgEmail = getUserImapEmail(user);
-  const orgPass  = process.env.ORG_SMTP_PASS;
-  if (!orgPass) return res.status(500).json({ error: 'ORG_SMTP_PASS non configuré' });
+  const orgPass  = getUserImapPass(user);
+  if (!orgPass) return res.status(500).json({ error: 'Mot de passe IMAP non configuré' });
   const uid = parseInt(req.params.uid);
   if (!uid) return res.status(400).json({ error: 'UID invalide' });
   try {
