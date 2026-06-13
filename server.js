@@ -33,6 +33,17 @@ const app  = express();
 const PORT = process.env.PORT || 3001;
 console.log(`Starting AHH server on PORT=${PORT}`);
 
+// ── SSE — connexions temps réel ───────────────────────────────────────────
+const sseClients = new Map(); // userId → Set<Response>
+
+function sseNotify(userIds, payload) {
+  const data = `data: ${JSON.stringify(payload)}\n\n`;
+  const targets = userIds === 'all'
+    ? [...sseClients.values()]
+    : (Array.isArray(userIds) ? userIds : [userIds]).map(id => sseClients.get(id)).filter(Boolean);
+  targets.forEach(set => set?.forEach(res => { try { res.write(data); } catch(_) {} }));
+}
+
 // ── Webhook Stripe (corps brut — AVANT express.json) ─────────────────────
 app.post('/api/stripe/webhook', express.raw({ type: '*/*' }), async (req, res) => {
   res.json({ received: true });
@@ -221,7 +232,33 @@ const uploadActivityPhoto = multer({ storage: activityPhotoStorage, limits: { fi
 function createAlert(destinataireId, type, titre, contenu, sourceId = null) {
   db.prepare(`INSERT INTO alerts (destinataire_id, type, titre, contenu, source_id)
               VALUES (?, ?, ?, ?, ?)`).run(destinataireId, type, titre, contenu, sourceId);
+  sseNotify([destinataireId], { type: 'alerte', alertType: type, titre, contenu });
 }
+
+// ── Endpoint SSE ──────────────────────────────────────────────────────────
+app.get('/api/sse', authMiddleware, (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  const uid = req.user.id;
+  if (!sseClients.has(uid)) sseClients.set(uid, new Set());
+  sseClients.get(uid).add(res);
+
+  res.write(`data: ${JSON.stringify({ type: 'connected' })}\n\n`);
+
+  const heartbeat = setInterval(() => {
+    try { res.write(':ping\n\n'); } catch(_) {}
+  }, 25000);
+
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    sseClients.get(uid)?.delete(res);
+    if (!sseClients.get(uid)?.size) sseClients.delete(uid);
+  });
+});
 
 function getAdminsAndRole(role) {
   return db.prepare(`SELECT id FROM users WHERE role = ? AND actif = 1 AND (phantom IS NULL OR phantom = 0)`).all(role);
@@ -889,6 +926,10 @@ app.post('/api/messages', authMiddleware, (req, res) => {
 
   const ins = db.prepare('INSERT INTO message_recipients (message_id, destinataire_id) VALUES (?, ?)');
   targets.forEach(id => ins.run(r.lastInsertRowid, id));
+
+  // Notifier les destinataires en temps réel
+  const expedNom = (() => { const u = db.prepare('SELECT prenom,nom FROM users WHERE id=?').get(req.user.id); return u ? `${u.prenom} ${u.nom}` : 'AHH'; })();
+  sseNotify(targets, { type: 'message', titre: `✉️ Nouveau message de ${expedNom}`, contenu: sujet || contenu.substring(0, 60) });
 
   // SMS aux destinataires (envoi silencieux)
   const expediteur = db.prepare('SELECT prenom, nom FROM users WHERE id = ?').get(req.user.id);

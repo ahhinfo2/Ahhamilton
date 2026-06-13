@@ -70,6 +70,7 @@ function isJeune() {
     }
   } catch(e) {}
   pollBadges();
+  initSSE();
   initChat();
   // Synchroniser le plan/rôle depuis le serveur (détecte les changements admin)
   syncUserFromServer();
@@ -468,6 +469,61 @@ function logout() {
 
 let _prevMsgCount = 0;
 let _prevAlertCount = 0;
+
+// ── SSE — mises à jour temps réel ────────────────────────────────────────
+let _sseConn = null;
+
+function initSSE() {
+  if (_sseConn) { try { _sseConn.close(); } catch(_) {} }
+  _sseConn = new EventSource(`${API}/sse?token=${TOKEN}`);
+
+  _sseConn.onmessage = (e) => {
+    try {
+      const evt = JSON.parse(e.data);
+      if (evt.type === 'connected' || evt.type === 'ping') return;
+      _handleLiveEvent(evt);
+    } catch(_) {}
+  };
+
+  _sseConn.onerror = () => {
+    try { _sseConn.close(); } catch(_) {}
+    setTimeout(initSSE, 6000); // Reconnexion automatique
+  };
+}
+
+function _handleLiveEvent(evt) {
+  // Toast visible immédiatement
+  if (evt.titre) toast(evt.titre, 'info');
+
+  // Mise à jour instantanée des badges
+  if (evt.type === 'alerte') {
+    const badge = document.getElementById('alertCount');
+    if (badge) {
+      const n = (parseInt(badge.textContent) || 0) + 1;
+      badge.textContent = n;
+      badge.style.display = 'block';
+    }
+    // Notification navigateur si onglet en arrière-plan
+    if (document.visibilityState === 'hidden') showBrowserNotif('AHH — ' + evt.titre, evt.contenu || '');
+  }
+
+  if (evt.type === 'message') {
+    const badge = document.getElementById('msgCount');
+    if (badge) {
+      const n = (parseInt(badge.textContent) || 0) + 1;
+      badge.textContent = n;
+      badge.style.display = 'block';
+    }
+    if (document.visibilityState === 'hidden') showBrowserNotif('AHH — ' + evt.titre, evt.contenu || '');
+  }
+
+  // Rafraîchir la vue active si pertinent
+  const view = window._activeView;
+  if (view === 'home') setTimeout(home, 800);
+  if (view === 'inscriptions' && evt.alertType === 'inscription') setTimeout(inscriptions, 600);
+  if (view === 'alerts') setTimeout(alerts, 600);
+  if ((view === 'annuaire' || view === 'messages') && evt.type === 'message') setTimeout(() => showView(view), 600);
+}
 
 async function pollBadges() {
   try {
