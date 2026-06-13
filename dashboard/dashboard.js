@@ -3473,13 +3473,31 @@ async function gmLoadExternal(forceRefresh = false) {
     }
     gmRenderExternal();
   } catch(e) {
-    el.innerHTML = `<div class="gm-empty"><div style="font-size:2rem">⚠️</div><p>${e.message}</p><p style="font-size:.82rem;color:var(--muted)">Configurez votre email @ahhamilton.ca dans votre profil (Modifier le membre).</p></div>`;
+    el.innerHTML = `<div class="gm-empty">
+      <div style="font-size:2rem">⚠️</div>
+      <p style="font-weight:700;margin-bottom:8px">${e.message}</p>
+      <p style="font-size:.82rem;color:var(--muted);max-width:340px;text-align:center">
+        Pour activer la boîte externe, allez dans <strong>Annuaire → Modifier le membre</strong>
+        et renseignez votre adresse <em>@ahhamilton.ca</em> et le mot de passe Hostinger.
+      </p>
+      <button class="btn btn-outline btn-sm" style="margin-top:14px" onclick="gmLoadExternal(true)">↻ Réessayer</button>
+    </div>`;
   }
 }
 
-function gmRenderExternal() {
+function gmRenderExternal(tab = 'inbox') {
   const el = document.getElementById('gmMain');
   if (!el) return;
+
+  const tabBar = `
+    <div style="display:flex;gap:0;border-bottom:2px solid var(--gm-border);background:#fff;flex-shrink:0">
+      <button onclick="gmRenderExternal('inbox')" style="padding:10px 20px;border:none;background:none;cursor:pointer;font-size:.85rem;font-weight:${tab==='inbox'?'700':'400'};border-bottom:${tab==='inbox'?'2px solid #1565c0':'2px solid transparent'};color:${tab==='inbox'?'#1565c0':'var(--muted)'};margin-bottom:-2px">📥 Reçus (${_extEmails.length})</button>
+      <button onclick="gmLoadExtSent()" style="padding:10px 20px;border:none;background:none;cursor:pointer;font-size:.85rem;font-weight:${tab==='sent'?'700':'400'};border-bottom:${tab==='sent'?'2px solid #1565c0':'2px solid transparent'};color:${tab==='sent'?'#1565c0':'var(--muted)'};margin-bottom:-2px">📤 Envoyés</button>
+      <button class="gm-tb-btn" style="margin-left:auto;margin-right:8px" onclick="gmLoadExternal(true)" title="Actualiser">↻</button>
+    </div>`;
+
+  if (tab === 'sent') return; // géré par gmLoadExtSent
+
   const rows = _extEmails.map(e => {
     const date = (e.date||'').substring(0,10);
     const bold = e.seen ? '' : 'font-weight:700';
@@ -3500,13 +3518,12 @@ function gmRenderExternal() {
     </div>`;
   }).join('');
 
-  el.innerHTML = `
-    <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--gm-border);background:var(--off);flex-shrink:0;flex-wrap:wrap">
+  el.innerHTML = tabBar + `
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 14px;border-bottom:1px solid var(--gm-border);background:var(--off);flex-shrink:0;flex-wrap:wrap">
       <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:.82rem;color:var(--muted)">
         <input type="checkbox" id="gmExtSelAll" style="width:15px;height:15px;accent-color:var(--g2)" onchange="gmExtSelAll(this.checked)"/>
         Tout
       </label>
-      <button class="gm-tb-btn" onclick="gmLoadExternal(true)" title="Actualiser">↻</button>
       <div id="gmExtBulkBar" style="display:none;gap:6px;align-items:center">
         <button class="btn btn-sm" style="color:#d93025;border:1px solid #d93025;background:transparent;padding:3px 10px;font-size:.82rem" onclick="gmExtBulkDelete()">
           🗑 Supprimer sélectionnés (<span id="gmExtSelCount">0</span>)
@@ -3517,6 +3534,37 @@ function gmRenderExternal() {
       </button>
     </div>
     <div class="gm-list" id="gmExtList">${rows}</div>`;
+}
+
+async function gmLoadExtSent() {
+  const el = document.getElementById('gmMain');
+  if (!el) return;
+  const tabBar = `
+    <div style="display:flex;gap:0;border-bottom:2px solid var(--gm-border);background:#fff;flex-shrink:0">
+      <button onclick="gmRenderExternal('inbox')" style="padding:10px 20px;border:none;background:none;cursor:pointer;font-size:.85rem;font-weight:400;border-bottom:2px solid transparent;color:var(--muted);margin-bottom:-2px">📥 Reçus (${_extEmails.length})</button>
+      <button style="padding:10px 20px;border:none;background:none;cursor:pointer;font-size:.85rem;font-weight:700;border-bottom:2px solid #1565c0;color:#1565c0;margin-bottom:-2px">📤 Envoyés</button>
+      <button class="gm-tb-btn" style="margin-left:auto;margin-right:8px" onclick="gmLoadExtSent()" title="Actualiser">↻</button>
+    </div>`;
+  el.innerHTML = tabBar + '<div style="padding:24px;text-align:center"><div class="spinner"></div></div>';
+  try {
+    const sent = await api('/email/sent');
+    if (!sent.length) {
+      el.innerHTML = tabBar + '<div class="gm-empty"><div style="font-size:2rem">📤</div><p>Aucun email envoyé</p></div>';
+      return;
+    }
+    const rows = sent.map(m =>
+      `<div class="gm-row">
+        <div class="gm-row-from" style="color:var(--muted);font-size:.8rem">À : ${escHtml(m.destinataire||'')}</div>
+        <div class="gm-row-subj">${escHtml(m.sujet||'')}</div>
+        <div class="gm-row-date"><span style="font-size:.78rem;color:var(--muted)">${(m.date_envoi||'').substring(0,10)}</span>
+          <span style="font-size:.72rem;padding:2px 6px;border-radius:20px;background:${m.statut==='envoye'?'#e8f5e9':'#ffebee'};color:${m.statut==='envoye'?'#1b5e20':'#c62828'}">${m.statut==='envoye'?'✅ Envoyé':'❌ Erreur'}</span>
+        </div>
+      </div>`
+    ).join('');
+    el.innerHTML = tabBar + `<div class="gm-list">${rows}</div>`;
+  } catch(e) {
+    el.innerHTML = tabBar + `<div class="gm-empty"><div style="font-size:2rem">⚠️</div><p>${e.message}</p></div>`;
+  }
 }
 
 function gmExtToggle(uid, checked) {
@@ -3958,6 +4006,13 @@ function gmShowAttach() {
 
 // ── Envoi ───────────────────────────────────────────────────────────────────
 async function gmSend() {
+  // Auto-confirmer tout email tapé dans À/Cc sans avoir appuyé Entrée
+  ['to','cc'].forEach(f => {
+    const inp = document.getElementById(`mc-${f}`);
+    const v = inp?.value.trim();
+    if (v && v.includes('@')) { gmPick(f, v, v); inp.value = ''; }
+  });
+
   const toArr   = _MC.to;
   const subject = document.getElementById('mc-subj')?.value.trim()||'';
   const body    = document.getElementById('mc-body')?.value.trim()||'';
@@ -4005,14 +4060,21 @@ async function gmSend() {
       await api('/email/send', { method: 'POST', body: JSON.stringify({ to: c.email, subject, body }) });
     }
 
-    const extNote = external.length ? ` (+ ${external.length} externe${external.length>1?'s':''} par courriel)` : '';
-    toast('✅ Message envoyé' + extNote + '!');
     _MC.to=[]; _MC.cc=[];
     if (fileEl) fileEl.value = '';
     document.getElementById('mc-attach') && (document.getElementById('mc-attach').innerHTML = '');
-    gmNav('sent');
+
+    // Si on était dans le contexte externe, retourner à la boîte externe
+    if (external.length && _M.view === 'external') {
+      toast('✅ Courriel envoyé via @ahhamilton.ca !');
+      gmLoadExternal();
+    } else {
+      const extNote = external.length ? ` (+ ${external.length} externe${external.length>1?'s':''} par courriel)` : '';
+      toast('✅ Message envoyé' + extNote + '!');
+      gmNav('sent');
+    }
   } catch(ex) {
-    toast(ex.message, 'error');
+    toast('❌ ' + ex.message, 'error');
     btn.disabled=false; btn.textContent='Envoyer';
   }
 }

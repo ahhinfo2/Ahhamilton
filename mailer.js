@@ -408,11 +408,15 @@ async function sendExternalEmail({ to, subject, bodyHtml, senderName, senderEmai
   }
 
   // Fallback : compte principal contact@ahhamilton.ca
-  // Le Reply-To pointe vers l'adresse org du membre pour que les réponses arrivent chez lui
+  const t = getTransporter();
+  if (!t) throw new Error('SMTP non configuré sur le serveur. Contactez l\'administrateur système ou configurez votre adresse @ahhamilton.ca dans votre profil.');
+
   const from    = `"${senderName} — AHH" <${SMTP_USER}>`;
   const replyTo = orgEmail    ? `"${senderName}" <${orgEmail}>` :
                   senderEmail ? `"${senderName}" <${senderEmail}>` : FROM;
-  return sendMail({ to, subject, html, from, replyTo });
+  const plainText = html.replace(/<style[\s\S]*?<\/style>/gi,'').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim();
+  await t.sendMail({ from, to, replyTo, subject, html, text: plainText });
+  console.log(`✉️  Email envoyé (fallback ${SMTP_USER}) → ${to} | ${subject}`);
 }
 
 async function sendCarteRenewal(user, expirationDate) {
