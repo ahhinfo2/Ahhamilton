@@ -1467,9 +1467,17 @@ function openMemberForm(u = null) {
     }
     if (!isEdit) body.password = document.getElementById('m_pw').value;
     try {
-      if (isEdit) await api(`/users/${u.id}`, { method:'PUT', body:JSON.stringify(body) });
-      else        await api('/users', { method:'POST', body:JSON.stringify(body) });
-      closeModal(); toast(isEdit ? 'Membre mis à jour' : 'Membre créé'); members();
+      if (isEdit) {
+        await api(`/users/${u.id}`, { method:'PUT', body:JSON.stringify(body) });
+        const updated = await api(`/users/${u.id}`);
+        const idx = (window._membersData || []).findIndex(m => m.id === u.id);
+        if (idx !== -1) window._membersData[idx] = updated;
+        closeModal(); toast('Membre mis à jour'); filterMembers();
+      } else {
+        await api('/users', { method:'POST', body:JSON.stringify(body) });
+        window._membersData = await api('/annuaire');
+        closeModal(); toast('Membre créé'); filterMembers();
+      }
     } catch(ex) { toast(ex.message, 'error'); }
   };
 }
@@ -1490,8 +1498,9 @@ async function deleteMember(id) {
   if (!confirm(`Supprimer définitivement ${nom} ?\nToutes ses données (inscriptions, heures, paiements) seront effacées. Action irréversible.`)) return;
   try {
     await api(`/users/${id}`, { method: 'DELETE' });
+    window._membersData = (window._membersData || []).filter(m => m.id !== id);
+    filterMembers();
     toast(`${nom} supprimé`);
-    members();
   } catch (ex) { toast(ex.message, 'error'); }
 }
 
