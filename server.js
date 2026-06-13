@@ -2242,6 +2242,44 @@ app.post('/api/receipts', authMiddleware, requireRole('admin','tresoriere'), (re
   res.status(201).json({ id: r.lastInsertRowid, montant_total: total, contenu });
 });
 
+// Aperçu des montants par membre pour une année donnée
+app.get('/api/receipts/preview', authMiddleware, requireRole('admin','tresoriere'), (req, res) => {
+  const { annee, ids } = req.query;
+  if (!annee) return res.status(400).json({ error: 'annee requis' });
+  const idList = ids ? ids.split(',').map(Number).filter(Boolean) : [];
+  let membres = db.prepare('SELECT id, prenom, nom, email, plan, role FROM users WHERE actif=1').all();
+  if (idList.length) membres = membres.filter(m => idList.includes(m.id));
+  const result = membres.map(m => {
+    const total = db.prepare(`SELECT COALESCE(SUM(montant),0) AS t FROM payments WHERE user_id=? AND statut='approuve' AND substr(date_soumission,1,4)=?`).get(m.id, String(annee)).t;
+    return { ...m, total_paiements: total };
+  });
+  res.json(result);
+});
+
+// Génération en lot de reçus fiscaux
+app.post('/api/receipts/bulk', authMiddleware, requireRole('admin','tresoriere'), async (req, res) => {
+  const { user_ids, annee } = req.body;
+  if (!user_ids?.length || !annee) return res.status(400).json({ error: 'user_ids et annee requis' });
+  const results = [];
+  for (const user_id of user_ids) {
+    try {
+      const u = db.prepare('SELECT * FROM users WHERE id=?').get(user_id);
+      if (!u) continue;
+      const total = db.prepare(`SELECT COALESCE(SUM(montant),0) AS t FROM payments WHERE user_id=? AND statut='approuve' AND substr(date_soumission,1,4)=?`).get(user_id, String(annee)).t;
+      const contenu = `REÇU FISCAL ${annee}\nAssociation Haïtienne de Hamilton\n231 Fernwood Crescent, Hamilton, ON L8T 3L7\n\nRemis à : ${u.prenom} ${u.nom}\nCourriel : ${u.email}\n\nDons et cotisations approuvés pour ${annee} : $${total.toFixed(2)}\n\nCe reçu confirme les contributions à l'Association Haïtienne de Hamilton pour l'année fiscale ${annee}.\n\nSigné par : ${req.user.prenom} ${req.user.nom}`;
+      const r = db.prepare('INSERT INTO tax_receipts (user_id, annee, montant_total, genere_par, contenu) VALUES (?,?,?,?,?)').run(user_id, annee, total, req.user.id, contenu);
+      const msgR = db.prepare("INSERT INTO messages (expediteur_id, sujet, contenu, type) VALUES (?,?,?,'individuel')").run(req.user.id, `🧾 Votre reçu fiscal ${annee} — AHH`, contenu);
+      db.prepare('INSERT INTO message_recipients (message_id, destinataire_id) VALUES (?,?)').run(msgR.lastInsertRowid, user_id);
+      createAlert(user_id, 'paiement', `🧾 Reçu fiscal ${annee} disponible`, `Total: $${total.toFixed(2)}`);
+      mailer.sendRecuFiscal(u, annee, total, r.lastInsertRowid).catch(() => {});
+      results.push({ user_id, nom: `${u.prenom} ${u.nom}`, montant: total, ok: true });
+    } catch(e) {
+      results.push({ user_id, ok: false, error: e.message });
+    }
+  }
+  res.json({ generated: results.filter(r => r.ok).length, results });
+});
+
 // Reçu fiscal — page HTML imprimable (protégée par token)
 app.get('/api/receipts/:id/print', authMiddleware, (req, res) => {
   const r = db.prepare(`SELECT tr.*, u.prenom, u.nom, u.email, u.adresse, u.telephone,

@@ -5691,21 +5691,43 @@ async function rejeterPaiement(id) {
 
 async function recus() {
   const [data, membres] = await Promise.all([api('/receipts'), api('/users')]);
+  window._recusMembres  = membres.filter(m => m.actif);
+  window._recusSelected = new Set();
+  window._recusFiltres  = [];
+  const annee = new Date().getFullYear();
+
   setContent(
     '<div class="page-header"><div><h2>🧾 Reçus fiscaux</h2><p>Générez et envoyez les reçus de fin d\'année.</p></div></div>' +
 
-    '<div class="table-card" style="margin-bottom:24px"><div class="table-card-header"><h3>Générer un reçu</h3></div>' +
-    '<div style="padding:20px;max-width:450px">' +
-      '<form id="receiptsForm">' +
-        '<div class="form-group"><label>Membre</label>' +
-          '<select id="rec_user"><option value="">Choisir…</option>' +
-          membres.filter(m => m.role === 'member').map(m =>
-            '<option value="' + m.id + '">' + m.prenom + ' ' + m.nom + ' (' + m.email + ')</option>'
-          ).join('') + '</select></div>' +
-        '<div class="form-group"><label>Année fiscale</label>' +
-          '<input type="number" id="rec_annee" value="' + new Date().getFullYear() + '" min="2020" max="2030"/></div>' +
-        '<button type="submit" class="btn btn-primary">🧾 Générer et envoyer</button>' +
-      '</form>' +
+    '<div class="table-card" style="margin-bottom:24px">' +
+    '<div class="table-card-header"><h3>📬 Publipostage — Génération en lot</h3></div>' +
+    '<div style="padding:16px 20px">' +
+
+      '<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px">' +
+        '<div class="form-group" style="margin:0"><label>Année fiscale</label>' +
+          '<input type="number" id="rec_annee" value="' + annee + '" min="2020" max="2035" style="width:110px" oninput="recusFiltrer()"/></div>' +
+        '<div class="form-group" style="margin:0"><label>Plan</label>' +
+          '<select id="rec_plan" onchange="recusFiltrer()">' +
+            '<option value="">Tous</option><option value="gratuit">Gratuit</option>' +
+            '<option value="bienfaiteur">💛 Bienfaiteur</option><option value="partenaire">⭐ Partenaire</option>' +
+          '</select></div>' +
+        '<div class="form-group" style="margin:0"><label>Rôle</label>' +
+          '<select id="rec_role" onchange="recusFiltrer()">' +
+            '<option value="">Tous</option><option value="member">Membre</option>' +
+            '<option value="admin">Admin</option><option value="secretaire">Secrétaire</option>' +
+            '<option value="tresoriere">Trésorière</option><option value="delegue">Accompagnateur</option>' +
+          '</select></div>' +
+        '<input type="text" id="rec_q" placeholder="🔍 Rechercher…" class="members-search" style="width:200px" oninput="recusFiltrer()"/>' +
+      '</div>' +
+
+      '<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">' +
+        '<button class="btn btn-sm btn-ghost" onclick="recusSelectAll(true)">☑ Tout sélectionner</button>' +
+        '<button class="btn btn-sm btn-ghost" onclick="recusSelectAll(false)">☐ Tout désélectionner</button>' +
+        '<span id="rec_count" style="font-size:.85rem;color:var(--muted);margin-left:4px">0 sélectionné(s)</span>' +
+        '<button class="btn btn-primary" style="margin-left:auto" onclick="recusApercu()">👁 Aperçu et envoi</button>' +
+      '</div>' +
+
+      '<div id="rec_liste" style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:8px"></div>' +
     '</div></div>' +
 
     '<div class="table-card"><div class="table-card-header"><h3>Reçus émis</h3></div>' +
@@ -5719,17 +5741,100 @@ async function recus() {
     '</tbody></table></div></div>'
   );
 
-  document.getElementById('receiptsForm').onsubmit = async function(e) {
-    e.preventDefault();
-    const user_id = document.getElementById('rec_user').value;
-    const annee   = document.getElementById('rec_annee').value;
-    if (!user_id) return toast('Sélectionnez un membre', 'error');
-    try {
-      const r = await api('/receipts', { method:'POST', body: JSON.stringify({ user_id: parseInt(user_id), annee: parseInt(annee) }) });
-      toast('🧾 Reçu généré — $' + r.montant_total.toFixed(2) + ' — envoyé au membre');
-      recus();
-    } catch(ex) { toast(ex.message, 'error'); }
-  };
+  recusFiltrer();
+}
+
+function recusFiltrer() {
+  const q      = (document.getElementById('rec_q')?.value || '').toLowerCase();
+  const plan   = document.getElementById('rec_plan')?.value || '';
+  const role   = document.getElementById('rec_role')?.value || '';
+  const membres = (window._recusMembres || []).filter(m => {
+    if (plan && (m.plan || 'gratuit') !== plan) return false;
+    if (role && m.role !== role) return false;
+    if (q && !`${m.prenom} ${m.nom} ${m.email}`.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  window._recusFiltres = membres;
+  const el = document.getElementById('rec_liste');
+  if (!el) return;
+  if (!membres.length) {
+    el.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted)">Aucun membre trouvé</div>';
+    recusUpdateCount(); return;
+  }
+  el.innerHTML = membres.map(m => {
+    const checked = window._recusSelected.has(m.id) ? 'checked' : '';
+    const planBadge = (m.plan && m.plan !== 'gratuit')
+      ? '<span style="font-size:.72rem;background:#e8f5e9;color:#1b5e20;padding:1px 7px;border-radius:10px;margin-left:6px">' + m.plan + '</span>' : '';
+    return '<label style="display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--border)">' +
+      '<input type="checkbox" ' + checked + ' onchange="recusToggle(' + m.id + ',this.checked)" style="width:16px;height:16px;cursor:pointer"/>' +
+      '<span style="flex:1">' + m.prenom + ' ' + m.nom + planBadge + ' <span style="color:var(--muted);font-size:.81rem">— ' + m.email + '</span></span>' +
+      '</label>';
+  }).join('');
+  recusUpdateCount();
+}
+
+function recusToggle(id, checked) {
+  if (checked) window._recusSelected.add(id);
+  else window._recusSelected.delete(id);
+  recusUpdateCount();
+}
+
+function recusSelectAll(select) {
+  (window._recusFiltres || []).forEach(m => {
+    if (select) window._recusSelected.add(m.id);
+    else window._recusSelected.delete(m.id);
+  });
+  recusFiltrer();
+}
+
+function recusUpdateCount() {
+  const el = document.getElementById('rec_count');
+  if (el) el.textContent = window._recusSelected.size + ' sélectionné(s)';
+}
+
+async function recusApercu() {
+  const ids = [...window._recusSelected];
+  if (!ids.length) return toast('Sélectionnez au moins un membre', 'error');
+  const annee = parseInt(document.getElementById('rec_annee')?.value) || new Date().getFullYear();
+  let preview;
+  try {
+    preview = await api('/receipts/preview?annee=' + annee + '&ids=' + ids.join(','));
+  } catch(e) { return toast(e.message, 'error'); }
+  const totalG = preview.reduce((s, p) => s + (p.total_paiements || 0), 0);
+  const zeros  = preview.filter(p => !p.total_paiements).length;
+  openModal('👁 Aperçu — ' + ids.length + ' reçu(s) ' + annee,
+    '<p style="margin-bottom:12px;color:var(--muted);font-size:.85rem">Vérifiez les montants avant d\'envoyer. Un reçu sera généré et envoyé par courriel à chaque membre sélectionné.</p>' +
+    '<div style="max-height:360px;overflow-y:auto"><table style="width:100%;border-collapse:collapse;font-size:.87rem">' +
+    '<thead><tr>' +
+      '<th style="padding:8px;background:#f5f5f5;text-align:left">Membre</th>' +
+      '<th style="padding:8px;background:#f5f5f5;text-align:left">Courriel</th>' +
+      '<th style="padding:8px;background:#f5f5f5;text-align:right">Total ' + annee + '</th>' +
+    '</tr></thead><tbody>' +
+    preview.map(p =>
+      '<tr style="border-bottom:1px solid #eee"><td style="padding:7px 8px">' + p.prenom + ' ' + p.nom + '</td>' +
+      '<td style="padding:7px 8px;color:#666;font-size:.81rem">' + p.email + '</td>' +
+      '<td style="padding:7px 8px;text-align:right;font-weight:' + (p.total_paiements > 0 ? '700;color:#1b5e20' : '400;color:#999') + '">$' + (p.total_paiements || 0).toFixed(2) + '</td></tr>'
+    ).join('') +
+    '</tbody><tfoot><tr style="background:#f5f5f5"><td colspan="2" style="padding:8px;font-weight:700">Total général</td>' +
+    '<td style="padding:8px;text-align:right;font-weight:700">$' + totalG.toFixed(2) + '</td></tr></tfoot>' +
+    '</table></div>' +
+    (zeros ? '<div style="margin-top:12px;padding:10px 14px;background:#fff3e0;border-radius:8px;font-size:.83rem;color:#e65100">⚠️ ' + zeros + ' membre(s) avec $0.00 — le reçu sera quand même généré.</div>' : '') +
+    '<div class="form-actions" style="margin-top:16px">' +
+      '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button>' +
+      '<button class="btn btn-primary" onclick="recusEnvoyerBulk(' + JSON.stringify(ids) + ',' + annee + ')">📤 Confirmer et envoyer ' + ids.length + ' reçu(s)</button>' +
+    '</div>'
+  );
+}
+
+async function recusEnvoyerBulk(ids, annee) {
+  closeModal();
+  toast('⏳ Génération en cours…');
+  try {
+    const result = await api('/receipts/bulk', { method:'POST', body: JSON.stringify({ user_ids: ids, annee }) });
+    toast('✅ ' + result.generated + ' reçu(s) généré(s) et envoyé(s)');
+    window._recusSelected = new Set();
+    recus();
+  } catch(e) { toast(e.message, 'error'); }
 }
 
 function imprimerRecu(id) {
