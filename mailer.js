@@ -382,22 +382,29 @@ async function sendExternalEmail({ to, subject, bodyHtml, senderName, senderEmai
   // Utiliser le mot de passe commun si pas de mot de passe individuel
   const effectivePass = orgSmtpPass || ORG_SMTP_PASS;
 
-  // Si le membre a son propre email @ahhamilton.ca, on l'utilise
+  // Tentative via le compte @ahhamilton.ca du membre
   if (orgEmail && effectivePass) {
-    const t = nodemailer.createTransport({
-      host: SMTP_HOST, port: parseInt(SMTP_PORT) || 587, secure: false,
-      auth: { user: orgEmail, pass: effectivePass },
-      tls: { rejectUnauthorized: false }
-    });
-    const from = `"${senderName} — AHH" <${orgEmail}>`;
-    await t.sendMail({ from, to, subject, html });
-    console.log(`✉️  Email envoyé (org) → ${to} | ${subject}`);
-    return;
+    try {
+      const t = nodemailer.createTransport({
+        host: SMTP_HOST, port: parseInt(SMTP_PORT) || 587, secure: false,
+        auth: { user: orgEmail, pass: effectivePass },
+        tls: { rejectUnauthorized: false }
+      });
+      await t.verify();  // teste l'authentification avant d'envoyer
+      const from = `"${senderName} — AHH" <${orgEmail}>`;
+      await t.sendMail({ from, to, subject, html });
+      console.log(`✉️  Email envoyé (org ${orgEmail}) → ${to} | ${subject}`);
+      return;
+    } catch(authErr) {
+      console.error(`[sendExternalEmail] Échec auth ${orgEmail}: ${authErr.message} — fallback contact@`);
+    }
   }
 
-  // Sinon on envoie via le compte principal avec le nom du membre
+  // Fallback : compte principal contact@ahhamilton.ca
+  // Le Reply-To pointe vers l'adresse org du membre pour que les réponses arrivent chez lui
   const from    = `"${senderName} — AHH" <${SMTP_USER}>`;
-  const replyTo = senderEmail ? `"${senderName}" <${senderEmail}>` : FROM;
+  const replyTo = orgEmail    ? `"${senderName}" <${orgEmail}>` :
+                  senderEmail ? `"${senderName}" <${senderEmail}>` : FROM;
   return sendMail({ to, subject, html, from, replyTo });
 }
 
