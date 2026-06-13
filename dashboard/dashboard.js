@@ -194,13 +194,6 @@ function buildSidebar() {
       { id:'home', icon:'⊞', label:'Tableau de bord', roles: ALL },
     ]},
 
-    // ── Billetterie (prioritaire) ─────────────────────────────────
-    { label: 'Billetterie', items: [
-      { id:'vente-personne',  icon:'💵', label:'Vendre (cash)',        roles:EXEC },
-      { id:'scanner',         icon:'📷', label:'Scanner billets',      roles:EXEC },
-      { id:'pending-orders',  icon:'🎟', label:'Commandes en attente', roles:STAFF },
-    ]},
-
     // ── Membres ───────────────────────────────────────────────────
     { label: 'Membres', items: [
       { id:'members',       icon:'◎', label:'Annuaire',         roles:['admin','secretaire','delegue'] },
@@ -215,18 +208,18 @@ function buildSidebar() {
       { id:'projects',      icon:'◑', label:'Projets',      roles:['admin','delegue'] },
     ]},
 
-    // ── Communication ─────────────────────────────────────────────
-    { label: 'Communication', items: [
-      { id:'annuaire', icon:'✉️', label:'Courriel', roles: ALL },
-      { id:'forum',    icon:'◫', label:'Forum',    roles: ALL },
-    ]},
-
     // ── Finance ───────────────────────────────────────────────────
     { label: 'Finance', items: [
       { id:'paiements', icon:'◆', label:'Paiements',      roles:['admin','tresoriere'] },
       { id:'finance',   icon:'◇', label:'Budget',          roles:['admin','tresoriere'] },
       { id:'invoices',  icon:'◈', label:'Factures',        roles:['admin','tresoriere'] },
       { id:'recus',     icon:'◉', label:'Reçus fiscaux',  roles:['admin','tresoriere'] },
+    ]},
+
+    // ── Communication ─────────────────────────────────────────────
+    { label: 'Communication', items: [
+      { id:'annuaire', icon:'✉️', label:'Courriel', roles: ALL },
+      { id:'forum',    icon:'◫', label:'Forum',    roles: ALL },
     ]},
 
     // ── Rapports & Admin ──────────────────────────────────────────
@@ -237,13 +230,8 @@ function buildSidebar() {
       { id:'alerts',       icon:'◇', label:'Alertes',         roles:['admin','tresoriere'] },
       { id:'stats-site',   icon:'📊', label:'Stats du site',  roles:EXEC },
     ]},
-    // ── Gouvernance ───────────────────────────────────────────────
-    { label: 'Gouvernance', items: [
-      { id:'votes',      icon:'🗳️', label:'Votes & Élections', roles:EXEC },
-      { id:'parrainage', icon:'🤝', label:'Parrainage',         roles: ALL },
-    ]},
 
-    // ── Contenu (fonctions rares en bas) ──────────────────────────
+    // ── Contenu ───────────────────────────────────────────────────
     { label: 'Contenu', items: [
       { id:'gallery_mgmt',      icon:'◎', label:'Galerie',          roles:['admin','secretaire'] },
       { id:'talents_mgmt',      icon:'◈', label:'Talents',           roles:['admin','secretaire'] },
@@ -253,7 +241,7 @@ function buildSidebar() {
       { id:'videos_mgmt',       icon:'▶', label:'Vidéos',            roles:['admin','secretaire'] },
     ]},
 
-    // ── Espace Jeunes (comité gère, membres y accèdent si 15-30 ans) ──
+    // ── Espace Jeunes ─────────────────────────────────────────────
     {
       label: '🌟 Espace Jeunes',
       items: [
@@ -264,6 +252,12 @@ function buildSidebar() {
         { id:'young-stories',   icon:'🏆', label:'Success Stories',   roles: ALL },
       ]
     },
+
+    // ── Gouvernance ───────────────────────────────────────────────
+    { label: 'Gouvernance', items: [
+      { id:'votes',      icon:'🗳️', label:'Votes & Élections', roles:EXEC },
+      { id:'parrainage', icon:'🤝', label:'Parrainage',         roles: ALL },
+    ]},
 
     // ── Mon espace membre ─────────────────────────────────────────
     {
@@ -277,6 +271,13 @@ function buildSidebar() {
         { id:'profile',      icon:'◎', label:'Mon profil',   roles: ALL },
       ]
     },
+
+    // ── Billetterie ───────────────────────────────────────────────
+    { label: 'Billetterie', items: [
+      { id:'vente-personne',  icon:'💵', label:'Vendre (cash)',        roles:EXEC },
+      { id:'scanner',         icon:'📷', label:'Scanner billets',      roles:EXEC },
+      { id:'pending-orders',  icon:'🎟', label:'Commandes en attente', roles:STAFF },
+    ]},
   ];
 
   // Membres réguliers → sidebar épurée définie ici, sections ignorées
