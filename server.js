@@ -250,15 +250,16 @@ app.post('/api/auth/login', (req, res) => {
 // Inscription publique → demande en attente (pending_registrations)
 app.post('/api/auth/register', (req, res) => {
   const { prenom, nom, email, telephone, adresse, date_naissance, password, plan, message, source } = req.body;
-  if (!prenom || !nom || !email || !password)
+  if (!prenom || !nom || !email)
     return res.status(400).json({ error: 'Champs requis manquants' });
+  const effectivePassword = password || require('crypto').randomBytes(16).toString('hex');
 
   if (db.prepare('SELECT id FROM users WHERE email = ?').get(email))
     return res.status(409).json({ error: 'Cet email est déjà utilisé' });
   if (db.prepare('SELECT id FROM pending_registrations WHERE email = ? AND statut = ?').get(email, 'en_attente'))
     return res.status(409).json({ error: 'Une demande est déjà en cours pour cet email' });
 
-  const hash = bcrypt.hashSync(password, 10);
+  const hash = bcrypt.hashSync(effectivePassword, 10);
   db.prepare(`INSERT INTO pending_registrations
     (prenom, nom, email, telephone, adresse, date_naissance, password_hash, plan, message, source)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)

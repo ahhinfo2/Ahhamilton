@@ -106,8 +106,8 @@ async function sendBienvenue(user) {
     html: wrap('Bienvenue !', `
       <p>Bonjour <strong>${user.prenom} ${user.nom}</strong>,</p>
       <p>Votre compte a été approuvé. Vous faites maintenant partie de l'<strong>Association Haïtienne de Hamilton</strong> !</p>
-      <p>Connectez-vous à votre espace membre :</p>
-      <a href="${siteUrl}/dashboard/login.html" class="btn">Accéder à mon espace</a>
+      <p>Pour accéder à votre espace membre, commencez par créer votre mot de passe :</p>
+      <a href="${siteUrl}/dashboard/forgot-password.html" class="btn">Créer mon mot de passe</a>
       <hr class="divider"/>
       <p style="font-size:.82rem;color:#888">Identifiant : ${user.email}</p>
     `)

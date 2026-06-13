@@ -243,26 +243,40 @@
       btn.disabled = true; btn.textContent = 'Envoi en cours…';
       errEl.style.display = 'none';
       try {
-        const nom = document.getElementById('adh_prenom').value + ' ' + document.getElementById('adh_nom').value;
-        const msg = 'Type : ' + document.getElementById('adh_type').value + '\n' +
-          'Source : ' + document.getElementById('adh_source').value + '\n\n' +
-          (document.getElementById('adh_msg').value || '');
+        const typeRaw = document.getElementById('adh_type').value;
+        const planMap = {
+          'Membre (Gratuit)': 'gratuit',
+          'Bienfaiteur ($10/mois)': 'bienfaiteur',
+          'Partenaire ($20/mois)': 'partenaire',
+          'Don ponctuel': 'don'
+        };
         const _API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001/api' : '/api';
-        await fetch(_API + '/contact', {
+        const res = await fetch(_API + '/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            nom: nom,
-            email: document.getElementById('adh_email').value,
-            sujet: 'Demande d\'adhésion — AHH',
-            message: msg
+            prenom: document.getElementById('adh_prenom').value.trim(),
+            nom: document.getElementById('adh_nom').value.trim(),
+            email: document.getElementById('adh_email').value.trim(),
+            telephone: document.getElementById('adh_tel').value.trim(),
+            date_naissance: document.getElementById('adh_dob').value,
+            adresse: document.getElementById('adh_addr').value.trim(),
+            plan: planMap[typeRaw] || 'gratuit',
+            source: document.getElementById('adh_source').value,
+            message: document.getElementById('adh_msg').value.trim()
           })
         });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'Erreur serveur');
+        }
         document.getElementById('adhSuccess').style.display = 'block';
         btn.style.display = 'none';
         e.target.querySelectorAll('input,select,textarea').forEach(function(el) { el.disabled = true; });
       } catch(ex) {
-        errEl.textContent = 'Erreur lors de l\'envoi. Réessayez ou contactez-nous directement.';
+        errEl.textContent = ex.message === 'Une demande est déjà en cours pour cet email'
+          ? 'Une demande avec cet email est déjà en cours de traitement.'
+          : (ex.message || 'Erreur lors de l\'envoi. Réessayez ou contactez-nous directement.');
         errEl.style.display = 'block';
         btn.disabled = false; btn.textContent = 'Envoyer ma demande d\'adhésion';
       }
