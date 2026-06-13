@@ -6414,18 +6414,18 @@ async function viewActivityQR(id, titre, qrToken) {
 async function showActivityReport(actId) {
   closeModal();
   const r = await api('/reports/activity/' + actId);
-  const { activite: act, inscrits, billets = [], parType = {}, checkin = {}, totalRevenu } = r;
-  const totalBillets = billets.length;
-  const arrivés = checkin.arrives || 0;
-  const nonArrivés = checkin.non_arrives || 0;
-  const pct = totalBillets > 0 ? Math.round(arrivés / totalBillets * 100) : 0;
+  const { activite: act, inscrits, billets = [], parType = {}, checkin = {}, totalRevenu, billetsVendus = 0 } = r;
+  const arrivés        = checkin.arrives     || 0;
+  const nonArrivés     = checkin.non_arrives || 0;
+  const totalParticip  = checkin.total       || 0;
+  const pct = totalParticip > 0 ? Math.round(arrivés / totalParticip * 100) : 0;
 
   openModal('📊 Rapport — ' + act.titre,
     '<div style="max-height:72vh;overflow-y:auto">' +
 
     // Cartes stats principales
     '<div class="cards-grid" style="grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">' +
-      '<div class="stat-card"><div class="sc-icon">🎟️</div><div class="sc-value">' + totalBillets + '</div><div class="sc-label">Billets vendus</div></div>' +
+      '<div class="stat-card"><div class="sc-icon">🎟️</div><div class="sc-value">' + billetsVendus + '</div><div class="sc-label">Billets vendus</div></div>' +
       '<div class="stat-card" style="background:#e8f5e9"><div class="sc-icon">✅</div><div class="sc-value" style="color:#1b5e20">' + arrivés + '</div><div class="sc-label">Arrivés</div></div>' +
       '<div class="stat-card" style="background:#fff3e0"><div class="sc-icon">⏳</div><div class="sc-value" style="color:#e65100">' + nonArrivés + '</div><div class="sc-label">Non arrivés</div></div>' +
       '<div class="stat-card accent"><div class="sc-icon">💰</div><div class="sc-value">$' + totalRevenu.toFixed(2) + '</div><div class="sc-label">Revenu</div></div>' +

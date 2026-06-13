@@ -3372,9 +3372,19 @@ app.get('/api/reports/activity/:id', authMiddleware, requireRole(...REPORT_ROLES
     ORDER BY t.id
   `).all(req.params.id);
 
-  // Stats check-in
-  const arrivés = billets.filter(b => b.checked_in === 1).length;
-  const nonArrivés = billets.filter(b => b.checked_in !== 1).length;
+  // Billets vendus = tickets payés + inscriptions membres payées
+  const billetsVendus = billets.length + inscrits.filter(r => r.paye).length;
+
+  // Arrivés = registrations confirmées/présentes OU checked_in + tickets scannés
+  const STATUTS_ARRIVES = ['present', 'confirme', 'accepte'];
+  const arrivésInscrits = inscrits.filter(r => STATUTS_ARRIVES.includes(r.statut) || r.checked_in === 1).length;
+  const arrivésTickets  = billets.filter(b => b.checked_in === 1).length;
+  const arrivés         = arrivésInscrits + arrivésTickets;
+
+  // Non arrivés = inscrits non confirmés + tickets non scannés
+  const nonArrivésInscrits = inscrits.filter(r => !STATUTS_ARRIVES.includes(r.statut) && r.checked_in !== 1).length;
+  const nonArrivésTickets  = billets.filter(b => b.checked_in !== 1).length;
+  const nonArrivés         = nonArrivésInscrits + nonArrivésTickets;
 
   // Par type de billet
   const parType = {};
@@ -3388,13 +3398,15 @@ app.get('/api/reports/activity/:id', authMiddleware, requireRole(...REPORT_ROLES
 
   const revenuBillets = billets.reduce((s, b) => s + (b.prix || 0), 0);
   const revenuMembres = inscrits.filter(r => r.paye).reduce((s, r) => s + (r.montant_paye || 0), 0);
+  const totalParticipants = inscrits.length + billets.length;
 
   res.json({
     activite: act,
     inscrits,
     billets,
     parType,
-    checkin: { arrives: arrivés, non_arrives: nonArrivés, total: billets.length },
+    billetsVendus,
+    checkin: { arrives: arrivés, non_arrives: nonArrivés, total: totalParticipants },
     totalRevenu: revenuBillets + revenuMembres,
     nbPayes: inscrits.filter(r => r.paye).length + billets.length,
     nbNonPayes: inscrits.filter(r => !r.paye).length
