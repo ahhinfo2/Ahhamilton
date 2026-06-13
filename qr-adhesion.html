@@ -126,48 +126,74 @@
 
 <script>
   const LOGO_URL = window.location.origin + '/Public/logo1.png';
+  const QR_URL   = 'https://www.ahhamilton.ca/adhesion.html';
+  const SIZE     = 240;
 
-  // Charger le logo d'abord, puis générer le QR code
+  // 1. Charger le logo
   const logoImg = new Image();
   logoImg.crossOrigin = 'anonymous';
   logoImg.src = LOGO_URL;
 
-  function overlayLogo(canvas) {
-    const ctx = canvas.getContext('2d');
-    const s   = Math.round(canvas.width * 0.22);
-    const x   = Math.round((canvas.width  - s) / 2);
-    const y   = Math.round((canvas.height - s) / 2);
-    const pad = 6;
-    // Fond blanc derrière le logo
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(x - pad, y - pad, s + pad * 2, s + pad * 2);
-    ctx.drawImage(logoImg, x, y, s, s);
+  function buildFinalQR(qrSource) {
+    // 3. Créer le canvas final et y dessiner QR + logo
+    const out = document.createElement('canvas');
+    out.width  = SIZE;
+    out.height = SIZE;
+    out.style.cssText = 'border:6px solid #fff;outline:2px solid #003F87;border-radius:8px;display:block';
+
+    const ctx = out.getContext('2d');
+    // Dessiner le QR (canvas ou img)
+    ctx.drawImage(qrSource, 0, 0, SIZE, SIZE);
+
+    // Dessiner le logo centré
+    if (logoImg.complete && logoImg.naturalWidth > 0) {
+      const s   = Math.round(SIZE * 0.22);
+      const x   = Math.round((SIZE - s) / 2);
+      const y   = Math.round((SIZE - s) / 2);
+      const pad = 7;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x - pad, y - pad, s + pad * 2, s + pad * 2);
+      ctx.drawImage(logoImg, x, y, s, s);
+    }
+
+    const container = document.getElementById('qrcode');
+    container.innerHTML = '';
+    container.appendChild(out);
   }
 
   function initQR() {
-    new QRCode(document.getElementById('qrcode'), {
-      text: 'https://www.ahhamilton.ca/adhesion.html',
-      width: 240,
-      height: 240,
-      colorDark: '#003F87',
-      colorLight: '#ffffff',
+    // 2. Générer QR dans un div temporaire (caché)
+    const tmp = document.createElement('div');
+    tmp.style.position = 'absolute';
+    tmp.style.left = '-9999px';
+    document.body.appendChild(tmp);
+
+    new QRCode(tmp, {
+      text: QR_URL,
+      width: SIZE, height: SIZE,
+      colorDark: '#003F87', colorLight: '#ffffff',
       correctLevel: QRCode.CorrectLevel.H
     });
-    // Attendre que le canvas soit rendu
-    const tryOverlay = (attempts) => {
-      const canvas = document.querySelector('#qrcode canvas');
-      if (canvas) { overlayLogo(canvas); return; }
-      if (attempts > 0) setTimeout(() => tryOverlay(attempts - 1), 100);
-    };
-    setTimeout(() => tryOverlay(10), 150);
+
+    setTimeout(() => {
+      const qrCanvas = tmp.querySelector('canvas');
+      const qrImg    = tmp.querySelector('img');
+      if (qrCanvas) {
+        buildFinalQR(qrCanvas);
+      } else if (qrImg) {
+        qrImg.onload = () => buildFinalQR(qrImg);
+        if (qrImg.complete) buildFinalQR(qrImg);
+      }
+      document.body.removeChild(tmp);
+    }, 300);
   }
 
-  // Démarrer quand le logo est prêt (ou immédiatement si déjà chargé)
-  if (logoImg.complete) {
+  // Démarrer quand le logo est prêt (ou immédiatement si déjà en cache)
+  if (logoImg.complete && logoImg.naturalWidth > 0) {
     initQR();
   } else {
     logoImg.onload  = initQR;
-    logoImg.onerror = initQR; // générer le QR même sans logo
+    logoImg.onerror = initQR;
   }
 </script>
 </body>
