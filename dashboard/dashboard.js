@@ -646,6 +646,11 @@ function closeModal() { document.getElementById('modalOverlay').style.display = 
 
 // ── VIEWS ──────────────────────────────────────────────────────────────────
 async function showView(viewId) {
+  // Arrêter la caméra carte si elle tourne
+  if (window._carteScanner) {
+    try { await window._carteScanner.stop(); } catch {}
+    window._carteScanner = null;
+  }
   setActiveNav(viewId);
   setContent('<div class="loading-screen"><div class="spinner"></div><p>Chargement...</p></div>');
   const views = {
@@ -7871,47 +7876,96 @@ async function carteRenouveler(id, nom) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// SCANNER CARTES DE MEMBRE (comité)
+// SCANNER CARTES DE MEMBRE (comité) — caméra html5-qrcode
 // ══════════════════════════════════════════════════════════════════════════════
 async function carteScannerView() {
+  if (window._carteScanner) {
+    try { await window._carteScanner.stop(); } catch {}
+    window._carteScanner = null;
+  }
   setContent(`
-    <div class="page-header"><div><h2>📷 Scanner de cartes membres</h2><p>Scannez le QR code d'un membre pour l'inscrire à une activité</p></div></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:900px">
+    <div class="page-header"><div><h2>📷 Scanner de cartes membres</h2><p>Pointez la caméra vers le QR code de la carte</p></div></div>
+    <div style="display:grid;grid-template-columns:minmax(280px,1fr) minmax(280px,1fr);gap:20px;max-width:920px">
 
-      <!-- Entrée QR -->
+      <!-- Caméra + saisie manuelle -->
       <div class="table-card" style="padding:20px">
-        <h4 style="margin-bottom:16px;color:var(--g2)">📷 Lire un QR code</h4>
-        <div style="margin-bottom:14px">
-          <label class="form-label">Code QR (scanner ou saisir manuellement)</label>
-          <input id="scanQrInput" class="form-input" placeholder="AHH-00007-..." autofocus
-            oninput="if(this.value.startsWith('AHH-'))carteScanSearch()"/>
-          <button class="btn btn-primary" style="margin-top:10px;width:100%" onclick="carteScanSearch()">🔍 Rechercher</button>
-        </div>
-        <div style="text-align:center;padding:12px;background:var(--off);border-radius:10px">
-          <div style="font-size:.78rem;color:var(--muted);margin-bottom:8px">Ou utilisez un lecteur de code-barres USB/Bluetooth</div>
-          <div style="font-size:2rem">📷</div>
+        <h4 style="margin-bottom:12px;color:var(--g2)">📷 Caméra</h4>
+        <div id="carteReader" style="border-radius:12px;overflow:hidden;background:#111;min-height:220px"></div>
+        <div id="carteReaderMsg" style="display:none;padding:12px;text-align:center;font-size:.8rem;color:var(--muted)"></div>
+        <div style="margin-top:14px">
+          <label class="form-label">Saisie manuelle / lecteur USB</label>
+          <div style="display:flex;gap:6px">
+            <input id="scanQrInput" class="form-input" placeholder="AHH-00007-..."
+              onkeydown="if(event.key==='Enter'){event.preventDefault();carteScanSearch();}"/>
+            <button class="btn btn-primary" onclick="carteScanSearch()" title="Rechercher">🔍</button>
+          </div>
         </div>
       </div>
 
-      <!-- Résultat -->
+      <!-- Résultat membre -->
       <div id="scanResult" class="table-card" style="padding:20px">
-        <div class="empty-state" style="padding:24px">
-          <div class="es-icon">🪪</div>
-          <p>Scannez un QR code pour voir le profil du membre</p>
-        </div>
+        <div class="empty-state"><div class="es-icon">🪪</div><p>Scannez une carte pour voir le profil du membre</p></div>
       </div>
     </div>
 
-    <!-- Activités (apparaît après scan) -->
-    <div id="scanActivities" style="display:none;margin-top:20px;max-width:900px"></div>
+    <!-- Activités après scan -->
+    <div id="scanActivities" style="display:none;margin-top:20px;max-width:920px"></div>
   `);
+
+  // Charger html5-qrcode si besoin
+  if (!window.Html5Qrcode) {
+    try {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    } catch {
+      const msg = document.getElementById('carteReaderMsg');
+      if (msg) { msg.style.display='block'; msg.textContent='Bibliothèque caméra non chargée — utilisez la saisie manuelle.'; }
+      return;
+    }
+  }
+
+  const scanner = new Html5Qrcode('carteReader');
+  window._carteScanner = scanner;
+
+  try {
+    await scanner.start(
+      { facingMode: 'environment' },
+      { fps: 12, qrbox: { width: 200, height: 200 }, disableFlip: false },
+      (decoded) => {
+        // QR code détecté → peupler le champ et chercher
+        const inp = document.getElementById('scanQrInput');
+        if (inp && inp.value !== decoded) {
+          inp.value = decoded;
+          carteScanSearch();
+        }
+      },
+      () => {} // erreur de scan (normal, pas encore de QR)
+    );
+  } catch(e) {
+    const msg = document.getElementById('carteReaderMsg');
+    if (msg) {
+      msg.style.display = 'block';
+      msg.textContent = 'Caméra non disponible ou accès refusé — utilisez la saisie manuelle ou un lecteur USB.';
+    }
+    const el = document.getElementById('carteReader');
+    if (el) el.innerHTML = '<div style="padding:40px;text-align:center;font-size:2rem">📷</div>';
+  }
 }
 
+let _carteScanLock = false;
 async function carteScanSearch() {
   const qr = document.getElementById('scanQrInput')?.value?.trim();
-  if (!qr) return;
+  if (!qr || _carteScanLock) return;
+  _carteScanLock = true;
+  setTimeout(() => { _carteScanLock = false; }, 2000); // anti-doublon 2s
+
   const resultEl = document.getElementById('scanResult');
-  resultEl.innerHTML = '<div style="text-align:center;padding:24px"><div class="spinner"></div></div>';
+  if (resultEl) resultEl.innerHTML = '<div style="text-align:center;padding:32px"><div class="spinner"></div></div>';
 
   try {
     const r = await api(`/carte-scan/${encodeURIComponent(qr)}`);
@@ -7920,45 +7974,51 @@ async function carteScanSearch() {
     const initials = `${(m.prenom||'?')[0]}${(m.nom||'')[0]}`.toUpperCase();
     const expiColor = m.expired ? '#c62828' : '#2e7d32';
 
-    resultEl.innerHTML = `
+    if (resultEl) resultEl.innerHTML = `
       <div style="text-align:center;margin-bottom:16px">
         ${m.photo_url && m.carte_photo_approuvee
-          ? `<img src="${BASE}${m.photo_url}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid ${expiColor};margin-bottom:8px"/>`
-          : `<div style="width:80px;height:80px;border-radius:50%;background:var(--g2);color:#fff;font-size:2rem;font-weight:900;display:flex;align-items:center;justify-content:center;margin:0 auto 8px">${initials}</div>`}
-        <div style="font-size:1.1rem;font-weight:800">${escHtml(m.prenom)} ${escHtml(m.nom)}</div>
-        <div style="font-size:.8rem;color:var(--muted)">#${String(m.id).padStart(5,'0')} · ${planLabel[m.plan]||''}</div>
-        <div style="margin-top:8px;font-size:.82rem;font-weight:700;color:${expiColor}">
-          ${m.expired ? '⛔ Carte EXPIRÉE' : `✅ Valide jusqu'au ${fmt(m.expiration)}`}
+          ? `<img src="${BASE}${m.photo_url}" style="width:88px;height:88px;border-radius:50%;object-fit:cover;border:4px solid ${expiColor};margin-bottom:10px"/>`
+          : `<div style="width:88px;height:88px;border-radius:50%;background:var(--g2);color:#fff;font-size:2.2rem;font-weight:900;display:flex;align-items:center;justify-content:center;margin:0 auto 10px">${initials}</div>`}
+        <div style="font-size:1.15rem;font-weight:800">${escHtml(m.prenom)} ${escHtml(m.nom)}</div>
+        <div style="font-size:.8rem;color:var(--muted);margin-top:2px">#${String(m.id).padStart(5,'0')} · ${planLabel[m.plan]||''}</div>
+        <div style="margin-top:10px;padding:6px 14px;border-radius:20px;display:inline-block;font-size:.82rem;font-weight:700;
+          background:${m.expired?'#fdecea':'#e8f5e9'};color:${expiColor}">
+          ${m.expired ? '⛔ Carte EXPIRÉE' : `✅ Valide — expire ${fmt(m.expiration)}`}
         </div>
       </div>`;
 
-    // Activités
     window._scanUserId = m.id;
     const actEl = document.getElementById('scanActivities');
-    actEl.style.display = 'block';
-    actEl.innerHTML = `
-      <div class="table-card">
-        <div class="table-card-header"><h3>📅 Marquer présence à une activité</h3></div>
-        <div style="padding:16px">
-          ${!r.activities.length ? '<div class="empty-state"><p>Aucune activité planifiée</p></div>' :
-            r.activities.map(a => `
-              <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
-                <div style="flex:1;min-width:0">
-                  <div style="font-weight:600;font-size:.88rem">${escHtml(a.titre)}</div>
-                  <div style="font-size:.75rem;color:var(--muted)">${a.date_debut ? new Date(a.date_debut).toLocaleDateString('fr-CA') : '–'} ${a.prix > 0 ? `· <strong>$${a.prix.toFixed(2)}</strong>` : '· Gratuit'}</div>
-                </div>
-                ${a.is_present
-                  ? '<span style="color:#2e7d32;font-size:.82rem;font-weight:700">✅ Présent</span>'
-                  : a.prix > 0
-                    ? `<button class="btn btn-sm btn-primary" onclick="carteScanPresencer(${a.id},true)">Présent + $${a.prix.toFixed(2)}</button>
-                       <button class="btn btn-sm btn-ghost" onclick="carteScanPresencer(${a.id},false)">Présent (exonéré)</button>`
-                    : `<button class="btn btn-sm btn-primary" onclick="carteScanPresencer(${a.id},false)">Marquer présent</button>`}
-              </div>`).join('')}
-        </div>
-      </div>`;
+    if (actEl) {
+      actEl.style.display = 'block';
+      actEl.innerHTML = `
+        <div class="table-card">
+          <div class="table-card-header"><h3>📅 Marquer présence à une activité</h3></div>
+          <div style="padding:8px 16px">
+            ${!r.activities.length ? '<div class="empty-state" style="padding:24px"><p>Aucune activité planifiée</p></div>' :
+              r.activities.map(a => `
+                <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
+                  <div style="flex:1;min-width:0">
+                    <div style="font-weight:600;font-size:.88rem">${escHtml(a.titre)}</div>
+                    <div style="font-size:.75rem;color:var(--muted)">
+                      ${a.date_debut ? new Date(a.date_debut).toLocaleDateString('fr-CA',{weekday:'short',month:'short',day:'numeric'}) : '–'}
+                      ${a.prix > 0 ? ` · <strong style="color:#c62828">$${parseFloat(a.prix).toFixed(2)}</strong>` : ' · Gratuit'}
+                    </div>
+                  </div>
+                  ${a.is_present
+                    ? '<span style="color:#2e7d32;font-weight:700;font-size:.82rem;white-space:nowrap">✅ Présent</span>'
+                    : a.prix > 0
+                      ? `<button class="btn btn-sm btn-primary" style="white-space:nowrap" onclick="carteScanPresencer(${a.id},true)">✅ Présent + $${parseFloat(a.prix).toFixed(2)}</button>
+                         <button class="btn btn-sm btn-ghost" style="white-space:nowrap" onclick="carteScanPresencer(${a.id},false)">Exonéré</button>`
+                      : `<button class="btn btn-sm btn-primary" style="white-space:nowrap" onclick="carteScanPresencer(${a.id},false)">✅ Marquer présent</button>`}
+                </div>`).join('')}
+          </div>
+        </div>`;
+    }
   } catch(e) {
-    resultEl.innerHTML = `<div class="empty-state"><div class="es-icon">⚠️</div><p>${escHtml(e.message)}</p></div>`;
-    document.getElementById('scanActivities').style.display = 'none';
+    if (resultEl) resultEl.innerHTML = `<div class="empty-state"><div class="es-icon">⚠️</div><p style="color:#c62828">${escHtml(e.message)}</p></div>`;
+    const actEl = document.getElementById('scanActivities');
+    if (actEl) actEl.style.display = 'none';
   }
 }
 
@@ -7967,8 +8027,8 @@ async function carteScanPresencer(actId, debiter) {
   if (!userId) return;
   try {
     await api('/carte-scan/presencer', { method:'POST', body: JSON.stringify({ user_id:userId, activity_id:actId, debiter }) });
-    toast(debiter ? '✅ Présence + paiement enregistrés' : '✅ Présence enregistrée');
-    carteScanSearch();
+    toast(debiter ? '✅ Présence + paiement enregistrés !' : '✅ Présence enregistrée !');
+    await carteScanSearch();
   } catch(e) { toast(e.message, true); }
 }
 
