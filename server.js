@@ -3381,10 +3381,8 @@ app.get('/api/reports/activity/:id', authMiddleware, requireRole(...REPORT_ROLES
   const arrivésTickets  = billets.filter(b => b.checked_in === 1).length;
   const arrivés         = arrivésInscrits + arrivésTickets;
 
-  // Non arrivés = inscrits non confirmés + tickets non scannés
-  const nonArrivésInscrits = inscrits.filter(r => !STATUTS_ARRIVES.includes(r.statut) && r.checked_in !== 1).length;
-  const nonArrivésTickets  = billets.filter(b => b.checked_in !== 1).length;
-  const nonArrivés         = nonArrivésInscrits + nonArrivésTickets;
+  // Non arrivés = billets vendus - arrivés
+  const nonArrivés = Math.max(0, billetsVendus - arrivés);
 
   // Par type de billet
   const parType = {};
