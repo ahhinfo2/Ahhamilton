@@ -470,6 +470,41 @@ function logout() {
 let _prevMsgCount = 0;
 let _prevAlertCount = 0;
 
+// ── Carte de notification bottom-right ───────────────────────────────────
+(function() {
+  const stack = document.createElement('div');
+  stack.id = 'notif-stack';
+  document.body.appendChild(stack);
+})();
+
+function showNotifCard(titre, desc, { icon = '🔔', color = '#003F87' } = {}) {
+  const stack = document.getElementById('notif-stack');
+  const card  = document.createElement('div');
+  card.className = 'notif-card';
+  card.style.borderLeftColor = color;
+  card.innerHTML = `
+    <div class="notif-card-body">
+      <span class="notif-card-icon">${icon}</span>
+      <div class="notif-card-content">
+        <div class="notif-card-title">${titre}</div>
+        ${desc ? `<div class="notif-card-desc">${desc}</div>` : ''}
+        <div class="notif-card-time">À l'instant</div>
+      </div>
+      <button class="notif-card-close" title="Fermer">✕</button>
+    </div>
+    <div class="notif-card-bar" style="color:${color}"></div>`;
+
+  stack.prepend(card);
+
+  const dismiss = () => {
+    card.classList.add('out');
+    setTimeout(() => card.remove(), 320);
+  };
+  card.addEventListener('click', dismiss);
+  card.querySelector('.notif-card-close').addEventListener('click', e => { e.stopPropagation(); dismiss(); });
+  setTimeout(dismiss, 30000);
+}
+
 // ── SSE — mises à jour temps réel ────────────────────────────────────────
 let _sseConn = null;
 
@@ -492,8 +527,31 @@ function initSSE() {
 }
 
 function _handleLiveEvent(evt) {
-  // Toast visible immédiatement
-  if (evt.titre) toast(evt.titre, 'info');
+  // Carte de notification selon le type d'événement
+  const notifMap = {
+    inscription: { icon: '📋', color: '#003F87',
+      titre: 'Nouvelle demande d\'adhésion',
+      desc: evt.contenu || 'Un candidat attend votre approbation.' },
+    message:     { icon: '✉️', color: '#1a237e',
+      titre: evt.titre || 'Nouveau courriel',
+      desc: evt.contenu || '' },
+    paiement:    { icon: '💳', color: '#1b5e20',
+      titre: 'Nouveau paiement reçu',
+      desc: evt.contenu || '' },
+    activite:    { icon: '🎉', color: '#CE1126',
+      titre: 'Nouvelle inscription à une activité',
+      desc: evt.contenu || '' },
+    benevolat:   { icon: '🤝', color: '#e65100',
+      titre: 'Demande de bénévolat',
+      desc: evt.contenu || '' },
+    vote:        { icon: '🗳️', color: '#6a1b9a',
+      titre: 'Nouveau vote enregistré',
+      desc: evt.contenu || '' },
+  };
+
+  const key  = evt.alertType || evt.type;
+  const cfg  = notifMap[key] || { icon: '🔔', color: '#003F87', titre: evt.titre || 'Notification', desc: evt.contenu || '' };
+  showNotifCard(cfg.titre, cfg.desc, { icon: cfg.icon, color: cfg.color });
 
   // Mise à jour instantanée des badges
   if (evt.type === 'alerte') {
@@ -503,10 +561,8 @@ function _handleLiveEvent(evt) {
       badge.textContent = n;
       badge.style.display = 'block';
     }
-    // Notification navigateur si onglet en arrière-plan
-    if (document.visibilityState === 'hidden') showBrowserNotif('AHH — ' + evt.titre, evt.contenu || '');
+    if (document.visibilityState === 'hidden') showBrowserNotif('AHH — ' + cfg.titre, cfg.desc);
   }
-
   if (evt.type === 'message') {
     const badge = document.getElementById('msgCount');
     if (badge) {
@@ -514,7 +570,7 @@ function _handleLiveEvent(evt) {
       badge.textContent = n;
       badge.style.display = 'block';
     }
-    if (document.visibilityState === 'hidden') showBrowserNotif('AHH — ' + evt.titre, evt.contenu || '');
+    if (document.visibilityState === 'hidden') showBrowserNotif('AHH — ' + cfg.titre, cfg.desc);
   }
 
   // Rafraîchir la vue active si pertinent
