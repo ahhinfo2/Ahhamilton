@@ -421,7 +421,7 @@ app.put('/api/auth/password', authMiddleware, (req, res) => {
 app.get('/api/users', authMiddleware, (req, res) => {
   const rows = db.prepare(`SELECT id, prenom, nom, email, telephone, adresse, role, actif,
     plan, plan_paid_month, plan_unpaid_count,
-    date_inscription, date_naissance, bio, photo_url FROM users
+    date_inscription, date_naissance, bio, photo_url, email_org FROM users
     WHERE (phantom IS NULL OR phantom = 0) ORDER BY nom, prenom`).all();
   res.json(rows);
 });
@@ -429,7 +429,7 @@ app.get('/api/users', authMiddleware, (req, res) => {
 app.get('/api/users/:id', authMiddleware, (req, res) => {
   const u = db.prepare(`SELECT id, prenom, nom, email, telephone, adresse, role, actif,
     plan, plan_paid_month, plan_unpaid_count,
-    date_inscription, date_naissance, bio, photo_url FROM users WHERE id = ?`).get(req.params.id);
+    date_inscription, date_naissance, bio, photo_url, email_org FROM users WHERE id = ?`).get(req.params.id);
   if (!u) return res.status(404).json({ error: 'Utilisateur introuvable' });
   res.json(u);
 });
