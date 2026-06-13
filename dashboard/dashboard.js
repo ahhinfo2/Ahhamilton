@@ -3307,15 +3307,20 @@ async function gmLoadSent() {
 let _extEmails   = [];
 let _extSelected = new Set();
 
-async function gmLoadExternal() {
+async function gmLoadExternal(forceRefresh = false) {
   const el = document.getElementById('gmMain');
   if (!el) return;
   _extSelected = new Set();
   el.innerHTML = '<div class="loading-screen"><div class="spinner"></div><p style="margin-top:12px;color:var(--muted)">Connexion à la boîte @ahhamilton.ca…</p></div>';
   try {
-    _extEmails = await api('/email/inbox');
+    const qs = forceRefresh ? '?refresh=1' : '';
+    _extEmails = await api('/email/inbox' + qs, { timeout: 20000 });
     if (!_extEmails.length) {
-      el.innerHTML = '<div class="gm-empty"><div style="font-size:3rem">📭</div><p>Aucun email reçu</p></div>';
+      el.innerHTML = `<div class="gm-empty">
+        <div style="font-size:3rem">📭</div>
+        <p>Aucun email reçu</p>
+        <button class="btn btn-outline" style="margin-top:12px" onclick="gmLoadExternal(true)">↻ Actualiser</button>
+      </div>`;
       return;
     }
     gmRenderExternal();
@@ -3353,7 +3358,7 @@ function gmRenderExternal() {
         <input type="checkbox" id="gmExtSelAll" style="width:15px;height:15px;accent-color:var(--g2)" onchange="gmExtSelAll(this.checked)"/>
         Tout
       </label>
-      <button class="gm-tb-btn" onclick="gmNav('external')" title="Actualiser">↻</button>
+      <button class="gm-tb-btn" onclick="gmLoadExternal(true)" title="Actualiser">↻</button>
       <div id="gmExtBulkBar" style="display:none;gap:6px;align-items:center">
         <button class="btn btn-sm" style="color:#d93025;border:1px solid #d93025;background:transparent;padding:3px 10px;font-size:.82rem" onclick="gmExtBulkDelete()">
           🗑 Supprimer sélectionnés (<span id="gmExtSelCount">0</span>)

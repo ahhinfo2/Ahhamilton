@@ -1346,6 +1346,7 @@ app.get('/api/email/inbox', authMiddleware, requireRole(...COMITE_ROLES), async 
   const orgEmail = getUserImapEmail(user);
   const orgPass  = getUserImapPass(user);
   if (!orgPass) return res.status(500).json({ error: 'Mot de passe IMAP non configuré. Définissez votre mot de passe Hostinger dans votre profil.' });
+  if (req.query.refresh === '1') imap.invalidateCache(orgEmail);
   try {
     const emails = await imap.fetchEmails(orgEmail, orgPass);
     res.json(emails);

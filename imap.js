@@ -6,7 +6,7 @@ const { IMAP_HOST, IMAP_PORT } = process.env;
 // Cache results 60 s and deduplicate concurrent requests per account
 const _cache    = new Map(); // emailAddr → { ts, emails }
 const _inFlight = new Map(); // emailAddr → Promise
-const CACHE_TTL = 60_000;
+const CACHE_TTL = 20_000;
 
 async function fetchEmails(emailAddr, password) {
   if (!IMAP_HOST || !emailAddr || !password) return [];
