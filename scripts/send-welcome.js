@@ -21,9 +21,9 @@ const testEmail = (args.find(a => a.startsWith('--test=')) || '').split('=')[1] 
 const sendAll   = args.includes('--all');
 const daysArg   = parseInt((args.find(a => a.startsWith('--days=')) || '').split('=')[1]) || 2;
 
-const DELAY_MS       = 8000;  // 8s entre chaque email (Hostinger rate limit)
-const RETRY_WAIT_MS  = 35000; // 35s d'attente si rate limit détecté
-const MAX_RETRIES    = 3;
+const DELAY_MS       = 60000; // 60s entre chaque email (Hostinger rate limit ~4/min)
+const RETRY_WAIT_MS  = 90000; // 90s d'attente si rate limit détecté
+const MAX_RETRIES    = 2;
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
