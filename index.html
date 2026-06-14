@@ -398,15 +398,9 @@
           <p>Merci de nous avoir contactés. Nous vous répondrons dans les plus brefs délais.</p>
         </div>
         <div id="contactMsg" style="display:none;padding:10px 14px;border-radius:8px;font-size:.82rem;margin-bottom:14px"></div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Prénom</label>
-            <input type="text" id="cf_prenom" placeholder="Jean" required/>
-          </div>
-          <div class="form-group">
-            <label>Nom</label>
-            <input type="text" id="cf_nom" placeholder="Dupont" required/>
-          </div>
+        <div class="form-group">
+          <label>Nom complet</label>
+          <input type="text" id="cf_nom" placeholder="Jean Dupont" required/>
         </div>
         <div class="form-group">
           <label>Courriel</label>
@@ -423,6 +417,10 @@
             <option>Partenariat</option>
             <option>Autre</option>
           </select>
+          <div id="cf_adhesion_notice" style="display:none;margin-top:10px;background:#e8f5e9;border:1px solid #c8e6c9;border-radius:8px;padding:12px 14px;font-size:.84rem;color:#1b5e20">
+            Pour devenir membre AHH, utilisez notre formulaire dédié :
+            <a href="adhesion.html" style="color:#1b5e20;font-weight:700;display:block;margin-top:6px">→ Formulaire d'adhésion</a>
+          </div>
         </div>
         <div class="form-group">
           <label>Message</label>
@@ -524,18 +522,33 @@
     // ── Formulaire contact amélioré ──
     var form = document.getElementById('contactForm');
     if (form) {
+      // Redirect to adhesion.html when "Adhésion" is selected
+      var sujetSel = document.getElementById('cf_sujet');
+      if (sujetSel) {
+        sujetSel.addEventListener('change', function() {
+          var notice = document.getElementById('cf_adhesion_notice');
+          var btn    = document.getElementById('cf_btn');
+          if (this.value === 'Adhésion') {
+            if (notice) notice.style.display = 'block';
+            if (btn)    btn.style.display = 'none';
+          } else {
+            if (notice) notice.style.display = 'none';
+            if (btn)    btn.style.display = '';
+          }
+        });
+      }
       form.addEventListener('submit', async function(e) {
         e.preventDefault();
         var btn     = document.getElementById('cf_btn');
         var msg     = document.getElementById('contactMsg');
         var success = document.getElementById('contactSuccess');
         if (!btn) return;
-        var nom = ((document.getElementById('cf_prenom')||{}).value||'') + ' ' +
-                  ((document.getElementById('cf_nom')||{}).value||'');
-        nom = nom.trim();
+        var nom = ((document.getElementById('cf_nom')||{}).value||'').trim();
         var email   = (document.getElementById('cf_email')||{}).value || '';
         var sujet   = (document.getElementById('cf_sujet')||{}).value || 'Contact';
         var message = (document.getElementById('cf_message')||{}).value || '';
+        // Guard: adhesion must go through the proper form
+        if (sujet === 'Adhésion') { window.location.href = 'adhesion.html'; return; }
         if (!nom || !email || !message) {
           if (msg) { msg.style.cssText = 'display:block;background:#fdecea;color:#c62828;border-left:3px solid #c62828;padding:10px 14px;border-radius:8px;font-size:.82rem;margin-bottom:14px'; msg.textContent = 'Veuillez remplir tous les champs obligatoires.'; }
           return;

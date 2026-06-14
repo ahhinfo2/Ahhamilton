@@ -315,12 +315,13 @@ app.post('/api/auth/register', (req, res) => {
     staff.forEach(s => {
       ins.run(msgR.lastInsertRowid, s.id);
       createAlert(s.id, 'inscription', `📋 Adhésion en attente : ${prenom} ${nom}`, `Plan souhaité: ${plan||'gratuit'}`);
-      mailer.sendNouvelleAdhesion(s.email, candidat).catch(() => {});
+      mailer.sendNouvelleAdhesion(s.email, candidat).catch(e => console.error(`sendNouvelleAdhesion to ${s.email}:`, e.message));
     });
   }
-  // Also notify extra addresses from env (e.g. president/VP personal email)
-  const extraEmails = (process.env.NOTIFY_EMAILS || '').split(',').map(e => e.trim()).filter(Boolean);
-  extraEmails.forEach(addr => mailer.sendNouvelleAdhesion(addr, candidat).catch(() => {}));
+  // Also notify extra addresses from env — exclude the applicant's own email
+  const extraEmails = (process.env.NOTIFY_EMAILS || '').split(',').map(e => e.trim())
+    .filter(addr => addr && addr.toLowerCase() !== email.toLowerCase());
+  extraEmails.forEach(addr => mailer.sendNouvelleAdhesion(addr, candidat).catch(e => console.error(`sendNouvelleAdhesion extra to ${addr}:`, e.message)));
   res.status(201).json({ message: 'Demande envoyée. Vous recevrez un courriel après approbation.' });
 });
 
@@ -1948,17 +1949,25 @@ app.post('/api/contact', (req, res) => {
   const { nom, email, sujet, message } = req.body;
   if (!nom || !email || !message) return res.status(400).json({ error: 'Champs requis manquants' });
 
-  // Create internal message to all admins
-  const admins = db.prepare("SELECT id FROM users WHERE role = 'admin' AND actif = 1").all();
-  if (admins.length) {
-    // Find or create a "system" sender — use first admin as proxy
+  // Notify all committee members (internal message + alert)
+  const staff = db.prepare("SELECT * FROM users WHERE role IN ('admin','tresoriere','secretaire','delegue') AND actif=1").all();
+  if (staff.length) {
     const r = db.prepare("INSERT INTO messages (expediteur_id, sujet, contenu, type) VALUES (?, ?, ?, 'individuel')")
-      .run(admins[0].id, `[Site public] ${sujet || 'Contact'} – ${nom}`, `De: ${nom} <${email}>\n\n${message}`);
+      .run(staff[0].id, `[Site public] ${sujet || 'Contact'} – ${nom}`, `De: ${nom} <${email}>\n\n${message}`);
     const ins = db.prepare('INSERT INTO message_recipients (message_id, destinataire_id) VALUES (?, ?)');
-    admins.forEach(a => ins.run(r.lastInsertRowid, a.id));
+    staff.forEach(s => {
+      ins.run(r.lastInsertRowid, s.id);
+      createAlert(s.id, 'message', `📬 Nouveau message : ${sujet || '(contact)'}`, `De : ${nom} (${email})`);
+    });
   }
 
-  mailer.sendContact({ nom, email, sujet, message }).catch(e => console.error('Email error:', e.message));
+  // Send email to each committee member + CONTACT_EMAIL + NOTIFY_EMAILS fallbacks
+  const staffEmails = staff.map(s => s.email).filter(Boolean);
+  const extraContact = process.env.CONTACT_EMAIL;
+  const notifyEmails = (process.env.NOTIFY_EMAILS || '').split(',').map(e => e.trim()).filter(Boolean);
+  const toList = [...new Set([...staffEmails, ...notifyEmails, ...(extraContact ? [extraContact] : [])])];
+  mailer.sendContact({ nom, email, sujet, message, toList: toList.length ? toList : null })
+    .catch(e => console.error('Email contact error:', e.message));
 
   res.json({ message: 'Message envoyé avec succès' });
 });

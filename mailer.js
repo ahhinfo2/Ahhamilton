@@ -163,18 +163,20 @@ async function sendResetPassword(user, resetLink) {
   });
 }
 
-async function sendContact({ nom, email, sujet, message }) {
-  await sendMail({
-    to: process.env.CONTACT_EMAIL || SMTP_USER,
-    subject: `[Contact AHH] ${sujet}`,
-    html: wrap('Nouveau message de contact', `
+async function sendContact({ nom, email, sujet, message, toList = null }) {
+  const defaultDest = process.env.CONTACT_EMAIL || SMTP_USER;
+  const targets = toList && toList.length ? toList : (defaultDest ? [defaultDest] : []);
+  const unique = [...new Set(targets.filter(Boolean))];
+  const html = wrap('Nouveau message de contact', `
       <p><strong>De :</strong> ${nom} (${email})</p>
       <p><strong>Sujet :</strong> ${sujet}</p>
       <hr class="divider"/>
       <p>${message.replace(/\n/g, '<br/>')}</p>
-    `)
-  });
-  // Confirmation à l'expéditeur
+    `);
+  for (const to of unique) {
+    await sendMail({ to, subject: `[Contact AHH] ${sujet}`, html });
+  }
+  // Confirmation à l'expéditeur (une seule fois)
   await sendMail({
     to: email,
     subject: 'Votre message a été reçu — AHH',
