@@ -111,7 +111,15 @@ async function sendBienvenue(user, resetLink) {
       <p>Bonjour <strong>${user.prenom} ${user.nom}</strong>,</p>
       <p>Votre adhésion à l'<strong>Association Haïtienne de Hamilton</strong> a été approuvée. Bienvenue dans la communauté !</p>
       <p>Pour accéder à votre espace membre, cliquez sur le bouton ci-dessous pour créer votre mot de passe :</p>
-      <a href="${lien}" class="btn">Créer mon mot de passe</a>
+      <div style="text-align:center;margin:24px 0">
+        <a href="${lien}" style="display:inline-block;background:#2e7d32;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:700;font-size:1rem;font-family:Arial,sans-serif">
+          🔑 Créer mon mot de passe
+        </a>
+      </div>
+      <p style="font-size:.82rem;color:#888;text-align:center">
+        Ou copiez ce lien dans votre navigateur :<br/>
+        <a href="${lien}" style="color:#2e7d32;word-break:break-all">${lien}</a>
+      </p>
       <hr class="divider"/>
       <p style="font-size:.82rem;color:#888">
         Identifiant de connexion : <strong>${user.email}</strong><br/>
@@ -131,7 +139,7 @@ async function sendInscriptionRefusee(user, raison) {
       <p>Nous avons bien reçu votre demande d'adhésion. Malheureusement, nous ne pouvons pas y donner suite pour le moment.</p>
       ${raison ? `<p>Motif : ${raison}</p>` : ''}
       <p>N'hésitez pas à nous contacter pour plus d'informations.</p>
-      <a href="mailto:contact@ahhamilton.ca" class="btn">Nous contacter</a>
+      <div style="text-align:center;margin:20px 0"><a href="mailto:contact@ahhamilton.ca" style="display:inline-block;background:#2e7d32;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:.9rem;font-family:Arial,sans-serif">Nous contacter</a></div>
     `)
   });
 }
@@ -143,7 +151,12 @@ async function sendResetPassword(user, resetLink) {
     html: wrap('Réinitialisation du mot de passe', `
       <p>Bonjour <strong>${user.prenom}</strong>,</p>
       <p>Vous avez demandé la réinitialisation de votre mot de passe. Cliquez sur le bouton ci-dessous (valide <strong>1 heure</strong>) :</p>
-      <a href="${resetLink}" class="btn">Réinitialiser mon mot de passe</a>
+      <div style="text-align:center;margin:24px 0">
+        <a href="${resetLink}" style="display:inline-block;background:#2e7d32;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:700;font-size:1rem;font-family:Arial,sans-serif">
+          🔑 Réinitialiser mon mot de passe
+        </a>
+      </div>
+      <p style="font-size:.82rem;color:#888;text-align:center">Ou copiez ce lien : <a href="${resetLink}" style="color:#2e7d32;word-break:break-all">${resetLink}</a></p>
       <hr class="divider"/>
       <p style="font-size:.82rem;color:#888">Si vous n'avez pas fait cette demande, ignorez cet email.</p>
     `)
@@ -181,7 +194,7 @@ async function sendRappelPaiement(user, montant, mois) {
       <p>Bonjour <strong>${user.prenom} ${user.nom}</strong>,</p>
       <p>Nous n'avons pas encore reçu votre cotisation de <strong>$${montant}</strong> pour le mois de <strong>${mois}</strong>.</p>
       <p>Connectez-vous à votre espace membre pour déclarer votre paiement :</p>
-      <a href="${siteUrl}/dashboard/app.html" class="btn">Accéder à mon espace</a>
+      <a href="${siteUrl}/dashboard/app.html" style="display:inline-block;background:#2e7d32;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:.9rem;font-family:Arial,sans-serif">Accéder à mon espace</a>
     `)
   });
 }
@@ -194,7 +207,7 @@ async function sendPaiementApprouve(user, montant, mois) {
       <p>Bonjour <strong>${user.prenom} ${user.nom}</strong>,</p>
       <p>Votre paiement de <strong>$${montant}</strong> pour <strong>${mois}</strong> a été approuvé et comptabilisé.</p>
       <p>Merci pour votre contribution à la communauté !</p>
-      <a href="${siteUrl}/dashboard/app.html" class="btn">Mon espace membre</a>
+      <a href="${siteUrl}/dashboard/app.html" style="display:inline-block;background:#2e7d32;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:.9rem;font-family:Arial,sans-serif">Mon espace membre</a>
     `)
   });
 }
@@ -211,7 +224,7 @@ async function sendRecuFiscal(user, annee, montant, recuId, printToken) {
       <p>Votre reçu fiscal pour l'année <strong>${annee}</strong> est disponible.</p>
       <p><strong>Total des contributions :</strong> $${Number(montant).toFixed(2)} CAD</p>
       <p>Cliquez sur le bouton ci-dessous pour voir et imprimer votre reçu :</p>
-      <a href="${printUrl}" class="btn">Voir mon reçu fiscal</a>
+      <a href="${printUrl}" style="display:inline-block;background:#2e7d32;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:.9rem;font-family:Arial,sans-serif">Voir mon reçu fiscal</a>
       <hr class="divider"/>
       <p style="font-size:.82rem;color:#888">Conservez ce document pour votre déclaration de revenus.</p>
     `)
@@ -227,7 +240,7 @@ async function sendInscriptionActivite(user, activite) {
       <p>Votre inscription à <strong>${activite.titre}</strong> est confirmée !</p>
       ${activite.date_debut ? `<p><strong>Date :</strong> ${new Date(activite.date_debut).toLocaleDateString('fr-CA', {dateStyle:'long'})}</p>` : ''}
       ${activite.lieu ? `<p><strong>Lieu :</strong> ${activite.lieu}</p>` : ''}
-      <a href="${siteUrl}/dashboard/app.html" class="btn">Mon espace membre</a>
+      <a href="${siteUrl}/dashboard/app.html" style="display:inline-block;background:#2e7d32;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:.9rem;font-family:Arial,sans-serif">Mon espace membre</a>
     `)
   });
 }
@@ -245,7 +258,7 @@ async function sendNouvelleAdhesion(staffEmail, candidat) {
         <tr><td style="padding:6px 0;color:#888">Plan souhaité</td><td>${candidat.plan || 'gratuit'}</td></tr>
         ${candidat.message ? `<tr><td style="padding:6px 0;color:#888">Message</td><td>${candidat.message}</td></tr>` : ''}
       </table>
-      <a href="${siteUrl}/dashboard/app.html" class="btn">Approuver ou refuser</a>
+      <a href="${siteUrl}/dashboard/app.html" style="display:inline-block;background:#2e7d32;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:.9rem;font-family:Arial,sans-serif">Approuver ou refuser</a>
     `)
   });
 }
@@ -260,7 +273,7 @@ async function sendHeuresBenevolat(user, heures, description, date) {
       ${description ? `<p><strong>Description :</strong> ${description}</p>` : ''}
       ${date ? `<p><strong>Date :</strong> ${new Date(date).toLocaleDateString('fr-CA', { dateStyle:'long' })}</p>` : ''}
       <p>Consultez le total de vos heures dans votre profil :</p>
-      <a href="${siteUrl}/dashboard/app.html" class="btn">Mon profil</a>
+      <a href="${siteUrl}/dashboard/app.html" style="display:inline-block;background:#2e7d32;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:.9rem;font-family:Arial,sans-serif">Mon profil</a>
     `)
   });
 }
@@ -356,7 +369,7 @@ async function sendNouvelleCommandeBillet(activite, acheteurNom, email, montantT
       <p><strong>Billets :</strong> ${billets.length} billet(s) — Total : <strong>$${montantTotal.toFixed(2)}</strong></p>
       <p><strong>Référence :</strong> ${orderRef}</p>
       <p>Confirmez le paiement dans le tableau de bord pour envoyer les codes QR.</p>
-      <a href="${siteUrl}/dashboard/app.html" class="btn">Tableau de bord</a>
+      <a href="${siteUrl}/dashboard/app.html" style="display:inline-block;background:#2e7d32;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:.9rem;font-family:Arial,sans-serif">Tableau de bord</a>
     `)
   });
 }
@@ -370,7 +383,7 @@ async function sendRappelAdhesion(user) {
       <p>Bonjour <strong>${user.prenom} ${user.nom}</strong>,</p>
       <p>Il est temps de renouveler votre adhésion <strong>${planName}</strong> à l'Association Haïtienne de Hamilton pour continuer à profiter de tous les avantages liés à votre plan.</p>
       <p>Connectez-vous à votre espace membre pour effectuer votre paiement :</p>
-      <a href="${siteUrl}/dashboard/app.html" class="btn">Renouveler mon adhésion</a>
+      <a href="${siteUrl}/dashboard/app.html" style="display:inline-block;background:#2e7d32;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:.9rem;font-family:Arial,sans-serif">Renouveler mon adhésion</a>
       <hr class="divider"/>
       <p style="font-size:.82rem;color:#888">Des questions ? Contactez-nous à <a href="mailto:contact@ahhamilton.ca">contact@ahhamilton.ca</a></p>
     `)
