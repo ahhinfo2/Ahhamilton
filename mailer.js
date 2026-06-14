@@ -50,7 +50,7 @@ async function sendSMS(user, message) {
     console.error('[SMS] Erreur:', e.message);
   }
 }
-const siteUrl = SITE_URL || 'http://localhost:3001';
+const siteUrl = SITE_URL || 'https://ahhamilton.ca';
 
 // ── Enveloppe HTML commune ────────────────────────────────────────────────
 function wrap(titre, corps) {
@@ -104,28 +104,31 @@ async function sendMail({ to, subject, html, text, from, replyTo, attachments })
 
 async function sendBienvenue(user, resetLink) {
   const lien = resetLink || `${siteUrl}/dashboard/forgot-password.html`;
+  const loginUrl = `${siteUrl}/dashboard/login.html`;
   await sendMail({
     to: user.email,
-    subject: `Bienvenue dans la communauté AHH, ${user.prenom} !`,
-    html: wrap('Bienvenue !', `
+    subject: `Bienvenue dans la famille AHH, ${user.prenom} !`,
+    html: wrap('Bienvenue dans la famille AHH !', `
       <p>Bonjour <strong>${user.prenom} ${user.nom}</strong>,</p>
-      <p>Votre adhésion à l'<strong>Association Haïtienne de Hamilton</strong> a été approuvée. Bienvenue dans la communauté !</p>
-      <p>Pour accéder à votre espace membre, cliquez sur le bouton ci-dessous pour créer votre mot de passe :</p>
-      <div style="text-align:center;margin:24px 0">
-        <a href="${lien}" style="display:inline-block;background:#2e7d32;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:700;font-size:1rem;font-family:Arial,sans-serif">
-          🔑 Créer mon mot de passe
+      <p>Je suis <strong>Jean-Carme Dorcent</strong>, présidente de l'<strong>Association Haïtienne de Hamilton (AHH)</strong>.</p>
+      <p>C'est avec grand plaisir que je vous souhaite la bienvenue dans notre famille ! Depuis <strong>18 ans</strong>, l'AHH œuvre pour le rayonnement et l'épanouissement de la communauté haïtienne de Hamilton — et vous en faites maintenant partie.</p>
+      <p>Votre adhésion a été <strong>approuvée</strong>. Cliquez ci-dessous pour accéder à votre espace membre :</p>
+      <div style="text-align:center;margin:28px 0">
+        <a href="${loginUrl}" style="display:inline-block;background:#2e7d32;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:700;font-size:1rem;font-family:Arial,sans-serif">
+          Accéder à mon espace membre
         </a>
       </div>
-      <p style="font-size:.82rem;color:#888;text-align:center">
-        Ou copiez ce lien dans votre navigateur :<br/>
+      <p style="font-size:.84rem;color:#555">Si c'est votre première connexion ou si vous avez oublié votre mot de passe, utilisez ce lien pour le créer ou le réinitialiser :</p>
+      <p style="font-size:.82rem;text-align:center">
         <a href="${lien}" style="color:#2e7d32;word-break:break-all">${lien}</a>
       </p>
       <hr class="divider"/>
       <p style="font-size:.82rem;color:#888">
         Identifiant de connexion : <strong>${user.email}</strong><br/>
-        Ce lien est valide pendant <strong>7 jours</strong>.<br/>
-        Si vous n'avez pas fait de demande d'adhésion, ignorez ce message.
+        Le lien de réinitialisation est valide pendant <strong>7 jours</strong>.
       </p>
+      <p style="font-size:.84rem;color:#555;margin-top:16px">Au plaisir de vous retrouver lors de nos prochaines activités !</p>
+      <p style="font-size:.84rem;color:#555"><strong>Jean-Carme Dorcent</strong><br/>Présidente — AHH Hamilton</p>
     `)
   });
 }

@@ -363,7 +363,8 @@ app.patch('/api/inscriptions/:id/approuver', authMiddleware, requireRole('admin'
     .run(req.user.id, p.id);
 
   const newUserId = r.lastInsertRowid;
-  const welcomeMsg = `Bienvenue dans l'Association Haïtienne de Hamilton !\n\nBonjour ${p.prenom},\nVotre adhésion a été approuvée. Connectez-vous : http://localhost:3001/dashboard/login.html`;
+  const _siteUrl2 = process.env.SITE_URL || 'https://ahhamilton.ca';
+  const welcomeMsg = `Bonjour ${p.prenom},\n\nJe suis Jean-Carme Dorcent, présidente de l'Association Haïtienne de Hamilton (AHH).\n\nC'est avec grand plaisir que je vous souhaite la bienvenue dans notre famille ! Depuis 18 ans, l'AHH œuvre pour le rayonnement et l'épanouissement de la communauté haïtienne de Hamilton.\n\nVotre adhésion a été approuvée. Vous pouvez maintenant vous connecter à votre espace membre :\n${_siteUrl2}/dashboard/login.html\n\nAu plaisir de vous retrouver lors de nos prochaines activités !\n\nChaleureusement,\nJean-Carme Dorcent\nPrésidente — AHH Hamilton`;
 
   const adminId = db.prepare("SELECT id FROM users WHERE role='admin' LIMIT 1").get();
   if (adminId) {
