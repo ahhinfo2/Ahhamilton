@@ -353,8 +353,16 @@ app.patch('/api/inscriptions/:id/approuver', authMiddleware, requireRole('admin'
   }
   createAlert(newUserId, 'inscription', 'Bienvenue à AHH !', 'Votre adhésion a été approuvée.');
 
-  // Courriel de bienvenue réel
-  mailer.sendBienvenue(p).catch(e => console.error('Email bienvenue:', e.message));
+  // Générer un token de création de mot de passe (valide 7 jours)
+  const crypto = require('crypto');
+  const token  = crypto.randomBytes(32).toString('hex');
+  const expires = new Date(Date.now() + 7 * 24 * 3600000).toISOString();
+  db.prepare('INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)').run(newUserId, token, expires);
+  const siteUrl   = process.env.SITE_URL || `http://localhost:${PORT}`;
+  const resetLink = `${siteUrl}/dashboard/reset-password.html?token=${token}`;
+
+  // Courriel de bienvenue avec lien direct de création de mot de passe
+  mailer.sendBienvenue(p, resetLink).catch(e => console.error('Email bienvenue:', e.message));
 
   // Ajouter aux salons de chat
   const generalRoom = db.prepare("SELECT id FROM chat_rooms WHERE type='general'").get();

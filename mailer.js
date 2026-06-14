@@ -102,17 +102,22 @@ async function sendMail({ to, subject, html, text, from, replyTo, attachments })
 
 // ── Templates ─────────────────────────────────────────────────────────────
 
-async function sendBienvenue(user) {
+async function sendBienvenue(user, resetLink) {
+  const lien = resetLink || `${siteUrl}/dashboard/forgot-password.html`;
   await sendMail({
     to: user.email,
     subject: `Bienvenue dans la communauté AHH, ${user.prenom} !`,
     html: wrap('Bienvenue !', `
       <p>Bonjour <strong>${user.prenom} ${user.nom}</strong>,</p>
-      <p>Votre compte a été approuvé. Vous faites maintenant partie de l'<strong>Association Haïtienne de Hamilton</strong> !</p>
-      <p>Pour accéder à votre espace membre, commencez par créer votre mot de passe :</p>
-      <a href="${siteUrl}/dashboard/forgot-password.html" class="btn">Créer mon mot de passe</a>
+      <p>Votre adhésion à l'<strong>Association Haïtienne de Hamilton</strong> a été approuvée. Bienvenue dans la communauté !</p>
+      <p>Pour accéder à votre espace membre, cliquez sur le bouton ci-dessous pour créer votre mot de passe :</p>
+      <a href="${lien}" class="btn">Créer mon mot de passe</a>
       <hr class="divider"/>
-      <p style="font-size:.82rem;color:#888">Identifiant : ${user.email}</p>
+      <p style="font-size:.82rem;color:#888">
+        Identifiant de connexion : <strong>${user.email}</strong><br/>
+        Ce lien est valide pendant <strong>7 jours</strong>.<br/>
+        Si vous n'avez pas fait de demande d'adhésion, ignorez ce message.
+      </p>
     `)
   });
 }
