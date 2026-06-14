@@ -176,8 +176,8 @@ async function sendContact({ nom, email, sujet, message, toList = null }) {
       <hr class="divider"/>
       <p>${message.replace(/\n/g, '<br/>')}</p>
     `);
-  for (const to of unique) {
-    await sendMail({ to, subject: `[Contact AHH] ${sujet}`, html });
+  if (unique.length) {
+    await sendMail({ to: unique.join(', '), subject: `[Contact AHH] ${sujet}`, html });
   }
   // Confirmation à l'expéditeur (une seule fois)
   await sendMail({
@@ -270,9 +270,11 @@ async function sendInvitation(email, inviteLink) {
   });
 }
 
-async function sendNouvelleAdhesion(staffEmail, candidat) {
+async function sendNouvelleAdhesion(staffEmails, candidat) {
+  const to = Array.isArray(staffEmails) ? staffEmails.filter(Boolean).join(', ') : staffEmails;
+  if (!to) return;
   await sendMail({
-    to: staffEmail,
+    to,
     subject: `📋 Nouvelle demande d'adhésion : ${candidat.prenom} ${candidat.nom}`,
     html: wrap('Nouvelle demande d\'adhésion', `
       <p>Une nouvelle demande d'adhésion a été soumise et attend votre approbation.</p>

@@ -315,13 +315,17 @@ app.post('/api/auth/register', (req, res) => {
     staff.forEach(s => {
       ins.run(msgR.lastInsertRowid, s.id);
       createAlert(s.id, 'inscription', `📋 Adhésion en attente : ${prenom} ${nom}`, `Plan souhaité: ${plan||'gratuit'}`);
-      mailer.sendNouvelleAdhesion(s.email, candidat).catch(e => console.error(`sendNouvelleAdhesion to ${s.email}:`, e.message));
     });
+    const staffEmails = staff.map(s => s.email).filter(Boolean);
+    const extraEmails = (process.env.NOTIFY_EMAILS || '').split(',').map(e => e.trim())
+      .filter(addr => addr && addr.toLowerCase() !== email.toLowerCase());
+    const allNotify = [...new Set([...staffEmails, ...extraEmails])];
+    mailer.sendNouvelleAdhesion(allNotify, candidat).catch(e => console.error(`sendNouvelleAdhesion:`, e.message));
+  } else {
+    const extraEmails = (process.env.NOTIFY_EMAILS || '').split(',').map(e => e.trim())
+      .filter(addr => addr && addr.toLowerCase() !== email.toLowerCase());
+    if (extraEmails.length) mailer.sendNouvelleAdhesion(extraEmails, candidat).catch(e => console.error(`sendNouvelleAdhesion:`, e.message));
   }
-  // Also notify extra addresses from env — exclude the applicant's own email
-  const extraEmails = (process.env.NOTIFY_EMAILS || '').split(',').map(e => e.trim())
-    .filter(addr => addr && addr.toLowerCase() !== email.toLowerCase());
-  extraEmails.forEach(addr => mailer.sendNouvelleAdhesion(addr, candidat).catch(e => console.error(`sendNouvelleAdhesion extra to ${addr}:`, e.message)));
   res.status(201).json({ message: 'Demande envoyée. Vous recevrez un courriel après approbation.' });
 });
 
