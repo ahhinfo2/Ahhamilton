@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Carte de membre – AHH Hamilton</title>
+  <title>Carte de membre | AHH Hamilton</title>
   <link rel="icon" type="image/jpeg" href="Public/logo1.png"/>
   <link rel="manifest" href="/manifest.json"/>
   <meta name="theme-color" content="#1b5e20"/>
@@ -125,7 +125,7 @@
     const checkin = new URLSearchParams(window.location.search).get('checkin');
     const paid    = new URLSearchParams(window.location.search).get('paid');
 
-    document.title = m.prenom + ' ' + m.nom + ' – Carte AHH';
+    document.title = m.prenom + ' ' + m.nom + ' | Carte AHH';
 
     document.getElementById('cardContainer').innerHTML = `
       <div class="member-card">

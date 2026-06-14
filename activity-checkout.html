@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Paiement activité – AHH</title>
+  <title>Paiement activité | AHH</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -91,7 +91,7 @@
           (user && user.plan && user.plan !== 'gratuit' ? '<div class="price-plan">Rabais possible selon votre plan ' + user.plan + '</div>' : '') +
           '</div>' +
           (authToken ? `
-            <button class="btn" style="background:linear-gradient(135deg,#635bff,#8b85ff);margin-bottom:10px" onclick="payStripe()">💳 Payer en ligne — $${prixAffiche} (Stripe)</button>
+            <button class="btn" style="background:linear-gradient(135deg,#635bff,#8b85ff);margin-bottom:10px" onclick="payStripe()">💳 Payer en ligne : $${prixAffiche} (Stripe)</button>
             <div class="divider">ou payer sur place</div>
             <form id="payForm">
               <div class="form-group"><label>Méthode</label>
@@ -106,7 +106,7 @@
             </form>
             <div class="divider">ou</div>
             <button class="btn btn-scan" onclick="scanPresence()">📍 Seulement valider ma présence</button>`
-            : emailForm('Réserver ma place — $' + prixAffiche));
+            : emailForm('Réserver ma place : $' + prixAffiche));
 
         if (authToken) {
           document.getElementById('payForm')?.addEventListener('submit', async function(e) {

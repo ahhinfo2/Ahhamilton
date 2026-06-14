@@ -19,7 +19,7 @@ function getTransporter() {
   return _transporter;
 }
 
-const FROM = `"AHH – Association Haïtienne de Hamilton" <${SMTP_USER}>`;
+const FROM = `"Association Haïtienne de Hamilton" <${SMTP_USER}>`;
 
 // ── Passerelles SMS canadiennes ───────────────────────────────────────────
 const SMS_GATEWAYS = {
@@ -111,7 +111,7 @@ async function sendBienvenue(user, resetLink) {
     html: wrap('Bienvenue dans la famille AHH !', `
       <p>Bonjour <strong>${user.prenom} ${user.nom}</strong>,</p>
       <p>Je suis <strong>Jean-Carme Dorcent</strong>, présidente de l'<strong>Association Haïtienne de Hamilton (AHH)</strong>.</p>
-      <p>C'est avec grand plaisir que je vous souhaite la bienvenue dans notre famille ! Depuis <strong>18 ans</strong>, l'AHH œuvre pour le rayonnement et l'épanouissement de la communauté haïtienne de Hamilton — et vous en faites maintenant partie.</p>
+      <p>C'est avec grand plaisir que je vous souhaite la bienvenue dans notre famille ! Depuis <strong>18 ans</strong>, l'AHH œuvre pour le rayonnement et l'épanouissement de la communauté haïtienne de Hamilton, et vous en faites maintenant partie.</p>
       <p>Votre adhésion a été <strong>approuvée</strong>. Cliquez ci-dessous pour accéder à votre espace membre :</p>
       <div style="text-align:center;margin:28px 0">
         <a href="${loginUrl}" style="display:inline-block;background:#2e7d32;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:700;font-size:1rem;font-family:Arial,sans-serif">
@@ -128,7 +128,7 @@ async function sendBienvenue(user, resetLink) {
         Le lien de réinitialisation est valide pendant <strong>7 jours</strong>.
       </p>
       <p style="font-size:.84rem;color:#555;margin-top:16px">Au plaisir de vous retrouver lors de nos prochaines activités !</p>
-      <p style="font-size:.84rem;color:#555"><strong>Jean-Carme Dorcent</strong><br/>Présidente — AHH Hamilton</p>
+      <p style="font-size:.84rem;color:#555"><strong>Jean-Carme Dorcent</strong><br/>Présidente, AHH Hamilton</p>
     `)
   });
 }
@@ -136,7 +136,7 @@ async function sendBienvenue(user, resetLink) {
 async function sendInscriptionRefusee(user, raison) {
   await sendMail({
     to: user.email,
-    subject: 'Votre demande d\'adhésion — AHH',
+    subject: 'Votre demande d\'adhésion | AHH',
     html: wrap('Demande d\'adhésion', `
       <p>Bonjour <strong>${user.prenom} ${user.nom}</strong>,</p>
       <p>Nous avons bien reçu votre demande d'adhésion. Malheureusement, nous ne pouvons pas y donner suite pour le moment.</p>
@@ -150,7 +150,7 @@ async function sendInscriptionRefusee(user, raison) {
 async function sendResetPassword(user, resetLink) {
   await sendMail({
     to: user.email,
-    subject: 'Réinitialisation de votre mot de passe — AHH',
+    subject: 'Réinitialisation de votre mot de passe | AHH',
     html: wrap('Réinitialisation du mot de passe', `
       <p>Bonjour <strong>${user.prenom}</strong>,</p>
       <p>Vous avez demandé la réinitialisation de votre mot de passe. Cliquez sur le bouton ci-dessous (valide <strong>1 heure</strong>) :</p>
@@ -182,7 +182,7 @@ async function sendContact({ nom, email, sujet, message, toList = null }) {
   // Confirmation à l'expéditeur (une seule fois)
   await sendMail({
     to: email,
-    subject: 'Votre message a été reçu — AHH',
+    subject: 'Votre message a été reçu | AHH',
     html: wrap('Message reçu', `
       <p>Bonjour <strong>${nom}</strong>,</p>
       <p>Nous avons bien reçu votre message concernant <strong>"${sujet}"</strong>.</p>
@@ -194,7 +194,7 @@ async function sendContact({ nom, email, sujet, message, toList = null }) {
 async function sendRappelPaiement(user, montant, mois) {
   await sendMail({
     to: user.email,
-    subject: `Rappel de paiement — ${mois} — AHH`,
+    subject: `Rappel de paiement : ${mois} | AHH`,
     html: wrap('Rappel de cotisation', `
       <p>Bonjour <strong>${user.prenom} ${user.nom}</strong>,</p>
       <p>Nous n'avons pas encore reçu votre cotisation de <strong>$${montant}</strong> pour le mois de <strong>${mois}</strong>.</p>
@@ -207,7 +207,7 @@ async function sendRappelPaiement(user, montant, mois) {
 async function sendPaiementApprouve(user, montant, mois) {
   await sendMail({
     to: user.email,
-    subject: `Paiement approuvé — ${mois} — AHH`,
+    subject: `Paiement approuvé : ${mois} | AHH`,
     html: wrap('Paiement confirmé', `
       <p>Bonjour <strong>${user.prenom} ${user.nom}</strong>,</p>
       <p>Votre paiement de <strong>$${montant}</strong> pour <strong>${mois}</strong> a été approuvé et comptabilisé.</p>
@@ -223,7 +223,7 @@ async function sendRecuFiscal(user, annee, montant, recuId, printToken) {
     : `${siteUrl}/api/receipts/${recuId}/print`;
   await sendMail({
     to: user.email,
-    subject: `Votre reçu fiscal ${annee} — AHH`,
+    subject: `Votre reçu fiscal ${annee} | AHH`,
     html: wrap(`Reçu fiscal ${annee}`, `
       <p>Bonjour <strong>${user.prenom} ${user.nom}</strong>,</p>
       <p>Votre reçu fiscal pour l'année <strong>${annee}</strong> est disponible.</p>
@@ -239,7 +239,7 @@ async function sendRecuFiscal(user, annee, montant, recuId, printToken) {
 async function sendInscriptionActivite(user, activite) {
   await sendMail({
     to: user.email,
-    subject: `Inscription confirmée — ${activite.titre}`,
+    subject: `Inscription confirmée : ${activite.titre}`,
     html: wrap('Inscription confirmée', `
       <p>Bonjour <strong>${user.prenom} ${user.nom}</strong>,</p>
       <p>Votre inscription à <strong>${activite.titre}</strong> est confirmée !</p>
@@ -273,7 +273,7 @@ async function sendInvitation(email, inviteLink) {
 async function sendNouvelleAdhesion(staffEmail, candidat) {
   await sendMail({
     to: staffEmail,
-    subject: `📋 Nouvelle demande d'adhésion — ${candidat.prenom} ${candidat.nom}`,
+    subject: `📋 Nouvelle demande d'adhésion : ${candidat.prenom} ${candidat.nom}`,
     html: wrap('Nouvelle demande d\'adhésion', `
       <p>Une nouvelle demande d'adhésion a été soumise et attend votre approbation.</p>
       <table style="width:100%;border-collapse:collapse;font-size:.88rem;margin:16px 0">
@@ -291,7 +291,7 @@ async function sendNouvelleAdhesion(staffEmail, candidat) {
 async function sendHeuresBenevolat(user, heures, description, date) {
   await sendMail({
     to: user.email,
-    subject: `✅ ${heures}h de bénévolat ajoutées à votre compte — AHH`,
+    subject: `✅ ${heures}h de bénévolat ajoutées à votre compte | AHH`,
     html: wrap('Heures de bénévolat confirmées', `
       <p>Bonjour <strong>${user.prenom} ${user.nom}</strong>,</p>
       <p><strong>${heures} heure${heures > 1 ? 's' : ''}</strong> de bénévolat ont été ajoutées à votre compte.</p>
@@ -309,11 +309,11 @@ async function sendBilletInterac(email, prenom, activite, billets, orderRef, int
   const dateAct = activite.date_debut ? new Date(activite.date_debut).toLocaleDateString('fr-CA', { dateStyle: 'long' }) : '';
   await sendMail({
     to: email,
-    subject: `🎟 Réservation confirmée — ${activite.titre} — AHH`,
+    subject: `🎟 Réservation confirmée : ${activite.titre} | AHH`,
     html: wrap('Votre réservation de billets', `
       <p>Bonjour <strong>${prenom}</strong>,</p>
       <p>Votre réservation pour <strong>${activite.titre}</strong> est bien reçue !</p>
-      ${dateAct ? `<p>📅 <strong>${dateAct}</strong>${activite.lieu ? ' — 📍 ' + activite.lieu : ''}</p>` : ''}
+      ${dateAct ? `<p>📅 <strong>${dateAct}</strong>${activite.lieu ? ' · 📍 ' + activite.lieu : ''}</p>` : ''}
       <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:.88rem">
         <thead><tr style="background:#e8f5e9"><th style="padding:8px;text-align:left">Billet</th><th style="padding:8px;text-align:right">Prix</th></tr></thead>
         <tbody>
@@ -330,7 +330,7 @@ async function sendBilletInterac(email, prenom, activite, billets, orderRef, int
           <li>Une fois votre paiement reçu, vos codes QR vous seront envoyés par courriel</li>
         </ol>
       </div>
-      <p style="font-size:.82rem;color:#888">Référence de commande : <strong>${orderRef}</strong> — conservez ce courriel.</p>
+      <p style="font-size:.82rem;color:#888">Référence de commande : <strong>${orderRef}</strong>. Conservez ce courriel.</p>
     `)
   });
 }
@@ -360,7 +360,7 @@ async function sendBilletQR(email, prenom, activite, billet, qrBase64, qrPublicU
       <div style="background:#fff;padding:24px;text-align:center">
         <div style="font-size:.8rem;color:#888;margin-bottom:12px;text-transform:uppercase;letter-spacing:.05em">Présentez ce code à l'entrée</div>
         ${qrImgHtml}
-        <div style="font-size:.72rem;color:#aaa;margin-top:10px">Bonjour ${prenom} — billet personnel non transférable</div>
+        <div style="font-size:.72rem;color:#aaa;margin-top:10px">Bonjour ${prenom}, billet personnel non transférable</div>
       </div>
       <!-- Pied -->
       <div style="background:#f4f8f4;padding:12px;text-align:center;font-size:.75rem;color:#888">
@@ -370,7 +370,7 @@ async function sendBilletQR(email, prenom, activite, billet, qrBase64, qrPublicU
 
   await sendMail({
     to: email,
-    subject: `🎫 Votre billet — ${activite.titre}`,
+    subject: `🎫 Votre billet : ${activite.titre}`,
     html: ticketHtml,
     attachments: qrPublicUrl ? [] : [{
       filename: 'billet-qr.png',
@@ -387,11 +387,11 @@ async function sendNouvelleCommandeBillet(activite, acheteurNom, email, montantT
   if (!to) return;
   await sendMail({
     to: [to, ...adminEmails].join(','),
-    subject: `🎟 Nouvelle commande de billets — ${activite.titre}`,
+    subject: `🎟 Nouvelle commande de billets : ${activite.titre}`,
     html: wrap('Nouvelle commande de billets', `
       <p><strong>Acheteur :</strong> ${acheteurNom} (${email})</p>
       <p><strong>Activité :</strong> ${activite.titre}</p>
-      <p><strong>Billets :</strong> ${billets.length} billet(s) — Total : <strong>$${montantTotal.toFixed(2)}</strong></p>
+      <p><strong>Billets :</strong> ${billets.length} billet(s), total : <strong>$${montantTotal.toFixed(2)}</strong></p>
       <p><strong>Référence :</strong> ${orderRef}</p>
       <p>Confirmez le paiement dans le tableau de bord pour envoyer les codes QR.</p>
       <a href="${siteUrl}/dashboard/app.html" style="display:inline-block;background:#2e7d32;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:.9rem;font-family:Arial,sans-serif">Tableau de bord</a>
@@ -403,7 +403,7 @@ async function sendRappelAdhesion(user) {
   const planName = { bienfaiteur: 'Bienfaiteur', partenaire: 'Partenaire' }[user.plan] || user.plan;
   await sendMail({
     to: user.email,
-    subject: `Renouvellement de votre adhésion ${planName} — AHH`,
+    subject: `Renouvellement de votre adhésion ${planName} | AHH`,
     html: wrap('Renouvellement d\'adhésion', `
       <p>Bonjour <strong>${user.prenom} ${user.nom}</strong>,</p>
       <p>Il est temps de renouveler votre adhésion <strong>${planName}</strong> à l'Association Haïtienne de Hamilton pour continuer à profiter de tous les avantages liés à votre plan.</p>
@@ -443,7 +443,7 @@ async function sendExternalEmail({ to, subject, bodyHtml, senderName, senderEmai
           connectionTimeout: 10000, socketTimeout: 15000
         });
         await t.verify();
-        const from = `"${senderName} — AHH" <${orgEmail}>`;
+        const from = `"${senderName} | AHH" <${orgEmail}>`;
         const plainText = html.replace(/<style[\s\S]*?<\/style>/gi,'').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim();
         await t.sendMail({ from, to, subject, html, text: plainText });
         console.log(`✉️  Email envoyé (org ${orgEmail} port ${port}) → ${to} | ${subject}`);
@@ -460,7 +460,7 @@ async function sendExternalEmail({ to, subject, bodyHtml, senderName, senderEmai
   const t = getTransporter();
   if (!t) throw new Error('SMTP non configuré sur le serveur. Contactez l\'administrateur système ou configurez votre adresse @ahhamilton.ca dans votre profil.');
 
-  const from    = `"${senderName} — AHH" <${SMTP_USER}>`;
+  const from    = `"${senderName} | AHH" <${SMTP_USER}>`;
   const replyTo = orgEmail    ? `"${senderName}" <${orgEmail}>` :
                   senderEmail ? `"${senderName}" <${senderEmail}>` : FROM;
   const plainText = html.replace(/<style[\s\S]*?<\/style>/gi,'').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim();
@@ -489,7 +489,7 @@ async function sendCarteRenewal(user, expirationDate) {
         </div>
         <p style="font-size:.85rem;color:#666">Si vous avez des questions, répondez directement à cet email ou contactez-nous à <a href="mailto:contact@ahhamilton.ca">contact@ahhamilton.ca</a>.</p>
         <hr style="border:none;border-top:1px solid #eee;margin:20px 0"/>
-        <p style="font-size:.78rem;color:#999;text-align:center">AHH Hamilton — Association Haïtienne Hamilton</p>
+        <p style="font-size:.78rem;color:#999;text-align:center">AHH Hamilton | Association Haïtienne de Hamilton</p>
       </div>
     </div>`;
   return sendMail({ to, subject, html });

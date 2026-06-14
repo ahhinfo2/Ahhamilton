@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Activités & Événements – AHH</title>
-  <meta name="description" content="Calendrier des activités et événements de l'Association Haïtienne de Hamilton — culturels, bénévolat et rassemblements communautaires."/>
-  <meta property="og:title" content="Activités – AHH"/>
+  <title>Activités & Événements | AHH</title>
+  <meta name="description" content="Calendrier des activités et événements de l'Association Haïtienne de Hamilton : culturels, bénévolat et rassemblements communautaires."/>
+  <meta property="og:title" content="Activités | AHH"/>
   <meta property="og:image" content="https://ahhamilton.ca/Public/logo1.png"/>
   <link rel="icon" type="image/jpeg" href="Public/logo1.png"/>
   <link rel="stylesheet" href="style.css"/>
@@ -258,7 +258,7 @@
       }
 
       const siteUrl = 'https://ahhamilton.ca/actualites.html';
-      const shareText = encodeURIComponent('🎉 ' + ev.titre + (ev.date_debut ? ' — ' + new Date(ev.date_debut).toLocaleDateString('fr-CA') : '') + (ev.lieu ? ' à ' + ev.lieu : '') + '\n\nAssociation Haïtienne de Hamilton\n' + siteUrl);
+      const shareText = encodeURIComponent('🎉 ' + ev.titre + (ev.date_debut ? ', ' + new Date(ev.date_debut).toLocaleDateString('fr-CA') : '') + (ev.lieu ? ' à ' + ev.lieu : '') + '\n\nAssociation Haïtienne de Hamilton\n' + siteUrl);
       const shareBar = '<div class="share-bar">' +
         '<span class="share-label">Partager :</span>' +
         '<a class="share-btn share-btn-fb" href="https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(siteUrl) + '" target="_blank" rel="noopener">f Facebook</a>' +

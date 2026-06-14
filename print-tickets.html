@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Impression billets — AHH</title>
+<title>Impression billets | AHH</title>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
   body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f0;padding:20px}
@@ -137,8 +137,8 @@ async function load() {
     } catch(e) {}
   }
   if (!allTickets.length) { document.getElementById('pageTitle').textContent = 'Aucun billet trouvé.'; return; }
-  document.title = `Billets — ${allTickets[0].activite || 'AHH'}`;
-  document.getElementById('pageTitle').textContent = `Billets — ${allTickets[0].activite || 'AHH'}`;
+  document.title = `Billets | ${allTickets[0].activite || 'AHH'}`;
+  document.getElementById('pageTitle').textContent = `Billets | ${allTickets[0].activite || 'AHH'}`;
   document.getElementById('pageCount').textContent = allTickets.length + ' billet(s)';
   renderAll();
 }

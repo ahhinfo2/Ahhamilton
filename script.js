@@ -302,7 +302,7 @@ if (contactForm) {
       const imgDiv = document.getElementById('featured-img');
       if (act.flyer) imgDiv.innerHTML = '<img src="' + BASE + act.flyer + '" alt="' + act.titre + '" style="width:100%;max-width:380px;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.3);object-fit:cover;aspect-ratio:3/4;display:block">';
       const btn = document.getElementById('featured-btn');
-      if (act.paiement_requis && act.prix > 0) { btn.href = 'billets.html?id=' + act.id; btn.textContent = '🎟️ Acheter un billet — ' + act.prix.toFixed(2) + ' $'; }
+      if (act.paiement_requis && act.prix > 0) { btn.href = 'billets.html?id=' + act.id; btn.textContent = '🎟️ Acheter un billet : ' + act.prix.toFixed(2) + ' $'; }
       else if (act.qr_token) { btn.href = 'activity-checkout.html?actid=' + act.id + '&token=' + act.qr_token; btn.textContent = '✅ Confirmer ma présence'; }
       else { btn.href = 'dashboard/login.html'; btn.textContent = '👤 S\'inscrire'; }
     }, { runNow: true });

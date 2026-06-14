@@ -21,8 +21,8 @@
       'Équipe':'Team', 'Confidentialité':'Privacy', 'Galerie':'Gallery',
       'Espace membre':'Member Area', 'Faire un don':'Donate', 'Nous contacter':'Contact Us',
       'Politique de confidentialité':'Privacy Policy',
-      'footer-desc':'Haitian Association of Hamilton — A community united in culture and solidarity.',
-      'footer-copy':'© 2026 AHH — Association Haïtienne de Hamilton. All rights reserved.',
+      'footer-desc':'Haitian Association of Hamilton, a community united in culture and solidarity.',
+      'footer-copy':'© 2026 AHH | Association Haïtienne de Hamilton. All rights reserved.',
     },
     ht: {
       'Accueil':'Akèy', 'Association':'Asosyasyon', 'À propos':'Sou nou',
@@ -34,8 +34,8 @@
       'Équipe':'Ekip', 'Confidentialité':'Konfidansyalite', 'Galerie':'Galri',
       'Espace membre':'Espas manm', 'Faire un don':'Fè yon don', 'Nous contacter':'Kontakte nou',
       'Politique de confidentialité':'Politik konfidansyalite',
-      'footer-desc':'Asosyasyon Ayisyen Hamilton — Yon kominote ini nan kilti ak solidarite.',
-      'footer-copy':'© 2026 AHH — Asosyasyon Ayisyen Hamilton. Tout dwa rezève.',
+      'footer-desc':'Asosyasyon Ayisyen Hamilton, yon kominote ini nan kilti ak solidarite.',
+      'footer-copy':'© 2026 AHH | Asosyasyon Ayisyen Hamilton. Tout dwa rezève.',
     }
   };
 
@@ -174,7 +174,7 @@
         <a href="${pre}index.html" class="logo footer-logo">
           <img src="${pre}Public/logo1.png" alt="AHH" class="logo-img"/>
         </a>
-        <p data-i18n="footer-desc">Association Haïtienne de Hamilton — Une communauté unie dans la culture et la solidarité.</p>
+        <p data-i18n="footer-desc">Association Haïtienne de Hamilton, une communauté unie dans la culture et la solidarité.</p>
         <div class="footer-socials">
           <a href="https://www.facebook.com/profile.php?id=61563612753408" target="_blank" rel="noopener" class="social-icon" aria-label="Facebook">f</a>
           <a href="https://www.instagram.com/ahhinfo/" target="_blank" rel="noopener" class="social-icon" aria-label="Instagram">ig</a>
@@ -214,7 +214,7 @@
     </div>
     <div class="footer-bottom">
       <div class="container footer-bottom-inner">
-        <p data-i18n="footer-copy">© 2026 AHH — Association Haïtienne de Hamilton. Tous droits réservés.</p>
+        <p data-i18n="footer-copy">© 2026 AHH | Association Haïtienne de Hamilton. Tous droits réservés.</p>
         <p><a href="${pre}privacy.html" style="color:rgba(255,255,255,.45)" data-i18n="Politique de confidentialité">Politique de confidentialité</a></p>
       </div>
     </div>

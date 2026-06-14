@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Profil membre – AHH</title>
+  <title>Profil membre | AHH</title>
   <link rel="icon" type="image/jpeg" href="Public/logo1.png"/>
   <link rel="stylesheet" href="style.css"/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
@@ -81,7 +81,7 @@
     }
 
     function renderMembre(m) {
-      document.title = m.prenom + ' ' + m.nom + ' – AHH';
+      document.title = m.prenom + ' ' + m.nom + ' | AHH';
       document.getElementById('membreName').textContent = m.prenom + ' ' + m.nom;
       document.getElementById('membreRole').textContent = ROLE_LABELS[m.role] || m.role;
       if (m.date_inscription) {

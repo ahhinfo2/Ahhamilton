@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
-<title>Scanner billets — AHH</title>
+<title>Scanner billets | AHH</title>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -331,7 +331,7 @@ async function loadActivities() {
     acts.filter(a => a.statut !== 'terminee').forEach(a => {
       const opt = document.createElement('option');
       opt.value = a.id;
-      opt.textContent = a.titre + (a.date_debut ? ' — ' + new Date(a.date_debut).toLocaleDateString('fr-CA') : '');
+      opt.textContent = a.titre + (a.date_debut ? ' · ' + new Date(a.date_debut).toLocaleDateString('fr-CA') : '');
       sel.appendChild(opt);
     });
     // Auto-select activity from URL param
@@ -364,7 +364,7 @@ function startScanner() {
               scanner.start(null, config, onQRDetected, () => {})
                 .catch(err => {
                   const tip = document.querySelector('.cam-tip');
-                  if (tip) { tip.textContent = '⚠️ Caméra inaccessible — autorisez l\'accès dans les réglages.'; tip.style.color = '#ef5350'; }
+                  if (tip) { tip.textContent = '⚠️ Caméra inaccessible. Autorisez l\'accès dans les réglages.'; tip.style.color = '#ef5350'; }
                 });
             });
         });
@@ -407,11 +407,11 @@ async function onQRDetected(rawText) {
     } else if (data.already_checked_in) {
       showResult('dup', '🔄', 'DÉJÀ ENTRÉ', data.nom, data.table_numero, data.vendeur_nom, data.activite, true);
       playBeep(false);
-      addHistory('dup', data.nom, 'Déjà scanné — Table ' + (data.table_numero || '?'));
+      addHistory('dup', data.nom, 'Déjà scanné, table ' + (data.table_numero || '?'));
     } else {
       showResult('ok', '✅', 'BIENVENUE', data.nom, data.table_numero, data.vendeur_nom, data.activite, false);
       playBeep(true);
-      addHistory('ok', data.nom, (data.table_numero ? 'Table ' + data.table_numero : '') + ' — ' + (data.vendu_en_ligne ? 'En ligne' : 'Vendu par ' + data.vendeur_nom));
+      addHistory('ok', data.nom, (data.table_numero ? 'Table ' + data.table_numero + ', ' : '') + (data.vendu_en_ligne ? 'En ligne' : 'Vendu par ' + data.vendeur_nom));
     }
   } catch(e) {
     showResult('err', '⚠️', 'ERREUR RÉSEAU', 'Vérifiez la connexion', null, null, null);

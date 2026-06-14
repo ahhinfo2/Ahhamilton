@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Acheter des billets — AHH Hamilton</title>
+  <title>Acheter des billets | AHH Hamilton</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -76,13 +76,13 @@
 
     <!-- Étape 1 : choisir billets -->
     <div class="card" id="stepTickets">
-      <div class="section-label">1 — Choisir les billets</div>
+      <div class="section-label">1. Choisir les billets</div>
       <div id="ticketTypes"></div>
     </div>
 
     <!-- Étape 2 : infos acheteur -->
     <div class="card" id="stepInfo">
-      <div class="section-label">2 — Vos informations</div>
+      <div class="section-label">2. Vos informations</div>
       <div class="form-group">
         <label>Prénom *</label>
         <input id="prenom" placeholder="Jean"/>
@@ -103,7 +103,7 @@
 
     <!-- Étape 3 : paiement -->
     <div class="card" id="stepPay">
-      <div class="section-label">3 — Mode de paiement</div>
+      <div class="section-label">3. Mode de paiement</div>
       <div class="pay-method">
         <div class="pay-opt selected" id="optInterac" onclick="selectPay('interac')">
           <div class="icon">🏦</div>
@@ -185,7 +185,7 @@
           if (t.qr_file_url) {
             qrHtml += `<div style="text-align:center;margin:16px 0">
               <img src="${t.qr_file_url}" style="width:220px;height:220px;border:6px solid #1b5e20;border-radius:12px" alt="QR Code"/>
-              <div style="font-size:.75rem;color:#888;margin-top:6px">Billet — ${t.type_nom || 'Entrée générale'}</div>
+              <div style="font-size:.75rem;color:#888;margin-top:6px">Billet : ${t.type_nom || 'Entrée générale'}</div>
             </div>`;
           }
         }
@@ -193,7 +193,7 @@
           '✅ <strong>Paiement confirmé !</strong><br/><br/>' +
           (qrHtml || '') +
           '<p style="font-size:.85rem">📧 Un courriel avec votre QR a également été envoyé à <strong>' + (d.email || '') + '</strong>.</p>' +
-          '<p style="font-size:.82rem;color:#c62828">⚠️ <strong>Conservez ce code QR</strong> — vous devrez le présenter à l\'entrée.</p>' +
+          '<p style="font-size:.82rem;color:#c62828">⚠️ <strong>Conservez ce code QR</strong>. Vous devrez le présenter à l\'entrée.</p>' +
           '<button onclick="window.print()" style="margin-top:12px;padding:10px 20px;background:#1b5e20;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:.9rem">🖨️ Imprimer / Sauvegarder</button>';
       } catch(e) {
         document.getElementById('actMeta').innerHTML =

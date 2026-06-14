@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Billet — AHH</title>
+<title>Billet | AHH</title>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
   body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f0;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:24px;gap:16px}
@@ -111,7 +111,7 @@ async function load() {
       document.getElementById('tBarcodeVal').textContent = t.barcode_data;
     }
 
-    document.title = `Billet — ${t.activite || 'AHH'}`;
+    document.title = `Billet | ${t.activite || 'AHH'}`;
     document.getElementById('loadMsg').style.display = 'none';
     document.getElementById('ticketWrap').style.display = 'flex';
     document.getElementById('ticketWrap').style.flexDirection = 'column';
