@@ -247,6 +247,26 @@ async function sendInscriptionActivite(user, activite) {
   });
 }
 
+async function sendInvitation(email, inviteLink) {
+  await sendMail({
+    to: email,
+    subject: "Invitation à rejoindre l'AHH Hamilton",
+    html: wrap("Invitation à l'AHH Hamilton", `
+      <p>Bonjour,</p>
+      <p>Le comité de l'<strong>Association Haïtienne de Hamilton</strong> vous invite à créer votre profil de membre.</p>
+      <p>Cliquez sur le bouton ci-dessous pour accéder au formulaire d'adhésion et choisir votre mot de passe :</p>
+      <div style="text-align:center;margin:24px 0">
+        <a href="${inviteLink}" style="display:inline-block;background:#2e7d32;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:700;font-size:.95rem;font-family:Arial,sans-serif">Créer mon profil membre</a>
+      </div>
+      <p style="font-size:.82rem;color:#888">Ou copiez ce lien dans votre navigateur :<br/>
+        <a href="${inviteLink}" style="color:#2e7d32;word-break:break-all">${inviteLink}</a>
+      </p>
+      <hr style="border:none;border-top:1px solid #eee;margin:20px 0"/>
+      <p style="font-size:.78rem;color:#aaa">Une fois le formulaire complété, votre demande sera examinée par le comité qui vous contactera sous peu.</p>
+    `)
+  });
+}
+
 async function sendNouvelleAdhesion(staffEmail, candidat) {
   await sendMail({
     to: staffEmail,
@@ -475,7 +495,7 @@ async function sendCarteRenewal(user, expirationDate) {
 module.exports = {
   sendMail, sendSMS, sendBienvenue, sendInscriptionRefusee, sendResetPassword,
   sendContact, sendRappelPaiement, sendPaiementApprouve, sendRappelAdhesion,
-  sendRecuFiscal, sendInscriptionActivite, sendNouvelleAdhesion, sendHeuresBenevolat,
+  sendRecuFiscal, sendInscriptionActivite, sendNouvelleAdhesion, sendInvitation, sendHeuresBenevolat,
   sendBilletInterac, sendBilletQR, sendNouvelleCommandeBillet, sendExternalEmail,
   sendCarteRenewal, SMS_GATEWAYS
 };

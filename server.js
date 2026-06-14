@@ -330,6 +330,25 @@ app.get('/api/inscriptions', authMiddleware, requireRole('admin','tresoriere','s
   res.json(db.prepare('SELECT * FROM pending_registrations ORDER BY date_soumission DESC').all());
 });
 
+// ── Invitation par email (comité → futur membre) ────────────────────────────
+app.post('/api/admin/invite', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), async (req, res) => {
+  const { email } = req.body;
+  if (!email || !email.includes('@')) return res.status(400).json({ error: 'Email invalide' });
+  if (db.prepare('SELECT id FROM users WHERE email = ?').get(email))
+    return res.status(409).json({ error: 'Cette personne est déjà membre' });
+  if (db.prepare("SELECT id FROM pending_registrations WHERE email = ? AND statut = 'en_attente'").get(email))
+    return res.status(409).json({ error: 'Une demande est déjà en attente pour cet email' });
+  const siteUrl = process.env.SITE_URL || `http://localhost:${PORT}`;
+  const inviteLink = `${siteUrl}/adhesion.html?email=${encodeURIComponent(email)}`;
+  try {
+    await mailer.sendInvitation(email, inviteLink);
+    res.json({ message: `Invitation envoyée à ${email}` });
+  } catch(e) {
+    console.error('sendInvitation:', e.message);
+    res.status(500).json({ error: 'Échec d\'envoi : ' + e.message });
+  }
+});
+
 app.patch('/api/inscriptions/:id/approuver', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const p = db.prepare('SELECT * FROM pending_registrations WHERE id = ?').get(req.params.id);
   if (!p) return res.status(404).json({ error: 'Demande introuvable' });

@@ -5891,6 +5891,15 @@ async function inscriptions() {
     '<div class="page-header"><div><h2>📋 Inscriptions en attente</h2>' +
     '<p>Demandes d\'adhésion à approuver avant la création du compte.</p></div></div>' +
 
+    '<div class="table-card" style="margin-bottom:20px;border-left:4px solid #1565c0">' +
+    '<div class="table-card-header"><h3 style="color:#1565c0">📧 Inviter un membre par courriel</h3></div>' +
+    '<div style="padding:8px 20px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
+    '<input type="email" id="inviteEmailInput" placeholder="adresse@email.com" style="flex:1;min-width:220px;padding:9px 13px;border:1px solid #ccc;border-radius:8px;font-size:.9rem"/>' +
+    '<button class="btn btn-primary btn-sm" onclick="inviterMembre()" style="white-space:nowrap">✉️ Envoyer l\'invitation</button>' +
+    '</div>' +
+    '<p style="padding:0 20px 12px;margin:0;font-size:.78rem;color:var(--muted)">La personne recevra un lien vers le formulaire d\'adhésion où elle pourra choisir son mot de passe. Le comité recevra une notification à complétion.</p>' +
+    '</div>' +
+
     (pending.length === 0 ?
       '<div style="background:#e8f5e9;border:1px solid #c8e6c9;border-radius:12px;padding:14px 18px;margin-bottom:20px;font-size:.85rem;color:#1b5e20">✅ Aucune demande en attente.</div>' : '') +
 
@@ -5919,6 +5928,23 @@ async function inscriptions() {
     ).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--muted)">Aucun historique</td></tr>') +
     '</tbody></table></div></div>'
   );
+}
+
+async function inviterMembre() {
+  const input = document.getElementById('inviteEmailInput');
+  const email = input?.value?.trim();
+  if (!email || !email.includes('@')) { toast('Veuillez entrer un courriel valide', 'error'); return; }
+  const btn = input?.nextElementSibling;
+  if (btn) { btn.disabled = true; btn.textContent = 'Envoi…'; }
+  try {
+    await api('/admin/invite', { method: 'POST', body: JSON.stringify({ email }) });
+    toast('✉️ Invitation envoyée à ' + email);
+    if (input) input.value = '';
+  } catch(ex) {
+    toast(ex.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '✉️ Envoyer l\'invitation'; }
+  }
 }
 
 async function supprimerInscription(id, nom) {
