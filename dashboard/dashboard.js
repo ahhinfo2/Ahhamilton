@@ -667,7 +667,7 @@ async function showView(viewId) {
     notes, reports, letters, projects, alerts, profile,
     gallery_mgmt, annuaire, talents_mgmt, annonces_mgmt, mes_talents, mes_annonces,
     inscriptions, paiements, recus, mon_paiement, mes_billets, testimonials_mgmt, videos_mgmt,
-    scanner, forum, newsletter
+    scanner, forum, newsletter, rapports_finance
   };
   const extViews = {
     'pending-orders': pendingOrders,
