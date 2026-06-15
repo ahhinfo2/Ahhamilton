@@ -9883,8 +9883,9 @@ async function youngJobs() {
                   ${j.description ? `<div style="font-size:.84rem;margin-top:8px;color:var(--text)">${escHtml(j.description).substring(0,200)}${j.description.length>200?'...':''}</div>` : ''}
                   ${j.contact ? `<div style="font-size:.82rem;margin-top:6px">📧 ${escHtml(j.contact)}</div>` : ''}
                 </div>
-                <div style="display:flex;gap:6px;flex-shrink:0">
+                <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;align-items:center">
                   ${j.lien_externe ? `<a href="${j.lien_externe}" target="_blank" class="btn btn-primary btn-sm">Postuler →</a>` : ''}
+                  ${canManage ? `<button class="btn btn-sm" style="background:#e8f5e9;color:#1b5e20;border:1px solid #a5d6a7" onclick="youngNotifyJob(${j.id},'${escHtml(j.titre).replace(/'/g,"\\'")}')">📧 Notifier les membres</button>` : ''}
                   ${canManage ? `<button class="btn btn-sm btn-ghost" style="color:var(--red)" onclick="youngDeleteJob(${j.id})">🗑</button>` : ''}
                 </div>
               </div>
@@ -9931,6 +9932,14 @@ async function youngDeleteJob(id) {
   if (!confirm('Supprimer cette offre ?')) return;
   await api(`/young/jobs/${id}`, { method:'DELETE' }); youngJobs();
 }
+async function youngNotifyJob(id, titre) {
+  if (!confirm('Envoyer un courriel de notification à tous les membres actifs pour l\'offre "' + titre + '" ?')) return;
+  try {
+    toast('Envoi en cours…');
+    const r = await api('/young/jobs/' + id + '/notify', { method: 'POST' });
+    toast('✅ ' + r.ok + ' membre(s) notifié(s) par courriel !' + (r.errors ? ' (' + r.errors + ' erreur(s))' : ''));
+  } catch(e) { toast('Erreur : ' + e.message, true); }
+}
 
 async function youngTrainings() {
   const [trainings, canManage] = await Promise.all([api('/young/trainings').catch(()=>[]), Promise.resolve(can.executive())]);
@@ -9954,8 +9963,9 @@ async function youngTrainings() {
                 ${t.lieu ? `<div style="margin-bottom:4px">📍 ${escHtml(t.lieu)}</div>` : ''}
                 <div style="margin-bottom:8px">${t.gratuit ? '✅ <strong>Gratuit</strong>' : `💳 <strong>$${t.prix.toFixed(2)}</strong>`} · ${t.places_max} places</div>
                 ${t.description ? `<div style="color:var(--muted);font-size:.82rem;margin-bottom:10px">${escHtml(t.description).substring(0,150)}${t.description.length>150?'...':''}</div>` : ''}
-                <div style="display:flex;gap:6px">
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
                   ${t.lien_inscription ? `<a href="${t.lien_inscription}" target="_blank" class="btn btn-primary btn-sm">S'inscrire →</a>` : ''}
+                  ${canManage ? `<button class="btn btn-sm" style="background:#e8f5e9;color:#1b5e20;border:1px solid #a5d6a7" onclick="youngNotifyTraining(${t.id},'${escHtml(t.titre).replace(/'/g,"\\'")}')">📧 Notifier les membres</button>` : ''}
                   ${canManage ? `<button class="btn btn-sm btn-ghost" style="color:var(--red)" onclick="youngDeleteTraining(${t.id})">🗑</button>` : ''}
                 </div>
               </div>
@@ -10004,6 +10014,14 @@ async function youngSaveTraining(notifier = false) {
 async function youngDeleteTraining(id) {
   if (!confirm('Supprimer cette formation ?')) return;
   await api(`/young/trainings/${id}`, { method:'DELETE' }); youngTrainings();
+}
+async function youngNotifyTraining(id, titre) {
+  if (!confirm('Envoyer un courriel de notification à tous les membres actifs pour la formation "' + titre + '" ?')) return;
+  try {
+    toast('Envoi en cours…');
+    const r = await api('/young/trainings/' + id + '/notify', { method: 'POST' });
+    toast('✅ ' + r.ok + ' membre(s) notifié(s) par courriel !' + (r.errors ? ' (' + r.errors + ' erreur(s))' : ''));
+  } catch(e) { toast('Erreur : ' + e.message, true); }
 }
 
 async function youngPolls() {
