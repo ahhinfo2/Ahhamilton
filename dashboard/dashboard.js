@@ -6370,93 +6370,79 @@ async function recusSupprimerRecu(id) {
 
 async function rapports_finance() {
   setContent(
-    '<div class="page-header"><div><h2>📊 Rapports financiers</h2><p>Cliquez sur une fiche pour voir le détail complet.</p></div></div>' +
+    '<div class="page-header"><div><h2>📊 Rapports financiers</h2><p>Cliquez sur une carte pour voir le rapport détaillé.</p></div></div>' +
     '<div id="rapports_body" style="padding:4px"><div style="text-align:center;padding:48px;color:var(--muted)">Chargement…</div></div>'
   );
   try {
-    const [summary, allCotis, allPayments, activities] = await Promise.all([
-      api('/cotisations/summary').catch(() => ({})),
+    const [allCotis, allPayments, activities] = await Promise.all([
       api('/cotisations').catch(() => []),
       api('/payments').catch(() => []),
       api('/activities').catch(() => []),
     ]);
-    window._rapp = { summary, allCotis, allPayments, activities };
+    window._rapp = { allCotis, allPayments, activities };
 
-    const paidActs     = (activities || []).filter(a => a.paiement_requis || parseFloat(a.prix || 0) > 0);
-    const donsApprouves = (allPayments || []).filter(p => p.statut === 'approuve' && p.type === 'don');
-    const totalAttendu  = parseFloat(summary.attendu || 0);
-    const totalRecu     = parseFloat(summary.reel || 0);
-    const nbRetard      = parseInt(summary.enRetard || 0);
-    const nbAJour       = parseInt(summary.aJour || 0);
-    const totalDons     = donsApprouves.reduce((s, p) => s + parseFloat(p.montant || 0), 0);
-    const pct           = totalAttendu > 0 ? Math.round(totalRecu / totalAttendu * 100) : 0;
+    const paidActs = (activities || []).filter(a => a.paiement_requis || parseFloat(a.prix || 0) > 0);
+    const dons     = (allPayments || []).filter(p => p.type === 'don');
+
+    // ── Cotisations : grouper par année ───────────────────────────────────
+    const cotisParAnnee = {};
+    (allCotis || []).forEach(c => {
+      const yr = (c.periode || '').substring(0, 4);
+      if (!yr) return;
+      if (!cotisParAnnee[yr]) cotisParAnnee[yr] = { total: 0, nbPaye: 0, nbAttente: 0 };
+      if (c.statut === 'paye')         { cotisParAnnee[yr].total += parseFloat(c.montant_attendu || 0); cotisParAnnee[yr].nbPaye++; }
+      else if (c.statut === 'en_attente') cotisParAnnee[yr].nbAttente++;
+    });
+    const totalDonsApp = dons.filter(p => p.statut === 'approuve').reduce((s, p) => s + parseFloat(p.montant || 0), 0);
 
     const body = document.getElementById('rapports_body');
     if (!body) return;
 
-    body.innerHTML =
-      // ── Section Cotisations ───────────────────────────────────────────────
-      rappSection('💰 Cotisations',
-        rappFicheHTML('cotis', {
-          titre:       'Cotisations ' + new Date().getFullYear(),
-          type:        'Mensuel',
-          statut:      nbRetard > 0 ? 'En cours' : 'À jour',
-          statutOk:    nbRetard === 0,
-          montantRecu: totalRecu,
-          montantTotal: totalAttendu,
-          pct,
-          lignes: [
-            { label:'Attendu ce mois', val:'$' + totalAttendu.toFixed(2) },
-            { label:'Reçu ce mois',    val:'$' + totalRecu.toFixed(2), accent:true },
-            { label:'Taux',            val: pct + '%', accent: pct >= 80 },
-            { label:'En retard',       val: nbRetard, danger: nbRetard > 0 },
-            { label:'À jour',          val: nbAJour, accent: nbAJour > 0 },
-          ],
-        })
+    const years = Object.keys(cotisParAnnee).sort((a, b) => b - a);
+
+    let html = '';
+
+    // Cotisations cards (une par année)
+    if (years.length) {
+      html += '<h3 style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 2px 12px">💰 Cotisations de membres</h3>' +
+        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin-bottom:28px">' +
+        years.map(yr => {
+          const d = cotisParAnnee[yr];
+          return rappCarteHTML('cotis_' + yr, '#5e35b1',
+            'Cotisations ' + yr, '$' + d.total.toFixed(2),
+            d.nbAttente > 0 ? 'En cours' : 'À jour', d.nbAttente === 0,
+            [d.nbPaye + ' paiements confirmés', d.nbAttente > 0 ? d.nbAttente + ' en attente' : 'Tous à jour']
+          );
+        }).join('') +
+        '</div>';
+    }
+
+    // Activités payantes cards
+    if (paidActs.length) {
+      html += '<h3 style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 2px 12px">🎪 Activités payantes</h3>' +
+        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin-bottom:28px">' +
+        paidActs.map(a => {
+          const nb = parseInt(a.nb_inscrits || 0);
+          return rappCarteHTML('act_' + a.id, '#c62828',
+            a.titre, '$' + parseFloat(a.prix || 0).toFixed(2) + '/billet',
+            a.statut === 'terminee' ? 'Terminée' : 'En cours', a.statut === 'terminee',
+            [(a.date_debut || '').substring(0, 10), nb + ' inscrit(s)', 'Rev. estimé : $' + (parseFloat(a.prix||0) * nb).toFixed(2)]
+          );
+        }).join('') +
+        '</div>';
+    }
+
+    // Dons card
+    html += '<h3 style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 2px 12px">🎁 Dons</h3>' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px">' +
+      rappCarteHTML('dons', '#2e7d32',
+        'Dons reçus', '$' + totalDonsApp.toFixed(2),
+        'En cours', true,
+        [dons.filter(p => p.statut === 'approuve').length + ' don(s) approuvé(s)', dons.filter(p => p.statut === 'en_attente').length + ' en attente']
       ) +
+      '</div>';
 
-      // ── Section Dons ─────────────────────────────────────────────────────
-      rappSection('🎁 Dons',
-        rappFicheHTML('dons', {
-          titre:       'Dons reçus',
-          type:        'Ponctuel',
-          statut:      'En cours',
-          statutOk:    true,
-          montantRecu: totalDons,
-          montantTotal: null,
-          pct:         null,
-          lignes: [
-            { label:'Total des dons',   val:'$' + totalDons.toFixed(2), accent:true },
-            { label:'Donateurs',        val: donsApprouves.length },
-            { label:'En attente',       val:(allPayments||[]).filter(p => p.type==='don' && p.statut==='en_attente').length },
-          ],
-        })
-      ) +
-
-      // ── Section Activités payantes ────────────────────────────────────────
-      (paidActs.length ?
-        rappSection('🎪 Activités payantes',
-          paidActs.map(a => {
-            const nbInsc = parseInt(a.nb_inscrits || 0);
-            return rappFicheHTML('act_' + a.id, {
-              titre:       a.titre,
-              type:        'Activité',
-              date:        (a.date_debut || '').substring(0, 10),
-              statut:      a.statut === 'terminee' ? 'Terminée' : 'En cours',
-              statutOk:    a.statut === 'terminee',
-              montantRecu: null,
-              montantTotal: parseFloat(a.prix || 0),
-              pct:         null,
-              lignes: [
-                { label:'Prix / billet', val:'$' + parseFloat(a.prix || 0).toFixed(2) },
-                { label:'Inscrits',      val: nbInsc },
-                { label:'Revenu estimé', val:'$' + (parseFloat(a.prix || 0) * nbInsc).toFixed(2), accent: true },
-              ],
-            });
-          }).join('')
-        ) : '') +
-
-      '</div>';  // ferme rapports_body wrapper
+    body.innerHTML = html || '<div style="padding:40px;text-align:center;color:var(--muted)">Aucun rapport disponible</div>';
 
   } catch(e) {
     const b = document.getElementById('rapports_body');
@@ -6464,135 +6450,118 @@ async function rapports_finance() {
   }
 }
 
-function rappSection(titre, cardsHTML) {
-  return '<div style="margin-bottom:28px">' +
-    '<h3 style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:12px;padding:0 4px">' + titre + '</h3>' +
-    '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px">' +
-    cardsHTML +
+function rappCarteHTML(id, couleur, titre, montantLabel, statut, statutOk, infos) {
+  const sc = statutOk ? '#2e7d32' : '#1565c0';
+  const sb = statutOk ? '#e8f5e9'  : '#e3f2fd';
+  return '<div onclick="rappOuvrirDetail(\'' + id + '\')" style="background:#fff;border-radius:14px;border:1px solid var(--border);overflow:hidden;cursor:pointer;transition:box-shadow .18s,transform .18s" ' +
+    'onmouseenter="this.style.boxShadow=\'0 8px 28px rgba(0,0,0,.13)\';this.style.transform=\'translateY(-2px)\'" ' +
+    'onmouseleave="this.style.boxShadow=\'none\';this.style.transform=\'none\'">' +
+    '<div style="height:4px;background:' + couleur + '"></div>' +
+    '<div style="padding:16px 18px 18px">' +
+    '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px">' +
+    '<div style="font-weight:700;font-size:.9rem;flex:1;line-height:1.3;padding-right:8px">' + titre + '</div>' +
+    '<span style="font-size:.67rem;background:' + sb + ';color:' + sc + ';padding:2px 8px;border-radius:20px;white-space:nowrap;font-weight:600;flex-shrink:0">' + statut + '</span>' +
+    '</div>' +
+    '<div style="font-size:1.7rem;font-weight:900;color:' + couleur + ';margin-bottom:10px;line-height:1">' + montantLabel + '</div>' +
+    '<div style="display:flex;flex-direction:column;gap:3px;margin-bottom:14px">' +
+    infos.map(i => '<span style="font-size:.76rem;color:var(--muted)">' + i + '</span>').join('') +
+    '</div>' +
+    '<div style="font-size:.73rem;font-weight:600;color:' + couleur + '">Voir le rapport complet →</div>' +
     '</div></div>';
-}
-
-function rappFicheHTML(id, d) {
-  const statutColor = d.statutOk ? '#2e7d32' : '#1565c0';
-  const statutBg    = d.statutOk ? '#e8f5e9'  : '#e3f2fd';
-  return (
-    '<div style="background:#fff;border:1px solid var(--border);border-radius:14px;padding:18px 20px 16px;cursor:pointer;transition:box-shadow .15s;position:relative" ' +
-    'onclick="rappOuvrirDetail(\'' + id + '\')" ' +
-    'onmouseenter="this.style.boxShadow=\'0 6px 20px rgba(0,0,0,.1)\';this.style.borderColor=\'var(--accent)\'" ' +
-    'onmouseleave="this.style.boxShadow=\'none\';this.style.borderColor=\'var(--border)\'">' +
-
-    '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px">' +
-    '<div style="font-weight:700;font-size:.97rem;flex:1;padding-right:8px">' + d.titre + '</div>' +
-    '<span style="font-size:.7rem;background:' + statutBg + ';color:' + statutColor + ';padding:2px 9px;border-radius:20px;white-space:nowrap;flex-shrink:0;font-weight:600">' + d.statut + '</span>' +
-    '</div>' +
-
-    '<div style="font-size:.74rem;color:var(--muted);margin-bottom:14px;display:flex;gap:8px;align-items:center">' +
-    '<span>' + d.type + '</span>' +
-    (d.date ? '<span style="color:var(--border)">|</span><span>' + d.date + '</span>' : '') +
-    '</div>' +
-
-    '<div style="font-size:1.6rem;font-weight:900;color:var(--accent)">' +
-    (d.montantRecu !== null ? '$' + parseFloat(d.montantRecu).toFixed(2) : (d.montantTotal !== null ? '$' + parseFloat(d.montantTotal).toFixed(2) + '<span style="font-size:.9rem;font-weight:500;color:var(--muted)">/billet</span>' : '—')) +
-    '</div>' +
-    (d.montantTotal !== null && d.montantRecu !== null ? '<div style="font-size:.76rem;color:var(--muted);margin-bottom:10px">sur $' + parseFloat(d.montantTotal).toFixed(2) + ' attendu</div>' : '<div style="margin-bottom:10px"></div>') +
-
-    (d.pct !== null ?
-      '<div style="background:#f0f0f0;border-radius:99px;height:5px;overflow:hidden;margin-bottom:3px">' +
-      '<div style="background:var(--accent);height:5px;width:' + Math.min(d.pct, 100) + '%;transition:width .4s"></div></div>' +
-      '<div style="font-size:.72rem;color:var(--muted);margin-bottom:10px">' + d.pct + '% collecté</div>' : '') +
-
-    '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">' +
-    (d.lignes || []).map(l =>
-      '<div style="background:var(--off);border-radius:8px;padding:6px 10px;text-align:center">' +
-      '<div style="font-size:.95rem;font-weight:800;color:' + (l.danger ? '#c62828' : l.accent ? 'var(--accent)' : 'var(--text)') + '">' + l.val + '</div>' +
-      '<div style="font-size:.68rem;color:var(--muted);margin-top:1px">' + l.label + '</div>' +
-      '</div>'
-    ).join('') +
-    '</div>' +
-
-    '<div style="position:absolute;bottom:12px;right:14px;font-size:.72rem;color:var(--muted);font-weight:500">Détails →</div>' +
-    '</div>'
-  );
 }
 
 async function rappOuvrirDetail(id) {
   const { allCotis, allPayments, activities } = window._rapp || {};
-  if (id === 'cotis')        await rappDetailCotisations(allCotis, allPayments);
-  else if (id === 'dons')    await rappDetailDons(allPayments);
-  else if (id.startsWith('act_')) {
+  if (id.startsWith('cotis_')) {
+    const year = id.replace('cotis_', '');
+    await rappDetailCotisationsAnnee(year, allCotis, allPayments);
+  } else if (id === 'dons') {
+    await rappDetailDons(allPayments);
+  } else if (id.startsWith('act_')) {
     const actId = parseInt(id.replace('act_', ''));
     const act   = (activities || []).find(a => a.id === actId);
-    if (act) await rappDetailActivite(act);
+    if (act) await rappDetailActivite(act, allPayments);
   }
 }
 
-async function rappDetailCotisations(allCotis, allPayments) {
-  const cotisPayments = (allPayments || []).filter(p => p.type !== 'don');
-  const totalRecu     = cotisPayments.filter(p => p.statut === 'approuve').reduce((s, p) => s + parseFloat(p.montant || 0), 0);
-  const totalAttendu  = (allCotis || []).reduce((s, c) => s + parseFloat(c.montant_attendu || 0), 0);
+async function rappDetailCotisationsAnnee(year, allCotis, allPayments) {
+  const MOIS_FR = ['','Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 
-  // Grouper cotisations par membre
-  const byMember = {};
-  (allCotis || []).forEach(c => {
-    const k = c.user_id;
-    if (!byMember[k]) byMember[k] = { nom:(c.prenom||'')+' '+(c.nom||''), email:c.email||'', plan:c.plan||c.user_plan, periodes:[] };
-    byMember[k].periodes.push({ periode:c.periode, statut:c.statut, montant:parseFloat(c.montant_attendu||0) });
+  const cotisPeriode = (allCotis || []).filter(c => (c.periode || '').startsWith(year));
+  const byPeriode = {};
+  cotisPeriode.forEach(c => {
+    if (!byPeriode[c.periode]) byPeriode[c.periode] = { payes: [], attente: [] };
+    if (c.statut === 'paye')            byPeriode[c.periode].payes.push(c);
+    else if (c.statut === 'en_attente') byPeriode[c.periode].attente.push(c);
   });
-  const members = Object.values(byMember).sort((a, b) => {
-    const aR = a.periodes.some(p => p.statut === 'en_attente') ? 1 : 0;
-    const bR = b.periodes.some(p => p.statut === 'en_attente') ? 1 : 0;
-    return bR - aR;
-  });
-  const nbAJour   = members.filter(m => !m.periodes.some(p => p.statut === 'en_attente')).length;
-  const nbRetard  = members.filter(m =>  m.periodes.some(p => p.statut === 'en_attente')).length;
+  const periodes    = Object.keys(byPeriode).sort();
+  const totalPaye   = cotisPeriode.filter(c => c.statut === 'paye').reduce((s, c) => s + parseFloat(c.montant_attendu || 0), 0);
+  const totalAttend = cotisPeriode.reduce((s, c) => s + parseFloat(c.montant_attendu || 0), 0);
+  const nbPaye      = cotisPeriode.filter(c => c.statut === 'paye').length;
+  const nbAttente   = cotisPeriode.filter(c => c.statut === 'en_attente').length;
 
-  // Préparer CSV
   window._rappCSV = {
-    filename: 'cotisations_' + new Date().getFullYear() + '.csv',
-    headers: ['Membre', 'Email', 'Plan', 'Période', 'Montant attendu', 'Statut'],
-    rows: (allCotis || []).map(c => [(c.prenom||'')+' '+(c.nom||''), c.email||'', c.plan||'', c.periode||'', c.montant_attendu||0, c.statut||'']),
+    filename: 'cotisations_' + year + '.csv',
+    headers: ['Mois', 'Membre', 'Email', 'Plan', 'Montant', 'Statut'],
+    rows: cotisPeriode.map(c => {
+      const [yr, mo] = (c.periode || '').split('-');
+      return [MOIS_FR[parseInt(mo)] + ' ' + yr, (c.prenom||'')+' '+(c.nom||''), c.email||'', c.plan||c.user_plan||'', c.montant_attendu||0, c.statut||''];
+    }),
   };
 
-  openModal('💰 Cotisations membres — Rapport complet',
+  const periodesHTML = periodes.map(p => {
+    const d = byPeriode[p];
+    const [, mo] = p.split('-');
+    const label = MOIS_FR[parseInt(mo)] + ' ' + year;
+    return '<div style="border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden">' +
+      '<div style="background:var(--off);padding:9px 14px;display:flex;align-items:center;justify-content:space-between">' +
+      '<strong style="font-size:.9rem">' + label + '</strong>' +
+      '<div style="display:flex;gap:12px;font-size:.77rem">' +
+      '<span style="color:#2e7d32;font-weight:600">✅ ' + d.payes.length + ' payé(s)</span>' +
+      (d.attente.length ? '<span style="color:#c62828;font-weight:600">⏳ ' + d.attente.length + ' en attente</span>' : '') +
+      '</div></div>' +
+      // Ont payé
+      (d.payes.length ?
+        '<div style="padding:10px 14px;border-top:1px solid var(--border)">' +
+        '<div style="font-size:.71rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#2e7d32;margin-bottom:7px">Ont payé leur cotisation</div>' +
+        d.payes.map(c =>
+          '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:.84rem;border-bottom:1px solid #f0f0f0">' +
+          '<div style="width:30px;height:30px;border-radius:50%;background:#e8f5e9;color:#2e7d32;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;flex-shrink:0">' + ((c.prenom||'')[0]||'').toUpperCase() + ((c.nom||'')[0]||'').toUpperCase() + '</div>' +
+          '<div style="flex:1"><strong>' + (c.prenom||'') + ' ' + (c.nom||'') + '</strong></div>' +
+          planBadge(c.plan || c.user_plan) +
+          '<span style="font-weight:700;color:#2e7d32">$' + parseFloat(c.montant_attendu||0).toFixed(2) + '</span>' +
+          '</div>'
+        ).join('') +
+        '</div>' : '') +
+      // N'ont pas payé
+      (d.attente.length ?
+        '<div style="padding:10px 14px;border-top:1px solid var(--border);background:#fff8f8">' +
+        '<div style="font-size:.71rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#c62828;margin-bottom:7px">N\'ont pas encore payé</div>' +
+        d.attente.map(c =>
+          '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:.84rem;border-bottom:1px solid #f0f0f0">' +
+          '<div style="width:30px;height:30px;border-radius:50%;background:#ffebee;color:#c62828;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;flex-shrink:0">' + ((c.prenom||'')[0]||'').toUpperCase() + ((c.nom||'')[0]||'').toUpperCase() + '</div>' +
+          '<div style="flex:1"><strong>' + (c.prenom||'') + ' ' + (c.nom||'') + '</strong></div>' +
+          planBadge(c.plan || c.user_plan) +
+          '<span style="color:#c62828">$' + parseFloat(c.montant_attendu||0).toFixed(2) + ' dû</span>' +
+          '</div>'
+        ).join('') +
+        '</div>' : '') +
+    '</div>';
+  }).join('');
+
+  openModal('💰 Cotisations ' + year,
     rappKpiRow([
-      { label:'Total attendu',   val:'$' + totalAttendu.toFixed(2) },
-      { label:'Total collecté',  val:'$' + totalRecu.toFixed(2), accent:true },
-      { label:'Taux',            val: totalAttendu > 0 ? Math.round(totalRecu/totalAttendu*100)+'%' : '—', accent:true },
-      { label:'À jour',          val: nbAJour,  accent: nbAJour > 0 },
-      { label:'En retard',       val: nbRetard, danger: nbRetard > 0 },
+      { label:'Total collecté', val:'$' + totalPaye.toFixed(2),   accent:true },
+      { label:'Total attendu',  val:'$' + totalAttend.toFixed(2) },
+      { label:'Taux',           val: totalAttend > 0 ? Math.round(totalPaye/totalAttend*100)+'%' : '—', accent:true },
+      { label:'Confirmés',      val: nbPaye,   accent: nbPaye > 0 },
+      { label:'En attente',     val: nbAttente, danger: nbAttente > 0 },
     ]) +
-    '<div style="display:flex;justify-content:flex-end;margin:12px 0">' +
+    '<div style="display:flex;justify-content:flex-end;margin:10px 0">' +
     '<button class="btn btn-sm btn-outline" onclick="exportRappCSV()">⬇️ Export CSV</button></div>' +
-    '<div style="max-height:420px;overflow-y:auto;border:1px solid var(--border);border-radius:10px">' +
-    '<table style="width:100%;border-collapse:collapse;font-size:.84rem">' +
-    '<thead><tr style="background:#f8f8f8;position:sticky;top:0;z-index:1">' +
-    '<th style="padding:9px 12px;text-align:left">Membre</th>' +
-    '<th style="padding:9px 8px">Plan</th>' +
-    '<th style="padding:9px 8px;text-align:center">Mois payés</th>' +
-    '<th style="padding:9px 8px;text-align:center">En attente</th>' +
-    '<th style="padding:9px 8px;text-align:right">Solde dû</th>' +
-    '<th style="padding:9px 8px">Statut</th>' +
-    '</tr></thead><tbody>' +
-    (members.length ? members.map(m => {
-      const payes   = m.periodes.filter(p => p.statut === 'paye').length;
-      const attente = m.periodes.filter(p => p.statut === 'en_attente').length;
-      const du      = m.periodes.filter(p => p.statut === 'en_attente').reduce((s, p) => s + p.montant, 0);
-      const aJour   = attente === 0 && payes > 0;
-      return '<tr style="border-top:1px solid var(--border)' + (attente > 0 ? ';background:#fff8f8' : '') + '">' +
-        '<td style="padding:8px 12px"><strong>' + m.nom + '</strong>' +
-        '<div style="font-size:.74rem;color:var(--muted)">' + m.email + '</div></td>' +
-        '<td style="padding:8px 6px">' + planBadge(m.plan) + '</td>' +
-        '<td style="padding:8px;text-align:center;font-weight:700;color:#2e7d32">' + payes + '</td>' +
-        '<td style="padding:8px;text-align:center;font-weight:' + (attente > 0 ? '700' : '400') + ';color:' + (attente > 0 ? '#c62828' : '#aaa') + '">' + attente + '</td>' +
-        '<td style="padding:8px;text-align:right;color:' + (du > 0 ? '#c62828' : '#aaa') + ';font-weight:' + (du > 0 ? '700' : '400') + '">$' + du.toFixed(2) + '</td>' +
-        '<td style="padding:8px">' + (aJour ?
-          '<span style="font-size:.73rem;background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:8px">À jour</span>' :
-          attente > 0 ?
-          '<span style="font-size:.73rem;background:#ffebee;color:#c62828;padding:2px 8px;border-radius:8px">En retard</span>' :
-          '<span style="font-size:.73rem;color:#aaa">—</span>') + '</td>' +
-      '</tr>';
-    }).join('') : '<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">Aucune donnée</td></tr>') +
-    '</tbody></table></div>',
+    '<div style="max-height:480px;overflow-y:auto">' +
+    (periodes.length ? periodesHTML : '<div style="padding:20px;text-align:center;color:var(--muted)">Aucune donnée pour ' + year + '</div>') +
+    '</div>',
     'large'
   );
 }
@@ -6602,111 +6571,113 @@ async function rappDetailDons(allPayments) {
   const total = dons.filter(p => p.statut === 'approuve').reduce((s, p) => s + parseFloat(p.montant || 0), 0);
 
   window._rappCSV = {
-    filename: 'dons_' + new Date().getFullYear() + '.csv',
+    filename: 'dons.csv',
     headers: ['Donateur', 'Email', 'Montant', 'Méthode', 'Date', 'Statut'],
     rows: dons.map(p => [(p.prenom||'')+' '+(p.nom||''), p.email||'', p.montant||0, p.methode||'', (p.date_soumission||'').substring(0,10), p.statut||'']),
   };
 
-  openModal('🎁 Dons — Rapport complet',
+  openModal('🎁 Dons reçus',
     rappKpiRow([
-      { label:'Total dons',      val:'$' + total.toFixed(2), accent:true },
-      { label:'Approuvés',       val: dons.filter(p => p.statut === 'approuve').length, accent:true },
-      { label:'En attente',      val: dons.filter(p => p.statut === 'en_attente').length },
-      { label:'Rejetés',         val: dons.filter(p => p.statut === 'rejete').length, danger: dons.filter(p => p.statut === 'rejete').length > 0 },
+      { label:'Total dons',   val:'$' + total.toFixed(2), accent:true },
+      { label:'Approuvés',    val: dons.filter(p => p.statut === 'approuve').length, accent:true },
+      { label:'En attente',   val: dons.filter(p => p.statut === 'en_attente').length },
+      { label:'Rejetés',      val: dons.filter(p => p.statut === 'rejete').length, danger: dons.filter(p => p.statut === 'rejete').length > 0 },
     ]) +
-    '<div style="display:flex;justify-content:flex-end;margin:12px 0">' +
+    '<div style="display:flex;justify-content:flex-end;margin:10px 0">' +
     '<button class="btn btn-sm btn-outline" onclick="exportRappCSV()">⬇️ Export CSV</button></div>' +
     '<div style="max-height:420px;overflow-y:auto;border:1px solid var(--border);border-radius:10px">' +
-    '<table style="width:100%;border-collapse:collapse;font-size:.84rem">' +
-    '<thead><tr style="background:#f8f8f8;position:sticky;top:0;z-index:1">' +
-    '<th style="padding:9px 12px;text-align:left">Donateur</th>' +
-    '<th style="padding:9px 8px;text-align:right">Montant</th>' +
-    '<th style="padding:9px 8px">Méthode</th>' +
-    '<th style="padding:9px 8px">Date</th>' +
-    '<th style="padding:9px 8px">Statut</th>' +
-    '</tr></thead><tbody>' +
     (dons.length ? dons.map(p => {
       const sc = p.statut === 'approuve' ? '#2e7d32' : p.statut === 'en_attente' ? '#e65100' : '#c62828';
       const sb = p.statut === 'approuve' ? '#e8f5e9' : p.statut === 'en_attente' ? '#fff3e0' : '#ffebee';
       const sl = p.statut === 'approuve' ? 'Approuvé' : p.statut === 'en_attente' ? 'En attente' : 'Rejeté';
-      return '<tr style="border-top:1px solid var(--border)">' +
-        '<td style="padding:8px 12px"><strong>' + (p.prenom||'') + ' ' + (p.nom||'') + '</strong>' +
-        '<div style="font-size:.74rem;color:var(--muted)">' + (p.email||'') + '</div></td>' +
-        '<td style="padding:8px;text-align:right;font-weight:700;color:#2e7d32">$' + parseFloat(p.montant||0).toFixed(2) + '</td>' +
-        '<td style="padding:8px;font-size:.82rem">' + (p.methode||'') + '</td>' +
-        '<td style="padding:8px;font-size:.8rem;color:var(--muted)">' + (p.date_soumission||'').substring(0,10) + '</td>' +
-        '<td style="padding:8px"><span style="font-size:.73rem;background:' + sb + ';color:' + sc + ';padding:2px 8px;border-radius:8px">' + sl + '</span></td>' +
-      '</tr>';
-    }).join('') : '<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--muted)">Aucun don</td></tr>') +
-    '</tbody></table></div>',
+      return '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)">' +
+        '<div style="width:32px;height:32px;border-radius:50%;background:var(--off);display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;flex-shrink:0">' + ((p.prenom||'')[0]||'').toUpperCase() + ((p.nom||'')[0]||'').toUpperCase() + '</div>' +
+        '<div style="flex:1"><strong style="font-size:.88rem">' + (p.prenom||'') + ' ' + (p.nom||'') + '</strong><div style="font-size:.75rem;color:var(--muted)">' + (p.email||'') + ' · ' + (p.methode||'') + ' · ' + (p.date_soumission||'').substring(0,10) + '</div></div>' +
+        '<span style="font-weight:800;font-size:.95rem;color:#2e7d32">$' + parseFloat(p.montant||0).toFixed(2) + '</span>' +
+        '<span style="font-size:.72rem;background:' + sb + ';color:' + sc + ';padding:2px 8px;border-radius:8px">' + sl + '</span>' +
+      '</div>';
+    }).join('') : '<div style="padding:20px;text-align:center;color:var(--muted)">Aucun don</div>') +
+    '</div>',
     'large'
   );
 }
 
-async function rappDetailActivite(act) {
+async function rappDetailActivite(act, allPayments) {
   let inscrits = [];
   try { inscrits = await api('/activities/' + act.id + '/inscrits') || []; } catch {}
 
-  const payes    = inscrits.filter(i => i.paye === 1);
-  const nonPay   = inscrits.filter(i => !i.paye);
-  const totalColl = payes.reduce((s, i) => s + parseFloat(i.montant_paye || act.prix || 0), 0);
-  const totalDu   = parseFloat(act.prix || 0) * inscrits.length;
+  const membres    = inscrits.filter(i => i.plan && i.plan !== 'gratuit');
+  const visiteurs  = inscrits.filter(i => !i.plan || i.plan === 'gratuit');
+  const payes      = inscrits.filter(i => i.paye === 1);
+  const nonPay     = inscrits.filter(i => !i.paye);
+  const membPayes  = membres.filter(i => i.paye === 1);
+  const visitPayes = visiteurs.filter(i => i.paye === 1);
+  const totalColl  = payes.reduce((s, i) => s + parseFloat(i.montant_paye || act.prix || 0), 0);
+  const totalAttendu = parseFloat(act.prix || 0) * inscrits.length;
 
   window._rappCSV = {
     filename: 'activite_' + act.id + '.csv',
-    headers: ['Nom', 'Email', 'Statut membre', 'Payé', 'Montant dû', 'Montant payé', 'Date inscription'],
+    headers: ['Participant', 'Email', 'Statut membre', 'A payé', 'Montant payé', 'Montant dû', 'Date inscription'],
     rows: inscrits.map(i => [
       (i.prenom||'')+' '+(i.nom||''), i.email||'',
       (i.plan && i.plan !== 'gratuit') ? i.plan : 'Visiteur',
       i.paye ? 'Oui' : 'Non',
-      parseFloat(act.prix || 0),
       parseFloat(i.montant_paye || (i.paye ? act.prix : 0)),
+      parseFloat(act.prix || 0),
       (i.date_inscription||'').substring(0,10),
     ]),
   };
 
+  function personneRow(i, couleurFond) {
+    const montPaye = parseFloat(i.montant_paye || (i.paye ? act.prix : 0));
+    return '<div style="display:flex;align-items:center;gap:9px;padding:7px 14px;border-bottom:1px solid ' + (couleurFond === '#fff8f8' ? '#ffe0e0' : '#e0ede0') + '">' +
+      '<div style="width:30px;height:30px;border-radius:50%;background:' + (i.paye ? '#e8f5e9' : '#ffebee') + ';color:' + (i.paye ? '#2e7d32' : '#c62828') + ';display:flex;align-items:center;justify-content:center;font-size:.63rem;font-weight:700;flex-shrink:0">' +
+      ((i.prenom||'')[0]||'').toUpperCase() + ((i.nom||'')[0]||'').toUpperCase() + '</div>' +
+      '<div style="flex:1"><strong style="font-size:.84rem">' + (i.prenom||'') + ' ' + (i.nom||'') + '</strong><div style="font-size:.73rem;color:var(--muted)">' + (i.email||'') + '</div></div>' +
+      planBadge(i.plan) +
+      (i.paye ? '<span style="font-weight:700;color:#2e7d32">$' + montPaye.toFixed(2) + '</span>' : '<span style="color:#c62828;font-size:.82rem">$' + parseFloat(act.prix||0).toFixed(2) + ' dû</span>') +
+      '</div>';
+  }
+
+  const sections = [
+    membPayes.length ? {
+      titre: '👥 Membres ayant participé et payé (' + membPayes.length + ')',
+      bg: '#e8f5e9', couleur: '#1b5e20', couleurFond: '#f1faf1', items: membPayes,
+    } : null,
+    visitPayes.length ? {
+      titre: '🎟️ Non-membres ayant acheté une carte (' + visitPayes.length + ')',
+      bg: '#e3f2fd', couleur: '#01579b', couleurFond: '#f1f8ff', items: visitPayes,
+    } : null,
+    nonPay.length ? {
+      titre: '⏳ Inscrits n\'ayant pas encore payé (' + nonPay.length + ')',
+      bg: '#fff3e0', couleur: '#bf360c', couleurFond: '#fff8f8', items: nonPay,
+    } : null,
+  ].filter(Boolean);
+
   openModal('🎪 ' + act.titre,
-    '<div style="font-size:.82rem;color:var(--muted);margin-bottom:16px">' +
-    (act.date_debut||'').substring(0,10) + (act.lieu ? ' · ' + act.lieu : '') + ' · $' + parseFloat(act.prix||0).toFixed(2) + ' / billet</div>' +
+    '<div style="font-size:.8rem;color:var(--muted);margin-bottom:14px">' +
+    (act.date_debut||'').substring(0,10) + (act.lieu ? ' · ' + act.lieu : '') + ' · $' + parseFloat(act.prix||0).toFixed(2) + '/billet</div>' +
 
     rappKpiRow([
-      { label:'Inscrits',        val: inscrits.length },
-      { label:'Ont payé',        val: payes.length, accent: true },
-      { label:'N\'ont pas payé', val: nonPay.length, danger: nonPay.length > 0 },
-      { label:'Collecté',        val:'$' + totalColl.toFixed(2), accent: true },
-      { label:'Attendu total',   val:'$' + totalDu.toFixed(2) },
+      { label:'Total collecté',    val:'$' + totalColl.toFixed(2), accent:true },
+      { label:'Billets vendus',    val: payes.length },
+      { label:'Membres payés',     val: membPayes.length, accent: membPayes.length > 0 },
+      { label:'Non-membres payés', val: visitPayes.length },
+      { label:'N\'ont pas payé',   val: nonPay.length, danger: nonPay.length > 0 },
+      { label:'Revenu attendu',    val:'$' + totalAttendu.toFixed(2) },
     ]) +
 
-    '<div style="display:flex;justify-content:flex-end;margin:12px 0">' +
+    '<div style="display:flex;justify-content:flex-end;margin:10px 0">' +
     '<button class="btn btn-sm btn-outline" onclick="exportRappCSV()">⬇️ Export CSV</button></div>' +
 
-    '<div style="max-height:420px;overflow-y:auto;border:1px solid var(--border);border-radius:10px">' +
-    '<table style="width:100%;border-collapse:collapse;font-size:.84rem">' +
-    '<thead><tr style="background:#f8f8f8;position:sticky;top:0;z-index:1">' +
-    '<th style="padding:9px 12px;text-align:left">Participant</th>' +
-    '<th style="padding:9px 8px">Statut membre</th>' +
-    '<th style="padding:9px 8px;text-align:right">Montant dû</th>' +
-    '<th style="padding:9px 8px;text-align:right">Montant payé</th>' +
-    '<th style="padding:9px 8px">Paiement</th>' +
-    '</tr></thead><tbody>' +
-    (inscrits.length ? inscrits.map(i => {
-      const estMembre = i.plan && i.plan !== 'gratuit';
-      const montDu    = parseFloat(act.prix || 0);
-      const montPaye  = parseFloat(i.montant_paye || (i.paye ? act.prix : 0));
-      return '<tr style="border-top:1px solid var(--border)' + (!i.paye ? ';background:#fffdf2' : '') + '">' +
-        '<td style="padding:8px 12px"><strong>' + (i.prenom||'') + ' ' + (i.nom||'') + '</strong>' +
-        '<div style="font-size:.74rem;color:var(--muted)">' + (i.email||'') + '</div></td>' +
-        '<td style="padding:8px 6px">' + (estMembre ?
-          '<span style="font-size:.73rem;background:#e8f5e9;color:#1b5e20;padding:2px 8px;border-radius:8px">' + i.plan + '</span>' :
-          '<span style="font-size:.73rem;background:#f5f5f5;color:#666;padding:2px 8px;border-radius:8px">Visiteur</span>') + '</td>' +
-        '<td style="padding:8px;text-align:right">$' + montDu.toFixed(2) + '</td>' +
-        '<td style="padding:8px;text-align:right;font-weight:' + (i.paye ? '700;color:#2e7d32' : '400;color:#aaa') + '">$' + montPaye.toFixed(2) + '</td>' +
-        '<td style="padding:8px">' + (i.paye ?
-          '<span style="font-size:.73rem;background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:8px">✅ Payé</span>' :
-          '<span style="font-size:.73rem;background:#ffebee;color:#c62828;padding:2px 8px;border-radius:8px">⏳ Impayé</span>') + '</td>' +
-      '</tr>';
-    }).join('') : '<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--muted)">Aucun inscrit</td></tr>') +
-    '</tbody></table></div>',
+    '<div style="max-height:460px;overflow-y:auto;display:flex;flex-direction:column;gap:10px">' +
+    (sections.length ? sections.map(s =>
+      '<div style="border-radius:10px;overflow:hidden;border:1px solid ' + s.bg + '">' +
+      '<div style="background:' + s.bg + ';padding:8px 14px;font-size:.76rem;font-weight:700;color:' + s.couleur + '">' + s.titre + '</div>' +
+      s.items.map(i => personneRow(i, s.couleurFond)).join('') +
+      '</div>'
+    ).join('') : '<div style="padding:20px;text-align:center;color:var(--muted)">Aucun inscrit</div>') +
+    '</div>',
     'large'
   );
 }
@@ -6714,9 +6685,9 @@ async function rappDetailActivite(act) {
 function rappKpiRow(items) {
   return '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px">' +
     items.map(k =>
-      '<div style="background:var(--off);border-radius:10px;padding:10px 14px;min-width:100px;text-align:center">' +
-      '<div style="font-size:1.25rem;font-weight:800;color:' + (k.danger ? '#c62828' : k.accent ? 'var(--accent)' : 'var(--text)') + '">' + k.val + '</div>' +
-      '<div style="font-size:.71rem;color:var(--muted);margin-top:2px">' + k.label + '</div>' +
+      '<div style="background:var(--off);border-radius:10px;padding:10px 14px;min-width:90px;text-align:center">' +
+      '<div style="font-size:1.2rem;font-weight:800;color:' + (k.danger ? '#c62828' : k.accent ? 'var(--accent)' : 'var(--text)') + '">' + k.val + '</div>' +
+      '<div style="font-size:.7rem;color:var(--muted);margin-top:2px">' + k.label + '</div>' +
       '</div>'
     ).join('') +
   '</div>';
@@ -6734,10 +6705,10 @@ function exportRappCSV() {
 }
 
 function planBadge(plan) {
-  if (!plan || plan === 'gratuit') return '<span style="font-size:.75rem;color:var(--muted)">Gratuit</span>';
+  if (!plan || plan === 'gratuit') return '<span style="font-size:.73rem;color:var(--muted)">Gratuit</span>';
   const colors = { bienfaiteur:'#fff8e1;color:#f57f17', partenaire:'#e8f5e9;color:#1b5e20' };
   const c = colors[plan] || 'var(--off);color:var(--muted)';
-  return '<span style="font-size:.75rem;background:' + c + ';padding:2px 8px;border-radius:8px">' + plan + '</span>';
+  return '<span style="font-size:.73rem;background:' + c + ';padding:2px 7px;border-radius:8px">' + plan + '</span>';
 }
 
 // ══ TÉMOIGNAGES (admin/secrétaire) ══════════════════════════════════════════
