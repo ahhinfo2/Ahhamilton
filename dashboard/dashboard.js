@@ -8953,7 +8953,9 @@ async function statsSite() {
       </div>
     </div>`);
 
-  // Charger les stats de connexions
+  // Charger les stats de connexions (reset cache à chaque ouverture)
+  window._connexionsData = null;
+  window._connexionsFiltres = { recherche: '', role: '', plan: '' };
   statsChargerConnexions('nb_connexions', 'desc');
 }
 
@@ -8973,10 +8975,42 @@ async function saveStatsSite() {
 async function statsChargerConnexions(triCol, triDir) {
   const section = document.getElementById('connexions_section');
   if (!section) return;
-  let rows = [];
-  try { rows = await api('/stats/connexions'); } catch { section.innerHTML = '<div style="color:#c62828;padding:12px">Erreur de chargement</div>'; return; }
 
-  // Tri client
+  // Chargement initial uniquement (données stockées en cache)
+  if (!window._connexionsData) {
+    section.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted)">Chargement…</div>';
+    try { window._connexionsData = await api('/stats/connexions'); }
+    catch { section.innerHTML = '<div style="color:#c62828;padding:12px">Erreur de chargement</div>'; return; }
+  }
+
+  // Mémoriser les filtres actifs
+  if (!window._connexionsFiltres) window._connexionsFiltres = { recherche:'', role:'', plan:'' };
+  window._connexionsTri = { col: triCol, dir: triDir };
+
+  statsRendreConnexions();
+}
+
+function statsRendreConnexions() {
+  const section = document.getElementById('connexions_section');
+  if (!section) return;
+  const { col: triCol, dir: triDir } = window._connexionsTri || { col:'nb_connexions', dir:'desc' };
+  const { recherche, role, plan } = window._connexionsFiltres || {};
+  const ROLE_FR = { admin:'Admin', secretaire:'Secrétaire', tresoriere:'Trésorière', delegue:'Délégué', membre:'Membre' };
+
+  // Filtrage
+  let rows = (window._connexionsData || []).filter(u => {
+    if (recherche) {
+      const q = recherche.toLowerCase();
+      const nom = (u.prenom + ' ' + u.nom).toLowerCase();
+      const email = (u.email || '').toLowerCase();
+      if (!nom.includes(q) && !email.includes(q)) return false;
+    }
+    if (role && u.role !== role) return false;
+    if (plan && (u.plan || 'gratuit') !== plan) return false;
+    return true;
+  });
+
+  // Tri
   rows = [...rows].sort((a, b) => {
     let va = a[triCol] ?? 0, vb = b[triCol] ?? 0;
     if (typeof va === 'string') va = va.toLowerCase();
@@ -8985,42 +9019,66 @@ async function statsChargerConnexions(triCol, triDir) {
   });
 
   const inv = d => d === 'asc' ? 'desc' : 'asc';
-  const th = (label, col) => {
-    const active = triCol === col;
+  const th = (label, colId) => {
+    const active = triCol === colId;
     const arrow  = active ? (triDir === 'asc' ? ' ▲' : ' ▼') : '';
-    return `<th onclick="statsChargerConnexions('${col}','${active ? inv(triDir) : 'desc'}')" style="padding:8px 12px;text-align:${col === 'nb_connexions' ? 'center' : 'left'};cursor:pointer;user-select:none;white-space:nowrap;background:${active ? '#e8f0fe' : '#f8f8f8'};color:${active ? '#1565c0' : 'var(--text)'}">${label}${arrow}</th>`;
+    const center = colId === 'nb_connexions';
+    return '<th onclick="statsChargerConnexions(\'' + colId + '\',\'' + (active ? inv(triDir) : 'desc') + '\')" ' +
+      'style="padding:8px 12px;text-align:' + (center ? 'center' : 'left') + ';cursor:pointer;user-select:none;white-space:nowrap;' +
+      'background:' + (active ? '#e8f0fe' : '#f8f8f8') + ';color:' + (active ? '#1565c0' : 'var(--text)') + '">' + label + arrow + '</th>';
   };
 
-  const ROLE_FR = { admin:'Admin', secretaire:'Secrétaire', tresoriere:'Trésorière', delegue:'Délégué', membre:'Membre' };
+  // Collecter les rôles et plans uniques pour les filtres
+  const roles  = [...new Set((window._connexionsData||[]).map(u => u.role).filter(Boolean))];
+  const plans  = [...new Set((window._connexionsData||[]).map(u => u.plan || 'gratuit').filter(Boolean))];
+
+  const selStyle = 'border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:.82rem;background:#fff;cursor:pointer;';
 
   section.innerHTML =
-    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">' +
-    '<span style="font-size:.82rem;color:var(--muted)">' + rows.length + ' membre(s) · Cliquez sur une colonne pour trier</span>' +
+    // ── Barre de filtres ────────────────────────────────────────────────
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;padding:12px 14px;background:var(--off);border-radius:10px;border:1px solid var(--border)">' +
+      '<input id="cx_recherche" type="text" placeholder="🔍 Rechercher un membre…" value="' + escHtml(recherche || '') + '" ' +
+        'oninput="window._connexionsFiltres.recherche=this.value;statsRendreConnexions()" ' +
+        'style="flex:1;min-width:180px;border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:.84rem"/>' +
+      '<select id="cx_role" onchange="window._connexionsFiltres.role=this.value;statsRendreConnexions()" style="' + selStyle + '">' +
+        '<option value="">Tous les rôles</option>' +
+        roles.map(r => '<option value="' + r + '"' + (role === r ? ' selected' : '') + '>' + (ROLE_FR[r] || r) + '</option>').join('') +
+      '</select>' +
+      '<select id="cx_plan" onchange="window._connexionsFiltres.plan=this.value;statsRendreConnexions()" style="' + selStyle + '">' +
+        '<option value="">Tous les plans</option>' +
+        plans.map(p => '<option value="' + p + '"' + (plan === p ? ' selected' : '') + '>' + (p.charAt(0).toUpperCase() + p.slice(1)) + '</option>').join('') +
+      '</select>' +
+      '<select onchange="statsChargerConnexions(\'nb_connexions\',this.value)" style="' + selStyle + '">' +
+        '<option value="desc"' + (triCol === 'nb_connexions' && triDir === 'desc' ? ' selected' : '') + '>Connexions ▼</option>' +
+        '<option value="asc"'  + (triCol === 'nb_connexions' && triDir === 'asc'  ? ' selected' : '') + '>Connexions ▲</option>' +
+      '</select>' +
+      (recherche || role || plan
+        ? '<button onclick="window._connexionsFiltres={recherche:\'\',role:\'\',plan:\'\'};statsRendreConnexions()" style="border:1px solid #c62828;color:#c62828;background:#fff;border-radius:8px;padding:6px 12px;font-size:.8rem;cursor:pointer">✕ Réinitialiser</button>'
+        : '') +
     '</div>' +
+    '<div style="font-size:.8rem;color:var(--muted);margin-bottom:8px">' + rows.length + ' membre(s) affiché(s) sur ' + (window._connexionsData||[]).length + ' · Cliquez sur une colonne pour trier</div>' +
+
+    // ── Tableau ─────────────────────────────────────────────────────────
     '<div style="overflow-x:auto;border:1px solid var(--border);border-radius:10px">' +
     '<table style="width:100%;border-collapse:collapse;font-size:.84rem">' +
     '<thead><tr>' +
-    th('Membre', 'nom') +
-    th('Rôle', 'role') +
-    th('Plan', 'plan') +
-    th('Connexions', 'nb_connexions') +
-    th('Dernière connexion', 'derniere_connexion') +
+    th('Membre', 'nom') + th('Rôle', 'role') + th('Plan', 'plan') + th('Connexions', 'nb_connexions') + th('Dernière connexion', 'derniere_connexion') +
     '</tr></thead><tbody>' +
-    rows.map((u, i) => {
+    (rows.length ? rows.map((u, i) => {
       const initials = ((u.prenom||'')[0]||'').toUpperCase() + ((u.nom||'')[0]||'').toUpperCase();
       const date = u.derniere_connexion ? u.derniere_connexion.substring(0, 16).replace('T', ' ') : 'Jamais';
       const heat = u.nb_connexions >= 20 ? '#1b5e20' : u.nb_connexions >= 5 ? '#e65100' : '#555';
-      return '<tr style="border-top:1px solid var(--border)' + (i % 2 === 0 ? '' : ';background:#fafafa') + '">' +
-        '<td style="padding:9px 12px;display:flex;align-items:center;gap:8px">' +
+      return '<tr style="border-top:1px solid var(--border)' + (i % 2 ? ';background:#fafafa' : '') + '">' +
+        '<td style="padding:9px 12px"><div style="display:flex;align-items:center;gap:8px">' +
         '<div style="width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;flex-shrink:0">' + initials + '</div>' +
         '<div><strong>' + escHtml(u.prenom + ' ' + u.nom) + '</strong><div style="font-size:.73rem;color:var(--muted)">' + (u.email || '') + '</div></div>' +
-        '</td>' +
+        '</div></td>' +
         '<td style="padding:9px 12px">' + (ROLE_FR[u.role] || u.role || '') + '</td>' +
         '<td style="padding:9px 12px">' + planBadge(u.plan) + '</td>' +
         '<td style="padding:9px;text-align:center;font-size:1.1rem;font-weight:800;color:' + heat + '">' + (u.nb_connexions || 0) + '</td>' +
         '<td style="padding:9px 12px;font-size:.8rem;color:var(--muted)">' + date + '</td>' +
         '</tr>';
-    }).join('') +
+    }).join('') : '<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--muted)">Aucun résultat pour ces filtres</td></tr>') +
     '</tbody></table></div>';
 }
 
