@@ -416,6 +416,9 @@ try { db.exec(`ALTER TABLE gallery_photos ADD COLUMN featured INTEGER DEFAULT 0`
 try { db.exec("ALTER TABLE payments ADD COLUMN nb_mois INTEGER DEFAULT 1"); } catch {}
 // Reçus fiscaux — archivage
 try { db.exec("ALTER TABLE tax_receipts ADD COLUMN archived INTEGER DEFAULT 0"); } catch {}
+// Suivi des connexions par membre
+try { db.exec("ALTER TABLE users ADD COLUMN nb_connexions INTEGER DEFAULT 0"); } catch {}
+try { db.exec("ALTER TABLE users ADD COLUMN derniere_connexion TEXT"); } catch {}
 
 // Cotisations membres (dues générées le 15 de chaque mois)
 try { db.exec(`CREATE TABLE IF NOT EXISTS cotisations (

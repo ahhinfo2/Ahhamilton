@@ -276,6 +276,8 @@ app.post('/api/auth/login', (req, res) => {
   if (!user || !bcrypt.compareSync(password, user.password_hash))
     return res.status(401).json({ error: 'Email ou mot de passe invalide' });
 
+  db.prepare("UPDATE users SET nb_connexions = nb_connexions + 1, derniere_connexion = datetime('now') WHERE id = ?").run(user.id);
+
   const token = jwt.sign(
     { id: user.id, email: user.email, role: user.role, prenom: user.prenom, nom: user.nom, date_naissance: user.date_naissance },
     JWT_SECRET, { expiresIn: '24h' }
@@ -4415,6 +4417,49 @@ app.delete('/api/young/jobs/:id', authMiddleware, requireRole('admin','secretair
   res.json({ ok: true });
 });
 
+app.post('/api/young/jobs/:id/notify', authMiddleware, requireRole('admin','secretaire','tresoriere','delegue'), async (req, res) => {
+  const job = db.prepare('SELECT * FROM young_jobs WHERE id=? AND actif=1').get(req.params.id);
+  if (!job) return res.status(404).json({ error: 'Offre introuvable' });
+  const membres = db.prepare("SELECT prenom, email FROM users WHERE actif=1 AND email IS NOT NULL AND email != ''").all();
+  const JOB_TYPES = { stage:'Stage', job_etudiant:'Emploi étudiant', mentorat:'Mentorat', atelier:'Atelier' };
+  const loginUrl = 'https://ahhamilton.ca/dashboard/login.html';
+  let ok = 0, errors = 0;
+  for (const m of membres) {
+    try {
+      await mailer.sendMail({
+        to: m.email,
+        subject: `[AHH Hamilton] Nouvelle opportunité : ${job.titre}`,
+        html: `<div style="font-family:sans-serif;max-width:600px;margin:auto;border-radius:12px;overflow:hidden;border:1px solid #e0e0e0">
+          <div style="background:linear-gradient(135deg,#1a237e,#283593);padding:24px;text-align:center">
+            <div style="color:#fff;font-size:1.4rem;font-weight:800">AHH Hamilton</div>
+            <div style="color:rgba(255,255,255,.75);font-size:.85rem;margin-top:4px">Association Haïtienne de Hamilton</div>
+          </div>
+          <div style="background:#fff;padding:28px">
+            <p style="font-size:1rem">Bonjour ${m.prenom},</p>
+            <p>Une nouvelle opportunité vient d'être publiée sur votre espace membre :</p>
+            <div style="background:#f5f7ff;border-left:4px solid #1a237e;border-radius:8px;padding:16px;margin:16px 0">
+              <div style="font-size:.75rem;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${JOB_TYPES[job.type] || job.type}</div>
+              <div style="font-size:1.1rem;font-weight:700;color:#1a237e">${job.titre}</div>
+              ${job.organisation ? `<div style="font-size:.88rem;color:#555;margin-top:4px">🏢 ${job.organisation}</div>` : ''}
+              ${job.lieu       ? `<div style="font-size:.88rem;color:#555;margin-top:2px">📍 ${job.lieu}</div>` : ''}
+              ${job.date_limite ? `<div style="font-size:.88rem;color:#c62828;margin-top:4px">⏰ Date limite : ${job.date_limite}</div>` : ''}
+            </div>
+            <p style="font-size:.9rem;color:#555">Pour consulter les détails complets et postuler, connectez-vous à votre espace membre :</p>
+            <div style="text-align:center;margin:24px 0">
+              <a href="${loginUrl}" style="background:#1a237e;color:#fff;padding:13px 30px;border-radius:8px;text-decoration:none;font-weight:700;font-size:.95rem;display:inline-block">Se connecter à mon espace →</a>
+            </div>
+          </div>
+          <div style="background:#f9f9f9;padding:12px;text-align:center;font-size:.75rem;color:#999">
+            Association Haïtienne de Hamilton · <a href="https://ahhamilton.ca" style="color:#1a237e">ahhamilton.ca</a>
+          </div>
+        </div>`
+      });
+      ok++;
+    } catch { errors++; }
+  }
+  res.json({ ok, errors, total: membres.length });
+});
+
 // ── Formations & ateliers ────────────────────────────────────────────────────
 app.get('/api/young/trainings', authMiddleware, (req, res) => {
   const rows = db.prepare(`SELECT t.*, u.prenom||' '||u.nom AS createur FROM young_trainings t LEFT JOIN users u ON u.id=t.cree_par WHERE t.actif=1 ORDER BY t.date_debut DESC`).all();
@@ -4430,6 +4475,54 @@ app.post('/api/young/trainings', authMiddleware, requireRole('admin','secretaire
 app.delete('/api/young/trainings/:id', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
   db.prepare('UPDATE young_trainings SET actif=0 WHERE id=?').run(req.params.id);
   res.json({ ok: true });
+});
+
+app.post('/api/young/trainings/:id/notify', authMiddleware, requireRole('admin','secretaire','tresoriere','delegue'), async (req, res) => {
+  const t = db.prepare('SELECT * FROM young_trainings WHERE id=? AND actif=1').get(req.params.id);
+  if (!t) return res.status(404).json({ error: 'Formation introuvable' });
+  const membres = db.prepare("SELECT prenom, email FROM users WHERE actif=1 AND email IS NOT NULL AND email != ''").all();
+  const loginUrl = 'https://ahhamilton.ca/dashboard/login.html';
+  let ok = 0, errors = 0;
+  for (const m of membres) {
+    try {
+      await mailer.sendMail({
+        to: m.email,
+        subject: `[AHH Hamilton] Nouvelle formation : ${t.titre}`,
+        html: `<div style="font-family:sans-serif;max-width:600px;margin:auto;border-radius:12px;overflow:hidden;border:1px solid #e0e0e0">
+          <div style="background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:24px;text-align:center">
+            <div style="color:#fff;font-size:1.4rem;font-weight:800">AHH Hamilton</div>
+            <div style="color:rgba(255,255,255,.75);font-size:.85rem;margin-top:4px">Association Haïtienne de Hamilton</div>
+          </div>
+          <div style="background:#fff;padding:28px">
+            <p style="font-size:1rem">Bonjour ${m.prenom},</p>
+            <p>Une nouvelle formation est disponible sur votre espace membre :</p>
+            <div style="background:#f1f8e9;border-left:4px solid #2e7d32;border-radius:8px;padding:16px;margin:16px 0">
+              <div style="font-size:.75rem;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Formation / Atelier</div>
+              <div style="font-size:1.1rem;font-weight:700;color:#1b5e20">${t.titre}</div>
+              ${t.formateur  ? `<div style="font-size:.88rem;color:#555;margin-top:4px">👤 Par ${t.formateur}</div>` : ''}
+              ${t.date_debut ? `<div style="font-size:.88rem;color:#555;margin-top:2px">📅 ${t.date_debut}${t.date_fin ? ' → ' + t.date_fin : ''}</div>` : ''}
+              ${t.lieu       ? `<div style="font-size:.88rem;color:#555;margin-top:2px">📍 ${t.lieu}</div>` : ''}
+              <div style="font-size:.88rem;font-weight:700;color:#1b5e20;margin-top:6px">${t.gratuit ? '✅ Gratuit' : `💳 $${parseFloat(t.prix||0).toFixed(2)}`}</div>
+            </div>
+            <p style="font-size:.9rem;color:#555">Connectez-vous pour voir les détails et vous inscrire :</p>
+            <div style="text-align:center;margin:24px 0">
+              <a href="${loginUrl}" style="background:#2e7d32;color:#fff;padding:13px 30px;border-radius:8px;text-decoration:none;font-weight:700;font-size:.95rem;display:inline-block">Se connecter à mon espace →</a>
+            </div>
+          </div>
+          <div style="background:#f9f9f9;padding:12px;text-align:center;font-size:.75rem;color:#999">
+            Association Haïtienne de Hamilton · <a href="https://ahhamilton.ca" style="color:#2e7d32">ahhamilton.ca</a>
+          </div>
+        </div>`
+      });
+      ok++;
+    } catch { errors++; }
+  }
+  res.json({ ok, errors, total: membres.length });
+});
+
+app.get('/api/stats/connexions', authMiddleware, requireRole('admin','secretaire','tresoriere','delegue'), (req, res) => {
+  const rows = db.prepare(`SELECT id, prenom, nom, email, role, plan, nb_connexions, derniere_connexion FROM users WHERE actif=1 ORDER BY nb_connexions DESC`).all();
+  res.json(rows);
 });
 
 // ── Sondages ─────────────────────────────────────────────────────────────────

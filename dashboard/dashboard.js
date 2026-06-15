@@ -8943,8 +8943,18 @@ async function statsSite() {
         </div>
 
         <button class="btn btn-primary" onclick="saveStatsSite()">💾 Enregistrer et publier</button>
+
+        <hr style="margin:28px 0;border:none;border-top:1px solid var(--border)"/>
+
+        <h3 style="font-size:.95rem;font-weight:700;margin-bottom:16px">🔐 Connexions par membre</h3>
+        <div id="connexions_section">
+          <div style="text-align:center;padding:24px;color:var(--muted)">Chargement…</div>
+        </div>
       </div>
     </div>`);
+
+  // Charger les stats de connexions
+  statsChargerConnexions('nb_connexions', 'desc');
 }
 
 async function saveStatsSite() {
@@ -8958,6 +8968,60 @@ async function saveStatsSite() {
     })});
     toast('✅ Statistiques mises à jour sur le site public !');
   } catch(e) { toast('Erreur : ' + e.message, true); }
+}
+
+async function statsChargerConnexions(triCol, triDir) {
+  const section = document.getElementById('connexions_section');
+  if (!section) return;
+  let rows = [];
+  try { rows = await api('/stats/connexions'); } catch { section.innerHTML = '<div style="color:#c62828;padding:12px">Erreur de chargement</div>'; return; }
+
+  // Tri client
+  rows = [...rows].sort((a, b) => {
+    let va = a[triCol] ?? 0, vb = b[triCol] ?? 0;
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    return triDir === 'asc' ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
+  });
+
+  const inv = d => d === 'asc' ? 'desc' : 'asc';
+  const th = (label, col) => {
+    const active = triCol === col;
+    const arrow  = active ? (triDir === 'asc' ? ' ▲' : ' ▼') : '';
+    return `<th onclick="statsChargerConnexions('${col}','${active ? inv(triDir) : 'desc'}')" style="padding:8px 12px;text-align:${col === 'nb_connexions' ? 'center' : 'left'};cursor:pointer;user-select:none;white-space:nowrap;background:${active ? '#e8f0fe' : '#f8f8f8'};color:${active ? '#1565c0' : 'var(--text)'}">${label}${arrow}</th>`;
+  };
+
+  const ROLE_FR = { admin:'Admin', secretaire:'Secrétaire', tresoriere:'Trésorière', delegue:'Délégué', membre:'Membre' };
+
+  section.innerHTML =
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">' +
+    '<span style="font-size:.82rem;color:var(--muted)">' + rows.length + ' membre(s) · Cliquez sur une colonne pour trier</span>' +
+    '</div>' +
+    '<div style="overflow-x:auto;border:1px solid var(--border);border-radius:10px">' +
+    '<table style="width:100%;border-collapse:collapse;font-size:.84rem">' +
+    '<thead><tr>' +
+    th('Membre', 'nom') +
+    th('Rôle', 'role') +
+    th('Plan', 'plan') +
+    th('Connexions', 'nb_connexions') +
+    th('Dernière connexion', 'derniere_connexion') +
+    '</tr></thead><tbody>' +
+    rows.map((u, i) => {
+      const initials = ((u.prenom||'')[0]||'').toUpperCase() + ((u.nom||'')[0]||'').toUpperCase();
+      const date = u.derniere_connexion ? u.derniere_connexion.substring(0, 16).replace('T', ' ') : 'Jamais';
+      const heat = u.nb_connexions >= 20 ? '#1b5e20' : u.nb_connexions >= 5 ? '#e65100' : '#555';
+      return '<tr style="border-top:1px solid var(--border)' + (i % 2 === 0 ? '' : ';background:#fafafa') + '">' +
+        '<td style="padding:9px 12px;display:flex;align-items:center;gap:8px">' +
+        '<div style="width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;flex-shrink:0">' + initials + '</div>' +
+        '<div><strong>' + escHtml(u.prenom + ' ' + u.nom) + '</strong><div style="font-size:.73rem;color:var(--muted)">' + (u.email || '') + '</div></div>' +
+        '</td>' +
+        '<td style="padding:9px 12px">' + (ROLE_FR[u.role] || u.role || '') + '</td>' +
+        '<td style="padding:9px 12px">' + planBadge(u.plan) + '</td>' +
+        '<td style="padding:9px;text-align:center;font-size:1.1rem;font-weight:800;color:' + heat + '">' + (u.nb_connexions || 0) + '</td>' +
+        '<td style="padding:9px 12px;font-size:.8rem;color:var(--muted)">' + date + '</td>' +
+        '</tr>';
+    }).join('') +
+    '</tbody></table></div>';
 }
 
 async function vpAnnulerNonVendus(actId) {
@@ -9785,12 +9849,25 @@ async function youngJobForm() {
     <div class="form-group"><label class="form-label">Description</label><textarea id="yj_desc" class="form-input" rows="4" placeholder="Détails de l'offre..."></textarea></div>
     <div class="form-group"><label class="form-label">Contact / Email</label><input id="yj_contact" class="form-input" placeholder="recrutement@exemple.com"/></div>
     <div class="form-group"><label class="form-label">Lien externe (optionnel)</label><input id="yj_lien" class="form-input" placeholder="https://..."/></div>
-    <div style="display:flex;gap:10px"><button class="btn btn-primary" onclick="youngSaveJob()">Publier</button><button class="btn btn-ghost" onclick="closeModal()">Annuler</button></div>`);
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="youngSaveJob(false)">Publier</button>
+      <button class="btn btn-primary" style="background:#2e7d32" onclick="youngSaveJob(true)">📧 Publier et notifier les membres</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+    </div>`);
 }
-async function youngSaveJob() {
+async function youngSaveJob(notifier = false) {
   const body = { type:document.getElementById('yj_type').value, titre:document.getElementById('yj_titre').value.trim(), organisation:document.getElementById('yj_org').value, lieu:document.getElementById('yj_lieu').value, date_limite:document.getElementById('yj_date').value, description:document.getElementById('yj_desc').value, contact:document.getElementById('yj_contact').value, lien_externe:document.getElementById('yj_lien').value };
   if (!body.titre) return toast('Titre requis', true);
-  try { await api('/young/jobs', { method:'POST', body:JSON.stringify(body) }); closeModal(); toast('Offre publiée !'); youngJobs(); } catch(e) { toast('Erreur: '+e.message,true); }
+  try {
+    const r = await api('/young/jobs', { method:'POST', body:JSON.stringify(body) });
+    if (notifier && r.id) {
+      toast('Publication en cours…');
+      const n = await api('/young/jobs/' + r.id + '/notify', { method:'POST' });
+      closeModal(); youngJobs(); toast('Offre publiée et ' + n.ok + ' membre(s) notifié(s) par courriel !');
+    } else {
+      closeModal(); youngJobs(); toast('Offre publiée !');
+    }
+  } catch(e) { toast('Erreur: '+e.message, true); }
 }
 async function youngDeleteJob(id) {
   if (!confirm('Supprimer cette offre ?')) return;
@@ -9846,12 +9923,25 @@ async function youngTrainingForm() {
     </div>
     <div class="form-group"><label class="form-label">Description</label><textarea id="yt_desc" class="form-input" rows="3"></textarea></div>
     <div class="form-group"><label class="form-label">Lien d'inscription</label><input id="yt_lien" class="form-input" placeholder="https://..."/></div>
-    <div style="display:flex;gap:10px"><button class="btn btn-primary" onclick="youngSaveTraining()">Publier</button><button class="btn btn-ghost" onclick="closeModal()">Annuler</button></div>`);
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="youngSaveTraining(false)">Publier</button>
+      <button class="btn btn-primary" style="background:#1b5e20" onclick="youngSaveTraining(true)">📧 Publier et notifier les membres</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+    </div>`);
 }
-async function youngSaveTraining() {
+async function youngSaveTraining(notifier = false) {
   const body = { titre:document.getElementById('yt_titre').value.trim(), formateur:document.getElementById('yt_form').value, date_debut:document.getElementById('yt_debut').value, date_fin:document.getElementById('yt_fin').value, lieu:document.getElementById('yt_lieu').value, places_max:document.getElementById('yt_places').value, prix:document.getElementById('yt_prix').value, gratuit:document.getElementById('yt_gratuit').checked, description:document.getElementById('yt_desc').value, lien_inscription:document.getElementById('yt_lien').value };
-  if (!body.titre) return toast('Titre requis',true);
-  try { await api('/young/trainings', { method:'POST', body:JSON.stringify(body) }); closeModal(); toast('Formation publiée !'); youngTrainings(); } catch(e) { toast('Erreur: '+e.message,true); }
+  if (!body.titre) return toast('Titre requis', true);
+  try {
+    const r = await api('/young/trainings', { method:'POST', body:JSON.stringify(body) });
+    if (notifier && r.id) {
+      toast('Publication en cours…');
+      const n = await api('/young/trainings/' + r.id + '/notify', { method:'POST' });
+      closeModal(); youngTrainings(); toast('Formation publiée et ' + n.ok + ' membre(s) notifié(s) par courriel !');
+    } else {
+      closeModal(); youngTrainings(); toast('Formation publiée !');
+    }
+  } catch(e) { toast('Erreur: '+e.message, true); }
 }
 async function youngDeleteTraining(id) {
   if (!confirm('Supprimer cette formation ?')) return;
