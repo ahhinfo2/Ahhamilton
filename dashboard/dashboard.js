@@ -217,10 +217,11 @@ function buildSidebar() {
 
     // ── Finance ───────────────────────────────────────────────────
     { label: 'Finance', items: [
-      { id:'paiements', icon:'◆', label:'Paiements',      roles:['admin','tresoriere'] },
-      { id:'finance',   icon:'◇', label:'Budget',          roles:['admin','tresoriere'] },
-      { id:'invoices',  icon:'◈', label:'Factures',        roles:['admin','tresoriere'] },
-      { id:'recus',     icon:'◉', label:'Reçus fiscaux',  roles:['admin','tresoriere'] },
+      { id:'paiements',         icon:'◆', label:'Paiements',      roles:['admin','tresoriere'] },
+      { id:'finance',           icon:'◇', label:'Budget',          roles:['admin','tresoriere'] },
+      { id:'invoices',          icon:'◈', label:'Factures',        roles:['admin','tresoriere'] },
+      { id:'recus',             icon:'◉', label:'Reçus fiscaux',  roles:['admin','tresoriere'] },
+      { id:'rapports_finance',  icon:'📊', label:'Rapports',       roles:['admin','tresoriere'] },
     ]},
 
     // ── Communication ─────────────────────────────────────────────
@@ -364,7 +365,7 @@ function setActiveNav(viewId) {
     talents_mgmt:'Nos talents', annonces_mgmt:'Petites annonces',
     mes_talents:'Mon talent', mes_annonces:'Mes annonces',
     inscriptions:'Inscriptions en attente', paiements:'Paiements membres',
-    recus:'Reçus fiscaux', mon_paiement:'Mon paiement', annuaire:'Courriel',
+    recus:'Reçus fiscaux', rapports_finance:'Rapports', mon_paiement:'Mon paiement', annuaire:'Courriel',
     forum:'Forum', newsletter:'Infolettre', 'vente-personne':'Vendre (Cash)',
     'young-home':'Espace Jeunes', 'young-jobs':'Stages & Emplois',
     'young-trainings':'Formations', 'young-polls':'Sondages', 'young-stories':'Success Stories',
@@ -6169,7 +6170,7 @@ async function recus() {
     '</div></div>' +
 
     '<div class="table-card"><div class="table-card-header"><h3>Reçus émis</h3></div>' +
-    '<div style="padding:8px 4px">' +
+    '<div id="recus_emis_body" style="padding:8px 4px">' +
     recusParAnneeHTML(data) +
     '</div></div>'
   );
@@ -6329,11 +6330,24 @@ function recusToggleDossier(annee) {
   if (arrow) arrow.textContent = open ? '▶' : '▼';
 }
 
+async function rafraichirRecusEmis() {
+  const container = document.getElementById('recus_emis_body');
+  if (!container) { recus(); return; }
+  // Mémoriser les dossiers ouverts
+  const openYears = [];
+  document.querySelectorAll('[id^="dossier_"]').forEach(el => {
+    if (!el.id.includes('arrow') && el.style.display !== 'none') openYears.push(el.id.replace('dossier_', ''));
+  });
+  const data = await api('/receipts');
+  container.innerHTML = recusParAnneeHTML(data);
+  openYears.forEach(annee => recusToggleDossier(annee));
+}
+
 async function recusArchiverRecu(id, archiver) {
   try {
     await api('/receipts/' + id + '/archiver', { method:'PATCH', body: JSON.stringify({ archived: archiver }) });
     toast(archiver ? '📦 Reçu archivé' : '📂 Reçu désarchivé');
-    recus();
+    await rafraichirRecusEmis();
   } catch(e) { toast(e.message, 'error'); }
 }
 
@@ -6342,8 +6356,175 @@ async function recusSupprimerRecu(id) {
   try {
     await api('/receipts/' + id, { method:'DELETE' });
     toast('🗑️ Reçu supprimé');
-    recus();
+    await rafraichirRecusEmis();
   } catch(e) { toast(e.message, 'error'); }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// RAPPORTS FINANCE
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function rapports_finance() {
+  setContent('<div class="page-header"><div><h2>📊 Rapports financiers</h2><p>Vue globale et détaillée des finances.</p></div></div><div id="rapports_body" style="display:flex;flex-direction:column;gap:16px"><div style="text-align:center;padding:40px;color:var(--muted)">Chargement…</div></div>');
+  try {
+    const [summary, cotisations, payments, activities] = await Promise.all([
+      api('/cotisations/summary').catch(() => ({})),
+      api('/cotisations').catch(() => []),
+      api('/payments').catch(() => []),
+      api('/activities').catch(() => []),
+    ]);
+    const paidActs = (activities || []).filter(a => a.paiement_requis || parseFloat(a.prix || 0) > 0);
+    const container = document.getElementById('rapports_body');
+    if (!container) return;
+
+    // ── Card 1 : Cotisations ──────────────────────────────────────────────────
+    const totalAttendu   = parseFloat(summary.attendu || 0);
+    const totalRecu      = parseFloat(summary.reel || 0);
+    const nbRetard       = parseInt(summary.enRetard || 0);
+    const tauxRecuperation = totalAttendu > 0 ? Math.round(totalRecu / totalAttendu * 100) : 0;
+    // Paiements cotisations approuvés
+    const paysCotis = (payments || []).filter(p => p.statut === 'approuve' && p.type !== 'don');
+    const donateurs = (payments || []).filter(p => p.statut === 'approuve' && p.type === 'don');
+    const totalDons  = donateurs.reduce((s, p) => s + parseFloat(p.montant || 0), 0);
+
+    // ── Card 2 : Dons ─────────────────────────────────────────────────────────
+
+    // Grouper cotisations par membre
+    const membresCotis = {};
+    (cotisations || []).forEach(c => {
+      const k = c.user_id;
+      if (!membresCotis[k]) membresCotis[k] = { nom: (c.prenom||'') + ' ' + (c.nom||''), plan: c.plan, payes: 0, enAttente: 0 };
+      if (c.statut === 'paye') membresCotis[k].payes++;
+      else if (c.statut === 'en_attente') membresCotis[k].enAttente++;
+    });
+    const rowsCotis = Object.values(membresCotis).sort((a,b) => b.payes - a.payes);
+
+    container.innerHTML =
+      rapportCard('cotis', '💰 Cotisations membres',
+        [
+          { label:'Total attendu',      val:'$' + totalAttendu.toFixed(2) },
+          { label:'Total reçu',         val:'$' + totalRecu.toFixed(2), accent: true },
+          { label:'Taux de récupération', val: tauxRecuperation + '%', accent: tauxRecuperation >= 80 },
+          { label:'Membres en retard',  val: nbRetard, danger: nbRetard > 0 },
+        ],
+        '<table style="width:100%;border-collapse:collapse;font-size:.86rem">' +
+        '<thead><tr style="background:#f8f8f8"><th style="padding:8px 12px;text-align:left">Membre</th><th style="padding:8px">Plan</th><th style="padding:8px;text-align:center">Mois payés</th><th style="padding:8px;text-align:center">En attente</th></tr></thead><tbody>' +
+        (rowsCotis.length ? rowsCotis.map(m =>
+          '<tr style="border-top:1px solid var(--border)">' +
+          '<td style="padding:8px 12px;font-weight:600">' + m.nom + '</td>' +
+          '<td style="padding:8px;font-size:.8rem">' + planBadge(m.plan) + '</td>' +
+          '<td style="padding:8px;text-align:center;color:#2e7d32;font-weight:700">' + m.payes + '</td>' +
+          '<td style="padding:8px;text-align:center;color:' + (m.enAttente > 0 ? '#c62828' : '#999') + '">' + m.enAttente + '</td>' +
+          '</tr>'
+        ).join('') : '<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--muted)">Aucune donnée</td></tr>') +
+        '</tbody></table>'
+      ) +
+
+      rapportCard('dons', '🎁 Dons reçus',
+        [
+          { label:'Nombre de dons',  val: donateurs.length },
+          { label:'Total dons',      val:'$' + totalDons.toFixed(2), accent: true },
+        ],
+        '<table style="width:100%;border-collapse:collapse;font-size:.86rem">' +
+        '<thead><tr style="background:#f8f8f8"><th style="padding:8px 12px;text-align:left">Membre</th><th style="padding:8px;text-align:right">Montant</th><th style="padding:8px">Méthode</th><th style="padding:8px">Date</th></tr></thead><tbody>' +
+        (donateurs.length ? donateurs.sort((a,b) => b.montant - a.montant).map(p =>
+          '<tr style="border-top:1px solid var(--border)">' +
+          '<td style="padding:8px 12px;font-weight:600">' + (p.prenom||'') + ' ' + (p.nom||'') + '</td>' +
+          '<td style="padding:8px;text-align:right;font-weight:700;color:#2e7d32">$' + parseFloat(p.montant).toFixed(2) + '</td>' +
+          '<td style="padding:8px;font-size:.82rem">' + (p.methode||'') + '</td>' +
+          '<td style="padding:8px;font-size:.8rem;color:var(--muted)">' + fmt(p.date_soumission) + '</td>' +
+          '</tr>'
+        ).join('') : '<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--muted)">Aucun don enregistré</td></tr>') +
+        '</tbody></table>'
+      ) +
+
+      rapportCard('activites', '🎪 Activités payantes',
+        [
+          { label:'Activités payantes', val: paidActs.length },
+          { label:'Total inscriptions', val: paidActs.reduce((s,a) => s + (parseInt(a.nb_inscrits)||0), 0) },
+        ],
+        '<div id="rapp_activites_detail">Chargement…</div>',
+        true
+      );
+
+    // Charger les détails activités si ouverts (précharge)
+    window._rappActivitesData = paidActs;
+
+  } catch(e) { document.getElementById('rapports_body').innerHTML = '<div style="padding:24px;color:red">Erreur : ' + e.message + '</div>'; }
+}
+
+function rapportCard(id, titre, kpis, detailHTML, autoLoad) {
+  const kpiHTML = kpis.map(k =>
+    '<div style="background:var(--off);border-radius:10px;padding:12px 16px;min-width:120px;text-align:center">' +
+    '<div style="font-size:1.4rem;font-weight:800;color:' + (k.danger ? '#c62828' : k.accent ? 'var(--accent)' : 'var(--text)') + '">' + k.val + '</div>' +
+    '<div style="font-size:.75rem;color:var(--muted);margin-top:2px">' + k.label + '</div>' +
+    '</div>'
+  ).join('');
+  return '<div class="table-card" style="overflow:hidden">' +
+    '<div style="display:flex;align-items:center;gap:12px;padding:16px 20px;cursor:pointer;user-select:none" onclick="rapportToggle(\'' + id + '\')">' +
+      '<span style="font-size:1.05rem;font-weight:700;flex:1">' + titre + '</span>' +
+      '<span id="rapp_arrow_' + id + '" style="font-size:.85rem;color:var(--muted)">▶</span>' +
+    '</div>' +
+    '<div style="display:flex;gap:12px;flex-wrap:wrap;padding:0 20px 16px">' + kpiHTML + '</div>' +
+    '<div id="rapp_' + id + '" style="border-top:1px solid var(--border);display:none">' + detailHTML + '</div>' +
+  '</div>';
+}
+
+function rapportToggle(id) {
+  const el = document.getElementById('rapp_' + id);
+  const arrow = document.getElementById('rapp_arrow_' + id);
+  if (!el) return;
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : '';
+  if (arrow) arrow.textContent = open ? '▶' : '▼';
+  if (!open && id === 'activites') rapportChargerActivites();
+}
+
+async function rapportChargerActivites() {
+  const container = document.getElementById('rapp_activites_detail');
+  if (!container) return;
+  const paidActs = window._rappActivitesData || [];
+  if (!paidActs.length) { container.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted)">Aucune activité payante</div>'; return; }
+
+  container.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted)">Chargement des inscriptions…</div>';
+  try {
+    const results = await Promise.all(paidActs.map(a =>
+      api('/activities/' + a.id + '/inscrits').then(inscrits => ({ act: a, inscrits: inscrits || [] })).catch(() => ({ act: a, inscrits: [] }))
+    ));
+
+    container.innerHTML = results.map(({ act, inscrits }) => {
+      const payes   = inscrits.filter(i => i.paye === 1 || i.paye === true);
+      const nonPay  = inscrits.filter(i => !i.paye);
+      const totalPercu = payes.reduce((s, i) => s + parseFloat(i.montant_paye || act.prix || 0), 0);
+      return '<div style="border-bottom:1px solid var(--border);padding:14px 20px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">' +
+          '<strong>' + act.titre + '</strong>' +
+          '<span style="font-size:.82rem;color:var(--muted)">' + fmt(act.date_debut) + '</span>' +
+        '</div>' +
+        '<div style="display:flex;gap:16px;margin-bottom:10px;flex-wrap:wrap;font-size:.84rem">' +
+          '<span style="color:#2e7d32">✅ ' + payes.length + ' payé(s)</span>' +
+          '<span style="color:#c62828">⏳ ' + nonPay.length + ' non payé(s)</span>' +
+          '<span style="color:var(--accent);font-weight:700">$' + totalPercu.toFixed(2) + ' perçu</span>' +
+          '<span style="color:var(--muted)">Prix unitaire : $' + parseFloat(act.prix || 0).toFixed(2) + '</span>' +
+        '</div>' +
+        (payes.length ? '<div style="margin-bottom:8px"><div style="font-size:.78rem;font-weight:600;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em">Payés</div>' +
+          '<div style="display:flex;flex-wrap:wrap;gap:6px">' +
+          payes.map(i => '<span style="font-size:.8rem;background:#e8f5e9;color:#1b5e20;padding:3px 10px;border-radius:20px">' + i.prenom + ' ' + i.nom + (i.plan && i.plan !== 'gratuit' ? ' (' + i.plan + ')' : '') + '</span>').join('') +
+          '</div></div>' : '') +
+        (nonPay.length ? '<div><div style="font-size:.78rem;font-weight:600;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em">Non payés / en attente</div>' +
+          '<div style="display:flex;flex-wrap:wrap;gap:6px">' +
+          nonPay.map(i => '<span style="font-size:.8rem;background:#fff3e0;color:#e65100;padding:3px 10px;border-radius:20px">' + i.prenom + ' ' + i.nom + '</span>').join('') +
+          '</div></div>' : '') +
+      '</div>';
+    }).join('');
+  } catch(e) { container.innerHTML = '<div style="padding:16px;color:red">Erreur : ' + e.message + '</div>'; }
+}
+
+function planBadge(plan) {
+  if (!plan || plan === 'gratuit') return '<span style="font-size:.75rem;color:var(--muted)">Gratuit</span>';
+  const colors = { bienfaiteur:'#fff8e1;color:#f57f17', partenaire:'#e8f5e9;color:#1b5e20' };
+  const c = colors[plan] || 'var(--off);color:var(--muted)';
+  return '<span style="font-size:.75rem;background:' + c + ';padding:2px 8px;border-radius:8px">' + plan + '</span>';
 }
 
 // ══ TÉMOIGNAGES (admin/secrétaire) ══════════════════════════════════════════
