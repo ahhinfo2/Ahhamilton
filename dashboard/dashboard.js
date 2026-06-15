@@ -6374,75 +6374,161 @@ async function rapports_finance() {
     '<div id="rapports_body" style="padding:4px"><div style="text-align:center;padding:48px;color:var(--muted)">Chargement…</div></div>'
   );
   try {
-    const [allCotis, allPayments, activities] = await Promise.all([
+    const [allCotis, allPayments, activities, allUsers] = await Promise.all([
       api('/cotisations').catch(() => []),
       api('/payments').catch(() => []),
       api('/activities').catch(() => []),
+      api('/users').catch(() => []),
     ]);
-    window._rapp = { allCotis, allPayments, activities };
+    window._rapp = { allCotis, allPayments, activities, allUsers };
 
-    const paidActs = (activities || []).filter(a => a.paiement_requis || parseFloat(a.prix || 0) > 0);
-    const dons     = (allPayments || []).filter(p => p.type === 'don');
+    const annee = String(new Date().getFullYear());
+    const moisCourant = new Date().getMonth() + 1;
 
-    // ── Cotisations : grouper par année ───────────────────────────────────
-    const cotisParAnnee = {};
+    const cotisAnnee      = (allCotis || []).filter(c => (c.periode || '').startsWith(annee));
+    const totalCotisPaye  = cotisAnnee.filter(c => c.statut === 'paye').reduce((s, c) => s + parseFloat(c.montant_attendu || 0), 0);
+    const totalCotisAtt   = cotisAnnee.reduce((s, c) => s + parseFloat(c.montant_attendu || 0), 0);
+    const nbEnRetard      = cotisAnnee.filter(c => c.statut === 'en_attente').length;
+    const tauxPct         = totalCotisAtt > 0 ? Math.round(totalCotisPaye / totalCotisAtt * 100) : 0;
+
+    const byMemberRetard  = {};
+    (allCotis || []).filter(c => c.statut === 'en_attente').forEach(c => { byMemberRetard[c.user_id] = (byMemberRetard[c.user_id] || 0) + 1; });
+    const nbChroniques    = Object.values(byMemberRetard).filter(n => n >= 2).length;
+
+    const actifs          = (allUsers || []).filter(u => u.actif);
+    const nbBienfaiteur   = actifs.filter(u => u.plan === 'bienfaiteur').length;
+    const nbPartenaire    = actifs.filter(u => u.plan === 'partenaire').length;
+
+    const paidActs        = (activities || []).filter(a => a.paiement_requis || parseFloat(a.prix || 0) > 0);
+    const approvPay       = (allPayments || []).filter(p => p.statut === 'approuve');
+    const totalDons       = approvPay.filter(p => p.type === 'don').reduce((s, p) => s + parseFloat(p.montant || 0), 0);
+    const totalRevenu     = approvPay.reduce((s, p) => s + parseFloat(p.montant || 0), 0);
+    const nbDons          = approvPay.filter(p => p.type === 'don').length;
+
+    const cotisParAnnee   = {};
     (allCotis || []).forEach(c => {
       const yr = (c.periode || '').substring(0, 4);
       if (!yr) return;
       if (!cotisParAnnee[yr]) cotisParAnnee[yr] = { total: 0, nbPaye: 0, nbAttente: 0 };
-      if (c.statut === 'paye')         { cotisParAnnee[yr].total += parseFloat(c.montant_attendu || 0); cotisParAnnee[yr].nbPaye++; }
-      else if (c.statut === 'en_attente') cotisParAnnee[yr].nbAttente++;
+      if (c.statut === 'paye')            { cotisParAnnee[yr].total += parseFloat(c.montant_attendu || 0); cotisParAnnee[yr].nbPaye++; }
+      else if (c.statut === 'en_attente')   cotisParAnnee[yr].nbAttente++;
     });
-    const totalDonsApp = dons.filter(p => p.statut === 'approuve').reduce((s, p) => s + parseFloat(p.montant || 0), 0);
-
-    const body = document.getElementById('rapports_body');
-    if (!body) return;
-
     const years = Object.keys(cotisParAnnee).sort((a, b) => b - a);
+
+    const G = (g, c, d) => `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(${g}px,1fr));gap:12px;margin-bottom:28px">${c}</div>`;
+    const SEC = label => `<h3 style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:16px 2px 10px">${label}</h3>`;
 
     let html = '';
 
-    // Cotisations cards (une par année)
+    // ── 1. Cotisations par année ─────────────────────────────────────────
     if (years.length) {
-      html += '<h3 style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 2px 12px">💰 Cotisations de membres</h3>' +
-        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin-bottom:28px">' +
-        years.map(yr => {
+      html += SEC('💰 Cotisations de membres — par année') +
+        G(220, years.map(yr => {
           const d = cotisParAnnee[yr];
-          return rappCarteHTML('cotis_' + yr, '#5e35b1',
-            'Cotisations ' + yr, '$' + d.total.toFixed(2),
+          return rappCarteHTML('cotis_' + yr, '#5e35b1', 'Cotisations ' + yr, '$' + d.total.toFixed(2),
             d.nbAttente > 0 ? 'En cours' : 'À jour', d.nbAttente === 0,
-            [d.nbPaye + ' paiements confirmés', d.nbAttente > 0 ? d.nbAttente + ' en attente' : 'Tous à jour']
-          );
-        }).join('') +
-        '</div>';
+            [d.nbPaye + ' paiements confirmés', d.nbAttente > 0 ? d.nbAttente + ' en attente' : 'Tous à jour']);
+        }).join(''));
     }
 
-    // Activités payantes cards
+    // ── 2. Activités payantes ────────────────────────────────────────────
     if (paidActs.length) {
-      html += '<h3 style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 2px 12px">🎪 Activités payantes</h3>' +
-        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin-bottom:28px">' +
-        paidActs.map(a => {
+      html += SEC('🎪 Activités payantes') +
+        G(220, paidActs.map(a => {
           const nb = parseInt(a.nb_inscrits || 0);
-          return rappCarteHTML('act_' + a.id, '#c62828',
-            a.titre, '$' + parseFloat(a.prix || 0).toFixed(2) + '/billet',
+          return rappCarteHTML('act_' + a.id, '#c62828', a.titre, '$' + parseFloat(a.prix || 0).toFixed(2) + '/billet',
             a.statut === 'terminee' ? 'Terminée' : 'En cours', a.statut === 'terminee',
-            [(a.date_debut || '').substring(0, 10), nb + ' inscrit(s)', 'Rev. estimé : $' + (parseFloat(a.prix||0) * nb).toFixed(2)]
-          );
-        }).join('') +
-        '</div>';
+            [(a.date_debut || '').substring(0, 10), nb + ' inscrit(s)', 'Rev. estimé : $' + (parseFloat(a.prix || 0) * nb).toFixed(2)]);
+        }).join(''));
     }
 
-    // Dons card
-    html += '<h3 style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 2px 12px">🎁 Dons</h3>' +
-      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px">' +
-      rappCarteHTML('dons', '#2e7d32',
-        'Dons reçus', '$' + totalDonsApp.toFixed(2),
-        'En cours', true,
-        [dons.filter(p => p.statut === 'approuve').length + ' don(s) approuvé(s)', dons.filter(p => p.statut === 'en_attente').length + ' en attente']
-      ) +
-      '</div>';
+    // ── 3. Les 20 rapports analytiques ──────────────────────────────────
+    html += SEC('📅 Cotisations & membres — analyses') +
+      G(210,
+        rappCarteHTML('r_cotis_mensuel', '#5e35b1', '📅 Rapport mensuel', '$' + totalCotisPaye.toFixed(2),
+          nbEnRetard > 0 ? 'Arriérés' : 'À jour', nbEnRetard === 0,
+          ['Qui a payé / qui est en retard', annee + ' · ' + cotisAnnee.length + ' cotisations']) +
+        rappCarteHTML('r_taux_recouvrement', '#1565c0', '📈 Taux de recouvrement', tauxPct + '%',
+          tauxPct >= 80 ? 'Bon' : tauxPct > 0 ? 'Moyen' : 'N/A', tauxPct >= 80,
+          ['% collecté vs attendu par mois', 'Attendu : $' + totalCotisAtt.toFixed(2)]) +
+        rappCarteHTML('r_en_retard', '#c62828', '⏳ Membres en retard', nbEnRetard + ' en retard',
+          nbEnRetard > 0 ? 'Action requise' : 'RAS', nbEnRetard === 0,
+          [nbChroniques + ' membre(s) chronique(s) (2+ mois)', 'Liste complète des arriérés']) +
+        rappCarteHTML('r_par_plan', '#2e7d32', '📊 Analyse par plan', nbBienfaiteur + ' B · ' + nbPartenaire + ' P',
+          'En cours', true,
+          ['Bienfaiteur $10/mois · Partenaire $20/mois', 'Répartition et revenus par plan']) +
+        rappCarteHTML('r_croissance', '#00838f', '📉 Croissance membres', actifs.length + ' actifs',
+          'En cours', true,
+          ['Évolution du nombre de membres', 'Nouveaux inscrits par mois'])
+      );
 
-    body.innerHTML = html || '<div style="padding:40px;text-align:center;color:var(--muted)">Aucun rapport disponible</div>';
+    html += SEC('🎪 Activités & événements — analyses') +
+      G(210,
+        rappCarteHTML('r_par_evenement', '#e91e63', '🎟️ Rapport par événement', paidActs.length + ' activité(s)',
+          'En cours', true,
+          ['Recettes, dépenses et bénéfice', 'Taux de remplissage']) +
+        rappCarteHTML('r_performance', '#f57c00', '🏆 Performance d\'événements', 'Classement',
+          'En cours', true,
+          ['Activités les plus rentables', paidActs.length + ' événement(s) à analyser']) +
+        rappCarteHTML('r_cout_participant', '#6d4c41', '💡 Coût par participant', 'Analyse',
+          'En cours', true,
+          ['Dépenses / inscrits par événement', 'Marge réelle par billet']) +
+        rappCarteHTML('r_non_payes', '#b71c1c', '🚨 Inscrits non payés', paidActs.length + ' événement(s)',
+          paidActs.length > 0 ? 'À vérifier' : 'RAS', paidActs.length === 0,
+          ['Liste des inscrits sans paiement', 'Par activité payante'])
+      );
+
+    html += SEC('💼 Budget & trésorerie') +
+      G(210,
+        rappCarteHTML('r_budget_reel', '#1b5e20', '📋 Budget vs réel', 'Écarts',
+          'En cours', true,
+          ['Alloué / dépensé / variance', 'Par catégorie budgétaire']) +
+        rappCarteHTML('r_flux_tresorerie', '#0d47a1', '💸 Flux de trésorerie', '$' + totalRevenu.toFixed(2),
+          'En cours', true,
+          ['Entrées et sorties par mois', 'Solde disponible estimé']) +
+        rappCarteHTML('r_comparaison', '#4a148c', '📆 Comparaison annuelle', annee + ' vs passé',
+          'En cours', true,
+          ['Revenus et dépenses par année', 'Évolution en %']) +
+        rappCarteHTML('r_previsions', '#006064', '🔮 Prévisions fin d\'année', tauxPct + '% collecté',
+          tauxPct >= 80 ? 'Bon rythme' : 'En cours', tauxPct >= 80,
+          ['Projection sur 12 mois', 'Basé sur le taux actuel de collecte'])
+      );
+
+    html += SEC('🎁 Dons & commandites') +
+      G(210,
+        rappCarteHTML('r_dons', '#2e7d32', '💝 Rapport dons', '$' + totalDons.toFixed(2),
+          totalDons > 0 ? 'Actif' : 'Aucun don', totalDons > 0,
+          [nbDons + ' don(s) approuvé(s)', 'Historique et top donateurs']) +
+        rappCarteHTML('r_commandites', '#558b2f', '🤝 Commandites', 'Suivi',
+          'En cours', true,
+          ['Commanditaires et montants', 'Activités associées']) +
+        rappCarteHTML('r_sources_revenus', '#00695c', '🥧 Sources de revenus', '$' + totalRevenu.toFixed(2),
+          'En cours', true,
+          ['Cotisations / dons / commandites en %', 'Répartition des entrées d\'argent'])
+      );
+
+    html += SEC('📋 Fiscal & administratif') +
+      G(210,
+        rappCarteHTML('r_fiscal', '#4e342e', '🧾 Rapport fiscal', annee,
+          'En cours', true,
+          ['Revenus déclarables, reçus émis', 'Résumé pour l\'ARC']) +
+        rappCarteHTML('r_factures', '#455a64', '📄 Suivi des factures', 'Analyse',
+          'En cours', true,
+          ['Factures payées et impayées', 'Délais et fournisseurs']) +
+        rappCarteHTML('r_benevolat', '#6a1b9a', '🤲 Bénévolat valorisé', '$ valeur',
+          'En cours', true,
+          ['Heures × taux horaire', 'Valeur économique estimée'])
+      );
+
+    html += SEC('👑 Vue exécutive') +
+      G(260,
+        rappCarteHTML('r_executif', '#b71c1c', '👑 Tableau de bord présidente', 'Synthèse',
+          'Prioritaire', true,
+          ['Solde, cotisations, alertes', 'Objectif annuel et indicateurs clés'])
+      );
+
+    const body = document.getElementById('rapports_body');
+    if (body) body.innerHTML = html;
 
   } catch(e) {
     const b = document.getElementById('rapports_body');
@@ -6471,16 +6557,34 @@ function rappCarteHTML(id, couleur, titre, montantLabel, statut, statutOk, infos
 }
 
 async function rappOuvrirDetail(id) {
-  const { allCotis, allPayments, activities } = window._rapp || {};
+  const { allCotis, allPayments, activities, allUsers } = window._rapp || {};
   if (id.startsWith('cotis_')) {
-    const year = id.replace('cotis_', '');
-    await rappDetailCotisationsAnnee(year, allCotis, allPayments);
-  } else if (id === 'dons') {
+    await rappDetailCotisationsAnnee(id.replace('cotis_', ''), allCotis, allPayments);
+  } else if (id === 'dons' || id === 'r_dons') {
     await rappDetailDons(allPayments);
   } else if (id.startsWith('act_')) {
-    const actId = parseInt(id.replace('act_', ''));
-    const act   = (activities || []).find(a => a.id === actId);
+    const act = (activities || []).find(a => a.id === parseInt(id.replace('act_', '')));
     if (act) await rappDetailActivite(act, allPayments);
+  } else switch (id) {
+    case 'r_cotis_mensuel':       await rappDetailCotisationsAnnee(String(new Date().getFullYear()), allCotis, allPayments); break;
+    case 'r_taux_recouvrement':   await rappModalTauxRecouvrement(allCotis); break;
+    case 'r_en_retard':           await rappModalEnRetard(allCotis); break;
+    case 'r_par_plan':            await rappModalParPlan(allUsers); break;
+    case 'r_croissance':          await rappModalCroissance(allUsers); break;
+    case 'r_par_evenement':       await rappModalParEvenement(activities); break;
+    case 'r_performance':         await rappModalPerformance(activities); break;
+    case 'r_cout_participant':    await rappModalCoutParticipant(activities); break;
+    case 'r_non_payes':           await rappModalNonPayes(activities); break;
+    case 'r_budget_reel':         await rappModalBudgetReel(); break;
+    case 'r_flux_tresorerie':     await rappModalFluxTresorerie(allPayments); break;
+    case 'r_comparaison':         await rappModalComparaisonAnnuelle(allPayments); break;
+    case 'r_previsions':          await rappModalPrevisions(allCotis, allPayments); break;
+    case 'r_commandites':         await rappModalCommandites(); break;
+    case 'r_sources_revenus':     await rappModalSourcesRevenus(allPayments); break;
+    case 'r_fiscal':              await rappModalFiscal(allPayments); break;
+    case 'r_factures':            await rappModalFactures(); break;
+    case 'r_benevolat':           await rappModalBenevolat(); break;
+    case 'r_executif':            await rappModalExecutif(allCotis, allPayments, activities, allUsers); break;
   }
 }
 
@@ -6709,6 +6813,638 @@ function planBadge(plan) {
   const colors = { bienfaiteur:'#fff8e1;color:#f57f17', partenaire:'#e8f5e9;color:#1b5e20' };
   const c = colors[plan] || 'var(--off);color:var(--muted)';
   return '<span style="font-size:.73rem;background:' + c + ';padding:2px 7px;border-radius:8px">' + plan + '</span>';
+}
+
+// ── Rapport : taux de recouvrement ──────────────────────────────────────────
+async function rappModalTauxRecouvrement(allCotis) {
+  const MOIS_FR = ['','Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc'];
+  const byP = {};
+  (allCotis || []).forEach(c => {
+    const p = c.periode; if (!p) return;
+    if (!byP[p]) byP[p] = { att: 0, pay: 0 };
+    byP[p].att += parseFloat(c.montant_attendu || 0);
+    if (c.statut === 'paye') byP[p].pay += parseFloat(c.montant_attendu || 0);
+  });
+  const periodes  = Object.keys(byP).sort();
+  const totAtt    = periodes.reduce((s, p) => s + byP[p].att, 0);
+  const totPay    = periodes.reduce((s, p) => s + byP[p].pay, 0);
+  const tauxGlob  = totAtt > 0 ? Math.round(totPay / totAtt * 100) : 0;
+
+  const bars = periodes.map(p => {
+    const pct   = byP[p].att > 0 ? Math.round(byP[p].pay / byP[p].att * 100) : 0;
+    const [yr, mo] = p.split('-');
+    const col   = pct >= 80 ? '#2e7d32' : pct >= 50 ? '#f57c00' : '#c62828';
+    return '<div style="flex:1;min-width:52px;text-align:center">' +
+      '<div style="font-size:.68rem;font-weight:700;color:' + col + ';margin-bottom:3px">' + pct + '%</div>' +
+      '<div style="background:#f0f0f0;border-radius:5px 5px 0 0;height:90px;display:flex;align-items:flex-end;overflow:hidden">' +
+      '<div style="background:' + col + ';width:100%;height:' + Math.min(pct, 100) + '%;transition:.4s"></div></div>' +
+      '<div style="font-size:.65rem;color:var(--muted);margin-top:3px">' + MOIS_FR[parseInt(mo)] + '<br>' + yr + '</div>' +
+      '</div>';
+  }).join('');
+
+  openModal('📈 Taux de recouvrement',
+    rappKpiRow([
+      { label: 'Total attendu',    val: '$' + totAtt.toFixed(2) },
+      { label: 'Total collecté',   val: '$' + totPay.toFixed(2), accent: true },
+      { label: 'Taux global',      val: tauxGlob + '%', accent: tauxGlob >= 80, danger: tauxGlob < 50 && totAtt > 0 },
+      { label: 'Périodes',         val: periodes.length },
+    ]) +
+    (periodes.length
+      ? '<div style="display:flex;gap:5px;align-items:flex-end;padding:14px 0;overflow-x:auto">' + bars + '</div>' +
+        '<div style="display:flex;gap:14px;font-size:.74rem;margin-top:6px">' +
+        '<span style="color:#2e7d32">■ ≥80% Bon</span><span style="color:#f57c00">■ 50-79% Moyen</span><span style="color:#c62828">■ &lt;50% Insuffisant</span></div>'
+      : '<div style="padding:24px;text-align:center;color:var(--muted)">Aucune donnée de cotisation</div>'),
+    'large');
+}
+
+// ── Rapport : membres en retard ──────────────────────────────────────────────
+async function rappModalEnRetard(allCotis) {
+  const byM = {};
+  (allCotis || []).filter(c => c.statut === 'en_attente').forEach(c => {
+    if (!byM[c.user_id]) byM[c.user_id] = { nom: (c.prenom || '') + ' ' + (c.nom || ''), email: c.email || '', plan: c.plan || c.user_plan, periodes: [], total: 0 };
+    byM[c.user_id].periodes.push(c.periode);
+    byM[c.user_id].total += parseFloat(c.montant_attendu || 0);
+  });
+  const retards   = Object.values(byM).sort((a, b) => b.total - a.total);
+  const chroniques = retards.filter(m => m.periodes.length >= 2);
+  const totalDu   = retards.reduce((s, m) => s + m.total, 0);
+
+  window._rappCSV = {
+    filename: 'membres_en_retard.csv',
+    headers: ['Membre', 'Email', 'Plan', 'Mois en retard', 'Montant dû', 'Périodes'],
+    rows: retards.map(m => [m.nom, m.email, m.plan || '', m.periodes.length, m.total.toFixed(2), m.periodes.join(' | ')]),
+  };
+
+  openModal('⏳ Membres en retard',
+    rappKpiRow([
+      { label: 'Arriéré total',          val: '$' + totalDu.toFixed(2), danger: totalDu > 0 },
+      { label: 'Membres en retard',      val: retards.length, danger: retards.length > 0 },
+      { label: 'Chroniques (2+ mois)',   val: chroniques.length, danger: chroniques.length > 0 },
+    ]) +
+    (retards.length ? '<div style="display:flex;justify-content:flex-end;margin:8px 0"><button class="btn btn-sm btn-outline" onclick="exportRappCSV()">⬇️ Export CSV</button></div>' : '') +
+    '<div style="max-height:420px;overflow-y:auto;border:1px solid var(--border);border-radius:10px">' +
+    (retards.length ? retards.map(m =>
+      '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)' + (m.periodes.length >= 2 ? ';background:#fff8f8' : '') + '">' +
+      '<div style="width:32px;height:32px;border-radius:50%;background:#ffebee;color:#c62828;display:flex;align-items:center;justify-content:center;font-size:.63rem;font-weight:700;flex-shrink:0">' + (m.nom[0] || '').toUpperCase() + (m.nom.split(' ')[1]?.[0] || '').toUpperCase() + '</div>' +
+      '<div style="flex:1"><strong>' + m.nom + '</strong><div style="font-size:.74rem;color:var(--muted)">' + m.email + '</div></div>' +
+      planBadge(m.plan) +
+      '<div style="text-align:right;min-width:70px"><div style="font-weight:700;color:#c62828">$' + m.total.toFixed(2) + '</div><div style="font-size:.72rem;color:var(--muted)">' + m.periodes.length + ' mois</div></div>' +
+      (m.periodes.length >= 2 ? '<span style="font-size:.67rem;background:#ffebee;color:#c62828;padding:2px 7px;border-radius:8px;white-space:nowrap">Chronique</span>' : '') +
+      '</div>').join('')
+    : '<div style="padding:24px;text-align:center;color:var(--muted)">✅ Aucun membre en retard</div>') +
+    '</div>',
+    'large');
+}
+
+// ── Rapport : analyse par plan ───────────────────────────────────────────────
+async function rappModalParPlan(allUsers) {
+  const actifs     = (allUsers || []).filter(u => u.actif);
+  const bienfait   = actifs.filter(u => u.plan === 'bienfaiteur');
+  const partenaires = actifs.filter(u => u.plan === 'partenaire');
+  const gratuits   = actifs.filter(u => !u.plan || u.plan === 'gratuit');
+  const revMens    = bienfait.length * 10 + partenaires.length * 20;
+  const revAnnuel  = bienfait.length * 100 + partenaires.length * 200;
+
+  const planSection = (titre, couleurBg, couleurTxt, membres, tarif) =>
+    '<div style="border:2px solid ' + couleurBg + ';border-radius:12px;padding:14px">' +
+    '<div style="font-size:.77rem;font-weight:700;color:' + couleurTxt + ';margin-bottom:6px">' + titre + ' — $' + tarif + '/mois</div>' +
+    '<div style="font-size:1.5rem;font-weight:800">' + membres.length + ' membres</div>' +
+    '<div style="font-size:.79rem;color:var(--muted);margin:3px 0">Rev. mensuel : $' + (membres.length * tarif).toFixed(2) + '</div>' +
+    '<div style="font-size:.79rem;color:var(--muted);margin-bottom:8px">Rev. annuel : $' + (membres.length * tarif * 10).toFixed(2) + '</div>' +
+    membres.slice(0, 6).map(u => '<div style="font-size:.78rem;padding:2px 0">' + u.prenom + ' ' + u.nom + '</div>').join('') +
+    (membres.length > 6 ? '<div style="font-size:.74rem;color:var(--muted)">+ ' + (membres.length - 6) + ' autres</div>' : '') +
+    '</div>';
+
+  openModal('📊 Analyse par plan de membre',
+    rappKpiRow([
+      { label: 'Bienfaiteurs',          val: bienfait.length,    accent: true },
+      { label: 'Partenaires',           val: partenaires.length, accent: true },
+      { label: 'Gratuits',              val: gratuits.length },
+      { label: 'Rev. mensuel potentiel', val: '$' + revMens.toFixed(2),   accent: true },
+      { label: 'Rev. annuel potentiel',  val: '$' + revAnnuel.toFixed(2), accent: true },
+    ]) +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px">' +
+    planSection('💛 BIENFAITEUR', '#fff8e1', '#f57f17', bienfait, 10) +
+    planSection('⭐ PARTENAIRE',  '#e8f5e9', '#1b5e20', partenaires, 20) +
+    '</div>',
+    'large');
+}
+
+// ── Rapport : croissance membres ─────────────────────────────────────────────
+async function rappModalCroissance(allUsers) {
+  const MOIS_FR = ['','Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc'];
+  const byMonth = {};
+  (allUsers || []).forEach(u => {
+    const m = (u.date_inscription || u.created_at || '').substring(0, 7);
+    if (!m) return;
+    if (!byMonth[m]) byMonth[m] = 0;
+    byMonth[m]++;
+  });
+  const mois = Object.keys(byMonth).sort();
+  let cumul = 0;
+  const rows = mois.map(m => { cumul += byMonth[m]; return { m, nouveaux: byMonth[m], cumul }; });
+
+  openModal('📉 Croissance des membres',
+    rappKpiRow([
+      { label: 'Membres actifs', val: (allUsers || []).filter(u => u.actif).length, accent: true },
+      { label: 'Total inscrits', val: (allUsers || []).length },
+      { label: 'Nouveaux ce mois', val: byMonth[new Date().toISOString().substring(0, 7)] || 0, accent: true },
+      { label: 'Mois de données', val: mois.length },
+    ]) +
+    (rows.length
+      ? '<div style="max-height:380px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;margin-top:14px">' +
+        '<table style="width:100%;border-collapse:collapse;font-size:.84rem">' +
+        '<thead><tr style="background:#f8f8f8;position:sticky;top:0"><th style="padding:8px 12px;text-align:left">Mois</th><th style="padding:8px;text-align:center">Nouveaux</th><th style="padding:8px;text-align:center">Total cumulatif</th></tr></thead><tbody>' +
+        [...rows].reverse().map(r => {
+          const [yr, mo] = r.m.split('-');
+          return '<tr style="border-top:1px solid var(--border)">' +
+            '<td style="padding:8px 12px">' + MOIS_FR[parseInt(mo)] + ' ' + yr + '</td>' +
+            '<td style="padding:8px;text-align:center;font-weight:700;color:#2e7d32">+' + r.nouveaux + '</td>' +
+            '<td style="padding:8px;text-align:center">' + r.cumul + '</td>' +
+            '</tr>';
+        }).join('') +
+        '</tbody></table></div>'
+      : '<div style="padding:24px;text-align:center;color:var(--muted)">Aucune donnée disponible</div>'),
+    'large');
+}
+
+// ── Rapport : par événement ──────────────────────────────────────────────────
+async function rappModalParEvenement(activities) {
+  const paidActs = (activities || []).filter(a => a.paiement_requis || parseFloat(a.prix || 0) > 0);
+  if (!paidActs.length) { openModal('🎟️ Rapport par événement', '<div style="padding:24px;text-align:center;color:var(--muted)">Aucune activité payante</div>', 'large'); return; }
+  const results = await Promise.all(paidActs.map(a => api('/activities/' + a.id + '/inscrits').then(i => ({ act: a, inscrits: i || [] })).catch(() => ({ act: a, inscrits: [] }))));
+  const totalInscrits = results.reduce((s, r) => s + r.inscrits.length, 0);
+  const totalPayes    = results.reduce((s, r) => s + r.inscrits.filter(i => i.paye === 1).length, 0);
+
+  openModal('🎟️ Rapport par événement',
+    rappKpiRow([
+      { label: 'Activités payantes', val: paidActs.length },
+      { label: 'Total inscrits',     val: totalInscrits },
+      { label: 'Billets payés',      val: totalPayes, accent: true },
+    ]) +
+    '<div style="max-height:440px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;margin-top:14px">' +
+    results.map(({ act, inscrits }) => {
+      const payes   = inscrits.filter(i => i.paye === 1);
+      const nonPay  = inscrits.filter(i => !i.paye);
+      const coll    = payes.reduce((s, i) => s + parseFloat(i.montant_paye || act.prix || 0), 0);
+      const att     = parseFloat(act.prix || 0) * inscrits.length;
+      const taux    = att > 0 ? Math.round(coll / att * 100) : 0;
+      const col     = taux >= 80 ? '#2e7d32' : taux >= 50 ? '#f57c00' : '#c62828';
+      return '<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden">' +
+        '<div style="background:var(--off);padding:9px 14px;display:flex;align-items:center;gap:12px">' +
+        '<strong style="flex:1">' + act.titre + '</strong>' +
+        '<span style="font-size:.75rem;color:var(--muted)">' + (act.date_debut || '').substring(0, 10) + '</span>' +
+        '</div>' +
+        '<div style="padding:10px 14px;display:flex;gap:16px;flex-wrap:wrap;font-size:.84rem;align-items:center">' +
+        '<span>Inscrits : <strong>' + inscrits.length + '</strong></span>' +
+        '<span style="color:#2e7d32">Payés : <strong>' + payes.length + '</strong></span>' +
+        (nonPay.length ? '<span style="color:#c62828">Non payés : <strong>' + nonPay.length + '</strong></span>' : '') +
+        '<span>Prix : <strong>$' + parseFloat(act.prix || 0).toFixed(2) + '</strong></span>' +
+        '<span style="margin-left:auto;font-weight:700;color:' + col + '">$' + coll.toFixed(2) + ' / $' + att.toFixed(2) + ' (' + taux + '%)</span>' +
+        '</div></div>';
+    }).join('') +
+    '</div>',
+    'large');
+}
+
+// ── Rapport : performance événements ────────────────────────────────────────
+async function rappModalPerformance(activities) {
+  const paidActs = (activities || []).filter(a => a.paiement_requis || parseFloat(a.prix || 0) > 0);
+  if (!paidActs.length) { openModal('🏆 Performance', '<div style="padding:24px;text-align:center;color:var(--muted)">Aucune activité payante</div>', 'large'); return; }
+  const results = await Promise.all(paidActs.map(a => api('/activities/' + a.id + '/inscrits').then(i => ({ act: a, inscrits: i || [] })).catch(() => ({ act: a, inscrits: [] }))));
+  const ranked = results.map(({ act, inscrits }) => {
+    const payes = inscrits.filter(i => i.paye === 1);
+    const coll  = payes.reduce((s, i) => s + parseFloat(i.montant_paye || act.prix || 0), 0);
+    const taux  = inscrits.length > 0 ? Math.round(payes.length / inscrits.length * 100) : 0;
+    return { act, inscrits, payes, coll, taux };
+  }).sort((a, b) => b.coll - a.coll);
+  const medals = ['🥇', '🥈', '🥉'];
+
+  openModal('🏆 Performance des événements',
+    rappKpiRow([
+      { label: 'Événements', val: ranked.length },
+      { label: 'Meilleure recette', val: '$' + (ranked[0]?.coll || 0).toFixed(2), accent: true },
+      { label: 'Total collecté',    val: '$' + ranked.reduce((s, r) => s + r.coll, 0).toFixed(2), accent: true },
+    ]) +
+    '<div style="max-height:420px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;margin-top:14px">' +
+    '<table style="width:100%;border-collapse:collapse;font-size:.84rem">' +
+    '<thead><tr style="background:#f8f8f8;position:sticky;top:0"><th style="padding:8px 12px">#</th><th style="padding:8px;text-align:left">Activité</th><th style="padding:8px;text-align:center">Inscrits</th><th style="padding:8px;text-align:center">Payés</th><th style="padding:8px;text-align:right">Collecté</th><th style="padding:8px;text-align:center">Taux</th></tr></thead><tbody>' +
+    ranked.map((r, i) => {
+      const col = r.taux >= 80 ? '#2e7d32' : r.taux >= 50 ? '#f57c00' : '#c62828';
+      const bg  = r.taux >= 80 ? '#e8f5e9' : r.taux >= 50 ? '#fff3e0' : '#ffebee';
+      return '<tr style="border-top:1px solid var(--border)' + (i === 0 ? ';background:#f5f0ff' : '') + '">' +
+        '<td style="padding:8px 12px;font-size:1.1rem">' + (medals[i] || (i + 1)) + '</td>' +
+        '<td style="padding:8px"><strong>' + r.act.titre + '</strong><div style="font-size:.74rem;color:var(--muted)">' + (r.act.date_debut || '').substring(0, 10) + '</div></td>' +
+        '<td style="padding:8px;text-align:center">' + r.inscrits.length + '</td>' +
+        '<td style="padding:8px;text-align:center;color:#2e7d32;font-weight:700">' + r.payes.length + '</td>' +
+        '<td style="padding:8px;text-align:right;font-weight:700;color:#5e35b1">$' + r.coll.toFixed(2) + '</td>' +
+        '<td style="padding:8px;text-align:center"><span style="font-size:.74rem;background:' + bg + ';color:' + col + ';padding:2px 8px;border-radius:8px">' + r.taux + '%</span></td>' +
+        '</tr>';
+    }).join('') +
+    '</tbody></table></div>',
+    'large');
+}
+
+// ── Rapport : coût par participant ───────────────────────────────────────────
+async function rappModalCoutParticipant(activities) {
+  const paidActs = (activities || []).filter(a => a.paiement_requis || parseFloat(a.prix || 0) > 0);
+  if (!paidActs.length) { openModal('💡 Coût par participant', '<div style="padding:24px;text-align:center;color:var(--muted)">Aucune activité payante</div>', 'large'); return; }
+  const results = await Promise.all(paidActs.map(a => api('/activities/' + a.id + '/inscrits').then(i => ({ act: a, nb: (i || []).length })).catch(() => ({ act: a, nb: 0 }))));
+
+  openModal('💡 Coût par participant',
+    '<p style="font-size:.82rem;color:var(--muted);margin-bottom:14px">Budget prévu ÷ inscrits = coût moyen par participant. La marge = prix billet − coût/pers.</p>' +
+    '<div style="max-height:420px;overflow-y:auto;border:1px solid var(--border);border-radius:10px">' +
+    '<table style="width:100%;border-collapse:collapse;font-size:.84rem">' +
+    '<thead><tr style="background:#f8f8f8;position:sticky;top:0"><th style="padding:8px 12px;text-align:left">Activité</th><th style="padding:8px;text-align:right">Budget prévu</th><th style="padding:8px;text-align:center">Inscrits</th><th style="padding:8px;text-align:right">Coût/pers.</th><th style="padding:8px;text-align:right">Prix billet</th><th style="padding:8px;text-align:right">Marge</th></tr></thead><tbody>' +
+    results.map(({ act, nb }) => {
+      const budget = parseFloat(act.budget_prevu || 0);
+      const prix   = parseFloat(act.prix || 0);
+      const coutPP = nb > 0 ? budget / nb : budget;
+      const marge  = prix - coutPP;
+      return '<tr style="border-top:1px solid var(--border)">' +
+        '<td style="padding:8px 12px"><strong>' + act.titre + '</strong></td>' +
+        '<td style="padding:8px;text-align:right">$' + budget.toFixed(2) + '</td>' +
+        '<td style="padding:8px;text-align:center">' + nb + '</td>' +
+        '<td style="padding:8px;text-align:right;font-weight:700">$' + coutPP.toFixed(2) + '</td>' +
+        '<td style="padding:8px;text-align:right">$' + prix.toFixed(2) + '</td>' +
+        '<td style="padding:8px;text-align:right;font-weight:700;color:' + (marge >= 0 ? '#2e7d32' : '#c62828') + '">$' + marge.toFixed(2) + '</td>' +
+        '</tr>';
+    }).join('') +
+    '</tbody></table></div>',
+    'large');
+}
+
+// ── Rapport : inscrits non payés ─────────────────────────────────────────────
+async function rappModalNonPayes(activities) {
+  const paidActs = (activities || []).filter(a => a.paiement_requis || parseFloat(a.prix || 0) > 0);
+  if (!paidActs.length) { openModal('🚨 Inscrits non payés', '<div style="padding:24px;text-align:center;color:var(--muted)">Aucune activité payante</div>', 'large'); return; }
+  const results = await Promise.all(paidActs.map(a => api('/activities/' + a.id + '/inscrits').then(i => ({ act: a, inscrits: i || [] })).catch(() => ({ act: a, inscrits: [] }))));
+  const totalNP  = results.reduce((s, r) => s + r.inscrits.filter(i => !i.paye).length, 0);
+  const totalDu  = results.reduce((s, r) => s + r.inscrits.filter(i => !i.paye).length * parseFloat(r.act.prix || 0), 0);
+  const actAvecNP = results.filter(r => r.inscrits.some(i => !i.paye));
+
+  openModal('🚨 Inscrits non payés',
+    rappKpiRow([
+      { label: 'Inscrits non payés', val: totalNP,             danger: totalNP > 0 },
+      { label: 'Montant dû total',   val: '$' + totalDu.toFixed(2), danger: totalDu > 0 },
+    ]) +
+    '<div style="max-height:460px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;margin-top:14px">' +
+    (actAvecNP.length ? actAvecNP.map(({ act, inscrits }) => {
+      const np = inscrits.filter(i => !i.paye);
+      const du = np.length * parseFloat(act.prix || 0);
+      return '<div style="border:1px solid #ffccbc;border-radius:10px;overflow:hidden">' +
+        '<div style="background:#fff3e0;padding:8px 14px;font-size:.8rem;font-weight:700;color:#bf360c">' +
+        act.titre + ' — ' + np.length + ' non payé(s) · $' + du.toFixed(2) + ' dû</div>' +
+        np.map(i => '<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-top:1px solid #ffccbc;font-size:.84rem">' +
+          '<div style="flex:1"><strong>' + (i.prenom || '') + ' ' + (i.nom || '') + '</strong><span style="margin-left:8px;font-size:.74rem;color:var(--muted)">' + (i.email || '') + '</span></div>' +
+          (i.plan && i.plan !== 'gratuit' ? planBadge(i.plan) : '<span style="font-size:.73rem;background:#f5f5f5;color:#666;padding:2px 7px;border-radius:8px">Visiteur</span>') +
+          '<span style="color:#c62828;font-weight:700">$' + parseFloat(act.prix || 0).toFixed(2) + ' dû</span>' +
+          '</div>').join('') +
+        '</div>';
+    }).join('')
+    : '<div style="padding:24px;text-align:center;color:var(--muted)">✅ Tous les inscrits ont payé</div>') +
+    '</div>',
+    'large');
+}
+
+// ── Rapport : budget vs réel ─────────────────────────────────────────────────
+async function rappModalBudgetReel() {
+  let lines = [];
+  try { const data = await api('/finance'); lines = (data && data.lines) ? data.lines : (Array.isArray(data) ? data : []); } catch {}
+  const totBud = lines.reduce((s, l) => s + parseFloat(l.budget_alloue || 0), 0);
+  const totDep = lines.reduce((s, l) => s + parseFloat(l.depenses || 0), 0);
+  const totRev = lines.reduce((s, l) => s + parseFloat(l.revenus || 0), 0);
+
+  openModal('📋 Budget vs Réel',
+    rappKpiRow([
+      { label: 'Budget alloué', val: '$' + totBud.toFixed(2) },
+      { label: 'Dépenses',      val: '$' + totDep.toFixed(2), danger: totDep > totBud },
+      { label: 'Revenus',       val: '$' + totRev.toFixed(2), accent: true },
+      { label: 'Solde net',     val: '$' + (totRev - totDep).toFixed(2), accent: totRev >= totDep, danger: totRev < totDep },
+    ]) +
+    (lines.length
+      ? '<div style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;margin-top:14px">' +
+        '<table style="width:100%;border-collapse:collapse;font-size:.84rem">' +
+        '<thead><tr style="background:#f8f8f8;position:sticky;top:0"><th style="padding:8px 12px;text-align:left">Ligne</th><th style="padding:8px;text-align:right">Budget</th><th style="padding:8px;text-align:right">Dépenses</th><th style="padding:8px;text-align:right">Revenus</th><th style="padding:8px;text-align:right">Écart</th></tr></thead><tbody>' +
+        lines.map(l => {
+          const dep = parseFloat(l.depenses || 0); const bud = parseFloat(l.budget_alloue || 0); const ecart = bud - dep;
+          return '<tr style="border-top:1px solid var(--border)">' +
+            '<td style="padding:8px 12px"><strong>' + (l.nom || '') + '</strong></td>' +
+            '<td style="padding:8px;text-align:right">$' + bud.toFixed(2) + '</td>' +
+            '<td style="padding:8px;text-align:right">$' + dep.toFixed(2) + '</td>' +
+            '<td style="padding:8px;text-align:right;color:#2e7d32">$' + parseFloat(l.revenus || 0).toFixed(2) + '</td>' +
+            '<td style="padding:8px;text-align:right;font-weight:700;color:' + (ecart >= 0 ? '#2e7d32' : '#c62828') + '">$' + ecart.toFixed(2) + '</td>' +
+            '</tr>';
+        }).join('') +
+        '</tbody></table></div>'
+      : '<div style="padding:24px;text-align:center;color:var(--muted)">Aucune ligne budgétaire. Configurez-les dans la section <strong>Budget</strong>.</div>'),
+    'large');
+}
+
+// ── Rapport : flux de trésorerie ─────────────────────────────────────────────
+async function rappModalFluxTresorerie(allPayments) {
+  const MOIS_FR = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+  const byMonth = {};
+  (allPayments || []).filter(p => p.statut === 'approuve').forEach(p => {
+    const m = (p.date_soumission || p.mois || '').substring(0, 7);
+    if (!m) return;
+    if (!byMonth[m]) byMonth[m] = { entrees: 0 };
+    byMonth[m].entrees += parseFloat(p.montant || 0);
+  });
+  const mois = Object.keys(byMonth).sort().reverse();
+  const totalEntrees = mois.reduce((s, m) => s + byMonth[m].entrees, 0);
+
+  openModal('💸 Flux de trésorerie',
+    rappKpiRow([
+      { label: 'Total entrées',   val: '$' + totalEntrees.toFixed(2), accent: true },
+      { label: 'Mois analysés',   val: mois.length },
+    ]) +
+    (mois.length
+      ? '<div style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;margin-top:14px">' +
+        '<table style="width:100%;border-collapse:collapse;font-size:.84rem">' +
+        '<thead><tr style="background:#f8f8f8;position:sticky;top:0"><th style="padding:8px 12px;text-align:left">Mois</th><th style="padding:8px;text-align:right">Entrées</th></tr></thead><tbody>' +
+        mois.map(m => {
+          const [yr, mo] = m.split('-');
+          return '<tr style="border-top:1px solid var(--border)">' +
+            '<td style="padding:8px 12px">' + MOIS_FR[parseInt(mo)] + ' ' + yr + '</td>' +
+            '<td style="padding:8px;text-align:right;color:#2e7d32;font-weight:700">$' + byMonth[m].entrees.toFixed(2) + '</td>' +
+            '</tr>';
+        }).join('') +
+        '</tbody></table></div>'
+      : '<div style="padding:24px;text-align:center;color:var(--muted)">Aucune transaction enregistrée</div>'),
+    'large');
+}
+
+// ── Rapport : comparaison annuelle ───────────────────────────────────────────
+async function rappModalComparaisonAnnuelle(allPayments) {
+  const byYear = {};
+  (allPayments || []).filter(p => p.statut === 'approuve').forEach(p => {
+    const yr = (p.mois || p.date_soumission || '').substring(0, 4);
+    if (!yr || yr.length !== 4) return;
+    if (!byYear[yr]) byYear[yr] = { cotisations: 0, dons: 0, total: 0 };
+    const m = parseFloat(p.montant || 0);
+    if (p.type === 'don') byYear[yr].dons += m; else byYear[yr].cotisations += m;
+    byYear[yr].total += m;
+  });
+  const years = Object.keys(byYear).sort((a, b) => b - a);
+
+  openModal('📆 Comparaison annuelle',
+    (years.length
+      ? rappKpiRow(years.slice(0, 3).map((yr, i) => ({ label: yr, val: '$' + byYear[yr].total.toFixed(2), accent: i === 0 }))) +
+        '<div style="max-height:380px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;margin-top:14px">' +
+        '<table style="width:100%;border-collapse:collapse;font-size:.84rem">' +
+        '<thead><tr style="background:#f8f8f8;position:sticky;top:0"><th style="padding:8px 12px;text-align:left">Année</th><th style="padding:8px;text-align:right">Cotisations</th><th style="padding:8px;text-align:right">Dons</th><th style="padding:8px;text-align:right">Total</th><th style="padding:8px;text-align:right">Évolution</th></tr></thead><tbody>' +
+        years.map((yr, i) => {
+          const prev  = byYear[years[i + 1]];
+          const evol  = prev ? Math.round((byYear[yr].total - prev.total) / prev.total * 100) : null;
+          const evolHTML = evol !== null ? '<span style="color:' + (evol >= 0 ? '#2e7d32' : '#c62828') + ';font-weight:700">' + (evol >= 0 ? '+' : '') + evol + '%</span>' : '—';
+          return '<tr style="border-top:1px solid var(--border)' + (i === 0 ? ';background:#f5f0ff' : '') + '">' +
+            '<td style="padding:8px 12px"><strong>' + yr + '</strong>' + (i === 0 ? ' <span style="font-size:.7rem;background:#e3f2fd;color:#1565c0;padding:1px 6px;border-radius:8px">En cours</span>' : '') + '</td>' +
+            '<td style="padding:8px;text-align:right">$' + byYear[yr].cotisations.toFixed(2) + '</td>' +
+            '<td style="padding:8px;text-align:right;color:#2e7d32">$' + byYear[yr].dons.toFixed(2) + '</td>' +
+            '<td style="padding:8px;text-align:right;font-weight:700">$' + byYear[yr].total.toFixed(2) + '</td>' +
+            '<td style="padding:8px;text-align:right">' + evolHTML + '</td>' +
+            '</tr>';
+        }).join('') +
+        '</tbody></table></div>'
+      : '<div style="padding:24px;text-align:center;color:var(--muted)">Aucune donnée disponible</div>'),
+    'large');
+}
+
+// ── Rapport : prévisions fin d'année ─────────────────────────────────────────
+async function rappModalPrevisions(allCotis, allPayments) {
+  const annee       = String(new Date().getFullYear());
+  const moisCourant = new Date().getMonth() + 1;
+  const cotisAnnee  = (allCotis || []).filter(c => (c.periode || '').startsWith(annee));
+  const totalPaye   = cotisAnnee.filter(c => c.statut === 'paye').reduce((s, c) => s + parseFloat(c.montant_attendu || 0), 0);
+  const totalAtt    = cotisAnnee.reduce((s, c) => s + parseFloat(c.montant_attendu || 0), 0);
+  const moyMensuel  = moisCourant > 0 ? totalPaye / moisCourant : 0;
+  const projection  = moyMensuel * 12;
+  const totalDons   = (allPayments || []).filter(p => p.type === 'don' && p.statut === 'approuve' && (p.mois || '').startsWith(annee)).reduce((s, p) => s + parseFloat(p.montant || 0), 0);
+  const tauxPct     = totalAtt > 0 ? Math.round(totalPaye / totalAtt * 100) : 0;
+
+  openModal('🔮 Prévisions fin d\'année ' + annee,
+    rappKpiRow([
+      { label: 'Collecté à ce jour',    val: '$' + totalPaye.toFixed(2),  accent: true },
+      { label: 'Mois écoulés',          val: moisCourant },
+      { label: 'Moy. mensuelle',        val: '$' + moyMensuel.toFixed(2) },
+      { label: 'Projection annuelle',   val: '$' + projection.toFixed(2), accent: true },
+      { label: '+ Dons actuels',        val: '$' + totalDons.toFixed(2) },
+      { label: 'Total projeté',         val: '$' + (projection + totalDons).toFixed(2), accent: true },
+    ]) +
+    '<div style="margin:14px 0;padding:14px;background:var(--off);border-radius:10px">' +
+    '<div style="font-size:.8rem;margin-bottom:6px;color:var(--muted)">Progression ' + annee + ' (rythme actuel)</div>' +
+    '<div style="background:#e0e0e0;border-radius:99px;height:10px;overflow:hidden">' +
+    '<div style="background:' + (tauxPct >= 80 ? '#2e7d32' : tauxPct >= 50 ? '#f57c00' : '#c62828') + ';height:10px;width:' + Math.min(tauxPct, 100) + '%;transition:.4s"></div></div>' +
+    '<div style="display:flex;justify-content:space-between;font-size:.73rem;margin-top:4px;color:var(--muted)">' +
+    '<span>$0</span><span style="font-weight:700;color:var(--text)">$' + totalPaye.toFixed(2) + ' collecté (' + tauxPct + '%)</span><span>$' + totalAtt.toFixed(2) + ' attendu</span>' +
+    '</div></div>' +
+    '<div style="padding:11px 14px;background:#e8f5e9;border-radius:10px;font-size:.84rem">' +
+    '📌 À ce rythme, l\'association devrait collecter <strong>$' + projection.toFixed(2) + '</strong> en cotisations pour ' + annee + '.' +
+    (totalDons > 0 ? ' Avec les dons actuels : <strong>$' + (projection + totalDons).toFixed(2) + '</strong>.' : '') +
+    '</div>',
+    'large');
+}
+
+// ── Rapport : commandites ────────────────────────────────────────────────────
+async function rappModalCommandites() {
+  openModal('🤝 Commandites',
+    '<div style="padding:14px;background:#e3f2fd;border-radius:10px;margin-bottom:16px;font-size:.84rem">' +
+    'ℹ️ Les commandites sont des contributions d\'entreprises pour financer les activités. ' +
+    'Enregistrez-les comme paiements depuis la section <strong>Paiements</strong>.</div>' +
+    '<div style="padding:24px;text-align:center;color:var(--muted)">Aucune commandite enregistrée pour l\'instant.</div>',
+    'large');
+}
+
+// ── Rapport : sources de revenus ─────────────────────────────────────────────
+async function rappModalSourcesRevenus(allPayments) {
+  const approv     = (allPayments || []).filter(p => p.statut === 'approuve');
+  const totCotis   = approv.filter(p => p.type !== 'don').reduce((s, p) => s + parseFloat(p.montant || 0), 0);
+  const totDons    = approv.filter(p => p.type === 'don').reduce((s, p) => s + parseFloat(p.montant || 0), 0);
+  const totRev     = totCotis + totDons;
+  const pctC       = totRev > 0 ? Math.round(totCotis / totRev * 100) : 0;
+  const pctD       = totRev > 0 ? Math.round(totDons  / totRev * 100) : 0;
+
+  const bar = (label, couleur, montant, pct) =>
+    '<div style="margin-bottom:12px">' +
+    '<div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px"><span>' + label + '</span><span style="font-weight:700">$' + montant.toFixed(2) + ' (' + pct + '%)</span></div>' +
+    '<div style="background:#f0f0f0;border-radius:99px;height:10px;overflow:hidden"><div style="background:' + couleur + ';height:10px;width:' + pct + '%;transition:.4s"></div></div>' +
+    '</div>';
+
+  openModal('🥧 Sources de revenus',
+    rappKpiRow([
+      { label: 'Total revenus',  val: '$' + totRev.toFixed(2),   accent: true },
+      { label: 'Cotisations',    val: '$' + totCotis.toFixed(2) + ' (' + pctC + '%)', accent: true },
+      { label: 'Dons',           val: '$' + totDons.toFixed(2)  + ' (' + pctD + '%)', accent: totDons > 0 },
+      { label: 'Commandites',    val: '$0.00 (0%)' },
+    ]) +
+    (totRev > 0
+      ? '<div style="margin:16px 0">' + bar('💰 Cotisations membres', '#5e35b1', totCotis, pctC) + bar('🎁 Dons', '#2e7d32', totDons, pctD) + bar('🤝 Commandites', '#1565c0', 0, 0) + '</div>'
+      : '<div style="padding:24px;text-align:center;color:var(--muted)">Aucun revenu enregistré</div>'),
+    'large');
+}
+
+// ── Rapport : fiscal annuel ──────────────────────────────────────────────────
+async function rappModalFiscal(allPayments) {
+  let receipts = [];
+  try { receipts = await api('/receipts') || []; } catch {}
+  const annee     = String(new Date().getFullYear());
+  const recusAnn  = receipts.filter(r => String(r.annee) === annee);
+  const totRecus  = recusAnn.reduce((s, r) => s + parseFloat(r.montant_total || 0), 0);
+  const totRevAnn = (allPayments || []).filter(p => p.statut === 'approuve' && (p.mois || '').startsWith(annee)).reduce((s, p) => s + parseFloat(p.montant || 0), 0);
+
+  window._rappCSV = {
+    filename: 'rapport_fiscal_' + annee + '.csv',
+    headers: ['Membre', 'Email', 'Année', 'Montant total', 'Date génération', 'Archivé'],
+    rows: recusAnn.map(r => [r.prenom + ' ' + r.nom, r.email || '', r.annee, r.montant_total, r.date_generation || '', r.archived ? 'Oui' : 'Non']),
+  };
+
+  openModal('🧾 Rapport fiscal ' + annee,
+    rappKpiRow([
+      { label: 'Revenus ' + annee,  val: '$' + totRevAnn.toFixed(2), accent: true },
+      { label: 'Reçus émis',        val: recusAnn.length },
+      { label: 'Reçus archivés',    val: recusAnn.filter(r => r.archived).length },
+      { label: 'Total reçus ($)',   val: '$' + totRecus.toFixed(2), accent: true },
+    ]) +
+    (recusAnn.length ? '<div style="display:flex;justify-content:flex-end;margin:8px 0"><button class="btn btn-sm btn-outline" onclick="exportRappCSV()">⬇️ Export CSV</button></div>' : '') +
+    '<div style="padding:11px 14px;background:#e3f2fd;border-radius:10px;margin-bottom:12px;font-size:.83rem">' +
+    '📋 Les reçus fiscaux permettent aux membres de déclarer leurs cotisations à l\'ARC. Gérez-les dans <strong>Reçus fiscaux</strong>.</div>' +
+    (recusAnn.length
+      ? '<div style="max-height:360px;overflow-y:auto;border:1px solid var(--border);border-radius:10px">' +
+        recusAnn.map(r =>
+          '<div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border)' + (r.archived ? ';opacity:.55' : '') + '">' +
+          '<div style="flex:1"><strong>' + r.prenom + ' ' + r.nom + '</strong><div style="font-size:.74rem;color:var(--muted)">' + (r.email || '') + '</div></div>' +
+          '<span style="font-weight:700;color:#2e7d32">$' + parseFloat(r.montant_total || 0).toFixed(2) + '</span>' +
+          (r.archived ? '<span style="font-size:.71rem;background:#f5f5f5;color:var(--muted);padding:2px 7px;border-radius:8px">Archivé</span>' : '') +
+          '</div>').join('') +
+        '</div>'
+      : '<div style="padding:24px;text-align:center;color:var(--muted)">Aucun reçu fiscal émis pour ' + annee + '</div>'),
+    'large');
+}
+
+// ── Rapport : suivi des factures ─────────────────────────────────────────────
+async function rappModalFactures() {
+  let invoices = [];
+  try { invoices = await api('/invoices') || []; } catch {}
+  const nonPayees = invoices.filter(i => i.statut !== 'paye');
+  const payees    = invoices.filter(i => i.statut === 'paye');
+  const totDu     = nonPayees.reduce((s, i) => s + parseFloat(i.montant || 0), 0);
+  const totPaye   = payees.reduce((s, i) => s + parseFloat(i.montant || 0), 0);
+
+  openModal('📄 Suivi des factures',
+    rappKpiRow([
+      { label: 'Total factures',  val: invoices.length },
+      { label: 'Payées',          val: payees.length,    accent: payees.length > 0 },
+      { label: 'Impayées',        val: nonPayees.length, danger: nonPayees.length > 0 },
+      { label: 'Montant impayé',  val: '$' + totDu.toFixed(2), danger: totDu > 0 },
+    ]) +
+    (invoices.length
+      ? '<div style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;margin-top:14px">' +
+        '<table style="width:100%;border-collapse:collapse;font-size:.84rem">' +
+        '<thead><tr style="background:#f8f8f8;position:sticky;top:0"><th style="padding:8px 12px;text-align:left">Titre</th><th style="padding:8px;text-align:right">Montant</th><th style="padding:8px">Fournisseur</th><th style="padding:8px">Date</th><th style="padding:8px">Statut</th></tr></thead><tbody>' +
+        invoices.map(i => {
+          const sc = i.statut === 'paye' ? '#2e7d32' : '#c62828';
+          const sb = i.statut === 'paye' ? '#e8f5e9' : '#ffebee';
+          return '<tr style="border-top:1px solid var(--border)">' +
+            '<td style="padding:8px 12px"><strong>' + (i.titre || i.description || '—') + '</strong></td>' +
+            '<td style="padding:8px;text-align:right;font-weight:700">$' + parseFloat(i.montant || 0).toFixed(2) + '</td>' +
+            '<td style="padding:8px;font-size:.82rem">' + (i.fournisseur || '—') + '</td>' +
+            '<td style="padding:8px;font-size:.79rem;color:var(--muted)">' + (i.date || i.date_echeance || '—') + '</td>' +
+            '<td style="padding:8px"><span style="font-size:.72rem;background:' + sb + ';color:' + sc + ';padding:2px 8px;border-radius:8px">' + (i.statut || '—') + '</span></td>' +
+            '</tr>';
+        }).join('') +
+        '</tbody></table></div>'
+      : '<div style="padding:24px;text-align:center;color:var(--muted)">Aucune facture. Gérez-les dans la section <strong>Factures</strong>.</div>'),
+    'large');
+}
+
+// ── Rapport : bénévolat valorisé ────────────────────────────────────────────
+async function rappModalBenevolat() {
+  let heures = [];
+  try { heures = await api('/volunteer') || []; } catch {}
+  const TAUX = 17;
+  const approuv  = heures.filter(h => h.statut === 'approuve');
+  const totalH   = approuv.reduce((s, h) => s + parseFloat(h.heures || 0), 0);
+  const valeur   = totalH * TAUX;
+  const byMember = {};
+  approuv.forEach(h => {
+    if (!byMember[h.user_id]) byMember[h.user_id] = { nom: (h.prenom || '') + ' ' + (h.nom || ''), heures: 0 };
+    byMember[h.user_id].heures += parseFloat(h.heures || 0);
+  });
+  const members = Object.values(byMember).sort((a, b) => b.heures - a.heures);
+
+  openModal('🤲 Bénévolat valorisé',
+    rappKpiRow([
+      { label: 'Heures approuvées',       val: totalH + 'h',           accent: totalH > 0 },
+      { label: 'Taux horaire (Ontario)',   val: '$' + TAUX + '/h' },
+      { label: 'Valeur économique totale', val: '$' + valeur.toFixed(2), accent: true },
+      { label: 'Bénévoles actifs',         val: members.length },
+    ]) +
+    (members.length
+      ? '<div style="max-height:380px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;margin-top:14px">' +
+        '<table style="width:100%;border-collapse:collapse;font-size:.84rem">' +
+        '<thead><tr style="background:#f8f8f8;position:sticky;top:0"><th style="padding:8px 12px;text-align:left">Bénévole</th><th style="padding:8px;text-align:center">Heures</th><th style="padding:8px;text-align:right">Valeur ($' + TAUX + '/h)</th></tr></thead><tbody>' +
+        members.map(m =>
+          '<tr style="border-top:1px solid var(--border)">' +
+          '<td style="padding:8px 12px"><strong>' + m.nom + '</strong></td>' +
+          '<td style="padding:8px;text-align:center;font-weight:700">' + m.heures + 'h</td>' +
+          '<td style="padding:8px;text-align:right;color:#2e7d32;font-weight:700">$' + (m.heures * TAUX).toFixed(2) + '</td>' +
+          '</tr>').join('') +
+        '</tbody></table></div>'
+      : '<div style="padding:24px;text-align:center;color:var(--muted)">Aucune heure de bénévolat approuvée</div>'),
+    'large');
+}
+
+// ── Rapport : tableau de bord présidente ────────────────────────────────────
+async function rappModalExecutif(allCotis, allPayments, activities, allUsers) {
+  const annee   = String(new Date().getFullYear());
+  const mois    = new Date().toISOString().substring(0, 7);
+  const [, mo]  = mois.split('-');
+  const MOIS_FR = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+
+  const approv      = (allPayments || []).filter(p => p.statut === 'approuve');
+  const cotisAnnee  = (allCotis || []).filter(c => (c.periode || '').startsWith(annee));
+  const totCotisPay = cotisAnnee.filter(c => c.statut === 'paye').reduce((s, c) => s + parseFloat(c.montant_attendu || 0), 0);
+  const totCotisAtt = cotisAnnee.reduce((s, c) => s + parseFloat(c.montant_attendu || 0), 0);
+  const taux        = totCotisAtt > 0 ? Math.round(totCotisPay / totCotisAtt * 100) : 0;
+  const nbRetard    = cotisAnnee.filter(c => c.statut === 'en_attente').length;
+  const nbAJour     = cotisAnnee.filter(c => c.statut === 'paye').length;
+  const totDons     = approv.filter(p => p.type === 'don').reduce((s, p) => s + parseFloat(p.montant || 0), 0);
+  const totRevenu   = approv.reduce((s, p) => s + parseFloat(p.montant || 0), 0);
+  const nbActifs    = (allUsers || []).filter(u => u.actif).length;
+  const paidActs    = (activities || []).filter(a => a.paiement_requis || parseFloat(a.prix || 0) > 0);
+
+  const alertes = [];
+  if (nbRetard > 0)                            alertes.push({ t: 'danger',  msg: '🚨 ' + nbRetard + ' cotisation(s) en attente ce mois-ci' });
+  if (taux < 80 && totCotisAtt > 0)            alertes.push({ t: 'warning', msg: '⚠️ Taux de recouvrement faible : ' + taux + '%' });
+  if (paidActs.length === 0)                   alertes.push({ t: 'info',    msg: 'ℹ️ Aucune activité payante programmée' });
+  if (alertes.length === 0)                    alertes.push({ t: 'success', msg: '✅ Aucune alerte financière — tout est à jour' });
+
+  const alertCls = { danger: '#ffebee;#ef9a9a;#b71c1c', warning: '#fff3e0;#ffcc80;#e65100', info: '#e3f2fd;#90caf9;#1565c0', success: '#e8f5e9;#a5d6a7;#1b5e20' };
+
+  openModal('👑 Tableau de bord présidente — ' + MOIS_FR[parseInt(mo)] + ' ' + annee,
+    rappKpiRow([
+      { label: 'Membres actifs',       val: nbActifs,                           accent: true },
+      { label: 'Revenus ' + annee,     val: '$' + totRevenu.toFixed(2),         accent: true },
+      { label: 'Cotisations payées',   val: nbAJour,                            accent: nbAJour > 0 },
+      { label: 'En retard',            val: nbRetard,                           danger: nbRetard > 0 },
+      { label: 'Taux recouvrement',    val: taux + '%',                         accent: taux >= 80, danger: taux < 50 && totCotisAtt > 0 },
+      { label: 'Dons reçus',           val: '$' + totDons.toFixed(2),           accent: totDons > 0 },
+    ]) +
+    '<div style="margin:12px 0;display:flex;flex-direction:column;gap:7px">' +
+    alertes.map(a => {
+      const [bg, border, col] = alertCls[a.t].split(';');
+      return '<div style="padding:9px 14px;background:' + bg + ';border:1px solid ' + border + ';border-radius:8px;font-size:.84rem;color:' + col + '">' + a.msg + '</div>';
+    }).join('') +
+    '</div>' +
+    '<div style="margin-top:12px;padding:13px;background:var(--off);border-radius:10px">' +
+    '<div style="font-size:.77rem;font-weight:700;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Objectif annuel de recouvrement</div>' +
+    '<div style="background:#e0e0e0;border-radius:99px;height:10px;overflow:hidden">' +
+    '<div style="background:' + (taux >= 80 ? '#2e7d32' : taux >= 50 ? '#f57c00' : '#c62828') + ';height:10px;width:' + Math.min(taux, 100) + '%;transition:.4s"></div></div>' +
+    '<div style="display:flex;justify-content:space-between;font-size:.73rem;margin-top:4px;color:var(--muted)">' +
+    '<span>$0</span><span style="font-weight:700;color:var(--text)">$' + totCotisPay.toFixed(2) + ' (' + taux + '%)</span><span>$' + totCotisAtt.toFixed(2) + '</span>' +
+    '</div></div>',
+    'large');
 }
 
 // ══ TÉMOIGNAGES (admin/secrétaire) ══════════════════════════════════════════
