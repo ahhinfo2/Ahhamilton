@@ -2257,12 +2257,13 @@ app.get('/api/payments', authMiddleware, requireRole('admin','tresoriere'), (req
 
 // POST — soumettre un paiement ou don
 app.post('/api/payments', authMiddleware, uploadPayment.single('proof'), (req, res) => {
-  const { montant, type, mois, methode, reference, note } = req.body;
+  const { montant, type, mois, methode, reference, note, periodicite, nb_mois } = req.body;
   if (!montant) return res.status(400).json({ error: 'Montant requis' });
   const proof_path = req.file ? `/uploads/payments/${req.file.filename}` : null;
-  const r = db.prepare(`INSERT INTO payments (user_id, montant, type, mois, methode, reference, proof_path, note)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(req.user.id, parseFloat(montant), type||'mensualite', mois||'', methode||'virement', reference||'', proof_path, note||'');
+  const nbM = parseInt(nb_mois) || 1;
+  const r = db.prepare(`INSERT INTO payments (user_id, montant, type, mois, methode, reference, proof_path, note, periodicite, nb_mois)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(req.user.id, parseFloat(montant), type||'mensualite', mois||'', methode||'virement', reference||'', proof_path, note||'', periodicite||'mensuel', nbM);
 
   // Notifier trésorière + présidente + VP
   const finance = db.prepare("SELECT id FROM users WHERE role IN ('admin','tresoriere') AND actif=1").all();
@@ -2291,18 +2292,19 @@ app.patch('/api/payments/:id/approuver', authMiddleware, requireRole('admin','tr
   const mois = pay.mois || new Date().toISOString().substring(0,7);
   db.prepare('UPDATE users SET plan_paid_month=?, plan_unpaid_count=0 WHERE id=?').run(mois, pay.user_id);
 
-  // Marquer la cotisation correspondante comme payée
-  if (pay.periodicite === 'annuel') {
-    // Paiement annuel : marquer les 12 mois
-    const anneeDebut = (mois || new Date().toISOString().substring(0,7)).substring(0,4);
-    for (let m = 1; m <= 12; m++) {
-      const periode = `${anneeDebut}-${String(m).padStart(2,'0')}`;
-      db.prepare("UPDATE cotisations SET statut='paye', payment_id=? WHERE user_id=? AND periode=?").run(pay.id, pay.user_id, periode);
-    }
-    db.prepare("UPDATE users SET plan_paid_month=? WHERE id=?").run(`${anneeDebut}-12`, pay.user_id);
-  } else {
-    db.prepare("UPDATE cotisations SET statut='paye', payment_id=? WHERE user_id=? AND periode=?").run(pay.id, pay.user_id, mois);
+  // Marquer les cotisations comme payées (annuel = 12 mois, multi-mois = N mois, sinon 1 mois)
+  const nbMois = pay.periodicite === 'annuel' ? 12 : (pay.nb_mois || 1);
+  const [anneeDebut, moisDebut] = mois.split('-').map(Number);
+  let derniereMois = mois;
+  for (let i = 0; i < nbMois; i++) {
+    const totalMois = (moisDebut - 1 + i);
+    const annee = anneeDebut + Math.floor(totalMois / 12);
+    const m = (totalMois % 12) + 1;
+    const periode = `${annee}-${String(m).padStart(2,'0')}`;
+    db.prepare("UPDATE cotisations SET statut='paye', payment_id=? WHERE user_id=? AND periode=?").run(pay.id, pay.user_id, periode);
+    derniereMois = periode;
   }
+  db.prepare("UPDATE users SET plan_paid_month=? WHERE id=?").run(derniereMois, pay.user_id);
 
   // Notifier le membre
   const u = db.prepare('SELECT prenom, nom FROM users WHERE id=?').get(pay.user_id);
@@ -2363,17 +2365,25 @@ app.post('/api/receipts', authMiddleware, requireRole('admin','tresoriere'), (re
   const contenu = `REÇU FISCAL ${annee}\nAssociation Haïtienne de Hamilton\n231 Fernwood Crescent, Hamilton, ON L8T 3L7\n\nRemis à : ${u.prenom} ${u.nom}\nCourriel : ${u.email}\n\nDons et cotisations approuvés pour ${annee} : $${total.toFixed(2)}\n\nCe reçu confirme les contributions à l'Association Haïtienne de Hamilton pour l'année fiscale ${annee}.\n\nSigné par : ${req.user.prenom} ${req.user.nom}`;
 
   const print_token = crypto.randomBytes(24).toString('hex');
-  const r = db.prepare('INSERT INTO tax_receipts (user_id, annee, montant_total, genere_par, contenu, print_token) VALUES (?,?,?,?,?,?)')
-    .run(user_id, annee, total, req.user.id, contenu, print_token);
+  // Remplacer l'ancien reçu si existant pour ce membre + année
+  const existing = db.prepare('SELECT id FROM tax_receipts WHERE user_id=? AND annee=?').get(user_id, annee);
+  let recuId;
+  if (existing) {
+    db.prepare('UPDATE tax_receipts SET montant_total=?, genere_par=?, contenu=?, print_token=?, date_generation=CURRENT_TIMESTAMP, archived=0 WHERE id=?')
+      .run(total, req.user.id, contenu, print_token, existing.id);
+    recuId = existing.id;
+  } else {
+    recuId = db.prepare('INSERT INTO tax_receipts (user_id, annee, montant_total, genere_par, contenu, print_token) VALUES (?,?,?,?,?,?)')
+      .run(user_id, annee, total, req.user.id, contenu, print_token).lastInsertRowid;
+  }
 
-  // Envoyer le reçu au membre
   const msgR = db.prepare("INSERT INTO messages (expediteur_id, sujet, contenu, type) VALUES (?,?,?,'individuel')")
-    .run(req.user.id, `🧾 Votre reçu fiscal ${annee} — AHH`, contenu);
+    .run(req.user.id, `🧾 Votre reçu fiscal ${annee} | AHH`, contenu);
   db.prepare('INSERT INTO message_recipients (message_id, destinataire_id) VALUES (?,?)').run(msgR.lastInsertRowid, user_id);
   createAlert(user_id, 'paiement', `🧾 Reçu fiscal ${annee} disponible`, `Total: $${total.toFixed(2)}`);
-  mailer.sendRecuFiscal(u, annee, total, r.lastInsertRowid, print_token).catch(()=>{});
+  mailer.sendRecuFiscal(u, annee, total, recuId, print_token).catch(()=>{});
 
-  res.status(201).json({ id: r.lastInsertRowid, montant_total: total, contenu });
+  res.status(201).json({ id: recuId, montant_total: total, contenu, replaced: !!existing });
 });
 
 // Aperçu des montants par membre pour une année donnée
@@ -2519,6 +2529,20 @@ app.get('/api/payments/rapport-mensuel', authMiddleware, requireRole('admin','tr
   const nbMembresBienfaiteur = db.prepare("SELECT COUNT(*) AS n FROM users WHERE actif=1 AND plan='bienfaiteur'").get()?.n||0;
   const nbMembresPartenaire = db.prepare("SELECT COUNT(*) AS n FROM users WHERE actif=1 AND plan='partenaire'").get()?.n||0;
   res.json({ mois, paiements, totalMensualites, totalDons, nbMembresBienfaiteur, nbMembresPartenaire });
+});
+
+// Archiver / désarchiver un reçu
+app.patch('/api/receipts/:id/archiver', authMiddleware, requireRole('admin','tresoriere'), (req, res) => {
+  const r = db.prepare('SELECT id, archived FROM tax_receipts WHERE id=?').get(req.params.id);
+  if (!r) return res.status(404).json({ error: 'Reçu introuvable' });
+  db.prepare('UPDATE tax_receipts SET archived=? WHERE id=?').run(r.archived ? 0 : 1, r.id);
+  res.json({ archived: !r.archived });
+});
+
+// Supprimer un reçu
+app.delete('/api/receipts/:id', authMiddleware, requireRole('admin','tresoriere'), (req, res) => {
+  db.prepare('DELETE FROM tax_receipts WHERE id=?').run(req.params.id);
+  res.json({ message: 'Reçu supprimé' });
 });
 
 // Reçu fiscal — page HTML imprimable (token public OU JWT)

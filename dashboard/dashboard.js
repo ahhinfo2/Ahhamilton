@@ -6169,14 +6169,9 @@ async function recus() {
     '</div></div>' +
 
     '<div class="table-card"><div class="table-card-header"><h3>Reçus émis</h3></div>' +
-    '<div class="table-wrapper"><table>' +
-    '<thead><tr><th>Membre</th><th>Année</th><th>Total</th><th>Date</th><th>Action</th></tr></thead><tbody>' +
-    (data.length ? data.map(r =>
-      '<tr><td>' + r.prenom + ' ' + r.nom + '</td><td>' + r.annee + '</td><td>$' + r.montant_total.toFixed(2) + '</td>' +
-      '<td>' + fmt(r.date_generation) + '</td>' +
-      '<td><button class="btn btn-sm btn-primary" onclick="imprimerRecu(' + r.id + ')">🖨️ Imprimer</button></td></tr>'
-    ).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--muted)">Aucun reçu émis</td></tr>') +
-    '</tbody></table></div></div>'
+    '<div style="padding:8px 4px">' +
+    recusParAnneeHTML(data) +
+    '</div></div>'
   );
 
   recusFiltrer();
@@ -6277,6 +6272,78 @@ async function recusEnvoyerBulk(ids, annee) {
 
 function imprimerRecu(id) {
   window.open(`${BASE}/api/receipts/${id}/print?token=${TOKEN}`, '_blank');
+}
+
+function recusParAnneeHTML(data) {
+  if (!data || !data.length) return '<div style="padding:24px;text-align:center;color:var(--muted)">Aucun reçu émis</div>';
+  // Grouper par année
+  const byYear = {};
+  data.forEach(r => {
+    if (!byYear[r.annee]) byYear[r.annee] = [];
+    byYear[r.annee].push(r);
+  });
+  const years = Object.keys(byYear).sort((a,b) => b - a);
+  return years.map(annee => {
+    const reçus = byYear[annee];
+    const total = reçus.reduce((s, r) => s + (r.montant_total || 0), 0);
+    const archived = reçus.filter(r => r.archived).length;
+    return '<div style="border:1px solid var(--border);border-radius:10px;margin:8px 12px;overflow:hidden">' +
+      '<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;background:var(--off)" onclick="recusToggleDossier(' + annee + ')">' +
+        '<span style="font-weight:700;font-size:1rem">📁 ' + annee + '</span>' +
+        '<span style="font-size:.82rem;color:var(--muted)">' + reçus.length + ' reçu(s)' + (archived ? ' · ' + archived + ' archivé(s)' : '') + '</span>' +
+        '<span style="margin-left:auto;font-weight:700;color:var(--accent)">$' + total.toFixed(2) + '</span>' +
+        '<span id="dossier_arrow_' + annee + '" style="font-size:.8rem;transition:.2s">▶</span>' +
+      '</div>' +
+      '<div id="dossier_' + annee + '" style="display:none">' +
+        '<table style="width:100%;border-collapse:collapse;font-size:.87rem">' +
+        '<thead><tr style="background:#fafafa">' +
+          '<th style="padding:8px 14px;text-align:left;font-weight:600">Membre</th>' +
+          '<th style="padding:8px;text-align:right;font-weight:600">Total</th>' +
+          '<th style="padding:8px;font-weight:600">Date</th>' +
+          '<th style="padding:8px;font-weight:600">Statut</th>' +
+          '<th style="padding:8px;font-weight:600">Actions</th>' +
+        '</tr></thead><tbody>' +
+        reçus.map(r =>
+          '<tr style="border-top:1px solid var(--border)' + (r.archived ? ';opacity:.55' : '') + '">' +
+            '<td style="padding:9px 14px">' + r.prenom + ' ' + r.nom + '</td>' +
+            '<td style="padding:9px 8px;text-align:right;font-weight:700">$' + (r.montant_total || 0).toFixed(2) + '</td>' +
+            '<td style="padding:9px 8px;color:var(--muted);font-size:.8rem">' + fmt(r.date_generation) + '</td>' +
+            '<td style="padding:9px 8px">' + (r.archived ? '<span style="font-size:.75rem;background:#f5f5f5;padding:2px 8px;border-radius:8px;color:var(--muted)">Archivé</span>' : '<span style="font-size:.75rem;background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:8px">Actif</span>') + '</td>' +
+            '<td style="padding:9px 8px;white-space:nowrap">' +
+              '<button class="btn btn-sm btn-outline" title="Imprimer" onclick="imprimerRecu(' + r.id + ')">🖨️</button> ' +
+              '<button class="btn btn-sm btn-ghost" title="' + (r.archived ? 'Désarchiver' : 'Archiver') + '" onclick="recusArchiverRecu(' + r.id + ',' + (r.archived ? 'false' : 'true') + ')">' + (r.archived ? '📂' : '📦') + '</button> ' +
+              '<button class="btn btn-sm btn-danger" title="Supprimer" onclick="recusSupprimerRecu(' + r.id + ')">🗑️</button>' +
+            '</td>' +
+          '</tr>'
+        ).join('') +
+        '</tbody></table></div></div>';
+  }).join('');
+}
+
+function recusToggleDossier(annee) {
+  const el = document.getElementById('dossier_' + annee);
+  const arrow = document.getElementById('dossier_arrow_' + annee);
+  if (!el) return;
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : '';
+  if (arrow) arrow.textContent = open ? '▶' : '▼';
+}
+
+async function recusArchiverRecu(id, archiver) {
+  try {
+    await api('/receipts/' + id + '/archiver', { method:'PATCH', body: JSON.stringify({ archived: archiver }) });
+    toast(archiver ? '📦 Reçu archivé' : '📂 Reçu désarchivé');
+    recus();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function recusSupprimerRecu(id) {
+  if (!confirm('Supprimer ce reçu définitivement ?')) return;
+  try {
+    await api('/receipts/' + id, { method:'DELETE' });
+    toast('🗑️ Reçu supprimé');
+    recus();
+  } catch(e) { toast(e.message, 'error'); }
 }
 
 // ══ TÉMOIGNAGES (admin/secrétaire) ══════════════════════════════════════════
@@ -6523,15 +6590,34 @@ async function mon_paiement() {
       '</div>' +
       '<div style="padding:16px 20px">' +
 
-        '<div style="display:flex;gap:12px;margin-bottom:18px;flex-wrap:wrap">' +
-          '<label style="flex:1;min-width:180px;border:2px solid var(--accent);border-radius:12px;padding:14px 16px;cursor:pointer;display:flex;gap:12px;align-items:center" id="opt_mensuel_label">' +
-            '<input type="radio" name="periodicite" value="mensuel" id="opt_mensuel" checked onchange="updateMontantPaiement()" style="accent-color:var(--accent);width:18px;height:18px;flex-shrink:0"/>' +
-            '<div><div style="font-weight:800;font-size:1.15rem">$' + prix.monthly + '</div><div style="font-size:.8rem;color:var(--muted)">Ce mois (' + moisCourant + ')</div></div>' +
-          '</label>' +
-          '<label style="flex:1;min-width:180px;border:2px solid var(--border);border-radius:12px;padding:14px 16px;cursor:pointer;display:flex;gap:12px;align-items:center" id="opt_annuel_label">' +
-            '<input type="radio" name="periodicite" value="annuel" id="opt_annuel" onchange="updateMontantPaiement()" style="accent-color:var(--accent);width:18px;height:18px;flex-shrink:0"/>' +
-            '<div><div style="font-weight:800;font-size:1.15rem">$' + prix.annual + ' <span style="background:#e8f5e9;color:#2e7d32;font-size:.68rem;padding:2px 7px;border-radius:8px;font-weight:700">2 MOIS OFFERTS</span></div><div style="font-size:.8rem;color:var(--muted)">Toute l\'année</div></div>' +
-          '</label>' +
+        // Onglets Type
+        '<div style="display:flex;gap:8px;margin-bottom:14px">' +
+          '<button id="tab_cotis" class="btn btn-primary btn-sm" onclick="payTab(\'cotis\')">Cotisation</button>' +
+          '<button id="tab_don" class="btn btn-outline btn-sm" onclick="payTab(\'don\')">🎁 Don</button>' +
+        '</div>' +
+
+        // Section Cotisation
+        '<div id="section_cotis">' +
+          '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">' +
+            [1,2,3,6].map(n =>
+              '<label style="border:2px solid var(--border);border-radius:10px;padding:10px 14px;cursor:pointer;display:flex;gap:8px;align-items:center" id="opt_nb_' + n + '_label">' +
+              '<input type="radio" name="nb_mois" value="' + n + '" id="opt_nb_' + n + '" ' + (n===1?'checked':'') + ' onchange="updateMontantPaiement()" style="accent-color:var(--accent);width:16px;height:16px;flex-shrink:0"/>' +
+              '<div><div style="font-weight:800">$' + (n * prix.monthly) + '</div><div style="font-size:.75rem;color:var(--muted)">' + n + ' mois</div></div>' +
+              '</label>'
+            ).join('') +
+            '<label style="border:2px solid var(--border);border-radius:10px;padding:10px 14px;cursor:pointer;display:flex;gap:8px;align-items:center" id="opt_nb_12_label">' +
+              '<input type="radio" name="nb_mois" value="12" id="opt_nb_12" onchange="updateMontantPaiement()" style="accent-color:var(--accent);width:16px;height:16px;flex-shrink:0"/>' +
+              '<div><div style="font-weight:800">$' + prix.annual + ' <span style="background:#e8f5e9;color:#2e7d32;font-size:.65rem;padding:1px 6px;border-radius:6px">2 MOIS OFFERTS</span></div><div style="font-size:.75rem;color:var(--muted)">Année complète</div></div>' +
+            '</label>' +
+          '</div>' +
+        '</div>' +
+
+        // Section Don
+        '<div id="section_don" style="display:none;margin-bottom:16px">' +
+          '<div class="form-group" style="margin:0">' +
+            '<label>Montant du don ($)</label>' +
+            '<input type="number" id="pay_don_montant" value="20" min="1" step="1" style="font-size:1.1rem;font-weight:700;max-width:180px" oninput="document.getElementById(\'pay_montant\').value=this.value"/>' +
+          '</div>' +
         '</div>' +
 
         '<div class="form-row">' +
@@ -6556,7 +6642,7 @@ async function mon_paiement() {
           '<label>Preuve de paiement <span style="font-weight:400;color:var(--muted)">(optionnel)</span></label>' +
           '<input type="file" id="pay_proof" accept="image/*,.pdf"/>' +
         '</div>' +
-        '<button class="btn btn-primary" style="width:100%;padding:14px;font-size:1rem" onclick="soumettreMonPaiement(\'' + moisCourant + '\')">Envoyer ma cotisation</button>' +
+        '<button class="btn btn-primary" style="width:100%;padding:14px;font-size:1rem" onclick="soumettreMonPaiement(\'' + moisCourant + '\')">Envoyer</button>' +
         '<p style="font-size:.78rem;color:var(--muted);margin-top:10px;text-align:center">La trésorière recevra une notification et validera votre paiement sous peu.</p>' +
       '</div></div>'
     : '') +
@@ -6576,21 +6662,39 @@ async function mon_paiement() {
   );
 }
 
+function payTab(tab) {
+  const isCotis = tab === 'cotis';
+  document.getElementById('section_cotis').style.display = isCotis ? '' : 'none';
+  document.getElementById('section_don').style.display  = isCotis ? 'none' : '';
+  document.getElementById('tab_cotis').className = 'btn btn-sm ' + (isCotis ? 'btn-primary' : 'btn-outline');
+  document.getElementById('tab_don').className   = 'btn btn-sm ' + (isCotis ? 'btn-outline' : 'btn-primary');
+  if (!isCotis) {
+    const donMontant = document.getElementById('pay_don_montant')?.value || '20';
+    const input = document.getElementById('pay_montant');
+    if (input) input.value = donMontant;
+  } else {
+    updateMontantPaiement();
+  }
+}
+
 function updateMontantPaiement() {
-  const annuel = document.getElementById('opt_annuel')?.checked;
   const plan = USER?.plan || 'bienfaiteur';
   const PRIX = { bienfaiteur: { monthly:10, annual:100 }, partenaire: { monthly:20, annual:200 } };
-  const montant = annuel ? (PRIX[plan]?.annual || 100) : (PRIX[plan]?.monthly || 10);
+  const nb = parseInt(document.querySelector('input[name="nb_mois"]:checked')?.value || '1');
+  const annuel = nb === 12;
+  const montant = annuel ? (PRIX[plan]?.annual || 100) : (nb * (PRIX[plan]?.monthly || 10));
   const input = document.getElementById('pay_montant');
   if (input) input.value = montant;
-  const ml = document.getElementById('opt_mensuel_label');
-  const al = document.getElementById('opt_annuel_label');
-  if (ml) ml.style.borderColor = annuel ? 'var(--border)' : 'var(--accent)';
-  if (al) al.style.borderColor = annuel ? 'var(--accent)' : 'var(--border)';
+  [1,2,3,6,12].forEach(n => {
+    const lbl = document.getElementById('opt_nb_' + n + '_label');
+    if (lbl) lbl.style.borderColor = (n === nb) ? 'var(--accent)' : 'var(--border)';
+  });
 }
 
 async function soumettreMonPaiement(moisCourant) {
-  const annuel = document.getElementById('opt_annuel')?.checked;
+  const isDon = document.getElementById('tab_don')?.classList.contains('btn-primary');
+  const nb = parseInt(document.querySelector('input[name="nb_mois"]:checked')?.value || '1');
+  const annuel = nb === 12;
   const montant = document.getElementById('pay_montant')?.value;
   const methode = document.getElementById('pay_methode')?.value;
   const reference = document.getElementById('pay_ref')?.value || '';
@@ -6600,16 +6704,17 @@ async function soumettreMonPaiement(moisCourant) {
 
   const fd = new FormData();
   fd.append('montant', montant);
-  fd.append('type', 'mensualite');
+  fd.append('type', isDon ? 'don' : 'mensualite');
   fd.append('mois', moisCourant);
   fd.append('methode', methode);
   fd.append('reference', reference);
   fd.append('periodicite', annuel ? 'annuel' : 'mensuel');
+  fd.append('nb_mois', isDon ? '1' : String(nb));
   if (proofFile) fd.append('proof', proofFile);
 
   try {
     await fetch(BASE + '/api/payments', { method:'POST', headers:{ Authorization:'Bearer '+localStorage.getItem('token') }, body:fd });
-    toast('✅ Paiement soumis. La trésorière recevra une notification.');
+    toast(isDon ? '✅ Don soumis. Merci pour votre contribution!' : '✅ Paiement soumis. La trésorière recevra une notification.');
     mon_paiement();
   } catch(ex) { toast(ex.message, 'error'); }
 }

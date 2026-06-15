@@ -412,6 +412,11 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS newsletter_subscribers (
 )`); } catch {}
 try { db.exec(`ALTER TABLE gallery_photos ADD COLUMN featured INTEGER DEFAULT 0`); } catch {}
 
+// Paiements d'avance (nb de mois couverts)
+try { db.exec("ALTER TABLE payments ADD COLUMN nb_mois INTEGER DEFAULT 1"); } catch {}
+// Reçus fiscaux — archivage
+try { db.exec("ALTER TABLE tax_receipts ADD COLUMN archived INTEGER DEFAULT 0"); } catch {}
+
 // Cotisations membres (dues générées le 15 de chaque mois)
 try { db.exec(`CREATE TABLE IF NOT EXISTS cotisations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
