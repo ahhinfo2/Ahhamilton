@@ -9266,6 +9266,33 @@ async function carteMembreView() {
       <button class="btn btn-outline" onclick="carteMembeSave()">💾 Enregistrer en image</button>
     </div>
     <p style="text-align:center;font-size:.78rem;color:var(--muted);margin-top:12px">Présentez cette carte lors des événements AHH Hamilton</p>
+
+    ${!me.photo_url
+      ? `<div style="max-width:420px;margin:18px auto 0;padding:14px 16px;background:#fff8e1;border:1px solid #ffe082;border-radius:12px;display:flex;gap:12px;align-items:flex-start">
+          <span style="font-size:1.3rem;flex-shrink:0">⚠️</span>
+          <div>
+            <div style="font-weight:700;font-size:.88rem;color:#e65100;margin-bottom:4px">Carte non valide — photo manquante</div>
+            <div style="font-size:.82rem;color:#6d4c41;line-height:1.45">
+              Votre carte de membre ne sera <strong>valide</strong> qu'une fois que vous aurez ajouté une photo dans votre profil <strong>et</strong> qu'elle aura été approuvée par le comité.
+            </div>
+            <button onclick="showView('profile')" style="margin-top:10px;background:#e65100;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:.8rem;font-weight:700;cursor:pointer">📷 Mettre à jour mon profil →</button>
+          </div>
+        </div>`
+      : !me.carte_photo_approuvee
+        ? `<div style="max-width:420px;margin:18px auto 0;padding:14px 16px;background:#e3f2fd;border:1px solid #90caf9;border-radius:12px;display:flex;gap:12px;align-items:flex-start">
+            <span style="font-size:1.3rem;flex-shrink:0">🕐</span>
+            <div>
+              <div style="font-weight:700;font-size:.88rem;color:#1565c0;margin-bottom:4px">Carte en attente de validation</div>
+              <div style="font-size:.82rem;color:#37474f;line-height:1.45">
+                Votre photo a bien été reçue. Votre carte sera <strong>activée</strong> dès qu'un membre du comité aura approuvé votre photo. Vous recevrez une notification à ce moment.
+              </div>
+            </div>
+          </div>`
+        : `<div style="max-width:420px;margin:18px auto 0;padding:12px 16px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:12px;display:flex;gap:12px;align-items:center">
+            <span style="font-size:1.3rem">✅</span>
+            <div style="font-size:.84rem;color:#1b5e20;font-weight:600">Carte valide — photo approuvée par le comité</div>
+          </div>`
+    }
   `);
 }
 
