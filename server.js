@@ -4428,29 +4428,57 @@ app.post('/api/young/jobs/:id/notify', authMiddleware, requireRole('admin','secr
     try {
       await mailer.sendMail({
         to: m.email,
-        subject: `[AHH Hamilton] Nouvelle opportunité : ${job.titre}`,
+        subject: `[AHH Hamilton] Nouvelles opportunités disponibles`,
         html: `<div style="font-family:sans-serif;max-width:600px;margin:auto;border-radius:12px;overflow:hidden;border:1px solid #e0e0e0">
-          <div style="background:linear-gradient(135deg,#1a237e,#283593);padding:24px;text-align:center">
+          <div style="background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:28px;text-align:center">
+            <img src="https://ahhamilton.ca/Public/logo1.png" width="64" height="64" alt="AHH" style="border-radius:12px;display:block;margin:0 auto 12px"/>
             <div style="color:#fff;font-size:1.4rem;font-weight:800">AHH Hamilton</div>
             <div style="color:rgba(255,255,255,.75);font-size:.85rem;margin-top:4px">Association Haïtienne de Hamilton</div>
           </div>
           <div style="background:#fff;padding:28px">
             <p style="font-size:1rem">Bonjour ${m.prenom},</p>
-            <p>Une nouvelle opportunité vient d'être publiée sur votre espace membre :</p>
-            <div style="background:#f5f7ff;border-left:4px solid #1a237e;border-radius:8px;padding:16px;margin:16px 0">
-              <div style="font-size:.75rem;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${JOB_TYPES[job.type] || job.type}</div>
-              <div style="font-size:1.1rem;font-weight:700;color:#1a237e">${job.titre}</div>
-              ${job.organisation ? `<div style="font-size:.88rem;color:#555;margin-top:4px">🏢 ${job.organisation}</div>` : ''}
-              ${job.lieu       ? `<div style="font-size:.88rem;color:#555;margin-top:2px">📍 ${job.lieu}</div>` : ''}
-              ${job.date_limite ? `<div style="font-size:.88rem;color:#c62828;margin-top:4px">⏰ Date limite : ${job.date_limite}</div>` : ''}
-            </div>
-            <p style="font-size:.9rem;color:#555">Pour consulter les détails complets et postuler, connectez-vous à votre espace membre :</p>
-            <div style="text-align:center;margin:24px 0">
-              <a href="${loginUrl}" style="background:#1a237e;color:#fff;padding:13px 30px;border-radius:8px;text-decoration:none;font-weight:700;font-size:.95rem;display:inline-block">Se connecter à mon espace →</a>
+            <p>De nouvelles offres d'emploi et de stages viennent d'être publiées dans votre espace membre.</p>
+            <p>Connectez-vous pour les découvrir et postuler !</p>
+            <div style="text-align:center;margin:28px 0">
+              <a href="${loginUrl}" style="background:#2e7d32;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;font-size:.95rem;display:inline-block">Voir les opportunités →</a>
             </div>
           </div>
           <div style="background:#f9f9f9;padding:12px;text-align:center;font-size:.75rem;color:#999">
-            Association Haïtienne de Hamilton · <a href="https://ahhamilton.ca" style="color:#1a237e">ahhamilton.ca</a>
+            Association Haïtienne de Hamilton · <a href="https://ahhamilton.ca" style="color:#2e7d32">ahhamilton.ca</a>
+          </div>
+        </div>`
+      });
+      ok++;
+    } catch { errors++; }
+  }
+  res.json({ ok, errors, total: membres.length });
+});
+
+app.post('/api/young/jobs/notify-all', authMiddleware, requireRole('admin','secretaire','tresoriere','delegue'), async (req, res) => {
+  const membres = db.prepare("SELECT prenom, email FROM users WHERE actif=1 AND email IS NOT NULL AND email != ''").all();
+  const loginUrl = 'https://ahhamilton.ca/dashboard/login.html';
+  let ok = 0, errors = 0;
+  for (const m of membres) {
+    try {
+      await mailer.sendMail({
+        to: m.email,
+        subject: '[AHH Hamilton] Nouvelles opportunités disponibles',
+        html: `<div style="font-family:sans-serif;max-width:600px;margin:auto;border-radius:12px;overflow:hidden;border:1px solid #e0e0e0">
+          <div style="background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:28px;text-align:center">
+            <img src="https://ahhamilton.ca/Public/logo1.png" width="64" height="64" alt="AHH" style="border-radius:12px;display:block;margin:0 auto 12px"/>
+            <div style="color:#fff;font-size:1.4rem;font-weight:800">AHH Hamilton</div>
+            <div style="color:rgba(255,255,255,.75);font-size:.85rem;margin-top:4px">Association Haïtienne de Hamilton</div>
+          </div>
+          <div style="background:#fff;padding:28px">
+            <p style="font-size:1rem">Bonjour ${m.prenom},</p>
+            <p>De nouvelles offres d'emploi et de stages viennent d'être publiées dans votre espace membre.</p>
+            <p>Connectez-vous pour les découvrir et postuler !</p>
+            <div style="text-align:center;margin:28px 0">
+              <a href="${loginUrl}" style="background:#2e7d32;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;font-size:.95rem;display:inline-block">Voir les opportunités →</a>
+            </div>
+          </div>
+          <div style="background:#f9f9f9;padding:12px;text-align:center;font-size:.75rem;color:#999">
+            Association Haïtienne de Hamilton · <a href="https://ahhamilton.ca" style="color:#2e7d32">ahhamilton.ca</a>
           </div>
         </div>`
       });
@@ -4487,26 +4515,53 @@ app.post('/api/young/trainings/:id/notify', authMiddleware, requireRole('admin',
     try {
       await mailer.sendMail({
         to: m.email,
-        subject: `[AHH Hamilton] Nouvelle formation : ${t.titre}`,
+        subject: `[AHH Hamilton] Nouvelles formations disponibles`,
         html: `<div style="font-family:sans-serif;max-width:600px;margin:auto;border-radius:12px;overflow:hidden;border:1px solid #e0e0e0">
-          <div style="background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:24px;text-align:center">
+          <div style="background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:28px;text-align:center">
+            <img src="https://ahhamilton.ca/Public/logo1.png" width="64" height="64" alt="AHH" style="border-radius:12px;display:block;margin:0 auto 12px"/>
             <div style="color:#fff;font-size:1.4rem;font-weight:800">AHH Hamilton</div>
             <div style="color:rgba(255,255,255,.75);font-size:.85rem;margin-top:4px">Association Haïtienne de Hamilton</div>
           </div>
           <div style="background:#fff;padding:28px">
             <p style="font-size:1rem">Bonjour ${m.prenom},</p>
-            <p>Une nouvelle formation est disponible sur votre espace membre :</p>
-            <div style="background:#f1f8e9;border-left:4px solid #2e7d32;border-radius:8px;padding:16px;margin:16px 0">
-              <div style="font-size:.75rem;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Formation / Atelier</div>
-              <div style="font-size:1.1rem;font-weight:700;color:#1b5e20">${t.titre}</div>
-              ${t.formateur  ? `<div style="font-size:.88rem;color:#555;margin-top:4px">👤 Par ${t.formateur}</div>` : ''}
-              ${t.date_debut ? `<div style="font-size:.88rem;color:#555;margin-top:2px">📅 ${t.date_debut}${t.date_fin ? ' → ' + t.date_fin : ''}</div>` : ''}
-              ${t.lieu       ? `<div style="font-size:.88rem;color:#555;margin-top:2px">📍 ${t.lieu}</div>` : ''}
-              <div style="font-size:.88rem;font-weight:700;color:#1b5e20;margin-top:6px">${t.gratuit ? '✅ Gratuit' : `💳 $${parseFloat(t.prix||0).toFixed(2)}`}</div>
+            <p>De nouvelles formations et ateliers viennent d'être publiés dans votre espace membre.</p>
+            <p>Connectez-vous pour les découvrir et vous inscrire !</p>
+            <div style="text-align:center;margin:28px 0">
+              <a href="${loginUrl}" style="background:#2e7d32;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;font-size:.95rem;display:inline-block">Voir les formations →</a>
             </div>
-            <p style="font-size:.9rem;color:#555">Connectez-vous pour voir les détails et vous inscrire :</p>
-            <div style="text-align:center;margin:24px 0">
-              <a href="${loginUrl}" style="background:#2e7d32;color:#fff;padding:13px 30px;border-radius:8px;text-decoration:none;font-weight:700;font-size:.95rem;display:inline-block">Se connecter à mon espace →</a>
+          </div>
+          <div style="background:#f9f9f9;padding:12px;text-align:center;font-size:.75rem;color:#999">
+            Association Haïtienne de Hamilton · <a href="https://ahhamilton.ca" style="color:#2e7d32">ahhamilton.ca</a>
+          </div>
+        </div>`
+      });
+      ok++;
+    } catch { errors++; }
+  }
+  res.json({ ok, errors, total: membres.length });
+});
+
+app.post('/api/young/trainings/notify-all', authMiddleware, requireRole('admin','secretaire','tresoriere','delegue'), async (req, res) => {
+  const membres = db.prepare("SELECT prenom, email FROM users WHERE actif=1 AND email IS NOT NULL AND email != ''").all();
+  const loginUrl = 'https://ahhamilton.ca/dashboard/login.html';
+  let ok = 0, errors = 0;
+  for (const m of membres) {
+    try {
+      await mailer.sendMail({
+        to: m.email,
+        subject: '[AHH Hamilton] Nouvelles formations disponibles',
+        html: `<div style="font-family:sans-serif;max-width:600px;margin:auto;border-radius:12px;overflow:hidden;border:1px solid #e0e0e0">
+          <div style="background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:28px;text-align:center">
+            <img src="https://ahhamilton.ca/Public/logo1.png" width="64" height="64" alt="AHH" style="border-radius:12px;display:block;margin:0 auto 12px"/>
+            <div style="color:#fff;font-size:1.4rem;font-weight:800">AHH Hamilton</div>
+            <div style="color:rgba(255,255,255,.75);font-size:.85rem;margin-top:4px">Association Haïtienne de Hamilton</div>
+          </div>
+          <div style="background:#fff;padding:28px">
+            <p style="font-size:1rem">Bonjour ${m.prenom},</p>
+            <p>De nouvelles formations et ateliers viennent d'être publiés dans votre espace membre.</p>
+            <p>Connectez-vous pour les découvrir et vous inscrire !</p>
+            <div style="text-align:center;margin:28px 0">
+              <a href="${loginUrl}" style="background:#2e7d32;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;font-size:.95rem;display:inline-block">Voir les formations →</a>
             </div>
           </div>
           <div style="background:#f9f9f9;padding:12px;text-align:center;font-size:.75rem;color:#999">

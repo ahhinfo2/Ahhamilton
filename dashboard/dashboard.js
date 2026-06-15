@@ -9865,7 +9865,7 @@ async function youngJobs() {
     <div class="table-card">
       <div class="table-card-header">
         <h3>💼 Stages & Emplois</h3>
-        ${canManage ? '<button class="btn btn-primary btn-sm" onclick="youngJobForm()">+ Ajouter</button>' : ''}
+        ${canManage ? `<div style="display:flex;gap:8px">\n          <button class="btn btn-sm" style="background:#e8f5e9;color:#1b5e20;border:1px solid #a5d6a7" onclick="youngNotifyAllJobs()">📧 Notifier les membres</button>\n          <button class="btn btn-primary btn-sm" onclick="youngJobForm()">+ Ajouter</button>\n        </div>` : ''}
       </div>
       <div style="padding:16px">
         ${!jobs.length ? '<div class="empty-state"><div class="es-icon">💼</div><p>Aucune offre disponible pour le moment.</p></div>' :
@@ -9885,7 +9885,6 @@ async function youngJobs() {
                 </div>
                 <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;align-items:center">
                   ${j.lien_externe ? `<a href="${j.lien_externe}" target="_blank" class="btn btn-primary btn-sm">Postuler →</a>` : ''}
-                  ${canManage ? `<button class="btn btn-sm" style="background:#e8f5e9;color:#1b5e20;border:1px solid #a5d6a7" onclick="youngNotifyJob(${j.id},'${escHtml(j.titre).replace(/'/g,"\\'")}')">📧 Notifier les membres</button>` : ''}
                   ${canManage ? `<button class="btn btn-sm btn-ghost" style="color:var(--red)" onclick="youngDeleteJob(${j.id})">🗑</button>` : ''}
                 </div>
               </div>
@@ -9947,7 +9946,7 @@ async function youngTrainings() {
     <div class="table-card">
       <div class="table-card-header">
         <h3>📚 Formations & Ateliers</h3>
-        ${canManage ? '<button class="btn btn-primary btn-sm" onclick="youngTrainingForm()">+ Ajouter</button>' : ''}
+        ${canManage ? `<div style="display:flex;gap:8px">\n          <button class="btn btn-sm" style="background:#e8f5e9;color:#1b5e20;border:1px solid #a5d6a7" onclick="youngNotifyAllTrainings()">📧 Notifier les membres</button>\n          <button class="btn btn-primary btn-sm" onclick="youngTrainingForm()">+ Ajouter</button>\n        </div>` : ''}
       </div>
       <div style="padding:16px">
         ${!trainings.length ? '<div class="empty-state"><div class="es-icon">📚</div><p>Aucune formation disponible.</p></div>' :
@@ -9965,7 +9964,6 @@ async function youngTrainings() {
                 ${t.description ? `<div style="color:var(--muted);font-size:.82rem;margin-bottom:10px">${escHtml(t.description).substring(0,150)}${t.description.length>150?'...':''}</div>` : ''}
                 <div style="display:flex;gap:6px;flex-wrap:wrap">
                   ${t.lien_inscription ? `<a href="${t.lien_inscription}" target="_blank" class="btn btn-primary btn-sm">S'inscrire →</a>` : ''}
-                  ${canManage ? `<button class="btn btn-sm" style="background:#e8f5e9;color:#1b5e20;border:1px solid #a5d6a7" onclick="youngNotifyTraining(${t.id},'${escHtml(t.titre).replace(/'/g,"\\'")}')">📧 Notifier les membres</button>` : ''}
                   ${canManage ? `<button class="btn btn-sm btn-ghost" style="color:var(--red)" onclick="youngDeleteTraining(${t.id})">🗑</button>` : ''}
                 </div>
               </div>
@@ -10021,6 +10019,22 @@ async function youngNotifyTraining(id, titre) {
     toast('Envoi en cours…');
     const r = await api('/young/trainings/' + id + '/notify', { method: 'POST' });
     toast('✅ ' + r.ok + ' membre(s) notifié(s) par courriel !' + (r.errors ? ' (' + r.errors + ' erreur(s))' : ''));
+  } catch(e) { toast('Erreur : ' + e.message, true); }
+}
+async function youngNotifyAllJobs() {
+  if (!confirm('Envoyer un courriel à tous les membres actifs pour les informer des nouvelles opportunités ?')) return;
+  try {
+    toast('Envoi en cours…');
+    const r = await api('/young/jobs/notify-all', { method: 'POST' });
+    toast('✅ ' + r.ok + ' membre(s) notifié(s) !' + (r.errors ? ' (' + r.errors + ' erreur(s))' : ''));
+  } catch(e) { toast('Erreur : ' + e.message, true); }
+}
+async function youngNotifyAllTrainings() {
+  if (!confirm('Envoyer un courriel à tous les membres actifs pour les informer des nouvelles formations ?')) return;
+  try {
+    toast('Envoi en cours…');
+    const r = await api('/young/trainings/notify-all', { method: 'POST' });
+    toast('✅ ' + r.ok + ' membre(s) notifié(s) !' + (r.errors ? ' (' + r.errors + ' erreur(s))' : ''));
   } catch(e) { toast('Erreur : ' + e.message, true); }
 }
 
