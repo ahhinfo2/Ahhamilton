@@ -457,7 +457,8 @@ tr:hover td{background:#f8fdf8}
   #langSelectorWrap { display:none !important }
   #darkToggle       { display:none !important }
   #msgBtn           { display:none !important }
-  .site-nav-logout  { padding:0 10px !important; font-size:.78rem !important; min-height:36px; }
+  #alertBtn         { display:none !important }
+  .site-nav-logout  { display:none !important }
   .user-chip        { font-size:.78rem !important; padding:6px 10px !important; }
   .icon-btn         { width:40px !important; height:40px !important; }
   .table-wrapper { -webkit-overflow-scrolling:touch }
