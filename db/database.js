@@ -412,6 +412,25 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS newsletter_subscribers (
 )`); } catch {}
 try { db.exec(`ALTER TABLE gallery_photos ADD COLUMN featured INTEGER DEFAULT 0`); } catch {}
 
+// Cotisations membres (dues générées le 15 de chaque mois)
+try { db.exec(`CREATE TABLE IF NOT EXISTS cotisations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  periode TEXT NOT NULL,
+  montant_attendu REAL NOT NULL,
+  plan TEXT NOT NULL,
+  periodicite TEXT DEFAULT 'mensuel',
+  statut TEXT DEFAULT 'en_attente',
+  date_echeance TEXT NOT NULL,
+  payment_id INTEGER REFERENCES payments(id),
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, periode)
+)`); } catch {}
+
+// Paiement annuel
+try { db.exec("ALTER TABLE payments ADD COLUMN periodicite TEXT DEFAULT 'mensuel'"); } catch {}
+try { db.exec("ALTER TABLE payments ADD COLUMN periode_fin TEXT"); } catch {}
+
 function init() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (

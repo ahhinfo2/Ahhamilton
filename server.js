@@ -2291,6 +2291,19 @@ app.patch('/api/payments/:id/approuver', authMiddleware, requireRole('admin','tr
   const mois = pay.mois || new Date().toISOString().substring(0,7);
   db.prepare('UPDATE users SET plan_paid_month=?, plan_unpaid_count=0 WHERE id=?').run(mois, pay.user_id);
 
+  // Marquer la cotisation correspondante comme payée
+  if (pay.periodicite === 'annuel') {
+    // Paiement annuel : marquer les 12 mois
+    const anneeDebut = (mois || new Date().toISOString().substring(0,7)).substring(0,4);
+    for (let m = 1; m <= 12; m++) {
+      const periode = `${anneeDebut}-${String(m).padStart(2,'0')}`;
+      db.prepare("UPDATE cotisations SET statut='paye', payment_id=? WHERE user_id=? AND periode=?").run(pay.id, pay.user_id, periode);
+    }
+    db.prepare("UPDATE users SET plan_paid_month=? WHERE id=?").run(`${anneeDebut}-12`, pay.user_id);
+  } else {
+    db.prepare("UPDATE cotisations SET statut='paye', payment_id=? WHERE user_id=? AND periode=?").run(pay.id, pay.user_id, mois);
+  }
+
   // Notifier le membre
   const u = db.prepare('SELECT prenom, nom FROM users WHERE id=?').get(pay.user_id);
   const typeLabel = pay.type === 'don' ? 'Don' : 'Mensualité';
@@ -2400,6 +2413,112 @@ app.post('/api/receipts/bulk', authMiddleware, requireRole('admin','tresoriere')
     }
   }
   res.json({ generated: results.filter(r => r.ok).length, results });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// COTISATIONS
+// ══════════════════════════════════════════════════════════════════════════════
+
+const PLAN_ANNUEL = { bienfaiteur: 100, partenaire: 200 };
+
+// Générer les cotisations pour un mois donné (idempotent — UNIQUE constraint)
+function genererCotisations(periode) {
+  const [annee, mois] = periode.split('-').map(Number);
+  const dateEcheance = `${periode}-15`;
+  const membres = db.prepare("SELECT id, plan FROM users WHERE actif=1 AND plan IN ('bienfaiteur','partenaire') AND (phantom IS NULL OR phantom=0)").all();
+  let nb = 0;
+  for (const m of membres) {
+    const montant = PLAN_PRIX[m.plan] || 0;
+    try {
+      db.prepare("INSERT OR IGNORE INTO cotisations (user_id, periode, montant_attendu, plan, date_echeance) VALUES (?,?,?,?,?)").run(m.id, periode, montant, m.plan, dateEcheance);
+      nb++;
+    } catch {}
+  }
+  return nb;
+}
+
+// GET — toutes les cotisations avec info membre
+app.get('/api/cotisations', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  const { periode, statut } = req.query;
+  let sql = `SELECT c.*, u.prenom, u.nom, u.email, u.plan AS user_plan
+    FROM cotisations c LEFT JOIN users u ON u.id = c.user_id`;
+  const conds = [], params = [];
+  if (periode) { conds.push("c.periode = ?"); params.push(periode); }
+  if (statut)  { conds.push("c.statut = ?");  params.push(statut);  }
+  if (conds.length) sql += ' WHERE ' + conds.join(' AND ');
+  sql += ' ORDER BY c.periode DESC, u.nom ASC';
+  res.json(db.prepare(sql).all(...params));
+});
+
+// GET — cotisations du membre connecté
+app.get('/api/cotisations/my', authMiddleware, (req, res) => {
+  res.json(db.prepare("SELECT * FROM cotisations WHERE user_id = ? ORDER BY periode DESC").all(req.user.id));
+});
+
+// GET — résumé revenus attendus vs réels par mois
+app.get('/api/cotisations/summary', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  const moisCourant = new Date().toISOString().substring(0,7);
+  // Revenus attendus ce mois
+  const attendu = db.prepare(`SELECT COALESCE(SUM(montant_attendu),0) AS total FROM cotisations WHERE periode=?`).get(moisCourant)?.total || 0;
+  // Revenus reçus ce mois (paiements approuvés)
+  const reel = db.prepare(`SELECT COALESCE(SUM(montant),0) AS total FROM payments WHERE statut='approuve' AND mois=?`).get(moisCourant)?.total || 0;
+  // Membres en retard (cotisation en_attente + date_echeance passée)
+  const today = new Date().toISOString().substring(0,10);
+  const enRetard = db.prepare(`SELECT COUNT(*) AS n FROM cotisations c JOIN users u ON u.id=c.user_id WHERE c.statut='en_attente' AND c.date_echeance < ? AND c.periode=?`).get(today, moisCourant)?.n || 0;
+  // Membres à jour ce mois
+  const aJour = db.prepare(`SELECT COUNT(*) AS n FROM cotisations WHERE statut='paye' AND periode=?`).get(moisCourant)?.n || 0;
+  // Total annuel
+  const annee = new Date().getFullYear();
+  const totalAnnee = db.prepare(`SELECT COALESCE(SUM(montant),0) AS total FROM payments WHERE statut='approuve' AND substr(mois,1,4)=?`).get(String(annee))?.total || 0;
+  res.json({ moisCourant, attendu, reel, enRetard, aJour, totalAnnee });
+});
+
+// POST — générer manuellement les cotisations d'un mois
+app.post('/api/cotisations/generate', authMiddleware, requireRole('admin','tresoriere'), (req, res) => {
+  const periode = req.body.periode || new Date().toISOString().substring(0,7);
+  const nb = genererCotisations(periode);
+  res.json({ message: `Cotisations générées pour ${periode}`, nb });
+});
+
+// GET — membres en retard avec détails
+app.get('/api/cotisations/retard', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  const moisCourant = new Date().toISOString().substring(0,7);
+  const today = new Date().toISOString().substring(0,10);
+  const rows = db.prepare(`
+    SELECT c.*, u.prenom, u.nom, u.email, u.plan AS user_plan, u.telephone
+    FROM cotisations c JOIN users u ON u.id=c.user_id
+    WHERE c.statut='en_attente' AND c.periode=?
+    ORDER BY u.nom ASC
+  `).all(moisCourant);
+  res.json(rows);
+});
+
+// PATCH — exempter un membre d'une cotisation
+app.patch('/api/cotisations/:id/exempter', authMiddleware, requireRole('admin','tresoriere'), (req, res) => {
+  db.prepare("UPDATE cotisations SET statut='exempte' WHERE id=?").run(req.params.id);
+  res.json({ message: 'Membre exempté pour cette période' });
+});
+
+// PATCH — marquer une cotisation comme payée manuellement
+app.patch('/api/cotisations/:id/payer', authMiddleware, requireRole('admin','tresoriere'), (req, res) => {
+  db.prepare("UPDATE cotisations SET statut='paye' WHERE id=?").run(req.params.id);
+  res.json({ message: 'Cotisation marquée comme payée' });
+});
+
+// GET — rapport mensuel (données pour export)
+app.get('/api/payments/rapport-mensuel', authMiddleware, requireRole('admin','tresoriere'), (req, res) => {
+  const mois = req.query.mois || new Date().toISOString().substring(0,7);
+  const paiements = db.prepare(`
+    SELECT p.*, u.prenom, u.nom, u.email, u.plan
+    FROM payments p LEFT JOIN users u ON u.id=p.user_id
+    WHERE p.mois=? AND p.statut='approuve'
+    ORDER BY u.nom ASC
+  `).all(mois);
+  const totalMensualites = paiements.filter(p=>p.type==='mensualite').reduce((s,p)=>s+p.montant,0);
+  const totalDons = paiements.filter(p=>p.type==='don').reduce((s,p)=>s+p.montant,0);
+  const nbMembresBienfaiteur = db.prepare("SELECT COUNT(*) AS n FROM users WHERE actif=1 AND plan='bienfaiteur'").get()?.n||0;
+  const nbMembresPartenaire = db.prepare("SELECT COUNT(*) AS n FROM users WHERE actif=1 AND plan='partenaire'").get()?.n||0;
+  res.json({ mois, paiements, totalMensualites, totalDons, nbMembresBienfaiteur, nbMembresPartenaire });
 });
 
 // Reçu fiscal — page HTML imprimable (token public OU JWT)
@@ -4465,27 +4584,38 @@ app.get('/api/stats/growth', authMiddleware, requireRole('admin','tresoriere','s
 // ══════════════════════════════════════════════════════════════════════════════
 const cron = require('node-cron');
 
-// Tous les jours à 9h00 — vérifier les paiements en retard
+// Cron quotidien à 9h — génération cotisations le 15 + rappels le 22
 cron.schedule('0 9 * * *', async () => {
   try {
-    const moisCourant = new Date().toISOString().substring(0,7);
-    const retards = db.prepare(`
-      SELECT u.* FROM users u
-      WHERE u.actif=1 AND u.plan IN ('bienfaiteur','partenaire')
-      AND (u.phantom IS NULL OR u.phantom=0)
-      AND NOT EXISTS (SELECT 1 FROM payments WHERE user_id=u.id AND statut='approuve' AND mois=?)
-    `).all(moisCourant);
+    const now = new Date();
+    const jour = now.getDate();
+    const moisCourant = now.toISOString().substring(0,7);
 
-    for (const u of retards) {
-      try {
-        await mailer.sendRappelPaiement(u);
-        await sendPushToUser(u.id, '💳 Rappel paiement AHH',
-          `Votre cotisation ${u.plan} de ${moisCourant} est en attente.`,
-          '/dashboard/app.html#mon_paiement');
-        console.log(`[RAPPEL] Paiement — ${u.email}`);
-      } catch(e) { console.error('[RAPPEL] Erreur:', e.message); }
+    // Le 15 : générer les cotisations du mois
+    if (jour === 15) {
+      genererCotisations(moisCourant);
+      console.log(`[CRON] Cotisations générées pour ${moisCourant}`);
     }
-  } catch(e) { console.error('[CRON rappels]', e.message); }
+
+    // À partir du 22 : envoyer rappels aux membres en retard
+    if (jour >= 22) {
+      const retards = db.prepare(`
+        SELECT u.* FROM users u
+        WHERE u.actif=1 AND u.plan IN ('bienfaiteur','partenaire')
+        AND (u.phantom IS NULL OR u.phantom=0)
+        AND NOT EXISTS (
+          SELECT 1 FROM payments WHERE user_id=u.id AND statut='approuve' AND mois=?
+        )
+      `).all(moisCourant);
+
+      for (const u of retards) {
+        try {
+          await mailer.sendRappelPaiement(u, PLAN_PRIX[u.plan] || 0, moisCourant);
+          console.log(`[RAPPEL] ${u.email}`);
+        } catch(e) { console.error('[RAPPEL]', e.message); }
+      }
+    }
+  } catch(e) { console.error('[CRON]', e.message); }
 });
 
 // Notification de nouvelle activité publiée (appelé depuis POST /api/activities)

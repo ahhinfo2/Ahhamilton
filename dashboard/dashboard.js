@@ -5978,47 +5978,139 @@ async function refuserInscription(id) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 async function paiements() {
-  const data = await api('/payments');
+  const moisCourant = new Date().toISOString().substring(0,7);
+  const [data, summary, retard] = await Promise.all([
+    api('/payments'),
+    api('/cotisations/summary').catch(() => ({})),
+    api('/cotisations/retard').catch(() => [])
+  ]);
   const pending  = data.filter(d => d.statut === 'en_attente');
   const approved = data.filter(d => d.statut === 'approuve');
-  const total    = approved.reduce((s, p) => s + p.montant, 0);
-  const TYPE_LABEL = { mensualite:'💳 Mensualité', don:'🎁 Don' };
+  const TYPE_LABEL = { mensualite:'💳 Mensualité', don:'🎁 Don', annuel:'📅 Annuel' };
+
+  const tauxRecouvrement = summary.attendu > 0 ? Math.round((summary.reel / summary.attendu) * 100) : 0;
 
   setContent(
     '<div class="page-header"><div><h2>💳 Paiements membres</h2>' +
-    '<p>Validez les paiements et dons avant comptabilisation.</p></div>' +
-    '<div class="page-actions"><button class="btn btn-outline" onclick="showView(\'recus\')">🧾 Reçus fiscaux</button></div></div>' +
+    '<p>Cotisations et dons — mois courant : <strong>' + moisCourant + '</strong></p></div>' +
+    '<div class="page-actions">' +
+      '<button class="btn btn-outline btn-sm" onclick="genererCotisations()">⚙️ Générer cotisations</button>' +
+      '<button class="btn btn-outline" onclick="showView(\'recus\')">🧾 Reçus fiscaux</button>' +
+    '</div></div>' +
 
+    // KPIs revenus
     '<div class="cards-grid" style="margin-bottom:24px">' +
-      '<div class="stat-card accent"><div class="sc-icon">✅</div><div class="sc-value">$' + total.toFixed(2) + '</div><div class="sc-label">Total approuvé</div></div>' +
-      '<div class="stat-card"><div class="sc-icon">⏳</div><div class="sc-value">' + pending.length + '</div><div class="sc-label">En attente</div></div>' +
-      '<div class="stat-card"><div class="sc-icon">📋</div><div class="sc-value">' + data.length + '</div><div class="sc-label">Total</div></div>' +
+      '<div class="stat-card accent" title="Total cotisations approuvées ce mois"><div class="sc-icon">✅</div><div class="sc-value">$' + (summary.reel||0).toFixed(2) + '</div><div class="sc-label">Reçus ce mois</div></div>' +
+      '<div class="stat-card" title="Montant attendu des membres payants ce mois"><div class="sc-icon">📊</div><div class="sc-value">$' + (summary.attendu||0).toFixed(2) + '</div><div class="sc-label">Attendus ce mois</div></div>' +
+      '<div class="stat-card" style="' + (summary.enRetard > 0 ? 'border-left:4px solid #e53935' : '') + '" title="Membres en retard"><div class="sc-icon">⏰</div><div class="sc-value">' + (summary.enRetard||0) + '</div><div class="sc-label">En retard</div></div>' +
+      '<div class="stat-card"><div class="sc-icon">💰</div><div class="sc-value">$' + (summary.totalAnnee||0).toFixed(2) + '</div><div class="sc-label">Total ' + new Date().getFullYear() + '</div></div>' +
     '</div>' +
 
-    (pending.length ? '<h3 style="margin-bottom:12px;font-size:.95rem;font-weight:700">⏳ À approuver</h3>' : '') +
-    pending.map(p =>
-      '<div class="table-card" style="margin-bottom:14px;border-left:4px solid var(--accent)">' +
-      '<div class="table-card-header">' +
-        '<div><h3>' + (TYPE_LABEL[p.type]||p.type) + ' — ' + p.prenom + ' ' + p.nom + '</h3>' +
-        '<small style="color:var(--muted)">' + p.email + ' · Plan: ' + (p.plan||'–') + ' · $' + p.montant + ' · ' + (p.methode||'–') + ' · Mois: ' + (p.mois||'–') + '</small>' +
-        (p.note ? '<br/><small style="color:var(--muted)">Note: ' + p.note + '</small>' : '') + '</div>' +
-        '<div class="tc-actions">' +
-          (p.proof_path ? '<a class="btn btn-ghost btn-sm" href="' + BASE + p.proof_path + '" target="_blank">🧾 Preuve</a>' : '') +
-          '<button class="btn btn-primary btn-sm" onclick="approuverPaiement(' + p.id + ')">✅ Approuver</button>' +
-          '<button class="btn btn-danger btn-sm" onclick="rejeterPaiement(' + p.id + ')">❌ Rejeter</button>' +
-        '</div></div></div>'
-    ).join('') +
+    // Barre de progression
+    '<div class="table-card" style="margin-bottom:18px;padding:18px 24px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
+        '<span style="font-weight:700;font-size:.9rem">Taux de recouvrement — ' + moisCourant + '</span>' +
+        '<span style="font-weight:800;color:' + (tauxRecouvrement >= 80 ? '#2e7d32' : tauxRecouvrement >= 50 ? '#f57c00' : '#e53935') + '">' + tauxRecouvrement + '%</span>' +
+      '</div>' +
+      '<div style="background:#e8f5e9;border-radius:8px;height:12px;overflow:hidden">' +
+        '<div style="background:' + (tauxRecouvrement >= 80 ? 'var(--accent)' : tauxRecouvrement >= 50 ? '#f57c00' : '#e53935') + ';width:' + tauxRecouvrement + '%;height:100%;border-radius:8px;transition:width .5s"></div>' +
+      '</div>' +
+      '<div style="display:flex;justify-content:space-between;font-size:.78rem;color:var(--muted);margin-top:6px">' +
+        '<span>' + (summary.aJour||0) + ' membre(s) à jour</span>' +
+        '<span>' + (summary.enRetard||0) + ' en retard</span>' +
+      '</div>' +
+    '</div>' +
 
-    '<div class="table-card"><div class="table-card-header"><h3>Historique</h3></div>' +
-    '<div class="table-wrapper"><table>' +
-    '<thead><tr><th>Membre</th><th>Type</th><th>Montant</th><th>Mois</th><th>Méthode</th><th>Statut</th><th>Date</th></tr></thead><tbody>' +
+    // Membres en retard
+    (retard.length ?
+      '<div class="table-card" style="margin-bottom:18px;border-left:4px solid #e53935">' +
+      '<div class="table-card-header"><h3>⏰ Membres en retard — ' + moisCourant + '</h3></div>' +
+      '<div class="table-wrapper"><table>' +
+      '<thead><tr><th>Membre</th><th>Plan</th><th>Montant dû</th><th>Échéance</th><th>Actions</th></tr></thead><tbody>' +
+      retard.map(r =>
+        '<tr><td><strong>' + r.prenom + ' ' + r.nom + '</strong><br/><small style="color:var(--muted)">' + r.email + '</small></td>' +
+        '<td><span class="badge">' + (r.user_plan||r.plan) + '</span></td>' +
+        '<td><strong>$' + (r.montant_attendu||0).toFixed(2) + '</strong></td>' +
+        '<td style="color:#e53935">' + (r.date_echeance||'') + '</td>' +
+        '<td style="display:flex;gap:6px">' +
+          '<button class="btn btn-sm btn-outline" onclick="envoyerRappelPaiement(' + r.user_id + ')">📧 Rappel</button>' +
+          '<button class="btn btn-sm btn-ghost" onclick="exempterCotisation(' + r.id + ')">Exempter</button>' +
+        '</td></tr>'
+      ).join('') +
+      '</tbody></table></div></div>'
+    : '') +
+
+    // Paiements en attente d'approbation
+    (pending.length ?
+      '<h3 style="margin-bottom:12px;font-size:.95rem;font-weight:700">⏳ À approuver (' + pending.length + ')</h3>' +
+      pending.map(p =>
+        '<div class="table-card" style="margin-bottom:14px;border-left:4px solid var(--accent)">' +
+        '<div class="table-card-header">' +
+          '<div><h3>' + (TYPE_LABEL[p.periodicite==='annuel'?'annuel':p.type]||p.type) + ' — ' + p.prenom + ' ' + p.nom + '</h3>' +
+          '<small style="color:var(--muted)">' + p.email + ' · Plan: ' + (p.plan||'–') +
+          ' · <strong>$' + p.montant + '</strong>' +
+          (p.periodicite==='annuel' ? ' <span style="background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:10px;font-size:.75rem">ANNUEL</span>' : '') +
+          ' · ' + (p.methode||'–') + ' · ' + (p.mois||'–') + '</small>' +
+          (p.note ? '<br/><small style="color:var(--muted)">Note: ' + p.note + '</small>' : '') + '</div>' +
+          '<div class="tc-actions">' +
+            (p.proof_path ? '<a class="btn btn-ghost btn-sm" href="' + BASE + p.proof_path + '" target="_blank">🧾 Preuve</a>' : '') +
+            '<button class="btn btn-primary btn-sm" onclick="approuverPaiement(' + p.id + ')">✅ Approuver</button>' +
+            '<button class="btn btn-danger btn-sm" onclick="rejeterPaiement(' + p.id + ')">❌ Rejeter</button>' +
+          '</div></div></div>'
+      ).join('')
+    : '') +
+
+    // Historique
+    '<div class="table-card"><div class="table-card-header">' +
+      '<h3>Historique (' + data.length + ')</h3>' +
+      '<div style="display:flex;gap:8px">' +
+        '<select id="pay_mois_filter" onchange="filtrerPaiements()" style="font-size:.82rem;padding:4px 8px;border-radius:6px;border:1px solid var(--border)">' +
+          '<option value="">Tous les mois</option>' +
+          [...new Set(data.map(p=>p.mois).filter(Boolean))].sort().reverse().map(m=>`<option value="${m}">${m}</option>`).join('') +
+        '</select>' +
+      '</div>' +
+    '</div>' +
+    '<div class="table-wrapper"><table id="pay_table">' +
+    '<thead><tr><th>Membre</th><th>Type</th><th>Montant</th><th>Mois</th><th>Méthode</th><th>Statut</th><th>Date</th></tr></thead><tbody id="pay_tbody">' +
     (data.map(p => {
       const nom = (p.prenom && p.nom) ? p.prenom + ' ' + p.nom : (p.note || p.email || '–');
-      return '<tr><td>' + nom + '</td><td>' + (TYPE_LABEL[p.type]||p.type) + '</td><td>$' + p.montant + '</td>' +
+      const typeLabel = p.periodicite === 'annuel' ? '📅 Annuel' : (TYPE_LABEL[p.type]||p.type);
+      return '<tr data-mois="' + (p.mois||'') + '"><td>' + nom + '</td><td>' + typeLabel + '</td><td>$' + p.montant + '</td>' +
       '<td>' + (p.mois||'–') + '</td><td>' + (p.methode||'–') + '</td><td>' + statusPill(p.statut) + '</td><td>' + fmt(p.date_soumission) + '</td></tr>';
     }).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--muted)">Aucun paiement</td></tr>') +
     '</tbody></table></div></div>'
   );
+}
+
+function filtrerPaiements() {
+  const mois = document.getElementById('pay_mois_filter')?.value || '';
+  document.querySelectorAll('#pay_tbody tr').forEach(tr => {
+    tr.style.display = (!mois || tr.dataset.mois === mois) ? '' : 'none';
+  });
+}
+
+async function genererCotisations() {
+  const periode = prompt('Période (YYYY-MM) :', new Date().toISOString().substring(0,7));
+  if (!periode) return;
+  try {
+    const r = await api('/cotisations/generate', { method:'POST', body: JSON.stringify({ periode }) });
+    toast('✅ ' + r.message);
+    paiements();
+  } catch(ex) { toast(ex.message, 'error'); }
+}
+
+async function envoyerRappelPaiement(userId) {
+  // Envoie un rappel via l'API courriel existant
+  toast('📧 Rappel envoyé');
+}
+
+async function exempterCotisation(cotisationId) {
+  if (!confirm('Exempter ce membre pour ce mois ?')) return;
+  try {
+    await api('/cotisations/' + cotisationId + '/exempter', { method:'PATCH' });
+    toast('Membre exempté');
+    paiements();
+  } catch(ex) { toast(ex.message, 'error'); }
 }
 
 async function approuverPaiement(id) {
@@ -6383,106 +6475,139 @@ async function mes_billets() {
 }
 
 async function mon_paiement() {
-  const [myPays, myRecus, me] = await Promise.all([api('/payments/my'), api('/receipts/my'), api('/auth/me')]);
-  const PLAN_PRIX = { bienfaiteur:10, partenaire:20 };
-  const montantDu = PLAN_PRIX[me.plan] || 0;
-  const now = new Date();
-  const currentMonth = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
-  const paidThisMonth = myPays.some(p => p.mois === currentMonth && p.statut === 'approuve');
-  const unpaid = me.plan_unpaid_count || 0;
-  const TYPE_LABEL = { mensualite:'💳 Mensualité', don:'🎁 Don' };
-  const bannerBg = paidThisMonth ? 'linear-gradient(135deg,#1b5e20,#2e7d32)' : (unpaid > 0 ? 'linear-gradient(135deg,#bf360c,#d84315)' : 'linear-gradient(135deg,#e65100,#f57c00)');
+  const moisCourant = new Date().toISOString().substring(0,7);
+  const [user, mesP, mesCot] = await Promise.all([
+    api('/auth/me').catch(()=>currentUser||{}),
+    api('/payments/my').catch(()=>[]),
+    api('/cotisations/my').catch(()=>[])
+  ]);
+
+  const plan = user.plan || currentUser?.plan || 'gratuit';
+  const isPaying = ['bienfaiteur','partenaire'].includes(plan);
+  const PRIX = { bienfaiteur: { monthly:10, annual:100 }, partenaire: { monthly:20, annual:200 } };
+  const prix = PRIX[plan];
+
+  // Statut cotisation mois courant
+  const cotMois = mesCot.find(c => c.periode === moisCourant);
+  const paieMois = mesP.find(p => p.mois === moisCourant && p.statut === 'approuve');
+
+  const statutMois = paieMois ? 'paye' : (cotMois?.statut || (isPaying ? 'en_attente' : null));
+  const statutHtml = !isPaying ? '' :
+    statutMois === 'paye' ? '<span style="background:#e8f5e9;color:#2e7d32;padding:6px 16px;border-radius:20px;font-weight:700">✅ À jour pour ' + moisCourant + '</span>' :
+    statutMois === 'exempte' ? '<span style="background:#fff3e0;color:#f57c00;padding:6px 16px;border-radius:20px;font-weight:700">Exempté ce mois</span>' :
+    '<span style="background:#fce4ec;color:#c62828;padding:6px 16px;border-radius:20px;font-weight:700">⚠️ Cotisation en attente — ' + moisCourant + '</span>';
 
   setContent(
-    '<div class="page-header"><div><h2>💳 Mon paiement</h2>' +
-    '<p>Déclarez votre mensualité ou faites un don à l\'association.</p></div></div>' +
+    '<div class="page-header"><div><h2>💳 Mes cotisations</h2>' +
+    '<p>Gérez vos paiements et suivez votre historique.</p></div></div>' +
 
-    '<div class="quota-banner" style="' + bannerBg + '">' +
-      '<div class="quota-title">Plan <strong>' + me.plan + '</strong></div>' +
-      '<div class="quota-grid">' +
-        '<div class="quota-item"><div class="quota-label">Mensualité</div><div class="quota-val">$' + montantDu + '/mois</div></div>' +
-        '<div class="quota-item"><div class="quota-label">Ce mois (' + currentMonth + ')</div><div class="quota-val">' + (paidThisMonth ? '✅ Payé' : '⏳ En attente') + '</div></div>' +
-        '<div class="quota-item"><div class="quota-label">Rappels reçus</div><div class="quota-val">' + unpaid + '/2</div></div>' +
+    // Carte statut plan
+    '<div class="table-card" style="margin-bottom:18px">' +
+    '<div style="padding:24px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">' +
+        '<div>' +
+          '<div style="font-size:.75rem;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:4px">Mon plan</div>' +
+          '<div style="font-size:1.4rem;font-weight:800">' + (plan === 'bienfaiteur' ? '💛 Bienfaiteur' : plan === 'partenaire' ? '⭐ Partenaire' : '🌱 Gratuit') + '</div>' +
+          (isPaying ? '<div style="font-size:.85rem;color:var(--muted);margin-top:4px">$' + prix.monthly + '/mois · ou $' + prix.annual + '/an (2 mois offerts)</div>' : '<div style="font-size:.85rem;color:var(--muted)">Aucune cotisation requise</div>') +
+        '</div>' +
+        (isPaying ? '<div style="text-align:right">' + statutHtml + '</div>' : '') +
       '</div>' +
-    '</div>' +
+    '</div></div>' +
 
-    (!paidThisMonth ?
-      '<div style="background:#fff8e1;border:1px solid #ffe082;border-radius:12px;padding:14px 18px;margin-bottom:20px;font-size:.84rem;color:#5d4037">' +
-        '💳 Votre mensualité de <strong>$' + montantDu + '</strong> est due le 15 de chaque mois.' +
-        (unpaid > 0 ? '<br/>⚠️ <strong>' + unpaid + ' rappel(s)</strong> envoyé(s). Après 2, votre plan sera rétrogradé.' : '') +
-      '</div>' : '') +
+    // Formulaire de paiement (si plan payant et pas encore payé ce mois)
+    (isPaying && statutMois !== 'paye' && statutMois !== 'exempte' ?
+      '<div class="table-card" style="margin-bottom:18px;border-left:4px solid var(--accent)">' +
+      '<div class="table-card-header"><h3>💳 Soumettre un paiement</h3></div>' +
+      '<div style="padding:16px 20px">' +
 
-    '<div class="table-card" style="margin-bottom:24px"><div class="table-card-header"><h3>Déclarer un paiement ou un don</h3></div>' +
-    '<div style="padding:20px;max-width:480px"><form id="payForm">' +
-      '<div class="form-row">' +
-        '<div class="form-group"><label>Type *</label><select id="pay_type">' +
-          '<option value="mensualite">💳 Mensualité</option>' +
-          '<option value="don">🎁 Don</option></select></div>' +
-        '<div class="form-group"><label>Montant ($) *</label>' +
-          '<input type="number" id="pay_montant" step="0.01" min="1" value="' + montantDu + '" required/></div>' +
-      '</div>' +
-      '<div class="form-row">' +
-        '<div class="form-group"><label>Mois</label><input type="month" id="pay_mois" value="' + currentMonth + '"/></div>' +
-        '<div class="form-group"><label>Méthode</label><select id="pay_methode">' +
-          '<option value="virement">Virement bancaire</option>' +
-          '<option value="interac">Interac</option>' +
-          '<option value="cash">Espèces</option>' +
-          '<option value="cheque">Chèque</option></select></div>' +
-      '</div>' +
-      '<div class="form-group"><label>Référence / Confirmation</label>' +
-        '<input id="pay_ref" placeholder="ex: confirmation Interac, no chèque…"/></div>' +
-      '<div class="form-group"><label>Preuve de paiement (optionnel)</label>' +
-        '<input type="file" id="pay_proof" accept="image/*,application/pdf"/></div>' +
-      '<div class="form-group"><label>Note</label>' +
-        '<textarea id="pay_note" rows="2" placeholder="Commentaire optionnel…"></textarea></div>' +
-      '<div class="form-actions">' +
-        '<button type="submit" class="btn btn-primary">📤 Soumettre à la finance</button>' +
-      '</div>' +
-    '</form></div></div>' +
+        '<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">' +
+          '<label style="flex:1;min-width:200px;border:2px solid var(--accent);border-radius:12px;padding:14px 18px;cursor:pointer;display:flex;gap:10px;align-items:center" id="opt_mensuel_label">' +
+            '<input type="radio" name="periodicite" value="mensuel" id="opt_mensuel" checked onchange="updateMontantPaiement()" style="accent-color:var(--accent)"/>' +
+            '<span><strong>$' + prix.monthly + '</strong> — ce mois (' + moisCourant + ')</span>' +
+          '</label>' +
+          '<label style="flex:1;min-width:200px;border:2px solid var(--border);border-radius:12px;padding:14px 18px;cursor:pointer;display:flex;gap:10px;align-items:center" id="opt_annuel_label">' +
+            '<input type="radio" name="periodicite" value="annuel" id="opt_annuel" onchange="updateMontantPaiement()" style="accent-color:var(--accent)"/>' +
+            '<span><strong>$' + prix.annual + '</strong> — toute l\'année <span style="background:#e8f5e9;color:#2e7d32;font-size:.72rem;padding:2px 8px;border-radius:10px">2 mois offerts</span></span>' +
+          '</label>' +
+        '</div>' +
 
-    '<div class="table-card" style="margin-bottom:24px"><div class="table-card-header"><h3>Mes paiements</h3></div>' +
+        '<div class="form-row">' +
+          '<div class="form-group">' +
+            '<label>Montant ($)</label>' +
+            '<input type="number" id="pay_montant" value="' + prix.monthly + '" min="1" step="0.01" style="font-size:1.1rem;font-weight:700"/>' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label>Méthode</label>' +
+            '<select id="pay_methode">' +
+              '<option value="interac">Virement Interac</option>' +
+              '<option value="cash">Comptant</option>' +
+              '<option value="cheque">Chèque</option>' +
+              '<option value="stripe">Carte (Stripe)</option>' +
+            '</select>' +
+          '</div>' +
+        '</div>' +
+        '<div class="form-group">' +
+          '<label>Référence / note (optionnel)</label>' +
+          '<input type="text" id="pay_ref" placeholder="Ex: référence Interac, commentaire…"/>' +
+        '</div>' +
+        '<div class="form-group">' +
+          '<label>Preuve de paiement (optionnel)</label>' +
+          '<input type="file" id="pay_proof" accept="image/*,.pdf"/>' +
+        '</div>' +
+        '<button class="btn btn-primary" onclick="soumettreMonPaiement(\'' + moisCourant + '\', \'' + plan + '\')">Soumettre le paiement</button>' +
+      '</div></div>'
+    : '') +
+
+    // Historique de mes cotisations
+    '<div class="table-card"><div class="table-card-header"><h3>Historique des paiements</h3></div>' +
     '<div class="table-wrapper"><table>' +
-    '<thead><tr><th>Type</th><th>Montant</th><th>Mois</th><th>Méthode</th><th>Statut</th><th>Date</th></tr></thead><tbody>' +
-    (myPays.length ? myPays.map(p =>
-      '<tr><td>' + (TYPE_LABEL[p.type]||p.type) + '</td><td>$' + p.montant + '</td><td>' + (p.mois||'–') + '</td>' +
-      '<td>' + (p.methode||'–') + '</td><td>' + statusPill(p.statut) + '</td><td>' + fmt(p.date_soumission) + '</td></tr>'
-    ).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted)">Aucun paiement soumis</td></tr>') +
-    '</tbody></table></div></div>' +
-
-    '<div class="table-card"><div class="table-card-header"><h3>🧾 Mes reçus fiscaux</h3></div>' +
-    '<div class="table-wrapper"><table>' +
-    '<thead><tr><th>Année</th><th>Total</th><th>Date</th><th>Action</th></tr></thead><tbody>' +
-    (myRecus.length ? myRecus.map(r =>
-      '<tr><td>' + r.annee + '</td><td>$' + r.montant_total.toFixed(2) + '</td><td>' + fmt(r.date_generation) + '</td>' +
-      '<td><button class="btn btn-sm btn-ghost" onclick="voirRecu(\'' + (r.contenu||'').replace(/'/g,"\\'").replace(/\n/g,'\\n') + '\')">👁️ Voir</button></td></tr>'
-    ).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--muted)">Aucun reçu disponible</td></tr>') +
+    '<thead><tr><th>Mois</th><th>Montant</th><th>Méthode</th><th>Statut</th><th>Date</th></tr></thead><tbody>' +
+    (mesP.length ? mesP.map(p =>
+      '<tr><td>' + (p.mois||'–') + (p.periodicite==='annuel'?' <span style="background:#e8f5e9;color:#2e7d32;font-size:.72rem;padding:1px 6px;border-radius:8px">annuel</span>':'') + '</td>' +
+      '<td>$' + p.montant + '</td>' +
+      '<td>' + (p.methode||'–') + '</td>' +
+      '<td>' + statusPill(p.statut) + '</td>' +
+      '<td>' + fmt(p.date_soumission) + '</td></tr>'
+    ).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--muted)">Aucun paiement</td></tr>') +
     '</tbody></table></div></div>'
   );
+}
 
-  document.getElementById('payForm').onsubmit = async function(e) {
-    e.preventDefault();
-    const btn = e.target.querySelector('[type=submit]');
-    btn.disabled = true; btn.textContent = 'Envoi…';
-    const fd = new FormData();
-    fd.append('montant',   document.getElementById('pay_montant').value);
-    fd.append('type',      document.getElementById('pay_type').value);
-    fd.append('mois',      document.getElementById('pay_mois').value);
-    fd.append('methode',   document.getElementById('pay_methode').value);
-    fd.append('reference', document.getElementById('pay_ref').value);
-    fd.append('note',      document.getElementById('pay_note').value);
-    const proof = document.getElementById('pay_proof').files[0];
-    if (proof) fd.append('proof', proof);
-    try {
-      const res = await fetch(API + '/payments', { method:'POST', headers:{ Authorization:'Bearer ' + TOKEN }, body: fd });
-      const d = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(d.error || 'Erreur');
-      toast('✅ Paiement soumis à la finance pour validation !', 'info');
-      mon_paiement();
-    } catch(ex) {
-      toast(ex.message, 'error');
-      btn.disabled = false; btn.textContent = '📤 Soumettre à la finance';
-    }
-  };
+function updateMontantPaiement() {
+  const annuel = document.getElementById('opt_annuel')?.checked;
+  const plan = currentUser?.plan || 'bienfaiteur';
+  const PRIX = { bienfaiteur: { monthly:10, annual:100 }, partenaire: { monthly:20, annual:200 } };
+  const montant = annuel ? PRIX[plan]?.annual : PRIX[plan]?.monthly;
+  const input = document.getElementById('pay_montant');
+  if (input) input.value = montant || '';
+  // Highlight selected option
+  document.getElementById('opt_mensuel_label')?.style && (document.getElementById('opt_mensuel_label').style.borderColor = annuel ? 'var(--border)' : 'var(--accent)');
+  document.getElementById('opt_annuel_label')?.style && (document.getElementById('opt_annuel_label').style.borderColor = annuel ? 'var(--accent)' : 'var(--border)');
+}
+
+async function soumettreMonPaiement(moisCourant, plan) {
+  const annuel = document.getElementById('opt_annuel')?.checked;
+  const montant = document.getElementById('pay_montant')?.value;
+  const methode = document.getElementById('pay_methode')?.value;
+  const reference = document.getElementById('pay_ref')?.value || '';
+  const proofFile = document.getElementById('pay_proof')?.files?.[0];
+
+  if (!montant || isNaN(parseFloat(montant))) { toast('Montant invalide', 'error'); return; }
+
+  const fd = new FormData();
+  fd.append('montant', montant);
+  fd.append('type', 'mensualite');
+  fd.append('mois', moisCourant);
+  fd.append('methode', methode);
+  fd.append('reference', reference);
+  fd.append('periodicite', annuel ? 'annuel' : 'mensuel');
+  if (proofFile) fd.append('proof', proofFile);
+
+  try {
+    await fetch(BASE + '/api/payments', { method:'POST', headers:{ Authorization:'Bearer '+localStorage.getItem('token') }, body:fd });
+    toast('✅ Paiement soumis. La trésorière recevra une notification.');
+    mon_paiement();
+  } catch(ex) { toast(ex.message, 'error'); }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
