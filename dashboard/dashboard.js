@@ -6476,58 +6476,61 @@ async function mes_billets() {
 
 async function mon_paiement() {
   const moisCourant = new Date().toISOString().substring(0,7);
-  const [user, mesP, mesCot] = await Promise.all([
-    api('/auth/me').catch(()=>currentUser||{}),
+  const plan = USER?.plan || 'gratuit';
+  const isPaying = ['bienfaiteur','partenaire'].includes(plan);
+  const PRIX = { bienfaiteur: { monthly:10, annual:100 }, partenaire: { monthly:20, annual:200 } };
+  const prix = PRIX[plan] || { monthly:10, annual:100 };
+
+  const [mesP, mesCot] = await Promise.all([
     api('/payments/my').catch(()=>[]),
     api('/cotisations/my').catch(()=>[])
   ]);
 
-  const plan = user.plan || currentUser?.plan || 'gratuit';
-  const isPaying = ['bienfaiteur','partenaire'].includes(plan);
-  const PRIX = { bienfaiteur: { monthly:10, annual:100 }, partenaire: { monthly:20, annual:200 } };
-  const prix = PRIX[plan];
-
-  // Statut cotisation mois courant
   const cotMois = mesCot.find(c => c.periode === moisCourant);
   const paieMois = mesP.find(p => p.mois === moisCourant && p.statut === 'approuve');
+  const paieEnAttente = mesP.find(p => p.mois === moisCourant && p.statut === 'en_attente');
 
   const statutMois = paieMois ? 'paye' : (cotMois?.statut || (isPaying ? 'en_attente' : null));
-  const statutHtml = !isPaying ? '' :
-    statutMois === 'paye' ? '<span style="background:#e8f5e9;color:#2e7d32;padding:6px 16px;border-radius:20px;font-weight:700">✅ À jour pour ' + moisCourant + '</span>' :
+
+  const statutBadge = !isPaying ? '' :
+    statutMois === 'paye'    ? '<span style="background:#e8f5e9;color:#2e7d32;padding:6px 16px;border-radius:20px;font-weight:700">✅ À jour — ' + moisCourant + '</span>' :
     statutMois === 'exempte' ? '<span style="background:#fff3e0;color:#f57c00;padding:6px 16px;border-radius:20px;font-weight:700">Exempté ce mois</span>' :
-    '<span style="background:#fce4ec;color:#c62828;padding:6px 16px;border-radius:20px;font-weight:700">⚠️ Cotisation en attente — ' + moisCourant + '</span>';
+    paieEnAttente            ? '<span style="background:#fff8e1;color:#f57c00;padding:6px 16px;border-radius:20px;font-weight:700">⏳ En attente de validation</span>' :
+                               '<span style="background:#fce4ec;color:#c62828;padding:6px 16px;border-radius:20px;font-weight:700">⚠️ Cotisation due — ' + moisCourant + '</span>';
 
   setContent(
     '<div class="page-header"><div><h2>💳 Mes cotisations</h2>' +
     '<p>Gérez vos paiements et suivez votre historique.</p></div></div>' +
 
     // Carte statut plan
-    '<div class="table-card" style="margin-bottom:18px">' +
-    '<div style="padding:24px">' +
-      '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">' +
+    '<div class="table-card" style="margin-bottom:18px"><div style="padding:24px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">' +
         '<div>' +
           '<div style="font-size:.75rem;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:4px">Mon plan</div>' +
-          '<div style="font-size:1.4rem;font-weight:800">' + (plan === 'bienfaiteur' ? '💛 Bienfaiteur' : plan === 'partenaire' ? '⭐ Partenaire' : '🌱 Gratuit') + '</div>' +
-          (isPaying ? '<div style="font-size:.85rem;color:var(--muted);margin-top:4px">$' + prix.monthly + '/mois · ou $' + prix.annual + '/an (2 mois offerts)</div>' : '<div style="font-size:.85rem;color:var(--muted)">Aucune cotisation requise</div>') +
+          '<div style="font-size:1.4rem;font-weight:800">' + (plan==='bienfaiteur'?'💛 Bienfaiteur':plan==='partenaire'?'⭐ Partenaire':'🌱 Gratuit') + '</div>' +
+          (isPaying ? '<div style="font-size:.85rem;color:var(--muted);margin-top:4px">$'+prix.monthly+'/mois &nbsp;·&nbsp; ou $'+prix.annual+'/an <span style="background:#e8f5e9;color:#2e7d32;font-size:.72rem;padding:2px 8px;border-radius:10px">2 mois offerts</span></div>'
+                    : '<div style="font-size:.85rem;color:var(--muted);margin-top:4px">Aucune cotisation mensuelle requise pour ce plan.</div>') +
         '</div>' +
-        (isPaying ? '<div style="text-align:right">' + statutHtml + '</div>' : '') +
+        '<div>' + statutBadge + '</div>' +
       '</div>' +
     '</div></div>' +
 
-    // Formulaire de paiement (si plan payant et pas encore payé ce mois)
-    (isPaying && statutMois !== 'paye' && statutMois !== 'exempte' ?
+    // Formulaire toujours visible pour plans payants
+    (isPaying ?
       '<div class="table-card" style="margin-bottom:18px;border-left:4px solid var(--accent)">' +
-      '<div class="table-card-header"><h3>💳 Soumettre un paiement</h3></div>' +
+      '<div class="table-card-header"><h3>💳 Soumettre un paiement</h3>' +
+      (paieEnAttente ? '<span style="font-size:.8rem;color:#f57c00">Un paiement est déjà en attente de validation pour ce mois.</span>' : '') +
+      '</div>' +
       '<div style="padding:16px 20px">' +
 
-        '<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">' +
-          '<label style="flex:1;min-width:200px;border:2px solid var(--accent);border-radius:12px;padding:14px 18px;cursor:pointer;display:flex;gap:10px;align-items:center" id="opt_mensuel_label">' +
-            '<input type="radio" name="periodicite" value="mensuel" id="opt_mensuel" checked onchange="updateMontantPaiement()" style="accent-color:var(--accent)"/>' +
-            '<span><strong>$' + prix.monthly + '</strong> — ce mois (' + moisCourant + ')</span>' +
+        '<div style="display:flex;gap:12px;margin-bottom:18px;flex-wrap:wrap">' +
+          '<label style="flex:1;min-width:180px;border:2px solid var(--accent);border-radius:12px;padding:14px 16px;cursor:pointer;display:flex;gap:12px;align-items:center" id="opt_mensuel_label">' +
+            '<input type="radio" name="periodicite" value="mensuel" id="opt_mensuel" checked onchange="updateMontantPaiement()" style="accent-color:var(--accent);width:18px;height:18px;flex-shrink:0"/>' +
+            '<div><div style="font-weight:800;font-size:1.15rem">$' + prix.monthly + '</div><div style="font-size:.8rem;color:var(--muted)">Ce mois (' + moisCourant + ')</div></div>' +
           '</label>' +
-          '<label style="flex:1;min-width:200px;border:2px solid var(--border);border-radius:12px;padding:14px 18px;cursor:pointer;display:flex;gap:10px;align-items:center" id="opt_annuel_label">' +
-            '<input type="radio" name="periodicite" value="annuel" id="opt_annuel" onchange="updateMontantPaiement()" style="accent-color:var(--accent)"/>' +
-            '<span><strong>$' + prix.annual + '</strong> — toute l\'année <span style="background:#e8f5e9;color:#2e7d32;font-size:.72rem;padding:2px 8px;border-radius:10px">2 mois offerts</span></span>' +
+          '<label style="flex:1;min-width:180px;border:2px solid var(--border);border-radius:12px;padding:14px 16px;cursor:pointer;display:flex;gap:12px;align-items:center" id="opt_annuel_label">' +
+            '<input type="radio" name="periodicite" value="annuel" id="opt_annuel" onchange="updateMontantPaiement()" style="accent-color:var(--accent);width:18px;height:18px;flex-shrink:0"/>' +
+            '<div><div style="font-weight:800;font-size:1.15rem">$' + prix.annual + ' <span style="background:#e8f5e9;color:#2e7d32;font-size:.68rem;padding:2px 7px;border-radius:8px;font-weight:700">2 MOIS OFFERTS</span></div><div style="font-size:.8rem;color:var(--muted)">Toute l\'année</div></div>' +
           '</label>' +
         '</div>' +
 
@@ -6537,55 +6540,56 @@ async function mon_paiement() {
             '<input type="number" id="pay_montant" value="' + prix.monthly + '" min="1" step="0.01" style="font-size:1.1rem;font-weight:700"/>' +
           '</div>' +
           '<div class="form-group">' +
-            '<label>Méthode</label>' +
+            '<label>Méthode de paiement</label>' +
             '<select id="pay_methode">' +
               '<option value="interac">Virement Interac</option>' +
               '<option value="cash">Comptant</option>' +
               '<option value="cheque">Chèque</option>' +
-              '<option value="stripe">Carte (Stripe)</option>' +
             '</select>' +
           '</div>' +
         '</div>' +
         '<div class="form-group">' +
-          '<label>Référence / note (optionnel)</label>' +
-          '<input type="text" id="pay_ref" placeholder="Ex: référence Interac, commentaire…"/>' +
+          '<label>Référence <span style="font-weight:400;color:var(--muted)">(optionnel)</span></label>' +
+          '<input type="text" id="pay_ref" placeholder="Référence Interac, numéro de chèque…"/>' +
         '</div>' +
         '<div class="form-group">' +
-          '<label>Preuve de paiement (optionnel)</label>' +
+          '<label>Preuve de paiement <span style="font-weight:400;color:var(--muted)">(optionnel)</span></label>' +
           '<input type="file" id="pay_proof" accept="image/*,.pdf"/>' +
         '</div>' +
-        '<button class="btn btn-primary" onclick="soumettreMonPaiement(\'' + moisCourant + '\', \'' + plan + '\')">Soumettre le paiement</button>' +
+        '<button class="btn btn-primary" style="width:100%;padding:14px;font-size:1rem" onclick="soumettreMonPaiement(\'' + moisCourant + '\')">Envoyer ma cotisation</button>' +
+        '<p style="font-size:.78rem;color:var(--muted);margin-top:10px;text-align:center">La trésorière recevra une notification et validera votre paiement sous peu.</p>' +
       '</div></div>'
     : '') +
 
-    // Historique de mes cotisations
+    // Historique
     '<div class="table-card"><div class="table-card-header"><h3>Historique des paiements</h3></div>' +
     '<div class="table-wrapper"><table>' +
     '<thead><tr><th>Mois</th><th>Montant</th><th>Méthode</th><th>Statut</th><th>Date</th></tr></thead><tbody>' +
     (mesP.length ? mesP.map(p =>
-      '<tr><td>' + (p.mois||'–') + (p.periodicite==='annuel'?' <span style="background:#e8f5e9;color:#2e7d32;font-size:.72rem;padding:1px 6px;border-radius:8px">annuel</span>':'') + '</td>' +
-      '<td>$' + p.montant + '</td>' +
+      '<tr><td>' + (p.mois||'–') + (p.periodicite==='annuel'?' <span style="background:#e8f5e9;color:#2e7d32;font-size:.7rem;padding:1px 7px;border-radius:8px;font-weight:600">ANNUEL</span>':'') + '</td>' +
+      '<td><strong>$' + p.montant + '</strong></td>' +
       '<td>' + (p.methode||'–') + '</td>' +
       '<td>' + statusPill(p.statut) + '</td>' +
       '<td>' + fmt(p.date_soumission) + '</td></tr>'
-    ).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--muted)">Aucun paiement</td></tr>') +
+    ).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">Aucun paiement enregistré</td></tr>') +
     '</tbody></table></div></div>'
   );
 }
 
 function updateMontantPaiement() {
   const annuel = document.getElementById('opt_annuel')?.checked;
-  const plan = currentUser?.plan || 'bienfaiteur';
+  const plan = USER?.plan || 'bienfaiteur';
   const PRIX = { bienfaiteur: { monthly:10, annual:100 }, partenaire: { monthly:20, annual:200 } };
-  const montant = annuel ? PRIX[plan]?.annual : PRIX[plan]?.monthly;
+  const montant = annuel ? (PRIX[plan]?.annual || 100) : (PRIX[plan]?.monthly || 10);
   const input = document.getElementById('pay_montant');
-  if (input) input.value = montant || '';
-  // Highlight selected option
-  document.getElementById('opt_mensuel_label')?.style && (document.getElementById('opt_mensuel_label').style.borderColor = annuel ? 'var(--border)' : 'var(--accent)');
-  document.getElementById('opt_annuel_label')?.style && (document.getElementById('opt_annuel_label').style.borderColor = annuel ? 'var(--accent)' : 'var(--border)');
+  if (input) input.value = montant;
+  const ml = document.getElementById('opt_mensuel_label');
+  const al = document.getElementById('opt_annuel_label');
+  if (ml) ml.style.borderColor = annuel ? 'var(--border)' : 'var(--accent)';
+  if (al) al.style.borderColor = annuel ? 'var(--accent)' : 'var(--border)';
 }
 
-async function soumettreMonPaiement(moisCourant, plan) {
+async function soumettreMonPaiement(moisCourant) {
   const annuel = document.getElementById('opt_annuel')?.checked;
   const montant = document.getElementById('pay_montant')?.value;
   const methode = document.getElementById('pay_methode')?.value;
