@@ -1072,7 +1072,10 @@ html.dark .search-results { background: var(--white); }
   .site-nav-links { display: none; }
 }
 @media(max-width:600px){
-  .site-nav-inner { grid-template-columns: 1fr auto; }
+  /* Flexbox au lieu du grid 2-col pour éviter le retour à la ligne */
+  .site-nav-inner { display:flex !important; flex-wrap:nowrap !important; align-items:center; }
+  /* Tronquer le chip si trop long */
+  .user-chip { max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .search-wrap { display: none; }
   .content { padding: 12px; }
   .cards-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
