@@ -640,20 +640,28 @@ document.addEventListener('click', function askNotif() {
   document.removeEventListener('click', askNotif);
 }, { once: true });
 
-// ── MODAL ──────────────────────────────────────────────────────────────────
+// ── MODAL (rendu inline dans la page) ─────────────────────────────────────
 function openModal(title, bodyHtml, size) {
-  document.getElementById('modalTitle').textContent = title;
-  document.getElementById('modalBody').innerHTML = bodyHtml;
-  document.getElementById('modal').style.maxWidth = size === 'large' ? '860px' : '';
-  document.getElementById('modalOverlay').style.display = 'flex';
+  window._modalReturnViewId = window._currentViewId || 'home';
+  setContent(
+    `<div style="padding-bottom:40px">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid var(--border)">
+        <button onclick="closeModal()" style="display:flex;align-items:center;gap:6px;background:var(--off);border:1px solid var(--border);border-radius:8px;padding:7px 14px;cursor:pointer;font-size:.84rem;color:var(--text);flex-shrink:0">← Retour</button>
+        <h2 style="margin:0;font-size:1.18rem;font-weight:700">${title}</h2>
+      </div>
+      <div>${bodyHtml}</div>
+    </div>`
+  );
 }
 function closeModal() {
-  document.getElementById('modalOverlay').style.display = 'none';
-  document.getElementById('modal').style.maxWidth = '';
+  const vid = window._modalReturnViewId || 'home';
+  window._modalReturnViewId = null;
+  showView(vid);
 }
 
 // ── VIEWS ──────────────────────────────────────────────────────────────────
 async function showView(viewId) {
+  window._currentViewId = viewId;
   // Arrêter la caméra carte si elle tourne
   if (window._carteScanner) {
     try { await window._carteScanner.stop(); } catch {}
