@@ -429,6 +429,7 @@ tr:hover td{background:#f8fdf8}
 
 /* Bouton accueil AHH mobile — caché sur desktop, affiché via media query mobile */
 .mobile-home-btn { display:none; }
+.mobile-home-img { width:22px; height:22px; border-radius:4px; object-fit:contain; flex-shrink:0; }
 
 /* ── RESPONSIVE ────────────────────────────────────────────────────────── */
 @media(max-width:900px){
@@ -444,8 +445,8 @@ tr:hover td{background:#f8fdf8}
   }
   /* Cacher le logo AHH texte sur mobile */
   .site-nav-logo { display:none !important }
-  /* Bouton accueil mobile : logo image uniquement, visible seulement sur mobile */
-  .mobile-home-btn { display:flex !important; align-items:center; justify-content:center; background:none; border:none; cursor:pointer; padding:4px; border-radius:8px; flex-shrink:0; }
+  /* Bouton accueil AHH mobile : fond vert + texte AHH blanc, toujours visible */
+  .mobile-home-btn { display:flex !important; align-items:center; justify-content:center; gap:5px; background:var(--g1); color:#fff; border:none; cursor:pointer; padding:0 12px; height:44px; border-radius:10px; flex-shrink:0; font-weight:700; font-size:.85rem; letter-spacing:.04em; }
   /* Barre mobile = hamburger | (flex) | alertes + chip + déco */
   .site-nav-inner { gap:8px; padding:0 10px; }
   .form-row{grid-template-columns:1fr}
