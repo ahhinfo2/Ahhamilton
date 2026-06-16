@@ -147,6 +147,14 @@ app.post('/api/stripe/webhook', express.raw({ type: '*/*' }), async (req, res) =
           db.prepare("UPDATE cotisations SET statut='paye',montant=? WHERE user_id=? AND periode=?").run(montant, userId, periode);
         }
         createAlert(userId, 'paiement', '✅ Paiement confirmé', `Cotisation $${montant.toFixed(2)} reçue et approuvée (paiement en ligne).`);
+        // Envoyer reçu fiscal automatique par email
+        try {
+          const userForReceipt = db.prepare('SELECT * FROM users WHERE id=?').get(userId);
+          if (userForReceipt) {
+            const payRow = db.prepare('SELECT id FROM payments WHERE user_id=? AND statut=? AND mois=? ORDER BY id DESC LIMIT 1').get(userId,'approuve',periode);
+            await mailer.sendRecuFiscalAuto(userForReceipt, Math.round(montant*100), periode, payRow?.id || 0);
+          }
+        } catch(e) { console.error('[RECU AUTO]', e.message); }
         console.log(`✅ Cotisation Stripe — user ${userId} plan ${plan} — $${montant} — ${periode}`);
       }
       return;
@@ -263,6 +271,13 @@ function createAlert(destinataireId, type, titre, contenu, sourceId = null) {
   db.prepare(`INSERT INTO alerts (destinataire_id, type, titre, contenu, source_id)
               VALUES (?, ?, ?, ?, ?)`).run(destinataireId, type, titre, contenu, sourceId);
   sseNotify([destinataireId], { type: 'alerte', alertType: type, titre, contenu });
+}
+
+function logAdmin(userId, action, details, cibleId = null, cibleType = null, ip = null) {
+  try {
+    db.prepare(`INSERT INTO activity_logs (user_id, action, details, cible_id, cible_type, ip) VALUES (?,?,?,?,?,?)`)
+      .run(userId, action, details || '', cibleId, cibleType, ip);
+  } catch {}
 }
 
 // ── Endpoint SSE ──────────────────────────────────────────────────────────
@@ -2350,6 +2365,7 @@ app.patch('/api/payments/:id/approuver', authMiddleware, requireRole('admin','tr
   const membre = db.prepare('SELECT * FROM users WHERE id=?').get(pay.user_id);
   if (membre) mailer.sendPaiementApprouve(membre, pay.montant, mois).catch(()=>{});
 
+  logAdmin(req.user.id, 'paiement_approuve', `$${pay.montant} — user ${pay.user_id}`, pay.id, 'payment', req.ip);
   res.json({ message: 'Paiement approuvé' });
 });
 
@@ -4845,21 +4861,21 @@ app.get('/api/stats/growth', authMiddleware, requireRole('admin','tresoriere','s
 // ══════════════════════════════════════════════════════════════════════════════
 const cron = require('node-cron');
 
-// Cron quotidien à 9h — génération cotisations le 15 + rappels le 22
+// Cron quotidien à 9h — génération cotisations le 15 + rappels j1/j22/dernier
 cron.schedule('0 9 * * *', async () => {
   try {
     const now = new Date();
     const jour = now.getDate();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
     const moisCourant = now.toISOString().substring(0,7);
 
-    // Le 15 : générer les cotisations du mois
     if (jour === 15) {
       genererCotisations(moisCourant);
       console.log(`[CRON] Cotisations générées pour ${moisCourant}`);
     }
 
-    // À partir du 22 : envoyer rappels aux membres en retard
-    if (jour >= 22) {
+    const isRappelDay = [1, 22, 24].includes(jour) || jour === daysInMonth;
+    if (isRappelDay) {
       const retards = db.prepare(`
         SELECT u.* FROM users u
         WHERE u.actif=1 AND u.plan IN ('bienfaiteur','partenaire')
@@ -4869,10 +4885,12 @@ cron.schedule('0 9 * * *', async () => {
         )
       `).all(moisCourant);
 
+      const joursRestants = jour === 1 ? 30 : jour === 24 ? 7 : 1;
       for (const u of retards) {
         try {
-          await mailer.sendRappelPaiement(u, PLAN_PRIX[u.plan] || 0, moisCourant);
-          console.log(`[RAPPEL] ${u.email}`);
+          const montantCents = (PLAN_PRIX[u.plan] || 0) * 100;
+          await mailer.sendRappelExpiration(u, joursRestants, montantCents, moisCourant);
+          console.log(`[RAPPEL-${joursRestants}J] ${u.email}`);
         } catch(e) { console.error('[RAPPEL]', e.message); }
       }
     }
@@ -5330,6 +5348,271 @@ process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
     } catch(e) { console.error('ensureTestYoung:', e.message); }
   }
 })();
+
+// ══════════════════════════════════════════════════════════════════════════════
+// NOUVELLES FONCTIONNALITÉS
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── Feature 5 : Export CSV ────────────────────────────────────────────────
+function toCSV(rows, cols) {
+  const header = cols.map(c => `"${c.label}"`).join(',');
+  const lines = rows.map(r => cols.map(c => {
+    const v = r[c.key] ?? '';
+    return `"${String(v).replace(/"/g,'""')}"`;
+  }).join(','));
+  return [header, ...lines].join('\n');
+}
+
+app.get('/api/export/membres.csv', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  const rows = db.prepare(`SELECT prenom,nom,email,telephone,role,plan,actif,
+    date_inscription FROM users WHERE (phantom IS NULL OR phantom=0) ORDER BY nom`).all();
+  const csv = toCSV(rows, [
+    {key:'prenom',label:'Prénom'},{key:'nom',label:'Nom'},{key:'email',label:'Courriel'},
+    {key:'telephone',label:'Téléphone'},{key:'role',label:'Rôle'},{key:'plan',label:'Plan'},
+    {key:'actif',label:'Actif'},{key:'date_inscription',label:"Date d'inscription"}
+  ]);
+  logAdmin(req.user.id, 'export_csv', 'membres', null, 'export', req.ip);
+  res.setHeader('Content-Type','text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition','attachment; filename="membres-ahh.csv"');
+  res.send('﻿' + csv);
+});
+
+app.get('/api/export/paiements.csv', authMiddleware, requireRole('admin','tresoriere','secretaire'), (req, res) => {
+  const rows = db.prepare(`SELECT p.id, u.prenom, u.nom, u.email, p.montant, p.type, p.mois,
+    p.methode, p.reference, p.statut, p.date_soumission
+    FROM payments p LEFT JOIN users u ON u.id=p.user_id ORDER BY p.date_soumission DESC`).all();
+  const csv = toCSV(rows, [
+    {key:'id',label:'ID'},{key:'prenom',label:'Prénom'},{key:'nom',label:'Nom'},
+    {key:'email',label:'Courriel'},{key:'montant',label:'Montant ($)'},
+    {key:'type',label:'Type'},{key:'mois',label:'Mois'},{key:'methode',label:'Méthode'},
+    {key:'reference',label:'Référence'},{key:'statut',label:'Statut'},
+    {key:'date_soumission',label:'Date soumission'}
+  ]);
+  logAdmin(req.user.id, 'export_csv', 'paiements', null, 'export', req.ip);
+  res.setHeader('Content-Type','text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition','attachment; filename="paiements-ahh.csv"');
+  res.send('﻿' + csv);
+});
+
+// ── Feature 6 : Présences événements ─────────────────────────────────────
+app.get('/api/activities/:id/presences', authMiddleware, (req, res) => {
+  const rows = db.prepare(`SELECT ar.*, u.prenom, u.nom, u.email, u.photo_url
+    FROM activity_registrations ar JOIN users u ON u.id=ar.user_id
+    WHERE ar.activity_id=? ORDER BY u.nom`).all(req.params.id);
+  res.json(rows);
+});
+
+app.patch('/api/activities/:id/presences/:userId/checkin', authMiddleware, requireRole('admin','secretaire','delegue'), (req, res) => {
+  const { present } = req.body; // true/false
+  const now = present ? new Date().toISOString() : null;
+  db.prepare(`UPDATE activity_registrations SET checked_in=?, date_checkin=? WHERE activity_id=? AND user_id=?`)
+    .run(present ? 1 : 0, now, req.params.id, req.params.userId);
+  logAdmin(req.user.id, 'checkin', `activite ${req.params.id} user ${req.params.userId} present=${present}`, Number(req.params.id), 'activity', req.ip);
+  res.json({ ok: true });
+});
+
+app.post('/api/activities/:id/presences/bulk-checkin', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  const { user_ids } = req.body; // array
+  if (!Array.isArray(user_ids)) return res.status(400).json({ error: 'user_ids array requis' });
+  const now = new Date().toISOString();
+  const stmt = db.prepare(`UPDATE activity_registrations SET checked_in=1, date_checkin=? WHERE activity_id=? AND user_id=?`);
+  user_ids.forEach(uid => stmt.run(now, req.params.id, uid));
+  res.json({ ok: true, updated: user_ids.length });
+});
+
+// ── Feature 7 : Historique complet par membre ─────────────────────────────
+app.get('/api/members/:id/history', authMiddleware, (req, res) => {
+  const uid = parseInt(req.params.id);
+  if (req.user.id !== uid && !['admin','secretaire','tresoriere'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Accès refusé' });
+  }
+  const user = db.prepare('SELECT id,prenom,nom,email,role,plan,date_inscription,actif FROM users WHERE id=?').get(uid);
+  if (!user) return res.status(404).json({ error: 'Membre introuvable' });
+
+  const paiements = db.prepare(`SELECT id,montant,type,mois,methode,statut,date_soumission FROM payments WHERE user_id=? ORDER BY date_soumission DESC LIMIT 50`).all(uid);
+  const activites = db.prepare(`SELECT a.titre,a.date_debut,a.lieu,ar.statut,ar.checked_in,ar.date_inscription
+    FROM activity_registrations ar JOIN activities a ON a.id=ar.activity_id
+    WHERE ar.user_id=? ORDER BY a.date_debut DESC LIMIT 30`).all(uid);
+  const benevole = db.prepare(`SELECT vh.heures,vh.description,vh.date_service,vh.statut,a.titre AS activite
+    FROM volunteer_hours vh LEFT JOIN activities a ON a.id=vh.activity_id
+    WHERE vh.user_id=? ORDER BY vh.date_service DESC LIMIT 30`).all(uid);
+  const badges = db.prepare(`SELECT b.nom,b.icon,b.description,ub.date_attribution
+    FROM user_badges ub JOIN badges b ON b.id=ub.badge_id WHERE ub.user_id=?`).all(uid);
+  const totalHeures = db.prepare(`SELECT COALESCE(SUM(heures),0) AS total FROM volunteer_hours WHERE user_id=? AND statut='approuve'`).get(uid)?.total || 0;
+  const totalPaye = db.prepare(`SELECT COALESCE(SUM(montant),0) AS total FROM payments WHERE user_id=? AND statut='approuve'`).get(uid)?.total || 0;
+
+  res.json({ user, paiements, activites, benevole, badges, totalHeures, totalPaye });
+});
+
+// ── Feature 8 : Badges ────────────────────────────────────────────────────
+app.get('/api/badges', authMiddleware, (req, res) => {
+  res.json(db.prepare('SELECT * FROM badges ORDER BY id').all());
+});
+
+app.get('/api/users/:id/badges', authMiddleware, (req, res) => {
+  const rows = db.prepare(`SELECT b.*, ub.date_attribution FROM user_badges ub
+    JOIN badges b ON b.id=ub.badge_id WHERE ub.user_id=? ORDER BY ub.date_attribution DESC`).all(req.params.id);
+  res.json(rows);
+});
+
+app.post('/api/badges/auto-assign', authMiddleware, requireRole('admin'), (req, res) => {
+  const users = db.prepare(`SELECT u.*,
+    COALESCE((SELECT SUM(heures) FROM volunteer_hours WHERE user_id=u.id AND statut='approuve'),0) AS total_heures,
+    (SELECT COUNT(*) FROM user_badges WHERE user_id=u.id) AS nb_badges,
+    (SELECT COUNT(*) FROM users WHERE referred_by=u.id) AS nb_parrainages,
+    (SELECT COUNT(*) FROM talents WHERE user_id=u.id AND statut='approuve') AS nb_talents
+    FROM users WHERE actif=1 AND (phantom IS NULL OR phantom=0)`).all();
+
+  const adminId = req.user.id;
+  const now = new Date().toISOString().substring(0,10);
+  let total = 0;
+
+  const assign = (userId, code) => {
+    try {
+      const badge = db.prepare('SELECT id FROM badges WHERE code=?').get(code);
+      if (!badge) return;
+      const exists = db.prepare('SELECT id FROM user_badges WHERE user_id=? AND badge_id=?').get(userId, badge.id);
+      if (exists) return;
+      db.prepare('INSERT INTO user_badges (user_id, badge_id, attribue_par) VALUES (?,?,?)').run(userId, badge.id, adminId);
+      total++;
+    } catch {}
+  };
+
+  users.forEach(u => {
+    const inscrit = new Date(u.date_inscription || '2025-01-01');
+    const anneesService = (new Date() - inscrit) / (1000*60*60*24*365);
+    if (anneesService >= 5) assign(u.id, 'membre_5ans');
+    else if (anneesService >= 3) assign(u.id, 'membre_3ans');
+    else if (anneesService >= 1) assign(u.id, 'membre_1an');
+    if (u.total_heures >= 100) assign(u.id, 'benevole_100h');
+    else if (u.total_heures >= 25) assign(u.id, 'benevole_25h');
+    if (u.plan === 'bienfaiteur') assign(u.id, 'bienfaiteur');
+    if (u.plan === 'partenaire') assign(u.id, 'partenaire');
+    if (u.nb_parrainages > 0) assign(u.id, 'parrain');
+    if (u.nb_talents > 0) assign(u.id, 'talent');
+    if (inscrit.getFullYear() < 2022) assign(u.id, 'fondateur');
+  });
+
+  logAdmin(adminId, 'badges_auto_assign', `${total} badges attribués`, null, 'badge', req.ip);
+  res.json({ ok: true, assigned: total });
+});
+
+app.post('/api/users/:id/badges', authMiddleware, requireRole('admin'), (req, res) => {
+  const { badge_code } = req.body;
+  const badge = db.prepare('SELECT id FROM badges WHERE code=?').get(badge_code);
+  if (!badge) return res.status(404).json({ error: 'Badge introuvable' });
+  try {
+    db.prepare('INSERT INTO user_badges (user_id, badge_id, attribue_par) VALUES (?,?,?)').run(req.params.id, badge.id, req.user.id);
+    logAdmin(req.user.id, 'badge_manuel', `${badge_code} → user ${req.params.id}`, badge.id, 'badge', req.ip);
+    res.json({ ok: true });
+  } catch { res.status(409).json({ error: 'Badge déjà attribué' }); }
+});
+
+app.delete('/api/users/:id/badges/:badgeId', authMiddleware, requireRole('admin'), (req, res) => {
+  db.prepare('DELETE FROM user_badges WHERE user_id=? AND badge_id=?').run(req.params.id, req.params.badgeId);
+  res.json({ ok: true });
+});
+
+// ── Feature 11 : Logs d'activité admin ───────────────────────────────────
+app.get('/api/activity-logs', authMiddleware, requireRole('admin'), (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+  const action = req.query.action ? `AND action LIKE ?` : '';
+  const rows = db.prepare(`SELECT al.*, u.prenom||' '||u.nom AS nom_acteur
+    FROM activity_logs al LEFT JOIN users u ON u.id=al.user_id
+    ${action ? 'WHERE al.action LIKE ?' : ''}
+    ORDER BY al.date_action DESC LIMIT ?`).all(
+    ...(req.query.action ? [`%${req.query.action}%`, limit] : [limit])
+  );
+  res.json(rows);
+});
+
+// ── Feature 12 : Signatures électroniques ────────────────────────────────
+app.post('/api/documents/:id/sign', authMiddleware, (req, res) => {
+  const { signature_data } = req.body;
+  if (!signature_data) return res.status(400).json({ error: 'Signature requise' });
+  const doc = db.prepare('SELECT * FROM documents WHERE id=?').get(req.params.id);
+  if (!doc) return res.status(404).json({ error: 'Document introuvable' });
+  try {
+    db.prepare(`INSERT OR REPLACE INTO document_signatures (document_id,user_id,signature_data,ip)
+      VALUES (?,?,?,?)`).run(doc.id, req.user.id, signature_data, req.ip);
+    logAdmin(req.user.id, 'signature_document', `doc ${doc.id} — ${doc.nom}`, doc.id, 'document', req.ip);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/documents/:id/signatures', authMiddleware, (req, res) => {
+  const rows = db.prepare(`SELECT ds.*, u.prenom||' '||u.nom AS nom_signataire, u.role
+    FROM document_signatures ds JOIN users u ON u.id=ds.user_id
+    WHERE ds.document_id=? ORDER BY ds.date_signature`).all(req.params.id);
+  res.json(rows);
+});
+
+// ── Feature 15 : Liste de billets pour cache hors-ligne ──────────────────
+app.get('/api/activities/:id/tickets-list', authMiddleware, requireRole('admin','secretaire','delegue','tresoriere'), (req, res) => {
+  const tickets = db.prepare(`SELECT qr_data, barcode_data, acheteur_nom, acheteur_email, statut, checked_in, date_checkin, quantite
+    FROM tickets WHERE activity_id=? AND statut='actif' ORDER BY id`).all(req.params.id);
+  logAdmin(req.user.id, 'tickets_cache_offline', `activite ${req.params.id} — ${tickets.length} billets`, Number(req.params.id), 'activity', req.ip);
+  res.json(tickets);
+});
+
+// ── Feature 13 : Calendrier iCal ─────────────────────────────────────────
+const { randomUUID } = require('crypto');
+
+app.get('/api/calendar/token', authMiddleware, (req, res) => {
+  let user = db.prepare('SELECT ical_token FROM users WHERE id=?').get(req.user.id);
+  if (!user.ical_token) {
+    const token = randomUUID();
+    db.prepare('UPDATE users SET ical_token=? WHERE id=?').run(token, req.user.id);
+    user = { ical_token: token };
+  }
+  const base = process.env.SITE_URL || `http://localhost:${PORT}`;
+  res.json({ url: `${base}/api/calendar/${user.ical_token}.ics` });
+});
+
+app.get('/api/calendar/:token.ics', (req, res) => {
+  const user = db.prepare('SELECT id,prenom,nom FROM users WHERE ical_token=?').get(req.params.token);
+  if (!user) return res.status(404).send('Token invalide');
+  const activities = db.prepare(`SELECT * FROM activities WHERE statut != 'annulee' AND date_debut IS NOT NULL ORDER BY date_debut DESC LIMIT 100`).all();
+  const regs = db.prepare('SELECT activity_id FROM activity_registrations WHERE user_id=?').all(user.id).map(r => r.activity_id);
+
+  function icalDate(d) {
+    return new Date(d).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
+  }
+
+  const events = activities.map(a => {
+    const start = icalDate(a.date_debut);
+    const end = a.date_fin ? icalDate(a.date_fin) : start;
+    const registered = regs.includes(a.id) ? '\nCATEGORIES:Inscrit' : '';
+    return [
+      'BEGIN:VEVENT',
+      `UID:ahh-act-${a.id}@ahhamilton.ca`,
+      `DTSTAMP:${icalDate(new Date().toISOString())}`,
+      `DTSTART:${start}`,
+      `DTEND:${end}`,
+      `SUMMARY:${(a.titre||'').replace(/,/g,'\\,')}`,
+      `DESCRIPTION:${(a.description||'').replace(/\n/g,'\\n').replace(/,/g,'\\,')}`,
+      `LOCATION:${(a.lieu||'').replace(/,/g,'\\,')}`,
+      registered,
+      'END:VEVENT'
+    ].filter(Boolean).join('\r\n');
+  }).join('\r\n');
+
+  const cal = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//AHH Hamilton//Dashboard//FR',
+    `X-WR-CALNAME:AHH Hamilton — ${user.prenom}`,
+    'X-WR-TIMEZONE:America/Toronto',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    events,
+    'END:VCALENDAR'
+  ].join('\r\n');
+
+  res.setHeader('Content-Type','text/calendar; charset=utf-8');
+  res.setHeader('Content-Disposition','attachment; filename="ahh-calendar.ics"');
+  res.send(cal);
+});
 
 // ── Start ───────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {

@@ -274,8 +274,9 @@ function buildSidebar() {
 
     // ── Gouvernance ───────────────────────────────────────────────
     { label: 'Gouvernance', items: [
-      { id:'votes',      icon:'🗳️', label:'Votes & Élections', roles:EXEC },
-      { id:'parrainage', icon:'🤝', label:'Parrainage',         roles: ALL },
+      { id:'votes',         icon:'🗳️', label:'Votes & Élections',  roles:EXEC },
+      { id:'parrainage',    icon:'🤝', label:'Parrainage',           roles: ALL },
+      { id:'journal-admin', icon:'📋', label:'Journal d\'activité', roles:['admin'] },
     ]},
 
     // ── Mon espace membre ─────────────────────────────────────────
@@ -287,6 +288,7 @@ function buildSidebar() {
         { id:'mon_paiement', icon:'◆', label:'Mon paiement', roles:['member','delegue'], planMin:['bienfaiteur','partenaire'] },
         { id:'mes_billets',  icon:'🎟', label:'Mes billets',  roles: ALL },
         { id:'alerts',       icon:'◇', label:'Alertes',      roles:['admin','tresoriere'] },
+        { id:'mes-badges',   icon:'🏅', label:'Mes badges',   roles: ALL },
         { id:'profile',      icon:'◎', label:'Mon profil',   roles: ALL },
       ]
     },
@@ -323,7 +325,8 @@ function buildSidebar() {
       isJeune() ? { id:'young-home',   icon:'🌟', label:'Espace Jeunes', _section:'🌟 Espace Jeunes' } : null,
       isJeune() ? { id:'young-stories',icon:'🏆', label:'Success Stories' } : null,
       // ────────────────────────────────────────────────────────────
-      { id:'profile', icon:'◎', label:'Mon profil' },
+      { id:'mes-badges', icon:'🏅', label:'Mes badges' },
+      { id:'profile',    icon:'◎', label:'Mon profil' },
     ].filter(Boolean);
 
     nav.innerHTML = memberItems.map((i, idx) => {
@@ -382,7 +385,8 @@ function setActiveNav(viewId) {
     'young-trainings':'Formations', 'young-polls':'Sondages', 'young-stories':'Success Stories',
     'votes':'Votes & Élections', 'parrainage':'Parrainage', 'stats-growth':'Statistiques',
     'carte-membre':'Ma carte membre', 'actualites':'Actualités', 'notif-prefs':'Notifications',
-    'carte-gestion':'Gestion des cartes', 'carte-scanner':'Scanner cartes'
+    'carte-gestion':'Gestion des cartes', 'carte-scanner':'Scanner cartes',
+    'journal-admin':'Journal d\'activité', 'mes-badges':'Mes badges'
   };
   const raw = labels[viewId] || 'Dashboard';
   document.getElementById('topbarTitle').textContent = window.AHH_LANG ? AHH_LANG.get(raw) : raw;
@@ -706,6 +710,8 @@ async function showView(viewId) {
     'notif-prefs': notifPrefsView,
     'carte-gestion': carteGestionView,
     'carte-scanner': carteScannerView,
+    'journal-admin': journalAdmin,
+    'mes-badges': mesBadgesView,
   };
   if (extViews[viewId]) {
     try { await extViews[viewId](); } catch(e) { setContent(`<div class="empty-state"><div class="es-icon">⚠️</div><p>${e.message}</p></div>`); }
@@ -1234,6 +1240,7 @@ function renderActivitiesTable(data) {
               ${!isArchived && a.statut === 'planifiee' && can.adminOrSec() ? '<div class="act-menu-item" onclick="closeActMenus();launchActivity(' + a.id + ',\'' + a.titre.replace(/'/g,"\\'") + '\')">🚀 Lancer l\'activité</div>' : ''}
               ${a.paiement_requis ? '<div class="act-menu-item" onclick="closeActMenus();viewActivityQR(' + a.id + ',\'' + a.titre.replace(/'/g,"\\'") + '\',\'' + (a.qr_token||'') + '\')">📱 QR Paiement</div>' : ''}
               <div class="act-menu-item" onclick="closeActMenus();viewRegistrations(${a.id},'${a.titre.replace(/'/g,"\\'")}')">👥 Inscrits</div>
+              <div class="act-menu-item" onclick="closeActMenus();presencesView(${a.id},'${a.titre.replace(/'/g,"\\'")}')">✅ Feuille de présences</div>
               <div class="act-menu-item" onclick="closeActMenus();liveAttendance(${a.id})">📍 Présents en direct</div>
               <div class="act-menu-item" onclick="closeActMenus();manageTicketTypes(${a.id})">🎟 Types de billets</div>
               <div class="act-menu-item" onclick="closeActMenus();managerTables(${a.id},'${a.titre.replace(/'/g,"\\'")}')">🪑 Tables</div>
@@ -1448,6 +1455,7 @@ async function members() {
     <div class="page-header">
       <div><h2>Membres</h2><p id="membersCount">${data.length} membres enregistrés</p></div>
       <div class="page-actions">
+        ${can.adminOrSec() ? `<a href="/api/export/membres.csv" class="btn btn-ghost" style="font-size:.82rem" target="_blank">⬇ CSV</a>` : ''}
         ${can.admin() ? '<button class="btn btn-primary" onclick="openMemberForm()">+ Ajouter un membre</button>' : ''}
       </div>
     </div>
@@ -1588,6 +1596,7 @@ function renderMembersTable(filtered, q) {
           : `<button class="btn btn-sm btn-ghost"  onclick="toggleMember(${u.id},1)" title="Activer">✅</button>`}
         ${can.admin() ? `<button class="btn btn-sm btn-ghost" onclick="deleteMember(${u.id})" style="color:var(--red)" title="Supprimer définitivement">🗑</button>` : ''}` : ''}
       ${can.executive() ? `<button class="btn btn-sm btn-ghost" onclick="showVolunteerFor(${u.id},'${u.prenom} ${u.nom}')">🤝</button>` : ''}
+      ${can.adminOrSec() ? `<button class="btn btn-sm btn-ghost" onclick="memberHistory(${u.id},'${u.prenom} ${u.nom}')" title="Historique">📋</button>` : ''}
     </td>
   </tr>`).join('');
 }
@@ -1984,6 +1993,7 @@ async function finance() {
         <button class="btn btn-primary" onclick="openTransactionForm(null,window._finLines)">+ Transaction</button>
         <button class="btn btn-outline" onclick="openAccountForm(window._finRep)">⚙️ Compte</button>
         <button class="btn btn-ghost" onclick="printFinance()">🖨️ PDF</button>
+        <a href="/api/export/paiements.csv" class="btn btn-ghost" style="font-size:.82rem" target="_blank">⬇ CSV</a>
       </div>
     </div>
     <div class="finance-summary">
@@ -4688,6 +4698,11 @@ async function profile() {
     ? `<img src="${BASE}${u.photo_url}" class="profile-avatar-img" alt="${initials}"/>`
     : `<span>${initials}</span>`;
 
+  const [userBadges, icalData] = await Promise.all([
+    api(`/users/${u.id}/badges`).catch(() => []),
+    api('/calendar/token').catch(() => null)
+  ]);
+
   setContent(`
     <div class="page-header"><div><h2>Mon profil</h2></div>
       <div class="page-actions">
@@ -4716,6 +4731,32 @@ async function profile() {
         </div>
       </div>
     </div>
+    ${userBadges.length ? `
+    <div class="table-card" style="margin-bottom:18px">
+      <div class="table-card-header"><h3>🏅 Mes badges</h3></div>
+      <div style="padding:16px 20px;display:flex;flex-wrap:wrap;gap:10px">
+        ${userBadges.map(b => `
+          <div title="${escHtml(b.description||'')} — obtenu le ${fmt(b.date_attribution)}" style="display:flex;align-items:center;gap:8px;background:var(--off);border:1px solid var(--border);border-radius:20px;padding:8px 14px;cursor:default">
+            <span style="font-size:1.3rem">${b.icon}</span>
+            <span style="font-size:.82rem;font-weight:600">${escHtml(b.nom)}</span>
+          </div>`).join('')}
+      </div>
+    </div>` : ''}
+
+    ${icalData?.url ? `
+    <div class="table-card" style="margin-bottom:18px">
+      <div class="table-card-header"><h3>📅 Synchroniser mon calendrier</h3></div>
+      <div style="padding:20px">
+        <p style="font-size:.85rem;color:var(--muted);margin-bottom:14px">Copiez ce lien dans Google Agenda, Apple Calendrier ou Outlook pour synchroniser automatiquement les activités AHH.</p>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <input id="icalUrl" value="${icalData.url}" readonly style="flex:1;min-width:200px;font-size:.75rem;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--off)"/>
+          <button class="btn btn-outline" onclick="navigator.clipboard.writeText(document.getElementById('icalUrl').value).then(()=>toast('Lien copié !'))">📋 Copier</button>
+          <a href="${icalData.url}" class="btn btn-ghost" download="ahh-calendar.ics">⬇ Télécharger</a>
+        </div>
+        <p style="font-size:.72rem;color:var(--muted);margin-top:10px">⚠️ Ne partagez pas ce lien — il est personnel et unique à votre compte.</p>
+      </div>
+    </div>` : ''}
+
     <div class="table-card">
       <div class="table-card-header"><h3>🔐 Changer le mot de passe</h3></div>
       <div style="padding:20px;max-width:400px">
@@ -7689,8 +7730,9 @@ async function documents_mgmt() {
                   ${d.description ? `<div style="font-size:.78rem;color:var(--muted)">${escHtml(d.description)}</div>` : ''}
                   <div style="font-size:.72rem;color:var(--muted);margin-top:2px">${escHtml(d.uploader||'?')} · ${fmt(d.date_upload)} · ${fmtSize(d.taille)}</div>
                 </div>
-                <div style="display:flex;gap:8px;flex-shrink:0">
+                <div style="display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap">
                   <a href="/api/documents/${d.id}/download?token=${TOKEN}" class="btn btn-outline btn-sm" download>⬇ Télécharger</a>
+                  <button class="btn btn-sm btn-ghost" onclick="openSignatureModal(${d.id},'${escHtml(d.nom).replace(/'/g,"\\'")}')">✍️ Signer</button>
                   ${canUpload ? `<button class="btn btn-sm btn-ghost" style="color:var(--red)" onclick="documentDelete(${d.id})">🗑</button>` : ''}
                 </div>
               </div>`).join('')}
@@ -8741,7 +8783,10 @@ async function scanner() {
                 <strong style="font-size:.88rem">${a.titre}</strong>
                 <div style="font-size:.76rem;color:var(--muted)">${a.date_debut ? new Date(a.date_debut).toLocaleDateString('fr-CA') : '–'}</div>
               </div>
-              <a href="../scan.html?activity_id=${a.id}" target="_blank" class="btn btn-sm btn-outline">📷 Scanner</a>
+              <div style="display:flex;gap:6px;flex-shrink:0">
+                <button class="btn btn-sm btn-ghost" onclick="cacheTicketsOffline(${a.id},'${a.titre.replace(/'/g,"\\'")}')">📥 Hors-ligne</button>
+                <a href="../scan.html?activity_id=${a.id}" target="_blank" class="btn btn-sm btn-outline">📷 Scanner</a>
+              </div>
             </div>
           `).join('') || '<p style="color:var(--muted);font-size:.85rem">Aucune activité disponible</p>'}
         </div>
@@ -8753,6 +8798,23 @@ async function scanner() {
 function openScanner(actId) {
   const BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001' : '';
   window.open(`${BASE_URL}/scan.html?activity_id=${actId}`, '_blank');
+}
+
+async function cacheTicketsOffline(actId, titre) {
+  if (!navigator.serviceWorker?.controller) return toast('Service worker non disponible', true);
+  try {
+    toast('Téléchargement des billets pour mode hors-ligne...');
+    const tickets = await api(`/activities/${actId}/tickets-list`).catch(() => []);
+    const mc = new MessageChannel();
+    const result = await new Promise((resolve, reject) => {
+      mc.port1.onmessage = e => resolve(e.data);
+      setTimeout(() => reject(new Error('Timeout')), 5000);
+      navigator.serviceWorker.controller.postMessage(
+        { type: 'CACHE_TICKETS', activityId: actId, tickets }, [mc.port2]
+      );
+    });
+    toast(`✅ ${result.count} billets mis en cache hors-ligne pour "${titre}"`);
+  } catch(e) { toast('Erreur : ' + e.message, true); }
 }
 
 // ══ PHOTOS PAR ACTIVITÉ ════════════════════════════════════════════════════════
@@ -10508,6 +10570,297 @@ async function nlArchive(id) {
     toast(r.archive ? 'Archivé' : 'Désarchivé');
     await refreshNlHistory();
   } catch(e) { toast('Erreur : ' + e.message, true); }
+}
+
+// ══ HISTORIQUE MEMBRE ══════════════════════════════════════════════════════
+async function memberHistory(userId, nomMembre) {
+  const h = await api(`/members/${userId}/history`).catch(e => { toast(e.message,'error'); return null; });
+  if (!h) return;
+  const u = h.user;
+  openModal(`📋 Historique — ${nomMembre || u.prenom+' '+u.nom}`, `
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">
+      <div style="background:var(--off);border-radius:10px;padding:14px;text-align:center">
+        <div style="font-size:1.5rem;font-weight:800;color:var(--g1)">${fmtMoney(h.totalPaye)}</div>
+        <div style="font-size:.72rem;color:var(--muted);margin-top:4px">Total payé</div>
+      </div>
+      <div style="background:var(--off);border-radius:10px;padding:14px;text-align:center">
+        <div style="font-size:1.5rem;font-weight:800;color:#1565c0">${h.totalHeures}h</div>
+        <div style="font-size:.72rem;color:var(--muted);margin-top:4px">Bénévolat approuvé</div>
+      </div>
+      <div style="background:var(--off);border-radius:10px;padding:14px;text-align:center">
+        <div style="font-size:1.5rem;font-weight:800;color:#6a1b9a">${h.activites.length}</div>
+        <div style="font-size:.72rem;color:var(--muted);margin-top:4px">Activités</div>
+      </div>
+    </div>
+
+    ${h.badges.length ? `
+    <div style="margin-bottom:16px">
+      <div style="font-weight:700;font-size:.82rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">🏅 Badges</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        ${h.badges.map(b => `<span style="background:var(--off);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:.8rem">${b.icon} ${escHtml(b.nom)}</span>`).join('')}
+      </div>
+    </div>` : ''}
+
+    <details open style="margin-bottom:14px">
+      <summary style="cursor:pointer;font-weight:700;font-size:.88rem;padding:8px 0;border-bottom:1px solid var(--border)">💳 Paiements (${h.paiements.length})</summary>
+      <div style="max-height:200px;overflow-y:auto">
+        <table style="width:100%;font-size:.78rem;border-collapse:collapse;margin-top:8px">
+          <thead><tr style="background:var(--off)"><th style="text-align:left;padding:6px">Mois</th><th>Montant</th><th>Type</th><th>Statut</th><th>Date</th></tr></thead>
+          <tbody>${h.paiements.map(p => `<tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:5px 8px">${p.mois||'–'}</td>
+            <td style="text-align:center">${fmtMoney(p.montant)}</td>
+            <td style="text-align:center">${p.type}</td>
+            <td style="text-align:center">${pill(p.statut, p.statut==='approuve'?'bp-green':p.statut==='en_attente'?'bp-orange':'bp-red')}</td>
+            <td style="text-align:center">${fmt(p.date_soumission)}</td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </div>
+    </details>
+
+    <details style="margin-bottom:14px">
+      <summary style="cursor:pointer;font-weight:700;font-size:.88rem;padding:8px 0;border-bottom:1px solid var(--border)">🎉 Activités (${h.activites.length})</summary>
+      <div style="max-height:180px;overflow-y:auto;margin-top:8px">
+        ${h.activites.map(a => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:.8rem">
+          <span>${escHtml(a.titre)}</span>
+          <span style="color:var(--muted)">${a.date_debut ? new Date(a.date_debut).toLocaleDateString('fr-CA') : '–'} · ${a.checked_in ? '✅ Présent' : '–'}</span>
+        </div>`).join('') || '<p style="color:var(--muted);font-size:.8rem;padding:8px 0">Aucune activité</p>'}
+      </div>
+    </details>
+
+    <details>
+      <summary style="cursor:pointer;font-weight:700;font-size:.88rem;padding:8px 0;border-bottom:1px solid var(--border)">🤝 Bénévolat (${h.benevole.length})</summary>
+      <div style="max-height:180px;overflow-y:auto;margin-top:8px">
+        ${h.benevole.map(v => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:.8rem">
+          <span>${escHtml(v.description||v.activite||'–')}</span>
+          <span style="color:var(--muted)">${v.heures}h · ${v.date_service||'–'} · ${pill(v.statut, v.statut==='approuve'?'bp-green':'bp-orange')}</span>
+        </div>`).join('') || '<p style="color:var(--muted);font-size:.8rem;padding:8px 0">Aucune heure</p>'}
+      </div>
+    </details>
+  `);
+}
+
+// ══ PRÉSENCES ÉVÉNEMENT ════════════════════════════════════════════════════
+async function presencesView(actId, actTitre) {
+  const [presences, act] = await Promise.all([
+    api(`/activities/${actId}/presences`),
+    api(`/activities/${actId}`).catch(() => ({ titre: actTitre }))
+  ]);
+  const titre = actTitre || act?.titre || 'Événement';
+  const presents = presences.filter(p => p.checked_in);
+  openModal(`✅ Présences — ${titre}`, `
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap">
+      <div style="background:#e8f5e9;border-radius:10px;padding:12px 20px;text-align:center">
+        <div style="font-size:1.4rem;font-weight:800;color:#2e7d32">${presents.length}</div>
+        <div style="font-size:.72rem;color:var(--muted)">Présents</div>
+      </div>
+      <div style="background:var(--off);border-radius:10px;padding:12px 20px;text-align:center">
+        <div style="font-size:1.4rem;font-weight:800">${presences.length}</div>
+        <div style="font-size:.72rem;color:var(--muted)">Inscrits</div>
+      </div>
+      ${can.adminOrSec() && presences.length ? `
+      <button class="btn btn-outline btn-sm no-print" onclick="presencesCheckAll(${actId})" style="margin-left:auto">✅ Tout cocher</button>` : ''}
+    </div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.82rem">
+        <thead><tr style="background:var(--off)">
+          <th style="text-align:left;padding:8px">Membre</th>
+          <th style="text-align:center;padding:8px">Statut</th>
+          <th style="text-align:center;padding:8px">Check-in</th>
+          ${can.adminOrSec() ? '<th style="text-align:center;padding:8px">Action</th>' : ''}
+        </tr></thead>
+        <tbody id="presencesBody">
+          ${presences.map(p => `<tr id="pr-${p.user_id}" style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px">
+              <div style="font-weight:600">${escHtml(p.prenom+' '+p.nom)}</div>
+              <div style="font-size:.72rem;color:var(--muted)">${escHtml(p.email||'')}</div>
+            </td>
+            <td style="text-align:center;padding:8px">${pill(p.statut||'inscrit','bp-blue')}</td>
+            <td style="text-align:center;padding:8px" id="ci-${p.user_id}">
+              ${p.checked_in ? `<span style="color:#2e7d32;font-weight:700">✅ ${p.date_checkin ? new Date(p.date_checkin).toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'}) : ''}</span>` : '<span style="color:var(--muted)">–</span>'}
+            </td>
+            ${can.adminOrSec() ? `<td style="text-align:center;padding:8px">
+              <button class="btn btn-sm ${p.checked_in ? 'btn-ghost' : 'btn-primary'}" onclick="presenceToggle(${actId},${p.user_id},${p.checked_in ? 0 : 1})" id="prb-${p.user_id}">
+                ${p.checked_in ? 'Annuler' : '✅ Marquer présent'}
+              </button>
+            </td>` : ''}
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `);
+}
+
+async function presenceToggle(actId, userId, present) {
+  try {
+    await api(`/activities/${actId}/presences/${userId}/checkin`, { method:'PATCH', body: JSON.stringify({ present: !!present }) });
+    const ciCell = document.getElementById(`ci-${userId}`);
+    const btn = document.getElementById(`prb-${userId}`);
+    if (present) {
+      const heure = new Date().toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'});
+      if (ciCell) ciCell.innerHTML = `<span style="color:#2e7d32;font-weight:700">✅ ${heure}</span>`;
+      if (btn) { btn.textContent = 'Annuler'; btn.className = 'btn btn-sm btn-ghost'; }
+    } else {
+      if (ciCell) ciCell.innerHTML = '<span style="color:var(--muted)">–</span>';
+      if (btn) { btn.textContent = '✅ Marquer présent'; btn.className = 'btn btn-sm btn-primary'; }
+    }
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function presencesCheckAll(actId) {
+  const presences = await api(`/activities/${actId}/presences`).catch(() => []);
+  const absents = presences.filter(p => !p.checked_in).map(p => p.user_id);
+  if (!absents.length) return toast('Tous déjà cochés');
+  await api(`/activities/${actId}/presences/bulk-checkin`, { method:'POST', body: JSON.stringify({ user_ids: absents }) });
+  toast(`✅ ${absents.length} présence(s) cochées`);
+  // Refresh
+  presences.forEach(p => {
+    if (!p.checked_in) {
+      const ciCell = document.getElementById(`ci-${p.user_id}`);
+      const btn = document.getElementById(`prb-${p.user_id}`);
+      if (ciCell) ciCell.innerHTML = `<span style="color:#2e7d32;font-weight:700">✅</span>`;
+      if (btn) { btn.textContent = 'Annuler'; btn.className = 'btn btn-sm btn-ghost'; }
+    }
+  });
+}
+
+// ══ JOURNAL ADMIN ══════════════════════════════════════════════════════════
+async function journalAdmin() {
+  if (!can.admin()) return toast('Accès réservé aux administrateurs', true);
+  const logs = await api('/activity-logs?limit=200').catch(() => []);
+  const actionColors = {
+    paiement_approuve: '#2e7d32', export_csv: '#1565c0', badge_manuel: '#6a1b9a',
+    badges_auto_assign: '#e65100', checkin: '#00838f', signature_document: '#37474f',
+    paiement_rejete: '#c62828'
+  };
+  setContent(`
+    <div class="page-header">
+      <div><h2>📋 Journal d'activité</h2><p>Actions administratives des 200 dernières opérations</p></div>
+      <div class="page-actions">
+        <button class="btn btn-outline" onclick="journalAdmin()">🔄 Rafraîchir</button>
+        ${can.admin() ? `<button class="btn btn-ghost" onclick="badgesAutoAssign()">🏅 Attribuer badges auto</button>` : ''}
+      </div>
+    </div>
+    <div class="table-card">
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:.82rem">
+          <thead><tr style="background:var(--off)">
+            <th style="text-align:left;padding:8px 12px">Date</th>
+            <th style="text-align:left;padding:8px 12px">Acteur</th>
+            <th style="text-align:left;padding:8px 12px">Action</th>
+            <th style="text-align:left;padding:8px 12px">Détails</th>
+          </tr></thead>
+          <tbody>
+            ${logs.map(l => `<tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:7px 12px;white-space:nowrap;color:var(--muted);font-size:.75rem">${fmt(l.date_action)}</td>
+              <td style="padding:7px 12px;font-weight:600">${escHtml(l.nom_acteur||'Système')}</td>
+              <td style="padding:7px 12px">
+                <span style="background:${actionColors[l.action]||'#607d8b'}22;color:${actionColors[l.action]||'#607d8b'};padding:2px 8px;border-radius:10px;font-size:.75rem;font-weight:600">${l.action}</span>
+              </td>
+              <td style="padding:7px 12px;color:var(--muted);font-size:.78rem">${escHtml(l.details||'–')}</td>
+            </tr>`).join('') || '<tr><td colspan="4" style="text-align:center;padding:40px;color:var(--muted)">Aucune action enregistrée</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `);
+}
+
+async function badgesAutoAssign() {
+  try {
+    toast('Attribution des badges en cours...');
+    const r = await api('/badges/auto-assign', { method:'POST' });
+    toast(`✅ ${r.assigned} badge(s) attribué(s) automatiquement`);
+    journalAdmin();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+// ══ SIGNATURE ÉLECTRONIQUE ═════════════════════════════════════════════════
+function openSignatureModal(docId, docNom) {
+  openModal(`✍️ Signer — ${escHtml(docNom)}`, `
+    <p style="font-size:.85rem;color:var(--muted);margin-bottom:16px">Dessinez votre signature dans la zone ci-dessous. Elle sera horodatée et liée à votre compte.</p>
+    <div style="border:2px solid var(--border);border-radius:12px;overflow:hidden;background:#fafafa;margin-bottom:16px">
+      <canvas id="sigCanvas" width="520" height="160" style="display:block;touch-action:none;cursor:crosshair;width:100%;height:160px"></canvas>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:20px">
+      <button class="btn btn-ghost btn-sm" onclick="clearSignature()">🗑 Effacer</button>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-primary" onclick="submitSignature(${docId})">✅ Signer le document</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+    </div>
+  `);
+  // Init canvas
+  setTimeout(() => {
+    const canvas = document.getElementById('sigCanvas');
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const ctx = canvas.getContext('2d');
+    ctx.strokeStyle = '#1b5e20';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    let drawing = false, lastX = 0, lastY = 0;
+    function getPos(e) {
+      const p = e.touches ? e.touches[0] : e;
+      const r = canvas.getBoundingClientRect();
+      return [(p.clientX - r.left) * scaleX, (p.clientY - r.top) * scaleY];
+    }
+    canvas.onmousedown = canvas.ontouchstart = e => { e.preventDefault(); drawing = true; [lastX, lastY] = getPos(e); };
+    canvas.onmousemove = canvas.ontouchmove = e => {
+      if (!drawing) return;
+      e.preventDefault();
+      const [x, y] = getPos(e);
+      ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(x, y); ctx.stroke();
+      [lastX, lastY] = [x, y];
+    };
+    canvas.onmouseup = canvas.ontouchend = () => { drawing = false; };
+  }, 100);
+}
+
+function clearSignature() {
+  const c = document.getElementById('sigCanvas');
+  if (c) c.getContext('2d').clearRect(0, 0, c.width, c.height);
+}
+
+async function submitSignature(docId) {
+  const canvas = document.getElementById('sigCanvas');
+  if (!canvas) return;
+  // Vérifier que la signature n'est pas vide
+  const ctx = canvas.getContext('2d');
+  const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  const hasDrawing = data.some((v, i) => i % 4 === 3 && v > 0);
+  if (!hasDrawing) return toast('Veuillez dessiner votre signature', true);
+  const signatureData = canvas.toDataURL('image/png');
+  try {
+    await api(`/documents/${docId}/sign`, { method:'POST', body: JSON.stringify({ signature_data: signatureData }) });
+    toast('✅ Document signé avec succès');
+    closeModal();
+    documents_mgmt();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+// ══ MES BADGES ═════════════════════════════════════════════════════════════
+async function mesBadgesView() {
+  const badges = await api(`/users/${USER.id}/badges`).catch(() => []);
+  const allBadges = await api('/badges').catch(() => []);
+  const obtenu = new Set(badges.map(b => b.code));
+  setContent(`
+    <div class="page-header"><div><h2>🏅 Mes badges</h2><p>Récompenses obtenues pour votre engagement dans la communauté AHH</p></div></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;margin-bottom:24px">
+      ${allBadges.map(b => {
+        const got = obtenu.has(b.code);
+        const myBadge = badges.find(mb => mb.code === b.code);
+        return `<div style="border:2px solid ${got?'#4caf50':'var(--border)'};border-radius:16px;padding:20px;text-align:center;background:${got?'#f1f8e9':'var(--off)'};opacity:${got?1:0.5}">
+          <div style="font-size:2.5rem;margin-bottom:8px">${b.icon}</div>
+          <div style="font-weight:700;font-size:.9rem">${escHtml(b.nom)}</div>
+          <div style="font-size:.75rem;color:var(--muted);margin:6px 0">${escHtml(b.description||'')}</div>
+          ${got ? `<div style="font-size:.7rem;color:#2e7d32;font-weight:600;margin-top:8px">✅ Obtenu le ${fmt(myBadge?.date_attribution)}</div>` : '<div style="font-size:.7rem;color:var(--muted);margin-top:8px">Non encore obtenu</div>'}
+        </div>`;
+      }).join('')}
+    </div>
+  `);
 }
 
 async function sendNewsletter() {

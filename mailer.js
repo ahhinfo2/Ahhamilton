@@ -497,10 +497,54 @@ async function sendCarteRenewal(user, expirationDate) {
   return sendMail({ to, subject, html });
 }
 
+async function sendRappelExpiration(user, joursRestants, montant, mois) {
+  const urgence = joursRestants <= 1 ? '🚨 DERNIER JOUR' : joursRestants <= 7 ? '⚠️ Urgent' : '📅 Rappel';
+  const label = joursRestants <= 1 ? 'aujourd\'hui' : joursRestants <= 7 ? `dans ${joursRestants} jours` : 'dans 30 jours';
+  await sendMail({
+    to: user.email,
+    subject: `${urgence} — Cotisation ${mois} : paiement dû ${label}`,
+    html: wrap(
+      `${urgence} — Votre cotisation expire ${label}`,
+      `<p>Bonjour <strong>${user.prenom}</strong>,</p>
+       <p>Votre cotisation <strong>${user.plan}</strong> pour le mois de <strong>${mois}</strong> est due <strong>${label}</strong>.</p>
+       <p>Montant : <strong>${(montant/100).toFixed(2)} $</strong></p>
+       ${joursRestants <= 1 ? '<p style="color:#c62828;font-weight:700">⚠️ Sans paiement aujourd\'hui, votre plan sera rétrogradé.</p>' : ''}
+       <a class="btn" href="${siteUrl}/dashboard/app.html">💳 Payer ma cotisation</a>
+       <hr class="divider"/>
+       <p style="font-size:.82rem;color:#888">Vous pouvez payer en ligne par carte ou soumettre une preuve de virement dans votre espace membre.</p>`
+    )
+  });
+}
+
+async function sendRecuFiscalAuto(user, montant, mois, recuId) {
+  const annee = mois.substring(0, 4);
+  const moisLabel = new Date(mois + '-01').toLocaleDateString('fr-CA', { year:'numeric', month:'long' });
+  await sendMail({
+    to: user.email,
+    subject: `Reçu de paiement — Cotisation ${moisLabel}`,
+    html: wrap(
+      'Reçu de paiement confirmé',
+      `<p>Bonjour <strong>${user.prenom} ${user.nom}</strong>,</p>
+       <p>Nous confirmons la réception de votre paiement de cotisation.</p>
+       <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:.88rem">
+         <tr style="background:#f0f7f0"><td style="padding:8px 12px;font-weight:600">Reçu no.</td><td style="padding:8px 12px">#${String(recuId).padStart(5,'0')}</td></tr>
+         <tr><td style="padding:8px 12px;font-weight:600">Membre</td><td style="padding:8px 12px">${user.prenom} ${user.nom}</td></tr>
+         <tr style="background:#f0f7f0"><td style="padding:8px 12px;font-weight:600">Plan</td><td style="padding:8px 12px">${user.plan}</td></tr>
+         <tr><td style="padding:8px 12px;font-weight:600">Période</td><td style="padding:8px 12px">${moisLabel}</td></tr>
+         <tr style="background:#f0f7f0"><td style="padding:8px 12px;font-weight:600">Montant</td><td style="padding:8px 12px;font-weight:700;color:#1b5e20">${(montant/100).toFixed(2)} $ CAD</td></tr>
+         <tr><td style="padding:8px 12px;font-weight:600">Date</td><td style="padding:8px 12px">${new Date().toLocaleDateString('fr-CA')}</td></tr>
+       </table>
+       <p style="font-size:.82rem;color:#555">Ce reçu est disponible dans votre espace membre sous <strong>Mon paiement → Historique</strong>.</p>
+       <a class="btn" href="${siteUrl}/dashboard/app.html">Voir mon espace</a>`
+    )
+  });
+}
+
 module.exports = {
   sendMail, sendSMS, sendBienvenue, sendInscriptionRefusee, sendResetPassword,
   sendContact, sendRappelPaiement, sendPaiementApprouve, sendRappelAdhesion,
-  sendRecuFiscal, sendInscriptionActivite, sendNouvelleAdhesion, sendInvitation, sendHeuresBenevolat,
+  sendRecuFiscal, sendRecuFiscalAuto, sendRappelExpiration,
+  sendInscriptionActivite, sendNouvelleAdhesion, sendInvitation, sendHeuresBenevolat,
   sendBilletInterac, sendBilletQR, sendNouvelleCommandeBillet, sendExternalEmail,
   sendCarteRenewal, SMS_GATEWAYS
 };

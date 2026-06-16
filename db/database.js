@@ -803,6 +803,62 @@ function init() {
   }
 }
 
+// ── Badges membres ────────────────────────────────────────────────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS badges (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  code TEXT UNIQUE NOT NULL,
+  nom TEXT NOT NULL,
+  description TEXT,
+  icon TEXT DEFAULT '🏅',
+  critere TEXT
+)`); } catch {}
+try { db.exec(`INSERT OR IGNORE INTO badges (code,nom,description,icon,critere) VALUES
+  ('membre_1an','Membre 1 an','Membre actif depuis 1 an','🥉','1 an membership'),
+  ('membre_3ans','Membre 3 ans','Membre actif depuis 3 ans','🥈','3 ans membership'),
+  ('membre_5ans','Membre 5 ans','Membre fidèle depuis 5 ans','🥇','5 ans membership'),
+  ('benevole_25h','Bénévole 25h','25 heures de bénévolat approuvées','🤝','25h bénévolat'),
+  ('benevole_100h','Super bénévole','100 heures de bénévolat approuvées','🌟','100h bénévolat'),
+  ('bienfaiteur','Bienfaiteur','Plan bienfaiteur actif','💛','plan bienfaiteur'),
+  ('partenaire','Partenaire','Plan partenaire actif','⭐','plan partenaire'),
+  ('parrain','Parrain','A parrainé au moins 1 membre','🫂','parrainage'),
+  ('talent','Talent reconnu','Talent publié et approuvé','🎨','talent publié'),
+  ('fondateur','Membre fondateur','Inscrit avant 2022','🏛️','inscription avant 2022')
+`); } catch {}
+try { db.exec(`CREATE TABLE IF NOT EXISTS user_badges (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  badge_id INTEGER NOT NULL REFERENCES badges(id) ON DELETE CASCADE,
+  date_attribution TEXT DEFAULT CURRENT_TIMESTAMP,
+  attribue_par INTEGER REFERENCES users(id),
+  UNIQUE(user_id, badge_id)
+)`); } catch {}
+
+// ── Logs d'activité admin ──────────────────────────────────────────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS activity_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER REFERENCES users(id),
+  action TEXT NOT NULL,
+  details TEXT,
+  cible_id INTEGER,
+  cible_type TEXT,
+  ip TEXT,
+  date_action TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
+// ── Signatures électroniques de documents ─────────────────────────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS document_signatures (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  document_id INTEGER REFERENCES documents(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  signature_data TEXT NOT NULL,
+  date_signature TEXT DEFAULT CURRENT_TIMESTAMP,
+  ip TEXT,
+  UNIQUE(document_id, user_id)
+)`); } catch {}
+
+// ── Token iCal personnel par membre ───────────────────────────────────────
+try { db.exec("ALTER TABLE users ADD COLUMN ical_token TEXT"); } catch {}
+
 // Documents officiels de l'association
 try { db.exec(`CREATE TABLE IF NOT EXISTS documents (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
