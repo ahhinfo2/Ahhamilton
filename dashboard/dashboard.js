@@ -8198,9 +8198,10 @@ async function sponsorSave(id) {
   const method = id ? 'PUT' : 'POST';
   try {
     const res = await fetch(url, { method, headers: { Authorization: `Bearer ${TOKEN}` }, body: fd });
-    if (!res.ok) throw new Error();
+    const data = await res.json().catch(() => null);
+    if (!res.ok) { toast((data?.error || 'Erreur '+res.status), 'err'); return; }
     closeModal(); sponsors_mgmt(); toast(id?'Commanditaire mis à jour':'Commanditaire ajouté');
-  } catch(e) { toast('Erreur lors de l\'enregistrement','err'); }
+  } catch(e) { toast('Erreur réseau: '+e.message, 'err'); }
 }
 
 async function sponsorToggle(id, actif) {

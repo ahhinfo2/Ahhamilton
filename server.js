@@ -5827,13 +5827,15 @@ app.get('/api/sponsors/all', authMiddleware, requireRole('admin','secretaire','t
 });
 
 app.post('/api/sponsors', authMiddleware, requireRole('admin','secretaire'), uploadSponsor.single('photo'), (req, res) => {
-  const { nom, description, site_web, categorie } = req.body;
-  if (!nom) return res.status(400).json({ error: 'Nom requis' });
-  const photo_url = req.file ? `/uploads/sponsors/${req.file.filename}` : null;
-  const maxOrdre = db.prepare('SELECT COALESCE(MAX(ordre),0) AS m FROM sponsors').get().m;
-  const r = db.prepare('INSERT INTO sponsors (nom, description, site_web, photo_url, categorie, cree_par, ordre) VALUES (?,?,?,?,?,?,?)')
-    .run(nom, description||'', site_web||'', photo_url, categorie||'or', req.user.id, maxOrdre + 1);
-  res.status(201).json({ id: r.lastInsertRowid });
+  try {
+    const { nom, description, site_web, categorie } = req.body;
+    if (!nom) return res.status(400).json({ error: 'Nom requis' });
+    const photo_url = req.file ? `/uploads/sponsors/${req.file.filename}` : null;
+    const maxOrdre = db.prepare('SELECT COALESCE(MAX(ordre),0) AS m FROM sponsors').get().m;
+    const r = db.prepare('INSERT INTO sponsors (nom, description, site_web, photo_url, categorie, cree_par, ordre) VALUES (?,?,?,?,?,?,?)')
+      .run(nom, description||'', site_web||'', photo_url, categorie||'or', req.user.id, maxOrdre + 1);
+    res.status(201).json({ id: r.lastInsertRowid });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.put('/api/sponsors/:id', authMiddleware, requireRole('admin','secretaire'), uploadSponsor.single('photo'), (req, res) => {
