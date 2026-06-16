@@ -700,6 +700,64 @@ app.post('/api/activities', authMiddleware, requireRole(...ACTIVITY_ROLES), (req
       .run(r.lastInsertRowid, `Budget – ${titre}`, parseFloat(budget_prevu));
   }
   res.status(201).json({ id: r.lastInsertRowid, qr_token });
+
+  // Notifier les abonnés newsletter (non-bloquant)
+  setImmediate(async () => {
+    try {
+      const subscribers = db.prepare("SELECT email, prenom FROM newsletter_subscribers WHERE actif=1").all();
+      if (!subscribers.length) return;
+      const siteUrl = process.env.SITE_URL || 'https://ahhamilton.ca';
+      const dateStr = date_debut
+        ? new Date(date_debut).toLocaleDateString('fr-CA', { dateStyle: 'long' })
+        : '';
+      const typeLabel = { culturel:'Culturel', benevolat:'Bénévolat', social:'Social', reunion:'Réunion', general:'Général' }[type] || (type||'');
+      for (const sub of subscribers) {
+        await mailer.sendMail({
+          to: sub.email,
+          subject: `Nouvelle activité AHH : ${titre}`,
+          html: `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/></head>
+<body style="font-family:'Segoe UI',Arial,sans-serif;background:#f4f7f4;margin:0;padding:0">
+<div style="max-width:560px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(27,94,32,.1)">
+  <div style="background:linear-gradient(135deg,#003F87,#D21034);padding:28px 32px;text-align:center">
+    <img src="${siteUrl}/Public/logo1.png" alt="AHH" style="width:56px;height:56px;border-radius:10px;object-fit:cover;border:2px solid rgba(255,255,255,.3)"/>
+    <h1 style="color:#fff;font-size:1.15rem;font-weight:700;margin:10px 0 0">Association Haïtienne de Hamilton</h1>
+  </div>
+  <div style="padding:32px">
+    <h2 style="color:#003F87;font-size:1.1rem;margin:0 0 18px">📅 Nouvelle activité</h2>
+    <p style="color:#3a3a3a;font-size:.9rem;line-height:1.7;margin:0 0 14px">
+      Bonjour${sub.prenom ? ' <strong>' + sub.prenom + '</strong>' : ''},
+    </p>
+    <p style="color:#3a3a3a;font-size:.9rem;line-height:1.7;margin:0 0 20px">
+      L'<strong>Association Haïtienne de Hamilton</strong> vous invite à son prochain événement :
+    </p>
+    <div style="background:#f0f4ff;border-left:4px solid #003F87;border-radius:8px;padding:20px;margin-bottom:20px">
+      <div style="font-size:1.2rem;font-weight:800;color:#003F87;margin-bottom:10px">${titre}</div>
+      ${typeLabel ? `<div style="font-size:.82rem;color:#666;margin-bottom:6px">🏷️ ${typeLabel}</div>` : ''}
+      ${dateStr ? `<div style="font-size:.9rem;color:#333;margin-bottom:6px">📅 <strong>${dateStr}</strong></div>` : ''}
+      ${lieu ? `<div style="font-size:.9rem;color:#333;margin-bottom:6px">📍 ${lieu}</div>` : ''}
+      ${description ? `<div style="font-size:.85rem;color:#555;margin-top:10px;line-height:1.6">${description}</div>` : ''}
+    </div>
+    <div style="text-align:center;margin:24px 0">
+      <a href="${siteUrl}/actualites.html" style="display:inline-block;background:linear-gradient(135deg,#003F87,#D21034);color:#fff;text-decoration:none;padding:13px 32px;border-radius:8px;font-weight:700;font-size:.95rem">
+        Voir toutes les activités
+      </a>
+    </div>
+    <hr style="border:none;border-top:1px solid #e8f0fe;margin:20px 0"/>
+    <p style="font-size:.75rem;color:#aaa;text-align:center">
+      Vous recevez ce courriel car vous êtes abonné aux nouvelles de l'AHH.<br/>
+      Pour vous désabonner, répondez avec « désabonnement ».<br/>
+      © 2026 Association Haïtienne de Hamilton
+    </p>
+  </div>
+</div>
+</body></html>`
+        }).catch(e => console.error(`[newsletter activity] ${sub.email}:`, e.message));
+      }
+      console.log(`📧 Newsletter activité "${titre}" envoyée à ${subscribers.length} abonné(s)`);
+    } catch(e) {
+      console.error('[newsletter activity auto-email]', e.message);
+    }
+  });
 });
 
 app.put('/api/activities/:id', authMiddleware, requireRole(...ACTIVITY_ROLES), (req, res) => {
@@ -5058,6 +5116,20 @@ app.post('/api/newsletter/subscribe', async (req, res) => {
 
 app.get('/api/newsletter/subscribers', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
   res.json(db.prepare('SELECT * FROM newsletter_subscribers WHERE actif=1 ORDER BY date_inscription DESC').all());
+});
+
+app.delete('/api/newsletter/subscribers/:id', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  db.prepare('UPDATE newsletter_subscribers SET actif=0 WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+app.get('/api/newsletter/subscribers/export', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  const rows = db.prepare('SELECT prenom, email, date_inscription FROM newsletter_subscribers WHERE actif=1 ORDER BY date_inscription DESC').all();
+  const csv = 'Prénom,Courriel,Date inscription\n' +
+    rows.map(r => `"${(r.prenom||'').replace(/"/g,'""')}","${r.email}","${r.date_inscription}"`).join('\n');
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="abonnes-newsletter.csv"');
+  res.send('﻿' + csv);
 });
 
 // ══════════════════════════════════════════════════════════════════════════════

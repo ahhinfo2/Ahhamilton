@@ -353,7 +353,8 @@ function buildSidebar() {
       { id:'votes',         icon:'🗳️', label:'Votes & Élections',  roles:EXEC },
       { id:'parrainage',    icon:'🤝', label:'Parrainage',           roles: ALL },
       { id:'journal-admin', icon:'📋', label:'Journal d\'activité', roles:['admin'] },
-      { id:'ambassadeur-admin', icon:'⭐', label:'Ambassadeur du mois', roles:['admin'] },
+      { id:'ambassadeur-admin',    icon:'⭐', label:'Ambassadeur du mois',    roles:['admin'] },
+      { id:'abonnes-newsletter',   icon:'📧', label:'Abonnés newsletter',      roles:['admin','secretaire'] },
     ]},
 
     // ── Mon espace membre ─────────────────────────────────────────
@@ -463,7 +464,8 @@ function setActiveNav(viewId) {
     'votes':'Votes & Élections', 'parrainage':'Parrainage', 'stats-growth':'Statistiques',
     'carte-membre':'Ma carte membre', 'actualites':'Actualités', 'notif-prefs':'Notifications',
     'carte-gestion':'Gestion des cartes', 'carte-scanner':'Scanner cartes',
-    'journal-admin':'Journal d\'activité', 'mes-badges':'Mes badges', 'ambassadeur-admin':'Ambassadeur du mois'
+    'journal-admin':'Journal d\'activité', 'mes-badges':'Mes badges', 'ambassadeur-admin':'Ambassadeur du mois',
+    'abonnes-newsletter':'Abonnés newsletter'
   };
   const raw = labels[viewId] || 'Dashboard';
   document.getElementById('topbarTitle').textContent = window.AHH_LANG ? AHH_LANG.get(raw) : raw;
@@ -790,6 +792,7 @@ async function showView(viewId) {
     'journal-admin': journalAdmin,
     'mes-badges': mesBadgesView,
     'ambassadeur-admin': ambassadeurAdmin,
+    'abonnes-newsletter': abonnesNewsletter,
   };
   if (extViews[viewId]) {
     try { await extViews[viewId](); } catch(e) { setContent(`<div class="empty-state"><div class="es-icon">⚠️</div><p>${e.message}</p></div>`); }
@@ -11042,4 +11045,53 @@ async function saveAmbassadeur() {
     toast('✅ Ambassadeur du mois mis à jour !');
     await ambassadeurAdmin();
   } catch(e) { toast(e.message, true); }
+}
+
+// ── Abonnés newsletter ────────────────────────────────────────────────────────
+async function abonnesNewsletter() {
+  setContent(`
+    <div class="table-card" style="max-width:100%">
+      <div class="table-card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <h3>📧 Abonnés à la newsletter</h3>
+        <a href="${API}/newsletter/subscribers/export" class="btn btn-ghost btn-sm" target="_blank">📥 Exporter CSV</a>
+      </div>
+      <div style="padding:0 20px 20px">
+        <div id="nlSubsContainer"><div style="text-align:center;padding:32px;color:var(--muted)">Chargement…</div></div>
+      </div>
+    </div>`);
+  await refreshNlSubs();
+}
+
+async function refreshNlSubs() {
+  const container = document.getElementById('nlSubsContainer');
+  if (!container) return;
+  const subs = await api('/newsletter/subscribers').catch(() => []);
+  if (!subs || !subs.length) {
+    container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:32px">Aucun abonné pour l\'instant</p>';
+    return;
+  }
+  container.innerHTML =
+    `<p style="margin:16px 0 12px;font-size:.85rem;color:var(--muted)">${subs.length} abonné${subs.length > 1 ? 's' : ''}</p>` +
+    '<table class="data-table"><thead><tr>' +
+    '<th>Prénom</th><th>Courriel</th><th>Date d\'inscription</th><th>Actions</th>' +
+    '</tr></thead><tbody>' +
+    subs.map(s =>
+      `<tr>
+        <td>${escHtml(s.prenom || '—')}</td>
+        <td>${escHtml(s.email)}</td>
+        <td>${fmt(s.date_inscription)}</td>
+        <td>
+          <button class="btn btn-ghost btn-sm" onclick="nlSubDelete(${s.id},'${escHtml(s.email)}')"
+            style="color:#c62828;padding:4px 8px" title="Désabonner">🗑️ Désabonner</button>
+        </td>
+      </tr>`
+    ).join('') +
+    '</tbody></table>';
+}
+
+async function nlSubDelete(id, email) {
+  if (!confirm('Désabonner ' + email + ' ?')) return;
+  await api('/newsletter/subscribers/' + id, { method: 'DELETE' });
+  toast('Abonné retiré');
+  await refreshNlSubs();
 }
