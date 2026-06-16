@@ -372,3 +372,363 @@ if (contactForm) {
   }
 
 })();
+
+// ══════════════════════════════════════════════════════════
+// #3  MODE SOMBRE — toggle + localStorage
+// ══════════════════════════════════════════════════════════
+(function() {
+  const root = document.documentElement;
+  const stored = localStorage.getItem('ahh_dark');
+  if (stored === '1') root.classList.add('dark');
+
+  function applyDark(on) {
+    root.classList.toggle('dark', on);
+    localStorage.setItem('ahh_dark', on ? '1' : '0');
+    const btn = document.getElementById('darkToggle');
+    if (btn) btn.textContent = on ? '☀️' : '🌙';
+  }
+
+  window.toggleDark = function() { applyDark(!root.classList.contains('dark')); };
+
+  // Injecter le bouton dans la navbar une fois le DOM prêt
+  document.addEventListener('DOMContentLoaded', () => {
+    const navInner = document.querySelector('.nav-inner');
+    if (!navInner) return;
+    const btn = document.createElement('button');
+    btn.id = 'darkToggle';
+    btn.title = 'Mode sombre / clair';
+    btn.textContent = root.classList.contains('dark') ? '☀️' : '🌙';
+    btn.onclick = () => toggleDark();
+    navInner.appendChild(btn);
+  });
+})();
+
+// ══════════════════════════════════════════════════════════
+// #13 CONFETTIS HAÏTIENS (canvas flottants dans le hero)
+// ══════════════════════════════════════════════════════════
+(function initConfetti() {
+  const hero = document.querySelector('.hero');
+  if (!hero) return;
+  const canvas = document.createElement('canvas');
+  canvas.id = 'confetti-canvas';
+  hero.appendChild(canvas);
+
+  const ctx = canvas.getContext('2d');
+  const COLORS = ['#003F87','#D21034','#ffffff','#f9a825','#003F87','#D21034'];
+  let particles = [];
+  let W, H, raf;
+
+  function resize() {
+    W = canvas.width  = hero.offsetWidth;
+    H = canvas.height = hero.offsetHeight;
+  }
+
+  function spawn() {
+    return {
+      x: Math.random() * W,
+      y: Math.random() * H,
+      r: 2 + Math.random() * 3,
+      c: COLORS[Math.floor(Math.random() * COLORS.length)],
+      vx: (Math.random() - .5) * .4,
+      vy: -.2 - Math.random() * .5,
+      life: 0,
+      maxLife: 220 + Math.random() * 180,
+    };
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    if (particles.length < 45) particles.push(spawn());
+
+    particles = particles.filter(p => p.life < p.maxLife);
+    particles.forEach(p => {
+      p.life++;
+      p.x += p.vx;
+      p.y += p.vy;
+      if (p.y < -10) { p.y = H + 4; p.x = Math.random() * W; }
+      const alpha = Math.sin((p.life / p.maxLife) * Math.PI) * .55;
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle   = p.c;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+    raf = requestAnimationFrame(draw);
+  }
+
+  resize();
+  window.addEventListener('resize', resize, { passive: true });
+  // Ne lancer que si l'utilisateur ne préfère pas les mouvements réduits
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    // Pré-remplir
+    for (let i = 0; i < 40; i++) { const p = spawn(); p.life = Math.random() * p.maxLife; particles.push(p); }
+    draw();
+  }
+})();
+
+// ══════════════════════════════════════════════════════════
+// #16 COUNTDOWN — prochain événement
+// ══════════════════════════════════════════════════════════
+(function initCountdown() {
+  const bar = document.getElementById('countdownBar');
+  if (!bar) return;
+  const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:3001/api' : '/api';
+
+  let targetDate = null;
+  let eventName  = '';
+  let cdTimer    = null;
+
+  function pad(n) { return String(n).padStart(2, '0'); }
+
+  function tick() {
+    if (!targetDate) return;
+    const diff = targetDate - Date.now();
+    if (diff <= 0) { bar.style.display = 'none'; return; }
+    const d = Math.floor(diff / 86400000);
+    const h = Math.floor((diff % 86400000) / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+
+    const numEl = bar.querySelectorAll('.cd-num');
+    if (numEl.length === 4) {
+      numEl[0].textContent = pad(d);
+      numEl[1].textContent = pad(h);
+      numEl[2].textContent = pad(m);
+      numEl[3].textContent = pad(s);
+    }
+  }
+
+  fetch(API + '/activities/public')
+    .then(r => r.ok ? r.json() : [])
+    .then(acts => {
+      const now  = Date.now();
+      const next = acts
+        .filter(a => a.date_debut && new Date(a.date_debut) > now)
+        .sort((a, b) => new Date(a.date_debut) - new Date(b.date_debut))[0];
+      if (!next) { bar.style.display = 'none'; return; }
+
+      targetDate = new Date(next.date_debut).getTime();
+      eventName  = next.titre;
+      const nameEl = bar.querySelector('.countdown-event');
+      if (nameEl) nameEl.textContent = eventName;
+      bar.style.display = '';
+      tick();
+      cdTimer = setInterval(tick, 1000);
+    })
+    .catch(() => { bar.style.display = 'none'; });
+})();
+
+// ══════════════════════════════════════════════════════════
+// #15 RECHERCHE UNIVERSELLE (Ctrl+K / ⌘K)
+// ══════════════════════════════════════════════════════════
+(function initSearch() {
+  const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:3001/api' : '/api';
+
+  // Créer le modal
+  const overlay = document.createElement('div');
+  overlay.id = 'searchOverlay';
+  overlay.innerHTML = `
+    <div class="search-modal" id="searchModal" role="dialog" aria-label="Recherche">
+      <div class="search-header">
+        <span class="search-icon">🔍</span>
+        <input id="searchInput" type="text" placeholder="Rechercher activités, pages, membres…" autocomplete="off"/>
+        <div class="search-kbd"><kbd>Esc</kbd> fermer</div>
+      </div>
+      <div class="search-results" id="searchResults"></div>
+      <div class="search-footer">
+        <span>↑↓ naviguer</span>
+        <span>↵ ouvrir</span>
+        <span><kbd>Ctrl</kbd><kbd>K</kbd> ouvrir</span>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const input   = document.getElementById('searchInput');
+  const results = document.getElementById('searchResults');
+
+  const PAGES = [
+    { title: 'Accueil', sub: 'Page principale', url: '/index.html', icon: '🏠' },
+    { title: 'Activités', sub: 'Événements et ateliers', url: '/actualites.html', icon: '📅' },
+    { title: 'Galerie', sub: 'Photos de nos événements', url: '/galerie.html', icon: '🖼️' },
+    { title: 'Notre équipe', sub: 'Membres du conseil', url: '/equipe.html', icon: '👥' },
+    { title: 'Adhésion', sub: 'Rejoindre l\'AHH', url: '/adhesion.html', icon: '🤝' },
+    { title: 'Annonces', sub: 'Nouvelles et annonces', url: '/annonces.html', icon: '📢' },
+    { title: 'Talents', sub: 'Répertoire des talents', url: '/talents.html', icon: '✨' },
+    { title: 'Contact', sub: 'Nous joindre', url: '/index.html#contact', icon: '✉️' },
+    { title: 'Faire un don', sub: 'Soutenir la communauté', url: '/index.html#don', icon: '💛' },
+    { title: 'Mon espace', sub: 'Tableau de bord membre', url: '/dashboard/app.html', icon: '🔐' },
+  ];
+
+  let acts = [], active = 0;
+
+  fetch(API + '/activities/public').then(r => r.ok ? r.json() : []).then(d => { acts = d; }).catch(() => {});
+
+  function open() {
+    overlay.classList.add('open');
+    setTimeout(() => input.focus(), 50);
+    render('');
+  }
+  function close() {
+    overlay.classList.remove('open');
+    input.value = '';
+    results.innerHTML = '';
+  }
+
+  function render(q) {
+    q = q.toLowerCase().trim();
+    const pageHits = PAGES.filter(p => p.title.toLowerCase().includes(q) || p.sub.toLowerCase().includes(q));
+    const actHits  = acts.filter(a => a.titre && a.titre.toLowerCase().includes(q)).slice(0, 5);
+    const all = [
+      ...pageHits.map(p => ({ title: p.title, sub: p.sub, url: p.url, icon: p.icon, type: 'page' })),
+      ...actHits.map(a => ({
+        title: a.titre,
+        sub: a.date_debut ? '📅 ' + new Date(a.date_debut).toLocaleDateString('fr-CA') : 'Activité',
+        url: 'actualites.html',
+        icon: '🎭', type: 'activity',
+      })),
+    ].slice(0, 10);
+
+    if (!all.length) {
+      results.innerHTML = '<div class="search-empty">Aucun résultat pour "' + q + '"</div>';
+      return;
+    }
+    results.innerHTML = all.map((item, i) => `
+      <a class="search-result-item${i === 0 ? ' active' : ''}" href="${item.url}">
+        <div class="search-result-icon ${item.type}">${item.icon}</div>
+        <div>
+          <div class="search-result-title">${item.title}</div>
+          <div class="search-result-sub">${item.sub}</div>
+        </div>
+      </a>`).join('');
+    active = 0;
+  }
+
+  input.addEventListener('input', () => { render(input.value); active = 0; });
+
+  // Keyboard nav
+  overlay.addEventListener('keydown', e => {
+    const items = results.querySelectorAll('.search-result-item');
+    if (!items.length) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); items[active]?.classList.remove('active'); active = (active + 1) % items.length; items[active]?.classList.add('active'); items[active]?.scrollIntoView({ block: 'nearest' }); }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); items[active]?.classList.remove('active'); active = (active - 1 + items.length) % items.length; items[active]?.classList.add('active'); items[active]?.scrollIntoView({ block: 'nearest' }); }
+    if (e.key === 'Enter')     { items[active]?.click(); }
+    if (e.key === 'Escape')    { close(); }
+  });
+
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); overlay.classList.contains('open') ? close() : open(); }
+    if (e.key === 'Escape' && overlay.classList.contains('open')) close();
+  });
+
+  // Bouton loupe (optionnel, injecté dans la navbar)
+  document.addEventListener('DOMContentLoaded', () => {
+    const navInner = document.querySelector('.nav-inner');
+    if (!navInner) return;
+    const btn = document.createElement('button');
+    btn.id = 'searchTrigger';
+    btn.title = 'Recherche (Ctrl+K)';
+    btn.textContent = '🔍';
+    btn.style.cssText = 'background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.9rem;cursor:pointer;transition:.2s;margin-left:4px;';
+    btn.onclick = open;
+    navInner.appendChild(btn);
+  });
+})();
+
+// ══════════════════════════════════════════════════════════
+// #24 INDICATEUR SECTION ACTIVE (IntersectionObserver)
+// ══════════════════════════════════════════════════════════
+(function initNavIndicator() {
+  const sections = document.querySelectorAll('section[id], .hero[id]');
+  if (!sections.length) return;
+
+  const navLinks = document.querySelectorAll('.nav-link[href*="#"], .nav-link[data-section]');
+
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      const id = entry.target.id;
+      navLinks.forEach(link => {
+        const href = link.getAttribute('href') || '';
+        link.classList.toggle('nav-section-active', href.includes('#' + id) || link.dataset.section === id);
+      });
+    });
+  }, { threshold: 0.4, rootMargin: '-80px 0px -40% 0px' });
+
+  sections.forEach(s => obs.observe(s));
+})();
+
+// ══════════════════════════════════════════════════════════
+// #29 MÉTÉO HAMILTON (Open-Meteo — sans clé API)
+// ══════════════════════════════════════════════════════════
+(function initMeteo() {
+  const widget = document.getElementById('meteoWidget');
+  if (!widget) return;
+
+  const ICONS = {
+    0:'☀️',1:'🌤',2:'⛅',3:'☁️',45:'🌫',48:'🌫',
+    51:'🌦',53:'🌦',55:'🌧',61:'🌧',63:'🌧',65:'🌧',
+    71:'🌨',73:'🌨',75:'❄️',80:'🌧',81:'🌧',82:'⛈',
+    95:'⛈',96:'⛈',99:'⛈',
+  };
+
+  fetch('https://api.open-meteo.com/v1/forecast?latitude=43.26&longitude=-79.87&current_weather=true&temperature_unit=celsius&timezone=America%2FToronto')
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      if (!data?.current_weather) return;
+      const { temperature, weathercode } = data.current_weather;
+      const icon = ICONS[weathercode] || '🌡';
+      widget.innerHTML = `<span class="meteo-icon">${icon}</span><span>Hamilton</span><span class="meteo-temp">${Math.round(temperature)}°C</span>`;
+      widget.style.display = '';
+    })
+    .catch(() => { widget.style.display = 'none'; });
+})();
+
+// ══════════════════════════════════════════════════════════
+// #12 PARALLAX MULTICOUCHE (hero)
+// ══════════════════════════════════════════════════════════
+(function initParallax() {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const overlay  = document.querySelector('.hero-overlay');
+  const bg       = document.querySelector('.hero-photo-bg');
+  if (!bg) return;
+
+  window.addEventListener('scroll', () => {
+    const y = window.scrollY;
+    if (y > window.innerHeight) return;
+    bg.style.transform      = `translateY(${y * 0.28}px)`;
+    if (overlay) overlay.style.transform = `translateY(${y * 0.12}px)`;
+  }, { passive: true });
+})();
+
+// ══════════════════════════════════════════════════════════
+// #26 FAQ ACCORDION
+// ══════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.faq-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const item = btn.closest('.faq-item');
+      const wasOpen = item.classList.contains('open');
+      // Fermer tous
+      document.querySelectorAll('.faq-item.open').forEach(el => el.classList.remove('open'));
+      if (!wasOpen) item.classList.add('open');
+    });
+  });
+
+  // Spring reveal sur nouveaux éléments
+  document.querySelectorAll('[data-spring]').forEach(el => {
+    el.classList.add('reveal-spring');
+    const obs = new IntersectionObserver(entries => {
+      entries.forEach(e => { if (e.isIntersecting) { setTimeout(() => e.target.classList.add('revealed'), parseInt(e.target.dataset.delay || 0)); obs.unobserve(e.target); } });
+    }, { threshold: 0.12 });
+    obs.observe(el);
+  });
+
+  // Mobile horizontal scroll pour activités
+  const feedGrid = document.getElementById('feedGrid');
+  if (feedGrid) feedGrid.classList.add('hscroll-mobile');
+});

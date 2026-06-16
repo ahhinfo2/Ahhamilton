@@ -873,6 +873,21 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS documents (
   date_upload TEXT DEFAULT (datetime('now'))
 )`); } catch {}
 
+// ── Ambassadeur du mois ───────────────────────────────────────────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS ambassador (
+  id INTEGER PRIMARY KEY CHECK(id=1),
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  nom TEXT,
+  prenom TEXT,
+  role_description TEXT DEFAULT '',
+  citation TEXT DEFAULT '',
+  photo_url TEXT,
+  mois TEXT DEFAULT (strftime('%Y-%m', 'now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+)`); } catch {}
+// S'assurer qu'il y a toujours une ligne
+try { db.exec("INSERT OR IGNORE INTO ambassador(id) VALUES(1)"); } catch {}
+
 init();
 
 module.exports = db;

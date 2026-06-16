@@ -5614,6 +5614,53 @@ app.get('/api/calendar/:token.ics', (req, res) => {
   res.send(cal);
 });
 
+// ── Ambassadeur du mois ─────────────────────────────────────────────────────
+app.get('/api/ambassador', (req, res) => {
+  try {
+    const row = db.prepare('SELECT * FROM ambassador WHERE id=1').get();
+    if (!row || !row.nom) return res.json(null);
+    res.json(row);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/ambassador', authMiddleware, requireRole('admin'), (req, res) => {
+  const { nom, prenom, role_description, citation, photo_url, user_id } = req.body;
+  try {
+    db.prepare(`UPDATE ambassador SET nom=?, prenom=?, role_description=?, citation=?,
+      photo_url=?, user_id=?, mois=strftime('%Y-%m','now'), updated_at=datetime('now')
+      WHERE id=1`).run(nom||null, prenom||null, role_description||'', citation||'', photo_url||null, user_id||null);
+    logAdmin(req.user.userId, 'ambassador_update', `${prenom} ${nom}`, null, null, req.ip);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Guide d'accueil PDF ──────────────────────────────────────────────────────
+app.get('/api/guide.pdf', (req, res) => {
+  const pdfPath = require('path').join(__dirname, 'Public', 'guide-accueil.pdf');
+  const fs = require('fs');
+  if (fs.existsSync(pdfPath)) {
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="Guide-Accueil-AHH.pdf"');
+    return res.sendFile(pdfPath);
+  }
+  // Générer un PDF minimal si le fichier n'existe pas encore
+  const content = [
+    '%PDF-1.4',
+    '1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj',
+    '2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj',
+    '3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj',
+    '4 0 obj<</Length 200>>stream\nBT /F1 18 Tf 72 700 Td (Guide d\'accueil AHH) Tj 0 -40 Td /F1 12 Tf (Association Haitienne de Hamilton) Tj 0 -25 Td (ahhamilton.ca | contact@ahhamilton.ca) Tj 0 -25 Td (905-818-8269 / 905-519-7967) Tj 0 -40 Td (Bienvenue dans la communaute AHH !) Tj ET\nendstream\nendobj',
+    '5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj',
+    'xref\n0 6\n0000000000 65535 f\n0000000009 00000 n\n0000000058 00000 n\n0000000115 00000 n\n0000000274 00000 n\n0000000527 00000 n',
+    'trailer<</Size 6/Root 1 0 R>>',
+    'startxref\n600',
+    '%%EOF'
+  ].join('\n');
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', 'attachment; filename="Guide-Accueil-AHH.pdf"');
+  res.send(Buffer.from(content, 'latin1'));
+});
+
 // ── Start ───────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`\n✅ AHH Server démarré sur http://localhost:${PORT}`);

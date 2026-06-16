@@ -28,6 +28,23 @@
   <!-- Bande drapeau haïtien sous la navbar -->
   <div class="flag-stripe"></div>
 
+  <!-- ===== COUNTDOWN BAR ===== -->
+  <div id="countdownBar" class="countdown-bar" style="display:none">
+    <div class="container countdown-bar-inner">
+      <span class="countdown-label">Prochain événement :</span>
+      <span class="countdown-event"></span>
+      <div class="countdown-digits">
+        <div class="countdown-unit"><span class="cd-num" id="cd-d">00</span><span class="cd-lbl">jours</span></div>
+        <span class="countdown-sep">:</span>
+        <div class="countdown-unit"><span class="cd-num" id="cd-h">00</span><span class="cd-lbl">heures</span></div>
+        <span class="countdown-sep">:</span>
+        <div class="countdown-unit"><span class="cd-num" id="cd-m">00</span><span class="cd-lbl">min</span></div>
+        <span class="countdown-sep">:</span>
+        <div class="countdown-unit"><span class="cd-num" id="cd-s">00</span><span class="cd-lbl">sec</span></div>
+      </div>
+    </div>
+  </div>
+
   <!-- ===== POPUP BIENVENUE (1ère visite) ===== -->
   <div id="welcome-popup">
     <div class="welcome-card">
@@ -53,6 +70,10 @@
     <div class="hero-overlay"></div>
     <div class="container hero-layout">
       <div class="hero-content">
+        <!-- Météo + badge -->
+        <div class="meteo-hero-wrap">
+          <div class="meteo-widget" id="meteoWidget" style="display:none"></div>
+        </div>
         <span class="hero-badge" data-i18n="hero.badge">Communauté Haïtienne · Hamilton, ON</span>
         <h1 class="hero-title">
           <span class="hero-intro" data-i18n="hero.intro">Notre communauté s'appuie sur des valeurs essentielles :</span>
@@ -93,6 +114,18 @@
       </div>
     </div>
   </section>
+
+  <!-- ===== AVATARS MEMBRES EMPILÉS ===== -->
+  <div style="background:#fff;padding:20px 0 0;text-align:center" id="membersStackWrap" style="display:none">
+    <div class="container">
+      <div class="members-join-row" id="membersStack">
+        <!-- injecté par JS -->
+      </div>
+      <div style="text-align:center;margin-top:12px;padding-bottom:8px">
+        <a href="/api/guide.pdf" class="guide-btn" download>📄 Télécharger le guide d'accueil PDF</a>
+      </div>
+    </div>
+  </div>
 
   <!-- ===== ACTIVITÉ À LA UNE (admin-contrôlée) ===== -->
   <section id="featured-activity" style="display:none;background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:60px 0">
@@ -154,19 +187,19 @@
         <p data-i18n="pillars.desc">AHH repose sur :</p>
       </div>
       <div class="pillars-grid">
-        <div class="pillar-card" data-reveal data-delay="0">
+        <div class="pillar-card hai-blue-border glass-card" data-reveal data-delay="0">
           <div class="pillar-icon-wrap">🌐</div>
           <h3 data-i18n="pillar1.h3">Réseautage & Connexions</h3>
           <p data-i18n="pillar1.p">Créer des espaces de rencontre pour que les familles haïtiennes de Hamilton se connectent, partagent et bâtissent des liens durables.</p>
           <a href="actualites.html" class="pillar-link" data-i18n="pillar1.link">Voir les activités →</a>
         </div>
-        <div class="pillar-card featured" data-reveal data-delay="120">
+        <div class="pillar-card featured gold-border glass-card" data-reveal data-delay="120">
           <div class="pillar-icon-wrap">🎭</div>
           <h3 data-i18n="pillar2.h3">Événements culturels</h3>
           <p data-i18n="pillar2.p">Organiser des événements vibrants pour célébrer la richesse de la culture haïtienne et renforcer notre identité commune.</p>
           <a href="galerie.html" class="pillar-link" data-i18n="pillar2.link">Voir la galerie →</a>
         </div>
-        <div class="pillar-card" data-reveal data-delay="240">
+        <div class="pillar-card hai-red-border glass-card" data-reveal data-delay="240">
           <div class="pillar-icon-wrap">🤲</div>
           <h3 data-i18n="pillar3.h3">Programmes d'assistance</h3>
           <p data-i18n="pillar3.p">Offrir un soutien adapté aux familles haïtiennes : nouveaux arrivants, ressources d'intégration et réseau de solidarité.</p>
@@ -330,6 +363,197 @@
     });
   })();
   </script>
+
+  <!-- ===== AMBASSADEUR DU MOIS ===== -->
+  <section class="ambassador-section" id="ambassador-section" style="display:none">
+    <div class="container">
+      <div class="section-header" data-reveal>
+        <span class="section-badge" style="background:rgba(249,168,37,.12);color:#c77700;border-color:rgba(249,168,37,.3)">⭐ Honneur</span>
+        <h2>Ambassadeur <span class="italic-accent">du mois</span></h2>
+        <p>Chaque mois, nous célébrons un membre exceptionnel de notre communauté.</p>
+      </div>
+      <div class="ambassador-card" id="ambassadorCard" data-reveal>
+        <div class="ambassador-badge-crown">👑 Ambassadeur du mois</div>
+        <div class="ambassador-photo-placeholder" id="ambassadorPhoto">?</div>
+        <div class="ambassador-info">
+          <div class="ambassador-name" id="ambassadorName">—</div>
+          <div class="ambassador-role" id="ambassadorRole"></div>
+          <blockquote class="ambassador-quote" id="ambassadorQuote"></blockquote>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== TIMELINE INTERACTIVE ===== -->
+  <section class="timeline-section" id="histoire">
+    <div class="container">
+      <div class="section-header" data-reveal>
+        <span class="section-badge blue">Notre histoire</span>
+        <h2>AHH depuis <span class="italic-accent-blue">2009</span></h2>
+        <p>Plus de 15 ans de solidarité, culture et engagement au service de la communauté haïtienne de Hamilton.</p>
+      </div>
+      <div class="timeline">
+        <div class="timeline-item" data-spring data-delay="0">
+          <div class="timeline-dot">🌱</div>
+          <div class="timeline-content">
+            <div class="timeline-year">2009</div>
+            <h4>Fondation de l'AHH</h4>
+            <p>Un groupe de familles haïtiennes de Hamilton se réunit pour créer une association communautaire ancrée dans les valeurs d'entraide et de solidarité.</p>
+          </div>
+        </div>
+        <div class="timeline-item" data-spring data-delay="120">
+          <div class="timeline-dot">🎭</div>
+          <div class="timeline-content">
+            <div class="timeline-year">2012</div>
+            <h4>Premiers grands événements culturels</h4>
+            <p>Organisation des premières soirées culturelles haïtiennes à Hamilton, célébrant la musique, la cuisine et les traditions du peuple haïtien.</p>
+          </div>
+        </div>
+        <div class="timeline-item" data-spring data-delay="240">
+          <div class="timeline-dot">🤲</div>
+          <div class="timeline-content">
+            <div class="timeline-year">2016</div>
+            <h4>Programme d'assistance aux nouveaux arrivants</h4>
+            <p>Lancement d'un programme structuré d'aide à l'intégration pour les familles haïtiennes nouvellement arrivées au Canada.</p>
+          </div>
+        </div>
+        <div class="timeline-item" data-spring data-delay="360">
+          <div class="timeline-dot">🌐</div>
+          <div class="timeline-content">
+            <div class="timeline-year">2020</div>
+            <h4>Transition numérique</h4>
+            <p>Face à la pandémie, l'AHH innove en organisant ses activités en ligne, renforçant les liens communautaires malgré la distance.</p>
+          </div>
+        </div>
+        <div class="timeline-item" data-spring data-delay="480">
+          <div class="timeline-dot">🚀</div>
+          <div class="timeline-content">
+            <div class="timeline-year">2024</div>
+            <h4>Plateforme numérique AHH</h4>
+            <p>Lancement de la plateforme en ligne complète : gestion des membres, événements, billets, paiements et communications — une première dans la région.</p>
+          </div>
+        </div>
+        <div class="timeline-item" data-spring data-delay="600">
+          <div class="timeline-dot">⭐</div>
+          <div class="timeline-content">
+            <div class="timeline-year">2025+</div>
+            <h4>Croissance et rayonnement</h4>
+            <p>L'AHH continue de grandir, d'innover et de rayonner, avec une communauté plus soudée que jamais autour des valeurs haïtiennes et canadiennes.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== INFOGRAPHIE CULTURELLE HAÏTIENNE ===== -->
+  <section class="infographie-section">
+    <div class="container" style="position:relative;z-index:1">
+      <div class="section-header light" data-reveal>
+        <span class="section-badge" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)">🇭🇹 Haïti</span>
+        <h2>Haïti en quelques chiffres</h2>
+        <p>La perle des Antilles — une nation riche d'histoire, de culture et de résilience.</p>
+      </div>
+      <div class="infographie-grid">
+        <div class="info-card" data-reveal data-delay="0">
+          <span class="info-icon">📅</span>
+          <div class="info-stat">1804</div>
+          <div class="info-label">Première république noire indépendante au monde</div>
+        </div>
+        <div class="info-card" data-reveal data-delay="80">
+          <span class="info-icon">👥</span>
+          <div class="info-stat">11M+</div>
+          <div class="info-label">Habitants sur l'île</div>
+        </div>
+        <div class="info-card" data-reveal data-delay="160">
+          <span class="info-icon">🗣️</span>
+          <div class="info-stat">2</div>
+          <div class="info-label">Langues officielles : français et créole haïtien</div>
+        </div>
+        <div class="info-card" data-reveal data-delay="240">
+          <span class="info-icon">🎵</span>
+          <div class="info-stat">200+</div>
+          <div class="info-label">Ans d'histoire musicale (Rara, Kompa, Jazz)</div>
+        </div>
+        <div class="info-card" data-reveal data-delay="320">
+          <span class="info-icon">🍽️</span>
+          <div class="info-stat">Griot</div>
+          <div class="info-label">Plat national — porc frit accompagné de bannann peze</div>
+        </div>
+        <div class="info-card" data-reveal data-delay="400">
+          <span class="info-icon">🏳️</span>
+          <div class="info-stat">1803</div>
+          <div class="info-label">Année de création du drapeau haïtien bleu et rouge</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== FAQ ===== -->
+  <section class="faq-section">
+    <div class="container">
+      <div class="section-header" data-reveal>
+        <span class="section-badge">Questions fréquentes</span>
+        <h2>Tout ce que vous voulez <span class="highlight">savoir</span></h2>
+        <p>Les réponses aux questions les plus posées sur l'AHH.</p>
+      </div>
+      <div class="faq-list">
+        <div class="faq-item">
+          <button class="faq-btn">
+            Comment devenir membre de l'AHH ?
+            <span class="faq-chevron">▾</span>
+          </button>
+          <div class="faq-body"><div class="faq-body-inner">
+            Vous pouvez devenir membre en remplissant notre <a href="adhesion.html" style="color:var(--g2);font-weight:600">formulaire d'adhésion en ligne</a>. L'adhésion est ouverte à toute personne intéressée par la communauté haïtienne de Hamilton. Un courriel de confirmation vous sera envoyé après approbation.
+          </div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-btn">
+            Quel est le coût de la cotisation annuelle ?
+            <span class="faq-chevron">▾</span>
+          </button>
+          <div class="faq-body"><div class="faq-body-inner">
+            La cotisation varie selon le plan choisi. Nous offrons un plan gratuit de base, ainsi que des plans Bienfaiteur et Partenaire pour ceux qui souhaitent soutenir davantage nos activités. Tous les détails sont sur la page d'adhésion.
+          </div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-btn">
+            Comment m'inscrire à une activité ou événement ?
+            <span class="faq-chevron">▾</span>
+          </button>
+          <div class="faq-body"><div class="faq-body-inner">
+            Consultez notre <a href="actualites.html" style="color:var(--g2);font-weight:600">page d'activités</a> et cliquez sur l'événement qui vous intéresse. Si l'événement est payant, vous pourrez acheter vos billets directement en ligne via notre système de paiement sécurisé Stripe.
+          </div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-btn">
+            Comment faire un don à l'association ?
+            <span class="faq-chevron">▾</span>
+          </button>
+          <div class="faq-body"><div class="faq-body-inner">
+            Vous pouvez faire un don directement depuis notre <a href="#don" style="color:var(--g2);font-weight:600">section Dons</a> en bas de la page d'accueil. Nous acceptons les paiements en ligne sécurisés via Stripe. Chaque contribution, petite ou grande, aide notre communauté à grandir.
+          </div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-btn">
+            Je suis un nouveau arrivant haïtien à Hamilton — comment l'AHH peut m'aider ?
+            <span class="faq-chevron">▾</span>
+          </button>
+          <div class="faq-body"><div class="faq-body-inner">
+            L'AHH offre un programme d'accompagnement pour les nouveaux arrivants : orientation, ressources d'intégration, accès au réseau communautaire et soutien administratif. Contactez-nous via notre <a href="#contact" style="color:var(--g2);font-weight:600">formulaire de contact</a> ou par téléphone.
+          </div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-btn">
+            Comment rejoindre le groupe WhatsApp de l'AHH ?
+            <span class="faq-chevron">▾</span>
+          </button>
+          <div class="faq-body"><div class="faq-body-inner">
+            Cliquez sur le bouton WhatsApp vert en bas à droite de la page, ou contactez directement Jean Raymond Antoine au 905-519-7967. Le groupe est ouvert à tous les membres actifs de la communauté haïtienne de Hamilton.
+          </div></div>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <!-- ===== NEWSLETTER ===== -->
   <section class="newsletter-section">
@@ -683,6 +907,65 @@
   }
   loadGalleryPreview();
   setInterval(loadGalleryPreview, 30000);
+
+  // ── Ambassadeur du mois ──
+  (async function() {
+    try {
+      var r = await fetch(BASE_API + '/ambassador');
+      if (!r.ok) return;
+      var a = await r.json();
+      if (!a || !a.nom) return;
+      var sec = document.getElementById('ambassador-section');
+      if (sec) sec.style.display = '';
+      var nameEl = document.getElementById('ambassadorName');
+      var roleEl = document.getElementById('ambassadorRole');
+      var quoteEl = document.getElementById('ambassadorQuote');
+      var photoEl = document.getElementById('ambassadorPhoto');
+      if (nameEl)  nameEl.textContent  = (a.prenom || '') + ' ' + (a.nom || '');
+      if (roleEl)  roleEl.textContent  = a.role_description || '';
+      if (quoteEl) quoteEl.textContent = a.citation || '';
+      if (photoEl) {
+        if (a.photo_url) {
+          var img = document.createElement('img');
+          img.src = BASE_URL + a.photo_url;
+          img.alt = a.prenom + ' ' + a.nom;
+          img.className = 'ambassador-photo';
+          photoEl.replaceWith(img);
+        } else {
+          var initials = ((a.prenom||'').charAt(0) + (a.nom||'').charAt(0)).toUpperCase();
+          photoEl.textContent = initials;
+        }
+      }
+    } catch(e) {}
+  })();
+
+  // ── Avatars membres empilés ──
+  (async function() {
+    try {
+      var r = await fetch(BASE_API + '/stats/public');
+      if (!r.ok) return;
+      var s = await r.json();
+      var container = document.getElementById('membersStack');
+      var wrap      = document.getElementById('membersStackWrap');
+      if (!container || !wrap) return;
+      var total = s.membres || 0;
+      if (total < 3) return;
+      // Générer des avatars colorés (initiales simulées)
+      var colors = ['#003F87','#D21034','#1b5e20','#f9a825','#6a1b9a','#0277bd','#00695c','#e65100'];
+      var letters = ['JC','JR','AV','PJ','GT','DM','MB','LR'];
+      var html = '<div class="members-stack">';
+      var shown = Math.min(8, total);
+      for (var i = 0; i < shown; i++) {
+        html += '<div class="ms-avatar" style="background:' + colors[i % colors.length] + ';display:flex;align-items:center;justify-content:center;color:#fff;font-size:.65rem;font-weight:800;width:38px;height:38px;border-radius:50%;border:2.5px solid #fff;margin-left:' + (i===0?'0':'-10px') + ';box-shadow:0 2px 6px rgba(0,0,0,.15)">' + letters[i] + '</div>';
+      }
+      if (total > shown) html += '<div class="ms-more">+' + (total - shown) + '</div>';
+      html += '</div>';
+      html += '<div class="members-join-text">Rejoignez <strong>' + total + '+ membres</strong> actifs de la communauté AHH</div>';
+      html += '<a href="adhesion.html" class="btn btn-outline" style="padding:8px 20px;font-size:.82rem">Nous rejoindre →</a>';
+      container.innerHTML = html;
+      wrap.style.display = '';
+    } catch(e) {}
+  })();
   </script>
   <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
   <script>

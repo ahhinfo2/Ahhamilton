@@ -353,6 +353,7 @@ function buildSidebar() {
       { id:'votes',         icon:'🗳️', label:'Votes & Élections',  roles:EXEC },
       { id:'parrainage',    icon:'🤝', label:'Parrainage',           roles: ALL },
       { id:'journal-admin', icon:'📋', label:'Journal d\'activité', roles:['admin'] },
+      { id:'ambassadeur-admin', icon:'⭐', label:'Ambassadeur du mois', roles:['admin'] },
     ]},
 
     // ── Mon espace membre ─────────────────────────────────────────
@@ -462,7 +463,7 @@ function setActiveNav(viewId) {
     'votes':'Votes & Élections', 'parrainage':'Parrainage', 'stats-growth':'Statistiques',
     'carte-membre':'Ma carte membre', 'actualites':'Actualités', 'notif-prefs':'Notifications',
     'carte-gestion':'Gestion des cartes', 'carte-scanner':'Scanner cartes',
-    'journal-admin':'Journal d\'activité', 'mes-badges':'Mes badges'
+    'journal-admin':'Journal d\'activité', 'mes-badges':'Mes badges', 'ambassadeur-admin':'Ambassadeur du mois'
   };
   const raw = labels[viewId] || 'Dashboard';
   document.getElementById('topbarTitle').textContent = window.AHH_LANG ? AHH_LANG.get(raw) : raw;
@@ -788,6 +789,7 @@ async function showView(viewId) {
     'carte-scanner': carteScannerView,
     'journal-admin': journalAdmin,
     'mes-badges': mesBadgesView,
+    'ambassadeur-admin': ambassadeurAdmin,
   };
   if (extViews[viewId]) {
     try { await extViews[viewId](); } catch(e) { setContent(`<div class="empty-state"><div class="es-icon">⚠️</div><p>${e.message}</p></div>`); }
@@ -10965,4 +10967,79 @@ async function sendNewsletter() {
     toast('Erreur : ' + (e.name === 'AbortError' ? 'Délai dépassé (trop de membres ?)' : e.message), true);
     if (status) status.textContent = '';
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// AMBASSADEUR DU MOIS (admin)
+// ══════════════════════════════════════════════════════════════════════════════
+async function ambassadeurAdmin() {
+  const [current, membres] = await Promise.all([
+    api('/ambassador').catch(() => null),
+    api('/users').then(u => u.filter(m => m.actif)).catch(() => [])
+  ]);
+
+  setContent(
+    '<div class="page-header"><div><h2>⭐ Ambassadeur du mois</h2><p>Mettez en valeur un membre exceptionnel sur la page d\'accueil.</p></div></div>' +
+
+    (current && current.nom ? `
+    <div class="table-card" style="margin-bottom:24px">
+      <div class="table-card-header"><h3>Ambassadeur actuel — ${current.mois || ''}</h3></div>
+      <div style="padding:20px;display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+        <div style="width:70px;height:70px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--primary-lt));display:flex;align-items:center;justify-content:center;font-size:1.6rem;font-weight:800;color:#fff;flex-shrink:0">${((current.prenom||'').charAt(0)+(current.nom||'').charAt(0)).toUpperCase()}</div>
+        <div>
+          <div style="font-size:1.1rem;font-weight:800">${current.prenom||''} ${current.nom||''}</div>
+          <div style="color:var(--muted);font-size:.85rem">${current.role_description||''}</div>
+          ${current.citation ? `<blockquote style="border-left:3px solid var(--accent);padding-left:12px;margin-top:8px;font-style:italic;font-size:.85rem;color:var(--muted)">"${current.citation}"</blockquote>` : ''}
+        </div>
+      </div>
+    </div>` : '<div class="table-card" style="margin-bottom:24px;padding:20px;text-align:center;color:var(--muted)">Aucun ambassadeur défini pour ce mois.</div>') +
+
+    '<div class="table-card"><div class="table-card-header"><h3>Définir l\'ambassadeur du mois</h3></div>' +
+    '<div style="padding:20px">' +
+    '<div class="form-group"><label>Choisir un membre existant (optionnel)</label>' +
+    '<select id="amb_user" onchange="ambassadeurAutoFill(this.value)" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;background:var(--input-bg);color:var(--text)">' +
+    '<option value="">— Ou saisir manuellement ci-dessous —</option>' +
+    membres.map(m => `<option value="${m.id}" data-prenom="${m.prenom||''}" data-nom="${m.nom||''}" data-photo="${m.photo_profil||''}">${m.prenom||''} ${m.nom||''} (${m.email})</option>`).join('') +
+    '</select></div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">' +
+    '<div class="form-group"><label>Prénom *</label><input id="amb_prenom" type="text" placeholder="Jean" class="form-input"/></div>' +
+    '<div class="form-group"><label>Nom *</label><input id="amb_nom" type="text" placeholder="Dupont" class="form-input"/></div>' +
+    '</div>' +
+    '<div class="form-group"><label>Rôle / description</label><input id="amb_role" type="text" placeholder="Bénévole dévoué depuis 5 ans" class="form-input"/></div>' +
+    '<div class="form-group"><label>Citation / témoignage</label><textarea id="amb_citation" rows="3" placeholder="Ce que la communauté représente pour moi…" class="form-input" style="resize:vertical"></textarea></div>' +
+    '<div class="form-group"><label>URL photo (optionnel)</label><input id="amb_photo" type="text" placeholder="/uploads/profiles/photo.jpg" class="form-input"/></div>' +
+    '<button class="btn btn-primary" onclick="saveAmbassadeur()" style="margin-top:8px">⭐ Enregistrer comme ambassadeur du mois</button>' +
+    '</div></div>'
+  );
+}
+
+function ambassadeurAutoFill(userId) {
+  if (!userId) return;
+  const sel = document.getElementById('amb_user');
+  const opt = sel.options[sel.selectedIndex];
+  if (!opt) return;
+  const prenom = opt.dataset.prenom || '';
+  const nom    = opt.dataset.nom    || '';
+  const photo  = opt.dataset.photo  || '';
+  document.getElementById('amb_prenom').value = prenom;
+  document.getElementById('amb_nom').value    = nom;
+  if (photo) document.getElementById('amb_photo').value = photo;
+}
+
+async function saveAmbassadeur() {
+  const prenom = document.getElementById('amb_prenom').value.trim();
+  const nom    = document.getElementById('amb_nom').value.trim();
+  if (!prenom || !nom) return toast('Prénom et nom requis', true);
+  const payload = {
+    prenom, nom,
+    role_description: document.getElementById('amb_role').value.trim(),
+    citation: document.getElementById('amb_citation').value.trim(),
+    photo_url: document.getElementById('amb_photo').value.trim() || null,
+    user_id: document.getElementById('amb_user').value || null,
+  };
+  try {
+    await api('/ambassador', { method: 'PUT', body: JSON.stringify(payload) });
+    toast('✅ Ambassadeur du mois mis à jour !');
+    await ambassadeurAdmin();
+  } catch(e) { toast(e.message, true); }
 }
