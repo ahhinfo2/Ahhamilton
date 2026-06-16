@@ -5309,8 +5309,19 @@ app.post('/api/admin/cartes/:id/renouveler', authMiddleware, requireRole(...CART
 
 // Scanner QR carte — chercher un membre
 app.get('/api/carte-scan/:qr', authMiddleware, requireRole(...CARTE_ROLES), (req, res) => {
-  const parts = decodeURIComponent(req.params.qr).split('-');
-  const userId = parts[0] === 'AHH' && parts[1] ? parseInt(parts[1]) : null;
+  const raw = decodeURIComponent(req.params.qr);
+  let userId = null;
+
+  // Format 1 : AHH-00001-referralcode (format standard carte dashboard)
+  const parts = raw.split('-');
+  if (parts[0] === 'AHH' && parts[1]) userId = parseInt(parts[1]);
+
+  // Format 2 : URL contenant ?id=X ou &id=X (carte.html / ancien format)
+  if (!userId) {
+    const m = raw.match(/[?&]id=(\d+)/);
+    if (m) userId = parseInt(m[1]);
+  }
+
   if (!userId || isNaN(userId)) return res.status(404).json({ error: 'QR invalide' });
 
   const member = db.prepare(`SELECT id, prenom, nom, email, plan, photo_url, carte_photo_approuvee, date_inscription

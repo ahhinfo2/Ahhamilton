@@ -127,6 +127,10 @@
 
     document.title = m.prenom + ' ' + m.nom + ' | Carte AHH';
 
+    // QR au format AHH-xxxxx-id (compatible avec le scanner du tableau de bord)
+    const qrContent = `AHH-${memberId}-${m.id}`;
+    const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(qrContent)}&bgcolor=ffffff&color=1a237e`;
+
     document.getElementById('cardContainer').innerHTML = `
       <div class="member-card">
         <div class="card-logo">
@@ -154,9 +158,9 @@
         </div>
 
         <div class="card-qr">
-          <img id="qrImg" src="" alt="QR Code"/>
+          <img id="qrImg" src="${qrSrc}" alt="QR Code"/>
         </div>
-        <div class="card-footer">Scannez pour voir le profil public</div>
+        <div class="card-footer">Scannez avec le scanner AHH</div>
         <div class="card-number">AHH-${memberId}</div>
       </div>
 
@@ -170,20 +174,6 @@
         <a href="dashboard/app.html" class="btn btn-ghost">← Tableau de bord</a>
       </div>`;
 
-    // Generate QR code
-    loadQR(profileUrl);
-  }
-
-  async function loadQR(url) {
-    const token = localStorage.getItem('ahh_token');
-    try {
-      const res = await fetch(API + '/qr?data=' + encodeURIComponent(url), { headers: { Authorization: 'Bearer ' + token } });
-      if (res.ok) {
-        const { qr } = await res.json();
-        const img = document.getElementById('qrImg');
-        if (img) img.src = qr;
-      }
-    } catch {}
   }
 
   function downloadCard() {
