@@ -9769,22 +9769,36 @@ async function carteRenouveler(id, nom) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// SCANNER CARTES DE MEMBRE (comité) — caméra html5-qrcode
+// SCANNER CARTES DE MEMBRE — BarcodeDetector natif (rapide) + html5-qrcode fallback
 // ══════════════════════════════════════════════════════════════════════════════
 async function carteScannerView() {
-  if (window._carteScanner) {
-    try { await window._carteScanner.stop(); } catch {}
-    window._carteScanner = null;
-  }
+  // Arrêter tout scanner en cours
+  if (window._carteScanner) { try { await window._carteScanner.stop(); } catch {} window._carteScanner = null; }
+  if (window._carteStream)  { window._carteStream.getTracks().forEach(t => t.stop()); window._carteStream = null; }
+  if (window._carteAnimFrame) { cancelAnimationFrame(window._carteAnimFrame); window._carteAnimFrame = null; }
+
   setContent(`
     <div class="page-header"><div><h2>📷 Scanner de cartes membres</h2><p>Pointez la caméra vers le QR code de la carte</p></div></div>
     <div style="display:grid;grid-template-columns:minmax(280px,1fr) minmax(280px,1fr);gap:20px;max-width:920px">
 
-      <!-- Caméra + saisie manuelle -->
       <div class="table-card" style="padding:20px">
         <h4 style="margin-bottom:12px;color:var(--g2)">📷 Caméra</h4>
-        <div id="carteReader" style="border-radius:12px;overflow:hidden;background:#111;min-height:220px"></div>
-        <div id="carteReaderMsg" style="display:none;padding:12px;text-align:center;font-size:.8rem;color:var(--muted)"></div>
+        <div id="carteReaderWrap" style="border-radius:12px;overflow:hidden;background:#111;min-height:220px;position:relative">
+          <!-- video pour BarcodeDetector natif -->
+          <video id="scanVideo" autoplay muted playsinline style="width:100%;display:none;border-radius:12px;max-height:280px;object-fit:cover"></video>
+          <!-- viseur -->
+          <div id="scanViewfinder" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;pointer-events:none">
+            <div style="position:relative;width:190px;height:190px;border:2.5px solid rgba(255,255,255,.75);border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,.45)">
+              <div style="position:absolute;top:-4px;left:-4px;width:22px;height:22px;border-top:5px solid #fff;border-left:5px solid #fff;border-radius:4px 0 0 0"></div>
+              <div style="position:absolute;top:-4px;right:-4px;width:22px;height:22px;border-top:5px solid #fff;border-right:5px solid #fff;border-radius:0 4px 0 0"></div>
+              <div style="position:absolute;bottom:-4px;left:-4px;width:22px;height:22px;border-bottom:5px solid #fff;border-left:5px solid #fff;border-radius:0 0 0 4px"></div>
+              <div style="position:absolute;bottom:-4px;right:-4px;width:22px;height:22px;border-bottom:5px solid #fff;border-right:5px solid #fff;border-radius:0 0 4px 0"></div>
+            </div>
+          </div>
+          <!-- fallback html5-qrcode -->
+          <div id="carteReader"></div>
+        </div>
+        <div id="carteReaderMsg" style="display:none;padding:10px;text-align:center;font-size:.8rem;color:var(--muted)"></div>
         <div style="margin-top:14px">
           <label class="form-label">Saisie manuelle / lecteur USB</label>
           <div style="display:flex;gap:6px">
@@ -9795,56 +9809,93 @@ async function carteScannerView() {
         </div>
       </div>
 
-      <!-- Résultat membre -->
       <div id="scanResult" class="table-card" style="padding:20px">
         <div class="empty-state"><div class="es-icon">🪪</div><p>Scannez une carte pour voir le profil du membre</p></div>
       </div>
     </div>
-
-    <!-- Activités après scan -->
     <div id="scanActivities" style="display:none;margin-top:20px;max-width:920px"></div>
   `);
 
-  // Charger html5-qrcode si besoin
+  // Utiliser BarcodeDetector natif si disponible (hardware-accelerated, très rapide)
+  if ('BarcodeDetector' in window) {
+    await _startNativeScanner();
+  } else {
+    await _startHtml5Scanner();
+  }
+}
+
+async function _startNativeScanner() {
+  const video = document.getElementById('scanVideo');
+  if (!video) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+    video.srcObject = stream;
+    window._carteStream = stream;
+    video.style.display = 'block';
+    const vf = document.getElementById('scanViewfinder');
+    if (vf) vf.style.display = 'flex';
+
+    const detector = new BarcodeDetector({ formats: ['qr_code'] });
+    let lastValue = '', lastTime = 0;
+
+    const loop = async () => {
+      if (!document.getElementById('scanVideo')) return; // vue changée
+      try {
+        if (video.readyState >= 2) {
+          const codes = await detector.detect(video);
+          const now = Date.now();
+          if (codes.length > 0 && (codes[0].rawValue !== lastValue || now - lastTime > 3000)) {
+            lastValue = codes[0].rawValue;
+            lastTime = now;
+            const inp = document.getElementById('scanQrInput');
+            if (inp) { inp.value = lastValue; carteScanSearch(); }
+          }
+        }
+      } catch {}
+      window._carteAnimFrame = requestAnimationFrame(loop);
+    };
+    video.addEventListener('loadedmetadata', () => {
+      window._carteAnimFrame = requestAnimationFrame(loop);
+    }, { once: true });
+
+  } catch(e) {
+    console.warn('[Scanner natif]', e.message, '→ fallback html5-qrcode');
+    await _startHtml5Scanner();
+  }
+}
+
+async function _startHtml5Scanner() {
   if (!window.Html5Qrcode) {
     try {
       await new Promise((resolve, reject) => {
         const s = document.createElement('script');
         s.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
-        s.onload = resolve;
-        s.onerror = reject;
+        s.onload = resolve; s.onerror = reject;
         document.head.appendChild(s);
       });
     } catch {
       const msg = document.getElementById('carteReaderMsg');
-      if (msg) { msg.style.display='block'; msg.textContent='Bibliothèque caméra non chargée — utilisez la saisie manuelle.'; }
+      if (msg) { msg.style.display='block'; msg.textContent='Caméra non disponible — utilisez la saisie manuelle.'; }
       return;
     }
   }
-
   const scanner = new Html5Qrcode('carteReader');
   window._carteScanner = scanner;
-
   try {
     await scanner.start(
       { facingMode: 'environment' },
-      { fps: 12, qrbox: { width: 200, height: 200 }, disableFlip: false },
+      { fps: 30, qrbox: { width: 220, height: 220 }, disableFlip: false },
       (decoded) => {
-        // QR code détecté → peupler le champ et chercher
         const inp = document.getElementById('scanQrInput');
-        if (inp && inp.value !== decoded) {
-          inp.value = decoded;
-          carteScanSearch();
-        }
+        if (inp && inp.value !== decoded) { inp.value = decoded; carteScanSearch(); }
       },
-      () => {} // erreur de scan (normal, pas encore de QR)
+      () => {}
     );
   } catch(e) {
     const msg = document.getElementById('carteReaderMsg');
-    if (msg) {
-      msg.style.display = 'block';
-      msg.textContent = 'Caméra non disponible ou accès refusé — utilisez la saisie manuelle ou un lecteur USB.';
-    }
+    if (msg) { msg.style.display='block'; msg.textContent='Caméra non disponible — utilisez la saisie manuelle.'; }
     const el = document.getElementById('carteReader');
     if (el) el.innerHTML = '<div style="padding:40px;text-align:center;font-size:2rem">📷</div>';
   }
@@ -9865,18 +9916,26 @@ async function carteScanSearch() {
     const m = r.member;
     const planLabel = { gratuit:'Gratuit', bienfaiteur:'Bienfaiteur', partenaire:'Partenaire' };
     const initials = `${(m.prenom||'?')[0]}${(m.nom||'')[0]}`.toUpperCase();
-    const expiColor = m.expired ? '#c62828' : '#2e7d32';
+    const photoOk = !!(m.photo_url && m.carte_photo_approuvee);
+    const carteValide = photoOk && !m.expired;
+    const expiColor = !photoOk ? '#e65100' : m.expired ? '#c62828' : '#2e7d32';
+    const expiBg    = !photoOk ? '#fff3e0' : m.expired ? '#fdecea' : '#e8f5e9';
+    const validLabel = !photoOk
+      ? '⚠️ CARTE INVALIDE — photo manquante ou non approuvée'
+      : m.expired
+        ? '⛔ Carte EXPIRÉE'
+        : `✅ Valide — expire ${fmt(m.expiration)}`;
 
     if (resultEl) resultEl.innerHTML = `
       <div style="text-align:center;margin-bottom:16px">
-        ${m.photo_url && m.carte_photo_approuvee
+        ${photoOk
           ? `<img src="${BASE}${m.photo_url}" style="width:88px;height:88px;border-radius:50%;object-fit:cover;border:4px solid ${expiColor};margin-bottom:10px"/>`
-          : `<div style="width:88px;height:88px;border-radius:50%;background:var(--g2);color:#fff;font-size:2.2rem;font-weight:900;display:flex;align-items:center;justify-content:center;margin:0 auto 10px">${initials}</div>`}
+          : `<div style="width:88px;height:88px;border-radius:50%;background:#e65100;color:#fff;font-size:2.2rem;font-weight:900;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;border:4px solid #e65100">${initials}</div>`}
         <div style="font-size:1.15rem;font-weight:800">${escHtml(m.prenom)} ${escHtml(m.nom)}</div>
         <div style="font-size:.8rem;color:var(--muted);margin-top:2px">#${String(m.id).padStart(5,'0')} · ${planLabel[m.plan]||''}</div>
-        <div style="margin-top:10px;padding:6px 14px;border-radius:20px;display:inline-block;font-size:.82rem;font-weight:700;
-          background:${m.expired?'#fdecea':'#e8f5e9'};color:${expiColor}">
-          ${m.expired ? '⛔ Carte EXPIRÉE' : `✅ Valide — expire ${fmt(m.expiration)}`}
+        <div style="margin-top:10px;padding:8px 16px;border-radius:20px;display:inline-block;font-size:.82rem;font-weight:700;
+          background:${expiBg};color:${expiColor}">
+          ${validLabel}
         </div>
       </div>`;
 
