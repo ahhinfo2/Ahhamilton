@@ -5007,7 +5007,7 @@ app.get('/api/share/activity/:id', (req, res) => {
 // 5b. ABONNEMENT NEWSLETTER PUBLIC
 // ══════════════════════════════════════════════════════════════════════════════
 
-app.post('/api/newsletter/subscribe', (req, res) => {
+app.post('/api/newsletter/subscribe', async (req, res) => {
   const { email, prenom } = req.body;
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({ error: 'Courriel invalide' });
@@ -5016,6 +5016,41 @@ app.post('/api/newsletter/subscribe', (req, res) => {
     db.prepare('INSERT OR IGNORE INTO newsletter_subscribers (email, prenom) VALUES (?,?)')
       .run(email.trim().toLowerCase(), (prenom || '').trim());
     res.json({ ok: true });
+    // Courriel de confirmation (non-bloquant)
+    const prenom_ = (prenom || '').trim();
+    const siteUrl = process.env.SITE_URL || 'https://ahhamilton.ca';
+    mailer.sendMail({
+      to: email.trim().toLowerCase(),
+      subject: 'Abonnement confirmé — Nouvelles de l\'AHH Hamilton',
+      html: `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/></head><body style="font-family:'Segoe UI',Arial,sans-serif;background:#f4f7f4;margin:0;padding:0">
+<div style="max-width:560px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(27,94,32,.1)">
+  <div style="background:linear-gradient(135deg,#003F87,#D21034);padding:28px 32px;text-align:center">
+    <img src="${siteUrl}/Public/logo1.png" alt="AHH" style="width:56px;height:56px;border-radius:10px;object-fit:cover;border:2px solid rgba(255,255,255,.3)"/>
+    <h1 style="color:#fff;font-size:1.15rem;font-weight:700;margin:10px 0 0">Association Haïtienne de Hamilton</h1>
+  </div>
+  <div style="padding:32px">
+    <h2 style="color:#1b5e20;font-size:1.1rem;margin:0 0 18px">Abonnement confirmé !</h2>
+    <p style="color:#3a3a3a;font-size:.9rem;line-height:1.7;margin:0 0 14px">
+      Bonjour${prenom_ ? ' <strong>' + prenom_ + '</strong>' : ''},
+    </p>
+    <p style="color:#3a3a3a;font-size:.9rem;line-height:1.7;margin:0 0 14px">
+      Merci de vous être abonné aux nouvelles de l'<strong>Association Haïtienne de Hamilton</strong> !
+      Vous recevrez désormais nos annonces, invitations et actualités communautaires.
+    </p>
+    <div style="text-align:center;margin:24px 0">
+      <a href="${siteUrl}" style="display:inline-block;background:linear-gradient(135deg,#003F87,#D21034);color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:.9rem">
+        Visiter notre site
+      </a>
+    </div>
+    <hr style="border:none;border-top:1px solid #e8f5e9;margin:20px 0"/>
+    <p style="font-size:.78rem;color:#999;text-align:center">
+      Pour vous désabonner, répondez à ce courriel en indiquant « désabonnement ».<br/>
+      © 2026 Association Haïtienne de Hamilton
+    </p>
+  </div>
+</div>
+</body></html>`
+    }).catch(e => console.error('[newsletter/subscribe] email confirmation:', e.message));
   } catch(e) {
     res.status(500).json({ error: 'Erreur serveur' });
   }

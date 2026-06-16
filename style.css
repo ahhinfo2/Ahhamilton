@@ -1577,8 +1577,11 @@ img   { display: block; max-width: 100%; }
 }
 .infographie-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 24px; margin-top: 40px;
+}
+@media (max-width: 640px) {
+  .infographie-grid { grid-template-columns: repeat(2, 1fr); }
 }
 .info-card {
   background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18);
