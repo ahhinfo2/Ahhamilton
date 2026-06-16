@@ -573,6 +573,16 @@ const profileStorage = multer.diskStorage({
 });
 const uploadProfile = multer({ storage: profileStorage, limits: { fileSize: 5 * 1024 * 1024 } });
 
+const ambassadorPhotoStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, 'uploads', 'ambassador');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => cb(null, `ambassador_${Date.now()}${path.extname(file.originalname)}`)
+});
+const uploadAmbassador = multer({ storage: ambassadorPhotoStorage, limits: { fileSize: 5 * 1024 * 1024 } });
+
 app.post('/api/users/:id/photo', authMiddleware, uploadProfile.single('photo'), (req, res) => {
   if (req.user.id !== parseInt(req.params.id) && req.user.role !== 'admin')
     return res.status(403).json({ error: 'Accès refusé' });
@@ -5729,6 +5739,13 @@ app.get('/api/ambassador', (req, res) => {
     res.json(row);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
+
+app.post('/api/ambassador/photo', authMiddleware, requireRole('admin'), uploadAmbassador.single('photo'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Photo requise' });
+  const photo_url = `/uploads/ambassador/${req.file.filename}`;
+  res.json({ photo_url });
+});
+app.use('/uploads/ambassador', express.static(path.join(__dirname, 'uploads', 'ambassador')));
 
 app.put('/api/ambassador', authMiddleware, requireRole('admin'), (req, res) => {
   const { nom, prenom, role_description, citation, photo_url, user_id } = req.body;

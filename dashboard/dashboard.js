@@ -365,6 +365,7 @@ function buildSidebar() {
         { id:'mes_annonces', icon:'◉', label:'Mes annonces', roles:['member','delegue'], planMin:['bienfaiteur','partenaire'] },
         { id:'mon_paiement', icon:'◆', label:'Mon paiement', roles:['member','delegue'], planMin:['bienfaiteur','partenaire'] },
         { id:'mes_billets',  icon:'🎟', label:'Mes billets',  roles: ALL },
+        { id:'carte-membre', icon:'🪪', label:'Ma carte membre', roles: ALL },
         { id:'alerts',       icon:'◇', label:'Alertes',      roles:['admin','tresoriere'] },
         { id:'mes-badges',   icon:'🏅', label:'Mes badges',   roles: ALL },
         { id:'profile',      icon:'◎', label:'Mon profil',   roles: ALL },
@@ -9746,6 +9747,7 @@ async function carteGestionView() {
 }
 
 async function carteApprouverPhoto(id) {
+  if (id === USER.id) return toast('❌ Vous ne pouvez pas approuver votre propre photo', true);
   await api(`/admin/cartes/${id}/approuver-photo`, { method:'POST' });
   toast('✅ Photo approuvée');
   carteGestionView();
@@ -11010,7 +11012,13 @@ async function ambassadeurAdmin() {
     '</div>' +
     '<div class="form-group"><label>Rôle / description</label><input id="amb_role" type="text" placeholder="Bénévole dévoué depuis 5 ans" class="form-input"/></div>' +
     '<div class="form-group"><label>Citation / témoignage</label><textarea id="amb_citation" rows="3" placeholder="Ce que la communauté représente pour moi…" class="form-input" style="resize:vertical"></textarea></div>' +
-    '<div class="form-group"><label>URL photo (optionnel)</label><input id="amb_photo" type="text" placeholder="/uploads/profiles/photo.jpg" class="form-input"/></div>' +
+    '<div class="form-group"><label>Photo (optionnel)</label>' +
+    '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
+    '<input id="amb_photo" type="text" placeholder="URL générée automatiquement après téléversement" class="form-input" style="flex:1;min-width:0" readonly/>' +
+    '<label style="cursor:pointer;white-space:nowrap;background:var(--primary);color:#fff;padding:9px 16px;border-radius:8px;font-size:.85rem;font-weight:600;display:inline-flex;align-items:center;gap:6px">📷 Téléverser<input type="file" accept="image/*" style="display:none" onchange="ambUploadPhoto(this)"/></label>' +
+    '</div>' +
+    '<div id="ambPhotoPreview" style="margin-top:10px"></div>' +
+    '</div>' +
     '<button class="btn btn-primary" onclick="saveAmbassadeur()" style="margin-top:8px">⭐ Enregistrer comme ambassadeur du mois</button>' +
     '</div></div>'
   );
@@ -11026,7 +11034,36 @@ function ambassadeurAutoFill(userId) {
   const photo  = opt.dataset.photo  || '';
   document.getElementById('amb_prenom').value = prenom;
   document.getElementById('amb_nom').value    = nom;
-  if (photo) document.getElementById('amb_photo').value = photo;
+  if (photo) {
+    document.getElementById('amb_photo').value = photo;
+    const prev = document.getElementById('ambPhotoPreview');
+    if (prev) prev.innerHTML = `<img src="${BASE}${photo}" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid var(--primary)"/>`;
+  }
+}
+
+async function ambUploadPhoto(input) {
+  if (!input.files || !input.files[0]) return;
+  const btn = input.parentElement;
+  btn.textContent = '⏳ Envoi…';
+  try {
+    const fd = new FormData();
+    fd.append('photo', input.files[0]);
+    const r = await fetch(API + '/ambassador/photo', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + localStorage.getItem('ahh_token') },
+      body: fd
+    });
+    if (!r.ok) throw new Error('Erreur serveur');
+    const data = await r.json();
+    document.getElementById('amb_photo').value = data.photo_url;
+    const prev = document.getElementById('ambPhotoPreview');
+    if (prev) prev.innerHTML = `<img src="${BASE}${data.photo_url}" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid var(--primary)"/>`;
+    toast('📷 Photo téléversée !');
+  } catch(e) {
+    toast('Erreur : ' + e.message, true);
+  } finally {
+    btn.innerHTML = '📷 Téléverser<input type="file" accept="image/*" style="display:none" onchange="ambUploadPhoto(this)"/>';
+  }
 }
 
 async function saveAmbassadeur() {

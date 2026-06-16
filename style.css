@@ -1390,6 +1390,7 @@ img   { display: block; max-width: 100%; }
   background: linear-gradient(135deg,var(--hai-blue),#005faa 50%,var(--hai-red));
   color: #fff; text-align: center; padding: 12px 20px;
   position: relative; z-index: 10;
+  margin-top: calc(var(--nav-h) + 4px);
 }
 .countdown-bar-inner {
   display: flex; align-items: center; justify-content: center;
