@@ -11,6 +11,13 @@ let _noteEditingId = null;
 let _noteSyncInterval = null;
 let _noteDebounce = null;
 
+// ── PWA INSTALL PROMPT ──────────────────────────────────────────────────────
+let _pwaPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  _pwaPrompt = e;
+});
+
 // ── CHAT STATE ──────────────────────────────────────────────────────────────
 const CHAT = {
   open:      false,
@@ -85,6 +92,7 @@ function isJeune() {
   // Synchroniser le plan/rôle depuis le serveur (détecte les changements admin)
   syncUserFromServer();
   setInterval(syncUserFromServer, 120000); // re-vérifier toutes les 2 min
+  setTimeout(checkPWAInstallPrompt, 2500);
 })();
 
 async function syncUserFromServer() {
@@ -102,6 +110,73 @@ async function syncUserFromServer() {
     if (window._activeView) setActiveNav(window._activeView);
     if (planChanged) toast('Votre plan a été mis à jour : ' + (fresh.plan || 'gratuit'), 'info');
   } catch { /* silencieux si hors ligne */ }
+}
+
+// ── PWA INSTALL ────────────────────────────────────────────────────────────
+function checkPWAInstallPrompt() {
+  if (localStorage.getItem('ahh_pwa_prompted')) return;
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  if (isStandalone) return;
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  if (!isMobile) return;
+  if (_pwaPrompt || isIOS) showPWAInstallBanner(isIOS);
+}
+
+function showPWAInstallBanner(isIOS) {
+  if (document.getElementById('pwa-install-banner')) return;
+  const banner = document.createElement('div');
+  banner.id = 'pwa-install-banner';
+  banner.innerHTML =
+    '<div style="display:flex;align-items:center;gap:12px">' +
+      '<img src="/Public/logo1.png" style="width:48px;height:48px;border-radius:10px;flex-shrink:0" onerror="this.style.display=\'none\'">' +
+      '<div style="flex:1;min-width:0">' +
+        '<div style="font-weight:700;font-size:.95rem">Ajouter AHH à votre téléphone</div>' +
+        '<div style="font-size:.8rem;color:rgba(255,255,255,.8);margin-top:2px">Accédez rapidement depuis votre écran d\'accueil</div>' +
+      '</div>' +
+    '</div>' +
+    (isIOS
+      ? '<div style="margin:12px 0 4px;padding:10px;background:rgba(255,255,255,.15);border-radius:8px;font-size:.82rem;line-height:1.6">' +
+          '📤 Appuyez sur <strong>Partager</strong> <span style="font-size:1rem">⎙</span> en bas de Safari,<br>puis <strong>"Sur l\'écran d\'accueil"</strong>' +
+        '</div>'
+      : '') +
+    '<div style="display:flex;gap:8px;margin-top:14px">' +
+      (!isIOS ? '<button onclick="pwaInstallAccept()" style="flex:1;padding:10px;background:#fff;color:#1a6a3d;border:none;border-radius:8px;font-weight:700;font-size:.9rem;cursor:pointer">✅ Oui, ajouter</button>' : '') +
+      '<button onclick="pwaInstallDismiss()" style="' + (isIOS ? 'flex:1;' : '') + 'padding:10px;background:rgba(255,255,255,.2);color:#fff;border:none;border-radius:8px;font-size:.9rem;cursor:pointer">Non merci</button>' +
+    '</div>';
+
+  Object.assign(banner.style, {
+    position: 'fixed', bottom: '0', left: '0', right: '0', zIndex: '99999',
+    background: 'linear-gradient(135deg,#1a6a3d,#2d9e5f)',
+    color: '#fff', padding: '18px 20px 28px',
+    boxShadow: '0 -4px 24px rgba(0,0,0,.3)',
+    borderRadius: '20px 20px 0 0',
+    transform: 'translateY(100%)',
+    transition: 'transform .35s cubic-bezier(.4,0,.2,1)',
+    fontFamily: 'inherit',
+  });
+
+  document.body.appendChild(banner);
+  requestAnimationFrame(() => requestAnimationFrame(() => { banner.style.transform = 'translateY(0)'; }));
+}
+
+async function pwaInstallAccept() {
+  if (!_pwaPrompt) return;
+  _pwaPrompt.prompt();
+  const { outcome } = await _pwaPrompt.userChoice;
+  _pwaPrompt = null;
+  localStorage.setItem('ahh_pwa_prompted', '1');
+  document.getElementById('pwa-install-banner')?.remove();
+  if (outcome === 'accepted') toast('✅ Application ajoutée à votre écran d\'accueil !');
+}
+
+function pwaInstallDismiss() {
+  localStorage.setItem('ahh_pwa_prompted', '1');
+  const banner = document.getElementById('pwa-install-banner');
+  if (!banner) return;
+  banner.style.transform = 'translateY(100%)';
+  setTimeout(() => banner.remove(), 350);
 }
 
 // ── API HELPER ─────────────────────────────────────────────────────────────
