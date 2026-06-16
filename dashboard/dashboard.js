@@ -9720,7 +9720,10 @@ async function carteGestionView() {
                   ${m.photo_url
                     ? `<img src="${BASE}${m.photo_url}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid ${m.carte_photo_approuvee?'#2e7d32':'#e65100'}"/>`
                     : `<div style="width:32px;height:32px;border-radius:50%;background:var(--g2);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700">${(m.prenom||'?')[0]}${(m.nom||'')[0]||''}</div>`}
-                  <div><div style="font-weight:600;font-size:.85rem">${escHtml(m.prenom)} ${escHtml(m.nom)}</div><div style="font-size:.72rem;color:var(--muted)">#${String(m.id).padStart(5,'0')}</div></div>
+                  <div>
+                    <div style="font-weight:600;font-size:.85rem">${escHtml(m.prenom)} ${escHtml(m.nom)}${m.role!=='member'?` <span style="font-size:.65rem;background:#e8f0fe;color:#1565c0;border-radius:4px;padding:1px 5px;font-weight:700">${m.role}</span>`:''}</div>
+                    <div style="font-size:.72rem;color:var(--muted)">#${String(m.id).padStart(5,'0')}</div>
+                  </div>
                 </div>
               </td>
               <td>${planLabel[m.plan]||m.plan}</td>

@@ -5275,9 +5275,9 @@ const CARTE_ROLES = ['admin','tresoriere','secretaire','delegue'];
 
 app.get('/api/admin/cartes', authMiddleware, requireRole(...CARTE_ROLES), (req, res) => {
   const members = db.prepare(`
-    SELECT id, prenom, nom, email, plan, date_inscription, photo_url,
+    SELECT id, prenom, nom, email, plan, role, date_inscription, photo_url,
            carte_photo_approuvee, carte_notif_renouv
-    FROM users WHERE actif=1 AND role='member' AND (phantom IS NULL OR phantom=0)
+    FROM users WHERE actif=1 AND (phantom IS NULL OR phantom=0)
     ORDER BY nom, prenom
   `).all();
   const now = new Date();
@@ -5401,7 +5401,7 @@ app.get('/api/members/:id/card', authMiddleware, (req, res) => {
   if (req.user.id !== targetId && !['admin','secretaire','tresoriere','delegue'].includes(req.user.role)) {
     return res.status(403).json({ error: 'Accès refusé' });
   }
-  const u = db.prepare('SELECT id, prenom, nom, email, telephone, plan, role, date_inscription, photo_url, actif FROM users WHERE id=?').get(targetId);
+  const u = db.prepare('SELECT id, prenom, nom, email, telephone, plan, role, date_inscription, photo_url, carte_photo_approuvee, actif FROM users WHERE id=?').get(targetId);
   if (!u) return res.status(404).json({ error: 'Membre introuvable' });
   res.json(u);
 });
