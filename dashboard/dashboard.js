@@ -9916,21 +9916,27 @@ async function carteScanSearch() {
     const m = r.member;
     const planLabel = { gratuit:'Gratuit', bienfaiteur:'Bienfaiteur', partenaire:'Partenaire' };
     const initials = `${(m.prenom||'?')[0]}${(m.nom||'')[0]}`.toUpperCase();
-    const photoOk = !!(m.photo_url && m.carte_photo_approuvee);
-    const carteValide = photoOk && !m.expired;
-    const expiColor = !photoOk ? '#e65100' : m.expired ? '#c62828' : '#2e7d32';
-    const expiBg    = !photoOk ? '#fff3e0' : m.expired ? '#fdecea' : '#e8f5e9';
-    const validLabel = !photoOk
-      ? '⚠️ CARTE INVALIDE — photo manquante ou non approuvée'
-      : m.expired
-        ? '⛔ Carte EXPIRÉE'
-        : `✅ Valide — expire ${fmt(m.expiration)}`;
+    const photoOk      = !!(m.photo_url && m.carte_photo_approuvee);
+    const photoEnAttente = !!(m.photo_url && !m.carte_photo_approuvee);
+    const sansPhoto    = !m.photo_url;
+    const expiColor = sansPhoto ? '#e65100' : photoEnAttente ? '#1565c0' : m.expired ? '#c62828' : '#2e7d32';
+    const expiBg    = sansPhoto ? '#fff3e0' : photoEnAttente ? '#e3f2fd' : m.expired ? '#fdecea' : '#e8f5e9';
+    const validLabel = sansPhoto
+      ? '⚠️ CARTE INVALIDE — aucune photo'
+      : photoEnAttente
+        ? '🕐 En attente de validation photo'
+        : m.expired
+          ? '⛔ Carte EXPIRÉE'
+          : `✅ Valide — expire ${fmt(m.expiration)}`;
+    const avatarBg = sansPhoto ? '#e65100' : photoEnAttente ? '#1565c0' : '#546e7a';
 
     if (resultEl) resultEl.innerHTML = `
       <div style="text-align:center;margin-bottom:16px">
         ${photoOk
           ? `<img src="${BASE}${m.photo_url}" style="width:88px;height:88px;border-radius:50%;object-fit:cover;border:4px solid ${expiColor};margin-bottom:10px"/>`
-          : `<div style="width:88px;height:88px;border-radius:50%;background:#e65100;color:#fff;font-size:2.2rem;font-weight:900;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;border:4px solid #e65100">${initials}</div>`}
+          : photoEnAttente
+            ? `<img src="${BASE}${m.photo_url}" style="width:88px;height:88px;border-radius:50%;object-fit:cover;border:4px solid #1565c0;margin-bottom:10px;opacity:.7"/>`
+            : `<div style="width:88px;height:88px;border-radius:50%;background:${avatarBg};color:#fff;font-size:2.2rem;font-weight:900;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;border:4px solid ${avatarBg}">${initials}</div>`}
         <div style="font-size:1.15rem;font-weight:800">${escHtml(m.prenom)} ${escHtml(m.nom)}</div>
         <div style="font-size:.8rem;color:var(--muted);margin-top:2px">#${String(m.id).padStart(5,'0')} · ${planLabel[m.plan]||''}</div>
         <div style="margin-top:10px;padding:8px 16px;border-radius:20px;display:inline-block;font-size:.82rem;font-weight:700;
