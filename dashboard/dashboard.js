@@ -168,13 +168,14 @@ function roleName(r) {
 }
 
 const can = {
-  admin:      () => USER.role === 'admin',
-  tresoriere: () => USER.role === 'tresoriere',
-  secretaire: () => USER.role === 'secretaire',
-  delegue:    () => USER.role === 'delegue',
-  adminOrSec: () => ['admin','secretaire'].includes(USER.role),
-  adminOrTre: () => ['admin','tresoriere'].includes(USER.role),
-  executive:  () => ['admin','tresoriere','secretaire','delegue'].includes(USER.role),
+  admin:       () => USER.role === 'admin',
+  tresoriere:  () => USER.role === 'tresoriere',
+  secretaire:  () => USER.role === 'secretaire',
+  delegue:     () => USER.role === 'delegue',
+  adminOrSec:  () => ['admin','secretaire'].includes(USER.role),
+  adminOrTre:  () => ['admin','tresoriere'].includes(USER.role),
+  financeView: () => ['admin','tresoriere','secretaire'].includes(USER.role),
+  executive:   () => ['admin','tresoriere','secretaire','delegue'].includes(USER.role),
 };
 
 function setContent(html) {
@@ -227,11 +228,11 @@ function buildSidebar() {
 
     // ── Finance ───────────────────────────────────────────────────
     { label: 'Finance', items: [
-      { id:'paiements',         icon:'◆', label:'Paiements',      roles:['admin','tresoriere'] },
-      { id:'finance',           icon:'◇', label:'Budget',          roles:['admin','tresoriere'] },
-      { id:'invoices',          icon:'◈', label:'Factures',        roles:['admin','tresoriere'] },
-      { id:'recus',             icon:'◉', label:'Reçus fiscaux',  roles:['admin','tresoriere'] },
-      { id:'rapports_finance',  icon:'📊', label:'Rapports',       roles:['admin','tresoriere'] },
+      { id:'paiements',         icon:'◆', label:'Paiements',      roles:['admin','tresoriere','secretaire'] },
+      { id:'finance',           icon:'◇', label:'Budget',          roles:['admin','tresoriere','secretaire'] },
+      { id:'invoices',          icon:'◈', label:'Factures',        roles:['admin','tresoriere','secretaire'] },
+      { id:'recus',             icon:'◉', label:'Reçus fiscaux',  roles:['admin','tresoriere','secretaire'] },
+      { id:'rapports_finance',  icon:'📊', label:'Rapports',       roles:['admin','tresoriere','secretaire'] },
     ]},
 
     // ── Communication ─────────────────────────────────────────────
@@ -744,7 +745,7 @@ async function home() {
     can.adminOrSec() ?  { icon:'✉️', label:'Envoyer un message', action:"showView('messages')",       cls:'qa-blue'   } : null,
     can.adminOrSec() ?  { icon:'🤝', label:'Heures bénévolat',   action:"showView('volunteer')",      cls:'qa-gold'   } : null,
     can.adminOrSec() ?  { icon:'🖼️', label:'Gérer la galerie',   action:"showView('gallery_mgmt')",   cls:'qa-purple' } : null,
-    can.adminOrTre() ?  { icon:'💰', label:'Voir la finance',     action:"showView('finance')",        cls:'qa-green'  } : null,
+    can.financeView() ? { icon:'💰', label:'Voir la finance',     action:"showView('finance')",        cls:'qa-green'  } : null,
   ].filter(Boolean);
 
   const roleEmoji = { admin:'👑', tresoriere:'💰', secretaire:'📋', delegue:'🤝', member:'🌟' };
@@ -785,7 +786,7 @@ async function home() {
         <div class="sc-value">${stats.messages_non_lus}</div>
         <div class="sc-label">Messages non lus</div>
       </div>
-      ${can.adminOrTre() ? `
+      ${can.financeView() ? `
       <div class="stat-card accent">
         <div class="sc-icon">💳</div>
         <div class="sc-value">${fmtMoney(stats.solde || 0)}</div>
@@ -1990,8 +1991,8 @@ async function finance() {
     <div class="page-header">
       <div><h2>Finance</h2><p>Gestion des fonds et lignes budgétaires</p></div>
       <div class="page-actions">
-        <button class="btn btn-primary" onclick="openTransactionForm(null,window._finLines)">+ Transaction</button>
-        <button class="btn btn-outline" onclick="openAccountForm(window._finRep)">⚙️ Compte</button>
+        ${can.adminOrTre() ? `<button class="btn btn-primary" onclick="openTransactionForm(null,window._finLines)">+ Transaction</button>` : ''}
+        ${can.adminOrTre() ? `<button class="btn btn-outline" onclick="openAccountForm(window._finRep)">⚙️ Compte</button>` : ''}
         <button class="btn btn-ghost" onclick="printFinance()">🖨️ PDF</button>
         <a href="/api/export/paiements.csv" class="btn btn-ghost" style="font-size:.82rem" target="_blank">⬇ CSV</a>
       </div>
@@ -2244,12 +2245,10 @@ async function invoices() {
   setContent(`
     <div class="page-header">
       <div><h2>Factures</h2><p>Gestion des factures et reçus</p></div>
-      <div class="page-actions">
-        <button class="btn btn-primary" onclick='openInvoiceForm(${JSON.stringify(lines)})'>+ Nouvelle facture</button>
-      </div>
+      ${can.adminOrTre() ? `<div class="page-actions"><button class="btn btn-primary" onclick='openInvoiceForm(${JSON.stringify(lines)})'>+ Nouvelle facture</button></div>` : ''}
     </div>
     <div class="table-card"><div class="table-wrapper"><table>
-      <thead><tr><th>Titre</th><th>Fournisseur</th><th>Montant</th><th>Date</th><th>Activité / Projet</th><th>Statut</th><th>Photo</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Titre</th><th>Fournisseur</th><th>Montant</th><th>Date</th><th>Activité / Projet</th><th>Statut</th><th>Photo</th>${can.adminOrTre() ? '<th>Actions</th>' : ''}</tr></thead>
       <tbody>${data.map(i=>`<tr>
         <td><strong>${i.titre}</strong></td>
         <td>${i.fournisseur||'–'}</td>
@@ -2258,13 +2257,13 @@ async function invoices() {
         <td>${i.ligne||'–'}</td>
         <td>${statusPill(i.statut)}</td>
         <td>${i.photo_path ? `<a href="${BASE}${i.photo_path}" target="_blank" class="btn btn-sm btn-ghost">📷 Voir</a>` : '–'}</td>
-        <td style="white-space:nowrap">
+        ${can.adminOrTre() ? `<td style="white-space:nowrap">
           ${i.statut === 'en_attente' ? `
             <button class="btn btn-sm btn-primary" onclick="updateInvoiceStatus(${i.id},'approuve')" title="Approuver et enregistrer la dépense">✅ Approuver</button>
             <button class="btn btn-sm btn-ghost" onclick="updateInvoiceStatus(${i.id},'refuse')" style="color:var(--red)">✗ Refuser</button>` : ''}
           ${i.statut === 'approuve' ? `<button class="btn btn-sm btn-accent" onclick="updateInvoiceStatus(${i.id},'paye')" title="Marquer comme payé">💰 Payé</button>` : ''}
           <button class="btn btn-sm btn-ghost" onclick="deleteInvoice(${i.id})" style="color:var(--red)" title="Supprimer et annuler les effets financiers">🗑</button>
-        </td>
+        </td>` : '<td>–</td>'}
       </tr>`).join('')}</tbody>
     </table></div></div>
   `);
@@ -6060,7 +6059,7 @@ async function paiements() {
     '<div class="page-header"><div><h2>💳 Paiements membres</h2>' +
     '<p>Cotisations et dons — mois courant : <strong>' + moisCourant + '</strong></p></div>' +
     '<div class="page-actions">' +
-      '<button class="btn btn-outline btn-sm" onclick="genererCotisations()">⚙️ Générer cotisations</button>' +
+      (can.adminOrTre() ? '<button class="btn btn-outline btn-sm" onclick="genererCotisations()">⚙️ Générer cotisations</button>' : '') +
       '<button class="btn btn-outline" onclick="showView(\'recus\')">🧾 Reçus fiscaux</button>' +
     '</div></div>' +
 
@@ -6099,8 +6098,8 @@ async function paiements() {
         '<td><strong>$' + (r.montant_attendu||0).toFixed(2) + '</strong></td>' +
         '<td style="color:#e53935">' + (r.date_echeance||'') + '</td>' +
         '<td style="display:flex;gap:6px">' +
-          '<button class="btn btn-sm btn-outline" onclick="envoyerRappelPaiement(' + r.user_id + ')">📧 Rappel</button>' +
-          '<button class="btn btn-sm btn-ghost" onclick="exempterCotisation(' + r.id + ')">Exempter</button>' +
+          (can.adminOrTre() ? '<button class="btn btn-sm btn-outline" onclick="envoyerRappelPaiement(' + r.user_id + ')">📧 Rappel</button>' : '') +
+          (can.adminOrTre() ? '<button class="btn btn-sm btn-ghost" onclick="exempterCotisation(' + r.id + ')">Exempter</button>' : '') +
         '</td></tr>'
       ).join('') +
       '</tbody></table></div></div>'
@@ -6120,8 +6119,8 @@ async function paiements() {
           (p.note ? '<br/><small style="color:var(--muted)">Note: ' + p.note + '</small>' : '') + '</div>' +
           '<div class="tc-actions">' +
             (p.proof_path ? '<a class="btn btn-ghost btn-sm" href="' + BASE + p.proof_path + '" target="_blank">🧾 Preuve</a>' : '') +
-            '<button class="btn btn-primary btn-sm" onclick="approuverPaiement(' + p.id + ')">✅ Approuver</button>' +
-            '<button class="btn btn-danger btn-sm" onclick="rejeterPaiement(' + p.id + ')">❌ Rejeter</button>' +
+            (can.adminOrTre() ? '<button class="btn btn-primary btn-sm" onclick="approuverPaiement(' + p.id + ')">✅ Approuver</button>' : '') +
+            (can.adminOrTre() ? '<button class="btn btn-danger btn-sm" onclick="rejeterPaiement(' + p.id + ')">❌ Rejeter</button>' : '') +
           '</div></div></div>'
       ).join('')
     : '') +
@@ -6203,7 +6202,7 @@ async function recus() {
   setContent(
     '<div class="page-header"><div><h2>🧾 Reçus fiscaux</h2><p>Générez et envoyez les reçus de fin d\'année.</p></div></div>' +
 
-    '<div class="table-card" style="margin-bottom:24px">' +
+    (can.adminOrTre() ? '<div class="table-card" style="margin-bottom:24px">' +
     '<div class="table-card-header"><h3>📬 Publipostage — Génération en lot</h3></div>' +
     '<div style="padding:16px 20px">' +
 
@@ -6232,7 +6231,7 @@ async function recus() {
       '</div>' +
 
       '<div id="rec_liste" style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:8px"></div>' +
-    '</div></div>' +
+    '</div></div>' : '') +
 
     '<div class="table-card"><div class="table-card-header"><h3>Reçus émis</h3></div>' +
     '<div id="recus_emis_body" style="padding:8px 4px">' +
@@ -6377,8 +6376,8 @@ function recusParAnneeHTML(data) {
             '<td style="padding:9px 8px">' + (r.archived ? '<span style="font-size:.75rem;background:#f5f5f5;padding:2px 8px;border-radius:8px;color:var(--muted)">Archivé</span>' : '<span style="font-size:.75rem;background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:8px">Actif</span>') + '</td>' +
             '<td style="padding:9px 8px;white-space:nowrap">' +
               '<button class="btn btn-sm btn-outline" title="Imprimer" onclick="imprimerRecu(' + r.id + ')">🖨️</button> ' +
-              '<button class="btn btn-sm btn-ghost" title="' + (r.archived ? 'Désarchiver' : 'Archiver') + '" onclick="recusArchiverRecu(' + r.id + ',' + (r.archived ? 'false' : 'true') + ')">' + (r.archived ? '📂' : '📦') + '</button> ' +
-              '<button class="btn btn-sm btn-danger" title="Supprimer" onclick="recusSupprimerRecu(' + r.id + ')">🗑️</button>' +
+              (can.adminOrTre() ? '<button class="btn btn-sm btn-ghost" title="' + (r.archived ? 'Désarchiver' : 'Archiver') + '" onclick="recusArchiverRecu(' + r.id + ',' + (r.archived ? 'false' : 'true') + ')">' + (r.archived ? '📂' : '📦') + '</button> ' : '') +
+              (can.adminOrTre() ? '<button class="btn btn-sm btn-danger" title="Supprimer" onclick="recusSupprimerRecu(' + r.id + ')">🗑️</button>' : '') +
             '</td>' +
           '</tr>'
         ).join('') +

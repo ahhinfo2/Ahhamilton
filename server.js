@@ -814,7 +814,7 @@ app.get('/api/activities/:id/registrations', authMiddleware, (req, res) => {
 // FINANCE
 // ══════════════════════════════════════════════════════════════════════════════
 
-app.get('/api/finance/lines', authMiddleware, requireRole('admin', 'tresoriere'), (req, res) => {
+app.get('/api/finance/lines', authMiddleware, requireRole('admin', 'tresoriere', 'secretaire'), (req, res) => {
   const rows = db.prepare(`
     SELECT fl.*, a.titre AS activite, p.nom AS projet,
       COALESCE((SELECT SUM(t.montant) FROM transactions t WHERE t.financial_line_id = fl.id AND t.type = 'depense'), 0) AS depenses,
@@ -829,14 +829,14 @@ app.get('/api/finance/lines', authMiddleware, requireRole('admin', 'tresoriere')
   res.json(rows);
 });
 
-app.get('/api/finance/summary', authMiddleware, requireRole('admin', 'tresoriere'), (req, res) => {
+app.get('/api/finance/summary', authMiddleware, requireRole('admin', 'tresoriere', 'secretaire'), (req, res) => {
   const account = db.prepare('SELECT * FROM account_info WHERE id = 1').get() || {};
   const actCount = db.prepare("SELECT COUNT(*) AS cnt FROM activities WHERE statut IN ('planifiee','en_cours')").get().cnt;
   const projCount = db.prepare("SELECT COUNT(*) AS cnt FROM projects WHERE statut IN ('en_cours','planifie')").get().cnt;
   res.json({ solde: account.solde || 0, projets_en_cours: actCount + projCount });
 });
 
-app.get('/api/finance/transactions', authMiddleware, requireRole('admin', 'tresoriere'), (req, res) => {
+app.get('/api/finance/transactions', authMiddleware, requireRole('admin', 'tresoriere', 'secretaire'), (req, res) => {
   const { line_id } = req.query;
   const q = line_id
     ? 'WHERE t.financial_line_id = ?'
@@ -870,7 +870,7 @@ app.post('/api/finance/transactions', authMiddleware, requireRole('tresoriere', 
   res.status(201).json({ id: r.lastInsertRowid });
 });
 
-app.get('/api/finance/account', authMiddleware, requireRole('admin', 'tresoriere'), (req, res) => {
+app.get('/api/finance/account', authMiddleware, requireRole('admin', 'tresoriere', 'secretaire'), (req, res) => {
   const info = db.prepare('SELECT * FROM account_info WHERE id = 1').get();
   res.json(info || {});
 });
@@ -883,7 +883,7 @@ app.put('/api/finance/account', authMiddleware, requireRole('tresoriere', 'admin
 });
 
 // Invoices
-app.get('/api/finance/invoices', authMiddleware, requireRole('admin', 'tresoriere'), (req, res) => {
+app.get('/api/finance/invoices', authMiddleware, requireRole('admin', 'tresoriere', 'secretaire'), (req, res) => {
   const rows = db.prepare(`SELECT i.*, u.prenom || ' ' || u.nom AS createur, fl.titre AS ligne
     FROM invoices i LEFT JOIN users u ON u.id = i.cree_par LEFT JOIN financial_lines fl ON fl.id = i.financial_line_id
     ORDER BY i.date_upload DESC`).all();
@@ -1555,7 +1555,7 @@ app.get('/api/reports/volunteer', authMiddleware, requireRole('admin', 'secretai
   res.json({ rows, total_heures: total });
 });
 
-app.get('/api/reports/finance', authMiddleware, requireRole('admin', 'tresoriere'), (req, res) => {
+app.get('/api/reports/finance', authMiddleware, requireRole('admin', 'tresoriere', 'secretaire'), (req, res) => {
   const { activity_id } = req.query;
   const lines = db.prepare(`SELECT fl.*,
     COALESCE((SELECT SUM(montant) FROM transactions WHERE financial_line_id = fl.id AND type='depense'),0) AS depenses,
@@ -2295,7 +2295,7 @@ app.get('/api/payments/my', authMiddleware, (req, res) => {
 });
 
 // GET — tous les paiements (finance)
-app.get('/api/payments', authMiddleware, requireRole('admin','tresoriere'), (req, res) => {
+app.get('/api/payments', authMiddleware, requireRole('admin','tresoriere','secretaire'), (req, res) => {
   const rows = db.prepare(`SELECT p.*, u.prenom, u.nom, u.email, u.plan
     FROM payments p LEFT JOIN users u ON u.id = p.user_id
     ORDER BY p.date_soumission DESC`).all();
@@ -2391,7 +2391,7 @@ app.get('/api/receipts/my', authMiddleware, (req, res) => {
   res.json(db.prepare('SELECT * FROM tax_receipts WHERE user_id = ? ORDER BY annee DESC').all(req.user.id));
 });
 
-app.get('/api/receipts', authMiddleware, requireRole('admin','tresoriere'), (req, res) => {
+app.get('/api/receipts', authMiddleware, requireRole('admin','tresoriere','secretaire'), (req, res) => {
   const rows = db.prepare(`SELECT r.*, u.prenom, u.nom, u.email
     FROM tax_receipts r JOIN users u ON u.id = r.user_id
     ORDER BY r.annee DESC, r.date_generation DESC`).all();
@@ -2564,7 +2564,7 @@ app.patch('/api/cotisations/:id/payer', authMiddleware, requireRole('admin','tre
 });
 
 // GET — rapport mensuel (données pour export)
-app.get('/api/payments/rapport-mensuel', authMiddleware, requireRole('admin','tresoriere'), (req, res) => {
+app.get('/api/payments/rapport-mensuel', authMiddleware, requireRole('admin','tresoriere','secretaire'), (req, res) => {
   const mois = req.query.mois || new Date().toISOString().substring(0,7);
   const paiements = db.prepare(`
     SELECT p.*, u.prenom, u.nom, u.email, u.plan
