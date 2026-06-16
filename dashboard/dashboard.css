@@ -1097,10 +1097,18 @@ html.dark .search-results { background: var(--white); }
 @media print {
   .site-nav-strip,.sidebar,.topbar,.topbar-right,
   #chatBubbleBtn,#chatPanel,.modal-overlay,
-  .page-actions,.btn,.icon-btn,.pager { display: none !important; }
+  .page-actions,.btn,.icon-btn,.pager,
+  .no-print,.mobile-bottom-nav,#toast,
+  .hamburger-dash,.mobile-home-btn,
+  #alertBtn,.site-nav-logout { display: none !important; }
   .main-wrapper { margin-left: 0 !important; padding-top: 0 !important; }
-  .content { padding: 0 !important; max-width: 100% !important; }
+  .content { padding: 20px !important; max-width: 100% !important; }
   body { background: #fff !important; color: #000 !important; }
+  .print-content { display: block !important; }
+  a { color: #000 !important; text-decoration: none !important; }
+  table { border-collapse: collapse !important; width: 100% !important; }
+  th, td { border: 1px solid #ccc !important; padding: 6px 10px !important; }
+  thead { background: #f0f0f0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 
 /* ── REGISTERED BADGE ─────────────────────────────────────────────────── */

@@ -48,6 +48,16 @@ function isJeune() {
   renderUserChip();
   setupTopbar();
 
+  // Retour depuis Stripe Checkout
+  const _sp = new URLSearchParams(window.location.search);
+  if (_sp.get('cotis') === 'ok') {
+    window.history.replaceState({}, '', '/dashboard/app.html');
+    setTimeout(() => toast('✅ Paiement confirmé ! Votre cotisation a été enregistrée.'), 800);
+  } else if (_sp.get('cotis') === 'cancel') {
+    window.history.replaceState({}, '', '/dashboard/app.html');
+    setTimeout(() => toast('Paiement annulé.', true), 800);
+  }
+
   try {
     await showView('home');
   } catch (e) {
@@ -247,6 +257,7 @@ function buildSidebar() {
       { id:'notes',             icon:'◇', label:'Notes réunion',     roles:EXEC },
       { id:'testimonials_mgmt', icon:'❝', label:'Témoignages',       roles:['admin','secretaire'] },
       { id:'videos_mgmt',       icon:'▶', label:'Vidéos',            roles:['admin','secretaire'] },
+      { id:'documents_mgmt',    icon:'📁', label:'Documents',         roles:['admin','secretaire'] },
     ]},
 
     // ── Espace Jeunes ─────────────────────────────────────────────
@@ -365,7 +376,7 @@ function setActiveNav(viewId) {
     talents_mgmt:'Nos talents', annonces_mgmt:'Petites annonces',
     mes_talents:'Mon talent', mes_annonces:'Mes annonces',
     inscriptions:'Inscriptions en attente', paiements:'Paiements membres',
-    recus:'Reçus fiscaux', rapports_finance:'Rapports', mon_paiement:'Mon paiement', annuaire:'Courriel',
+    recus:'Reçus fiscaux', rapports_finance:'Rapports', mon_paiement:'Mon paiement', annuaire:'Courriel', documents_mgmt:'Documents officiels',
     forum:'Forum', newsletter:'Infolettre', 'vente-personne':'Vendre (Cash)',
     'young-home':'Espace Jeunes', 'young-jobs':'Stages & Emplois',
     'young-trainings':'Formations', 'young-polls':'Sondages', 'young-stories':'Success Stories',
@@ -644,12 +655,13 @@ document.addEventListener('click', function askNotif() {
 function openModal(title, bodyHtml, size) {
   window._modalReturnViewId = window._currentViewId || 'home';
   setContent(
-    `<div style="padding-bottom:40px">
-      <div style="display:flex;align-items:center;gap:14px;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid var(--border)">
+    `<div style="padding-bottom:40px" class="modal-inline-wrap">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid var(--border)" class="no-print">
         <button onclick="closeModal()" style="display:flex;align-items:center;gap:6px;background:var(--off);border:1px solid var(--border);border-radius:8px;padding:7px 14px;cursor:pointer;font-size:.84rem;color:var(--text);flex-shrink:0">← Retour</button>
         <h2 style="margin:0;font-size:1.18rem;font-weight:700">${title}</h2>
+        <button onclick="window.print()" style="margin-left:auto;display:flex;align-items:center;gap:5px;background:var(--off);border:1px solid var(--border);border-radius:8px;padding:7px 14px;cursor:pointer;font-size:.84rem;color:var(--text);flex-shrink:0" class="no-print">🖨️ Imprimer / PDF</button>
       </div>
-      <div>${bodyHtml}</div>
+      <div class="print-content">${bodyHtml}</div>
     </div>`
   );
 }
@@ -675,7 +687,7 @@ async function showView(viewId) {
     notes, reports, letters, projects, alerts, profile,
     gallery_mgmt, annuaire, talents_mgmt, annonces_mgmt, mes_talents, mes_annonces,
     inscriptions, paiements, recus, mon_paiement, mes_billets, testimonials_mgmt, videos_mgmt,
-    scanner, forum, newsletter, rapports_finance
+    scanner, forum, newsletter, rapports_finance, documents_mgmt
   };
   const extViews = {
     'pending-orders': pendingOrders,
@@ -7650,6 +7662,81 @@ async function mes_billets() {
   `);
 }
 
+// ══ DOCUMENTS OFFICIELS ══════════════════════════════════════════════════════
+async function documents_mgmt() {
+  const canUpload = can.adminOrSec();
+  const docs = await api('/documents').catch(() => []);
+  const CATS = { proces_verbaux:'📋 Procès-verbaux', statuts:'📜 Statuts & Règlements', formulaires:'📄 Formulaires officiels', rapports:'📊 Rapports annuels', autre:'📁 Autres documents' };
+  const grouped = {};
+  docs.forEach(d => { const c = d.categorie||'autre'; if(!grouped[c]) grouped[c]=[]; grouped[c].push(d); });
+  const docIcon = m => { if(!m)return'📄'; if(m.includes('pdf'))return'📕'; if(m.includes('word')||m.includes('document'))return'📘'; if(m.includes('sheet')||m.includes('excel'))return'📗'; if(m.includes('image'))return'🖼️'; return'📄'; };
+  const fmtSize = b => { if(!b)return''; if(b<1024)return b+'B'; if(b<1048576)return(b/1024).toFixed(1)+'KB'; return(b/1048576).toFixed(1)+'MB'; };
+  setContent(`
+    <div class="page-header">
+      <div><h2>📁 Documents officiels</h2><p>Statuts, procès-verbaux et documents de l'association</p></div>
+      ${canUpload ? '<div class="page-actions"><button class="btn btn-primary" onclick="documentUploadForm()">+ Ajouter</button></div>' : ''}
+    </div>
+    ${!docs.length ? '<div class="empty-state"><div class="es-icon">📁</div><p>Aucun document pour le moment.</p></div>' :
+      Object.entries(CATS).filter(([k]) => grouped[k]?.length).map(([cat, label]) => `
+        <div class="table-card" style="margin-bottom:20px">
+          <div class="table-card-header"><h3>${label}</h3></div>
+          <div style="padding:4px 16px">
+            ${grouped[cat].map(d => `
+              <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)">
+                <div style="font-size:1.6rem;flex-shrink:0">${docIcon(d.mime_type)}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-weight:600;font-size:.9rem">${escHtml(d.nom)}</div>
+                  ${d.description ? `<div style="font-size:.78rem;color:var(--muted)">${escHtml(d.description)}</div>` : ''}
+                  <div style="font-size:.72rem;color:var(--muted);margin-top:2px">${escHtml(d.uploader||'?')} · ${fmt(d.date_upload)} · ${fmtSize(d.taille)}</div>
+                </div>
+                <div style="display:flex;gap:8px;flex-shrink:0">
+                  <a href="/api/documents/${d.id}/download?token=${TOKEN}" class="btn btn-outline btn-sm" download>⬇ Télécharger</a>
+                  ${canUpload ? `<button class="btn btn-sm btn-ghost" style="color:var(--red)" onclick="documentDelete(${d.id})">🗑</button>` : ''}
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>`).join('')}`);
+}
+async function documentUploadForm() {
+  openModal('📁 Nouveau document', `
+    <div class="form-group"><label class="form-label">Nom du document *</label><input id="doc_nom" class="form-input" placeholder="ex: Procès-verbal AG 2026"/></div>
+    <div class="form-group"><label class="form-label">Description</label><input id="doc_desc" class="form-input" placeholder="Optionnel"/></div>
+    <div class="form-group"><label class="form-label">Catégorie</label>
+      <select id="doc_cat" class="form-input">
+        <option value="proces_verbaux">📋 Procès-verbaux</option>
+        <option value="statuts">📜 Statuts & Règlements</option>
+        <option value="formulaires">📄 Formulaires officiels</option>
+        <option value="rapports">📊 Rapports annuels</option>
+        <option value="autre">📁 Autre</option>
+      </select>
+    </div>
+    <div class="form-group"><label class="form-label">Fichier * <span style="font-weight:400;color:var(--muted)">(PDF, Word, Excel, image — max 50 Mo)</span></label>
+      <input type="file" id="doc_fichier" class="form-input" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.zip"/></div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-primary" onclick="documentSave()">⬆ Téléverser</button>
+      <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+    </div>`);
+}
+async function documentSave() {
+  const fichier = document.getElementById('doc_fichier')?.files[0];
+  if (!fichier) { toast('Choisissez un fichier', true); return; }
+  const fd = new FormData();
+  fd.append('fichier', fichier);
+  fd.append('nom', document.getElementById('doc_nom').value || fichier.name);
+  fd.append('description', document.getElementById('doc_desc').value || '');
+  fd.append('categorie', document.getElementById('doc_cat').value || 'autre');
+  try {
+    toast('Téléversement en cours…');
+    await fetch('/api/documents', { method:'POST', headers:{ Authorization:'Bearer '+TOKEN }, body:fd });
+    closeModal(); documents_mgmt(); toast('✅ Document ajouté !');
+  } catch(e) { toast('Erreur : '+e.message, true); }
+}
+async function documentDelete(id) {
+  if (!confirm('Supprimer ce document définitivement ?')) return;
+  await api('/documents/'+id, { method:'DELETE' });
+  documents_mgmt(); toast('Document supprimé');
+}
+
 async function mon_paiement() {
   const moisCourant = new Date().toISOString().substring(0,7);
   const plan = USER?.plan || 'gratuit';
@@ -7751,8 +7838,11 @@ async function mon_paiement() {
           '<label>Preuve de paiement <span style="font-weight:400;color:var(--muted)">(optionnel)</span></label>' +
           '<input type="file" id="pay_proof" accept="image/*,.pdf"/>' +
         '</div>' +
-        '<button class="btn btn-primary" style="width:100%;padding:14px;font-size:1rem" onclick="soumettreMonPaiement(\'' + moisCourant + '\')">Envoyer</button>' +
+        '<button class="btn btn-primary" style="width:100%;padding:14px;font-size:1rem" onclick="soumettreMonPaiement(\'' + moisCourant + '\')">Envoyer ma preuve de paiement</button>' +
         '<p style="font-size:.78rem;color:var(--muted);margin-top:10px;text-align:center">La trésorière recevra une notification et validera votre paiement sous peu.</p>' +
+        '<div style="display:flex;align-items:center;gap:10px;margin:14px 0"><hr style="flex:1;border:none;border-top:1px solid var(--border)"/><span style="color:var(--muted);font-size:.8rem;white-space:nowrap">OU payer maintenant</span><hr style="flex:1;border:none;border-top:1px solid var(--border)"/></div>' +
+        '<button class="btn" style="width:100%;padding:14px;font-size:1rem;background:#635bff;color:#fff;border-radius:8px" onclick="payerEnLigne()">💳 Payer en ligne par carte de crédit</button>' +
+        '<p style="font-size:.75rem;color:var(--muted);text-align:center;margin-top:6px">Paiement sécurisé via Stripe · Confirmation immédiate · Aucun frais supplémentaire</p>' +
       '</div></div>'
     : '') +
 
@@ -7800,6 +7890,15 @@ function updateMontantPaiement() {
   });
 }
 
+async function payerEnLigne() {
+  const nb = parseInt(document.querySelector('input[name="nb_mois"]:checked')?.value || '1');
+  try {
+    toast('Redirection vers le paiement sécurisé…');
+    const r = await api('/cotisations/checkout', { method:'POST', body: JSON.stringify({ nb_mois: nb }) });
+    if (r.url) window.location.href = r.url;
+    else toast('Erreur : lien de paiement introuvable', true);
+  } catch(e) { toast('Erreur : '+e.message, true); }
+}
 async function soumettreMonPaiement(moisCourant) {
   const isDon = document.getElementById('tab_don')?.classList.contains('btn-primary');
   const nb = parseInt(document.querySelector('input[name="nb_mois"]:checked')?.value || '1');

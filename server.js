@@ -128,6 +128,29 @@ app.post('/api/stripe/webhook', express.raw({ type: '*/*' }), async (req, res) =
       console.log(`✅ Stripe billets activés : ${email} — ${tickets.length} billet(s) — $${montant}`);
       return;
     }
+    // ── Cotisation en ligne ─────────────────────────────────────────────────
+    if (session.metadata?.type === 'cotisation') {
+      const userId = parseInt(session.metadata.user_id);
+      const plan     = session.metadata.plan;
+      const periode  = session.metadata.periode;
+      const nbMois   = parseInt(session.metadata.nb_mois) || 1;
+      const periodicite = session.metadata.periodicite || 'mensuel';
+      if (userId) {
+        db.prepare(`INSERT INTO payments (user_id,montant,methode,statut,mois,periodicite,reference,date_soumission)
+          VALUES (?,?,'stripe','approuve',?,?,?,datetime('now'))`)
+          .run(userId, montant, periode, periodicite, ref);
+        db.prepare("UPDATE users SET plan_paid_month=? WHERE id=?").run(periode, userId);
+        const existCot = db.prepare('SELECT id FROM cotisations WHERE user_id=? AND periode=?').get(userId, periode);
+        if (!existCot) {
+          db.prepare("INSERT INTO cotisations (user_id,periode,statut,montant) VALUES (?,?,'paye',?)").run(userId, periode, montant);
+        } else {
+          db.prepare("UPDATE cotisations SET statut='paye',montant=? WHERE user_id=? AND periode=?").run(montant, userId, periode);
+        }
+        createAlert(userId, 'paiement', '✅ Paiement confirmé', `Cotisation $${montant.toFixed(2)} reçue et approuvée (paiement en ligne).`);
+        console.log(`✅ Cotisation Stripe — user ${userId} plan ${plan} — $${montant} — ${periode}`);
+      }
+      return;
+    }
     // ──────────────────────────────────────────────────────────────────
 
     // Trouver le membre par courriel
@@ -227,6 +250,13 @@ const activityPhotoStorage = multer.diskStorage({
   filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
 });
 const uploadActivityPhoto = multer({ storage: activityPhotoStorage, limits: { fileSize: 15 * 1024 * 1024 } });
+
+// ── Multer : documents officiels ─────────────────────────────────────────────
+const docsStorage = multer.diskStorage({
+  destination: (req, file, cb) => { const d = path.join(__dirname,'uploads','documents'); fs.mkdirSync(d,{recursive:true}); cb(null,d); },
+  filename:    (req, file, cb) => cb(null, `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g,'_')}`)
+});
+const uploadDoc = multer({ storage: docsStorage, limits: { fileSize: 50 * 1024 * 1024 } });
 
 // ── Helper ──────────────────────────────────────────────────────────────────
 function createAlert(destinataireId, type, titre, contenu, sourceId = null) {
@@ -4580,6 +4610,65 @@ app.get('/api/stats/connexions', authMiddleware, requireRole('admin','secretaire
   res.json(rows);
 });
 
+// ── Documents officiels ──────────────────────────────────────────────────────
+app.get('/api/documents', authMiddleware, (req, res) => {
+  const docs = db.prepare(`SELECT d.*, u.prenom||' '||u.nom AS uploader FROM documents d LEFT JOIN users u ON u.id=d.upload_par ORDER BY d.date_upload DESC`).all();
+  res.json(docs);
+});
+app.post('/api/documents', authMiddleware, requireRole('admin','secretaire'), uploadDoc.single('fichier'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Fichier requis' });
+  const { nom, description, categorie } = req.body;
+  const r = db.prepare(`INSERT INTO documents (nom,description,categorie,fichier_path,fichier_nom,taille,mime_type,upload_par) VALUES (?,?,?,?,?,?,?,?)`)
+    .run(nom||req.file.originalname, description||'', categorie||'autre', req.file.path, req.file.originalname, req.file.size, req.file.mimetype, req.user.id);
+  res.status(201).json({ id: r.lastInsertRowid });
+});
+app.get('/api/documents/:id/download', authMiddleware, (req, res) => {
+  const doc = db.prepare('SELECT * FROM documents WHERE id=?').get(req.params.id);
+  if (!doc) return res.status(404).json({ error: 'Introuvable' });
+  res.download(doc.fichier_path, doc.fichier_nom);
+});
+app.delete('/api/documents/:id', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  const doc = db.prepare('SELECT * FROM documents WHERE id=?').get(req.params.id);
+  if (!doc) return res.status(404).json({ error: 'Introuvable' });
+  try { fs.unlinkSync(doc.fichier_path); } catch {}
+  db.prepare('DELETE FROM documents WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ── Cotisation en ligne (Stripe Checkout) ────────────────────────────────────
+app.post('/api/cotisations/checkout', authMiddleware, async (req, res) => {
+  const stripeKey = (process.env.STRIPE_SECRET_KEY || '').trim();
+  if (!stripeKey) return res.status(500).json({ error: 'Stripe non configuré sur ce serveur' });
+  const PRIX = { bienfaiteur: { monthly:1000, annual:10000 }, partenaire: { monthly:2000, annual:20000 } };
+  const plan = req.user.plan;
+  if (!PRIX[plan]) return res.status(400).json({ error: 'Plan gratuit — aucun paiement requis' });
+  const nbMois = parseInt(req.body.nb_mois) || 1;
+  const isAnnuel = nbMois === 12;
+  const montantCents = isAnnuel ? PRIX[plan].annual : PRIX[plan].monthly * nbMois;
+  const periode = new Date().toISOString().substring(0, 7);
+  const siteUrl = process.env.SITE_URL || 'https://ahhamilton.ca';
+  try {
+    const stripe = Stripe(stripeKey);
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: 'payment',
+      customer_email: req.user.email,
+      line_items: [{ price_data: {
+        currency: 'cad',
+        product_data: {
+          name: `Cotisation AHH — ${plan === 'bienfaiteur' ? 'Bienfaiteur' : 'Partenaire'}`,
+          description: isAnnuel ? 'Année complète (2 mois offerts)' : `${nbMois} mois`
+        },
+        unit_amount: montantCents
+      }, quantity: 1 }],
+      metadata: { type:'cotisation', user_id:String(req.user.id), plan, periode, nb_mois:String(nbMois), periodicite: isAnnuel ? 'annuel' : 'mensuel' },
+      success_url: `${siteUrl}/dashboard/app.html?cotis=ok`,
+      cancel_url:  `${siteUrl}/dashboard/app.html?cotis=cancel`,
+    });
+    res.json({ url: session.url });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── Sondages ─────────────────────────────────────────────────────────────────
 app.get('/api/young/polls', authMiddleware, (req, res) => {
   const polls = db.prepare(`SELECT p.*, u.prenom||' '||u.nom AS createur FROM young_polls p LEFT JOIN users u ON u.id=p.cree_par WHERE p.actif=1 ORDER BY p.date_creation DESC`).all();
@@ -4788,6 +4877,21 @@ cron.schedule('0 9 * * *', async () => {
       }
     }
   } catch(e) { console.error('[CRON]', e.message); }
+});
+
+// ── Backup quotidien DB à 2h du matin ────────────────────────────────────────
+cron.schedule('0 2 * * *', () => {
+  try {
+    const dbSrc = process.env.DB_PATH || path.join(process.env.LOCALAPPDATA || process.env.HOME || __dirname, 'ahh-hamilton', 'ahh.db');
+    const backupDir = path.join(path.dirname(dbSrc), 'backups');
+    fs.mkdirSync(backupDir, { recursive: true });
+    const date = new Date().toISOString().substring(0, 10);
+    const dst = path.join(backupDir, `ahh_${date}.db`);
+    fs.copyFileSync(dbSrc, dst);
+    const files = fs.readdirSync(backupDir).filter(f => f.startsWith('ahh_') && f.endsWith('.db')).sort();
+    while (files.length > 30) fs.unlinkSync(path.join(backupDir, files.shift()));
+    console.log(`[BACKUP] ${dst}`);
+  } catch(e) { console.error('[BACKUP ERROR]', e.message); }
 });
 
 // Notification de nouvelle activité publiée (appelé depuis POST /api/activities)

@@ -803,6 +803,20 @@ function init() {
   }
 }
 
+// Documents officiels de l'association
+try { db.exec(`CREATE TABLE IF NOT EXISTS documents (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nom TEXT NOT NULL,
+  description TEXT DEFAULT '',
+  categorie TEXT DEFAULT 'autre',
+  fichier_path TEXT NOT NULL,
+  fichier_nom TEXT NOT NULL,
+  taille INTEGER DEFAULT 0,
+  mime_type TEXT,
+  upload_par INTEGER REFERENCES users(id),
+  date_upload TEXT DEFAULT (datetime('now'))
+)`); } catch {}
+
 init();
 
 module.exports = db;
