@@ -70,6 +70,7 @@
           <button class="lang-opt" data-lang="ht" onclick="if(window.AHH_LANG)AHH_LANG.set('ht');document.getElementById('langSelectorWrap').classList.remove('open')">🇭🇹 Kreyòl</button>
         </div>
       </div>
+      <button class="icon-btn" id="searchToggle" title="Recherche globale (Ctrl+K)" onclick="document.getElementById('searchWrap').style.display=document.getElementById('searchWrap').style.display==='none'?'block':'none';if(document.getElementById('searchWrap').style.display!=='none')document.getElementById('searchInput').focus()">🔍</button>
       <button class="icon-btn" id="darkToggle" title="Mode nuit">🌙</button>
       <button class="icon-btn" id="alertBtn" title="Alertes">🔔<span class="badge" id="alertCount" style="display:none"></span></button>
       <button class="icon-btn" id="msgBtn" title="Messages">✉️<span class="badge" id="msgCount" style="display:none"></span></button>
@@ -81,10 +82,14 @@
 </div>
 <!-- Titre de page (caché, conservé pour la compatibilité JS) -->
 <div id="topbarTitle" style="display:none">Tableau de bord</div>
-<!-- Recherche globale (conservée, déplacée) -->
-<div id="searchWrap" style="display:none">
-  <input id="searchInput" type="text" autocomplete="off"/>
-  <div id="searchResults" style="display:none"></div>
+<!-- Recherche globale Ctrl+K -->
+<div id="searchWrap" style="display:none;position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:9999;width:min(600px,94vw)">
+  <div style="position:relative">
+    <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:1rem;pointer-events:none">🔍</span>
+    <input id="searchInput" type="text" autocomplete="off" placeholder="Rechercher un membre, activité, note… (Echap pour fermer)"
+      style="width:100%;padding:14px 16px 14px 42px;font-size:.95rem;border-radius:14px;border:none;box-shadow:0 8px 40px rgba(0,0,0,.22);font-family:inherit;outline:none;background:#fff;color:#1c2b1c"/>
+  </div>
+  <div id="searchResults" style="display:none;background:#fff;border-radius:12px;margin-top:6px;box-shadow:0 8px 40px rgba(0,0,0,.18);overflow:hidden;max-height:400px;overflow-y:auto"></div>
 </div>
 
 <!-- ── SIDEBAR ──────────────────────────────────────────────────────────── -->

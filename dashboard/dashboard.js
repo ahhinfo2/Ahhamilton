@@ -89,6 +89,7 @@ function isJeune() {
   pollBadges();
   initSSE();
   initChat();
+  initFAB();
   // Synchroniser le plan/rôle depuis le serveur (détecte les changements admin)
   syncUserFromServer();
   setInterval(syncUserFromServer, 120000); // re-vérifier toutes les 2 min
@@ -715,9 +716,38 @@ async function pollBadges() {
       }
       _prevMsgCount = newMsgs;
       _prevAlertCount = newAlerts;
+
+      // ── Badges sur les items du sidebar ──
+      setSidebarBadge('inscriptions', stats.inscriptions_en_attente);
+      setSidebarBadge('alerts',       newAlerts);
+      setSidebarBadge('annuaire',     newMsgs);
     }
   } catch {}
   setTimeout(pollBadges, 30000);
+}
+
+// ── FAB Scanner (mobile) ────────────────────────────────────────────────────
+function initFAB() {
+  const canScan = ['admin','tresoriere','secretaire','delegue'].includes(USER.role);
+  if (!canScan) return;
+  const btn = document.createElement('button');
+  btn.className = 'fab-scanner';
+  btn.title = 'Scanner une carte';
+  btn.innerHTML = '📷';
+  btn.onclick = () => showView('carte-scanner');
+  document.body.appendChild(btn);
+}
+
+function setSidebarBadge(viewId, count) {
+  // Remove any existing badge on this nav item
+  document.querySelectorAll(`.nav-item[data-view="${viewId}"] .nav-badge`).forEach(b => b.remove());
+  if (!count || count <= 0) return;
+  const item = document.querySelector(`.nav-item[data-view="${viewId}"]`);
+  if (!item) return;
+  const badge = document.createElement('span');
+  badge.className = 'nav-badge';
+  badge.textContent = count > 99 ? '99+' : count;
+  item.appendChild(badge);
 }
 
 function showBrowserNotif(title, body) {
@@ -811,10 +841,17 @@ async function home() {
   // Membres → afficher le calendrier personnalisé
   if (USER.role === 'member') { await memberHome(); return; }
 
-  const stats    = await api('/stats');
-  const alerts   = await api('/alerts');
+  const [stats, alerts, birthdays, members] = await Promise.all([
+    api('/stats'),
+    api('/alerts'),
+    can.adminOrSec() ? api('/membres/anniversaires').catch(() => []) : Promise.resolve([]),
+    can.adminOrSec() ? api('/users').catch(() => []) : Promise.resolve([]),
+  ]);
   const upcoming = stats.prochaines_activites || [];
   const unreadAlerts = alerts.filter(a => !a.lu).slice(0, 4);
+
+  // Membres dont la cotisation est en retard (>2 mois d'impayés)
+  const overdueMembers = members.filter(m => m.role === 'member' && m.actif && (m.plan_unpaid_count || 0) >= 2).slice(0, 5);
 
   const _days   = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
   const _months = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
@@ -886,6 +923,13 @@ async function home() {
               <span class="qa-label">${a.label}</span>
             </button>`).join('')}
         </div>
+        <div style="border-top:1px solid var(--border);margin-top:8px;padding:10px 16px;display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="showView('carte-scanner')">📷 Scanner</button>
+          <button class="btn btn-ghost btn-sm" onclick="showView('inscriptions')">📝 Inscriptions</button>
+          <button class="btn btn-ghost btn-sm" onclick="showView('abonnes-newsletter')">📧 Newsletter</button>
+        </div>
+        <!-- Widget météo -->
+        <div id="weatherWidget" style="border-top:1px solid var(--border);padding:12px 16px"></div>
       </div>
 
       <!-- Prochaines activités -->
@@ -940,7 +984,69 @@ async function home() {
         </div>`}
       </div>
     </div>
+
+    <!-- 2e rangée : anniversaires + alertes cotisation -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-top:16px">
+
+      ${can.adminOrSec() && birthdays.length ? `
+      <div class="table-card">
+        <div class="table-card-header"><h3>🎂 Anniversaires ce mois</h3><span style="font-size:.78rem;color:var(--muted)">${new Date().toLocaleString('fr-CA',{month:'long'})}</span></div>
+        <div style="padding:4px 0">
+          ${birthdays.slice(0,6).map(m => {
+            const d = m.date_naissance ? new Date(m.date_naissance) : null;
+            const age = d ? new Date().getFullYear() - d.getFullYear() : null;
+            const jour = d ? d.getDate() : '?';
+            return `<div style="display:flex;align-items:center;gap:10px;padding:8px 16px;border-bottom:1px solid var(--border)">
+              <div style="width:32px;height:32px;background:var(--accent);color:#000;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:800;flex-shrink:0">${jour}</div>
+              ${m.photo_url ? `<img src="${BASE}${m.photo_url}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0"/>` : `<div style="width:28px;height:28px;border-radius:50%;background:var(--g3);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0">${(m.prenom||'?')[0]}</div>`}
+              <div style="flex:1"><div style="font-size:.83rem;font-weight:600">${escHtml(m.prenom)} ${escHtml(m.nom)}</div>${age ? `<div style="font-size:.72rem;color:var(--muted)">${age} ans</div>` : ''}</div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>` : ''}
+
+      ${can.adminOrSec() && overdueMembers.length ? `
+      <div class="table-card">
+        <div class="table-card-header"><h3>⚠️ Cotisations en retard</h3><button class="btn btn-sm btn-ghost" onclick="showView('paiements')">Voir tout →</button></div>
+        <div style="padding:4px 0">
+          ${overdueMembers.map(m => `
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 16px;border-bottom:1px solid var(--border)">
+              <div style="width:28px;height:28px;border-radius:50%;background:#ffebee;color:var(--red);display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;flex-shrink:0">!</div>
+              <div style="flex:1"><div style="font-size:.83rem;font-weight:600">${escHtml(m.prenom)} ${escHtml(m.nom)}</div><div style="font-size:.72rem;color:var(--red)">${m.plan_unpaid_count} mois impayé${m.plan_unpaid_count>1?'s':''}</div></div>
+              <span style="font-size:.7rem;background:#ffebee;color:var(--red);padding:2px 8px;border-radius:20px;font-weight:700">${pill(m.plan||'gratuit','bp-orange')}</span>
+            </div>`).join('')}
+        </div>
+      </div>` : ''}
+
+    </div>
   `);
+
+  // Charger météo Hamilton en arrière-plan
+  fetchWeather();
+}
+
+async function fetchWeather() {
+  const el = document.getElementById('weatherWidget');
+  if (!el) return;
+  try {
+    const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=43.2557&longitude=-79.8711&current_weather=true&hourly=precipitation_probability&timezone=America%2FToronto');
+    if (!r.ok) throw new Error('météo non disponible');
+    const d = await r.json();
+    const cw = d.current_weather;
+    const wmoIcons = {0:'☀️',1:'🌤️',2:'⛅',3:'☁️',45:'🌫️',48:'🌫️',51:'🌦️',53:'🌦️',55:'🌧️',61:'🌧️',63:'🌧️',65:'🌧️',71:'🌨️',73:'🌨️',75:'❄️',80:'🌧️',81:'🌧️',82:'⛈️',95:'⛈️'};
+    const ico = wmoIcons[cw.weathercode] || '🌡️';
+    const isDay = cw.is_day;
+    el.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="font-size:1.8rem">${ico}</div>
+        <div>
+          <div style="font-weight:700;font-size:.95rem">${Math.round(cw.temperature)}°C <span style="font-size:.72rem;color:var(--muted);font-weight:400">Hamilton, ON</span></div>
+          <div style="font-size:.72rem;color:var(--muted)">${isDay ? '☀️ Jour' : '🌙 Nuit'} · Vent ${Math.round(cw.windspeed)} km/h</div>
+        </div>
+      </div>`;
+  } catch {
+    el.innerHTML = '<div style="font-size:.75rem;color:var(--muted)">🌡️ Météo non disponible</div>';
+  }
 }
 
 // ══ HOME MEMBRE ═══════════════════════════════════════════════════════════════
@@ -1307,7 +1413,14 @@ function renderActivitiesTable(data) {
       <td>${a.type}</td>
       <td>${fmt(a.date_debut)}</td>
       <td>${a.lieu||'–'}</td>
-      <td>${a.nb_inscrits}${a.max_participants ? '/'+a.max_participants : ''}</td>
+      <td>
+        <div style="font-size:.82rem;font-weight:600">${a.nb_inscrits}${a.max_participants ? '/'+a.max_participants : ''}</div>
+        ${a.max_participants > 0 ? (() => {
+          const pct = Math.min(100, Math.round((a.nb_inscrits / a.max_participants) * 100));
+          const color = pct >= 90 ? '#c62828' : pct >= 60 ? '#e65100' : '#2e7d32';
+          return `<div style="margin-top:3px;background:#e8f5e9;border-radius:4px;height:5px;overflow:hidden;width:80px"><div style="height:100%;width:${pct}%;background:${color};border-radius:4px"></div></div><div style="font-size:.66rem;color:${color};font-weight:700">${pct}%</div>`;
+        })() : ''}
+      </td>
       <td>${statusPill(a.statut)}</td>
       <td>
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:nowrap">
@@ -1330,6 +1443,7 @@ function renderActivitiesTable(data) {
               <div style="border-top:1px solid var(--border);margin:4px 0"></div>
               <div class="act-menu-item"><a href="${API}/activities/${a.id}/ical" download style="color:inherit;text-decoration:none;display:block">📅 Exporter iCal</a></div>
               <div class="act-menu-item"><a href="${API}/activities/${a.id}/qr?format=png&size=1000" download="QR-${a.id}.png" style="color:inherit;text-decoration:none;display:block">📲 Télécharger QR PNG</a></div>
+              <div class="act-menu-item" onclick="closeActMenus();duplicateActivity(${a.id},'${a.titre.replace(/'/g,"\\'")}')">📋 Copier l'activité</div>
               <div style="border-top:1px solid var(--border);margin:4px 0"></div>
               ${isArchived
                 ? '<div class="act-menu-item" style="color:var(--g2)" onclick="closeActMenus();unarchiveActivity(' + a.id + ')">↩️ Restaurer</div>'
@@ -1343,6 +1457,78 @@ function renderActivitiesTable(data) {
       </td>
     </tr>`;
   }).join('');
+}
+
+// ── Fiche membre enrichie ────────────────────────────────────────────────────
+async function openMemberDetail(u) {
+  openModal('👤 Fiche membre', '<div style="text-align:center;padding:20px;color:var(--muted)">⏳ Chargement...</div>');
+  try {
+    const [detail, volunteer, payments] = await Promise.all([
+      api('/users/' + u.id),
+      api('/volunteer?user_id=' + u.id).catch(() => []),
+      api('/paiements?user_id=' + u.id).catch(() => []),
+    ]);
+    const m = { ...u, ...detail };
+    const age = m.date_naissance ? Math.floor((Date.now() - new Date(m.date_naissance)) / (365.25*24*3600*1000)) : null;
+    const totalHeures = Array.isArray(volunteer) ? volunteer.filter(v=>v.statut==='approuve').reduce((s,v)=>s+(v.heures||0),0) : 0;
+    const planColors = { gratuit:'#757575', bienfaiteur:'#e65100', partenaire:'#1565c0' };
+    const plc = planColors[m.plan||'gratuit'] || '#757575';
+
+    document.getElementById('modalBody').innerHTML = `
+      <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;margin-bottom:20px">
+        <div style="flex-shrink:0">
+          ${m.photo_url
+            ? `<img src="${BASE}${m.photo_url}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid var(--border)"/>`
+            : `<div style="width:80px;height:80px;border-radius:50%;background:var(--g3);color:#fff;font-size:2rem;font-weight:700;display:flex;align-items:center;justify-content:center">${(m.prenom||'?')[0]}${(m.nom||'')[0]||''}</div>`}
+        </div>
+        <div style="flex:1;min-width:200px">
+          <div style="font-size:1.25rem;font-weight:800">${escHtml(m.prenom)} ${escHtml(m.nom)}</div>
+          <div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap">
+            ${pill(roleName(m.role), m.role==='admin'?'bp-orange':m.role==='member'?'bp-blue':'bp-green')}
+            <span style="background:${plc}20;color:${plc};font-size:.72rem;font-weight:700;padding:2px 10px;border-radius:20px;border:1px solid ${plc}40">${(m.plan||'gratuit').toUpperCase()}</span>
+            ${m.actif ? pill('Actif','bp-green') : pill('Inactif','bp-red')}
+          </div>
+          ${m.bio ? `<div style="margin-top:8px;font-size:.82rem;color:var(--muted);font-style:italic">${escHtml(m.bio)}</div>` : ''}
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:20px">
+        <div style="background:var(--off);border-radius:10px;padding:12px;text-align:center">
+          <div style="font-size:1.3rem;font-weight:800;color:var(--g2)">${totalHeures}h</div>
+          <div style="font-size:.72rem;color:var(--muted)">Bénévolat approuvé</div>
+        </div>
+        ${age ? `<div style="background:var(--off);border-radius:10px;padding:12px;text-align:center">
+          <div style="font-size:1.3rem;font-weight:800;color:var(--g2)">${age}</div>
+          <div style="font-size:.72rem;color:var(--muted)">ans</div>
+        </div>` : ''}
+        <div style="background:var(--off);border-radius:10px;padding:12px;text-align:center">
+          <div style="font-size:1rem;font-weight:700;color:var(--g2)">${fmt(m.date_inscription)}</div>
+          <div style="font-size:.72rem;color:var(--muted)">Membre depuis</div>
+        </div>
+        ${m.plan_unpaid_count > 0 ? `<div style="background:#ffebee;border-radius:10px;padding:12px;text-align:center">
+          <div style="font-size:1.3rem;font-weight:800;color:var(--red)">${m.plan_unpaid_count}</div>
+          <div style="font-size:.72rem;color:var(--red)">mois impayés</div>
+        </div>` : ''}
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px;font-size:.83rem">
+        ${m.email    ? `<div><span style="color:var(--muted)">✉️ </span><a href="mailto:${escHtml(m.email)}" style="color:var(--g2)">${escHtml(m.email)}</a></div>` : ''}
+        ${m.telephone ? `<div><span style="color:var(--muted)">📞 </span>${escHtml(m.telephone)}</div>` : ''}
+        ${m.adresse   ? `<div><span style="color:var(--muted)">📍 </span>${escHtml(m.adresse)}</div>` : ''}
+        ${m.date_naissance ? `<div><span style="color:var(--muted)">🎂 </span>${fmt(m.date_naissance)}</div>` : ''}
+      </div>
+
+      ${can.executive() ? `<div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-outline btn-sm" onclick='closeModal();openMemberForm(${JSON.stringify(m).replace(/'/g,"&#39;")})'>✏️ Modifier</button>
+        <button class="btn btn-ghost btn-sm" onclick="closeModal();showView('carte-gestion')">🪪 Carte membre</button>
+        ${m.actif
+          ? `<button class="btn btn-danger btn-sm" onclick="closeModal();toggleMember(${m.id},0)">🚫 Désactiver</button>`
+          : `<button class="btn btn-ghost btn-sm"  onclick="closeModal();toggleMember(${m.id},1)">✅ Activer</button>`}
+      </div>` : ''}
+    `;
+  } catch(e) {
+    document.getElementById('modalBody').innerHTML = `<p style="color:var(--red)">${e.message}</p>`;
+  }
 }
 
 function toggleActMenu(id, e) {
@@ -1375,6 +1561,15 @@ async function archiveActivity(id) {
 async function unarchiveActivity(id) {
   try { await api(`/activities/${id}/unarchive`, { method: 'PATCH' }); toast('Activité restaurée'); activities(); }
   catch(ex) { toast(ex.message, 'error'); }
+}
+
+async function duplicateActivity(id, titre) {
+  if (!confirm(`Créer une copie de "${titre}" ?`)) return;
+  try {
+    await api(`/activities/${id}/duplicate`, { method: 'POST' });
+    toast('✅ Activité copiée — elle est planifiée et peut être modifiée');
+    activities();
+  } catch(e) { toast(e.message, 'error'); }
 }
 
 async function deleteActivity(id) {
@@ -1657,7 +1852,7 @@ function renderMembersTable(filtered, q) {
       '<mark style="background:#fff3cd;border-radius:2px;padding:0 1px">$1</mark>');
   }
   tbody.innerHTML = filtered.map(u => `<tr>
-    <td><strong>${hl(u.prenom+' '+u.nom, q)}</strong></td>
+    <td><strong style="cursor:pointer;color:var(--g2)" onclick='openMemberDetail(${JSON.stringify(u).replace(/'/g,"&#39;")})'>${hl(u.prenom+' '+u.nom, q)}</strong></td>
     <td>${hl(u.email, q)}</td>
     <td>${hl(u.telephone||'–', q)}</td>
     <td>${pill(roleName(u.role), u.role==='admin'?'bp-orange':u.role==='member'?'bp-blue':'bp-green')}</td>
@@ -2059,7 +2254,7 @@ function scFilterPicker(q) {
 
 // ══ FINANCE ════════════════════════════════════════════════════════════════
 async function finance() {
-  const [lines, rep, summary] = await Promise.all([api('/finance/lines'), api('/finance/account'), api('/finance/summary').catch(() => ({}))]);
+  const [lines, rep, summary, chartData] = await Promise.all([api('/finance/lines'), api('/finance/account'), api('/finance/summary').catch(() => ({})), api('/finance/chart').catch(() => [])]);
   window._finLines = lines;
   window._finRep   = rep;
   window._finAllLines = lines;
@@ -2096,6 +2291,10 @@ async function finance() {
         <canvas id="finDonut" style="max-width:180px;max-height:180px"></canvas>
       </div>
     </div>
+    <div class="table-card" style="padding:16px;margin-bottom:20px">
+      <h4 style="margin:0 0 10px;font-size:.88rem;color:var(--text)">📈 Revenus & Dépenses — 12 derniers mois</h4>
+      <canvas id="finMonthChart" height="120"></canvas>
+    </div>
     <div class="table-card">
       <div class="table-card-header" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
         <h3 style="margin:0">Lignes financières</h3>
@@ -2116,10 +2315,10 @@ async function finance() {
     <p style="font-size:.78rem;color:var(--muted);margin-top:-8px">Institution: ${rep?.institution||'–'} · Compte: ${rep?.numero_compte||'–'} · Titulaire: ${rep?.nom_titulaire||'–'}</p>
   `);
   filterFinLines();
-  setTimeout(() => renderFinCharts(lines), 50);
+  setTimeout(() => renderFinCharts(lines, chartData), 50);
 }
 
-function renderFinCharts(lines) {
+function renderFinCharts(lines, monthlyData) {
   if (typeof Chart === 'undefined') return;
   const top = lines.slice(0, 10);
   const barEl = document.getElementById('finBarChart');
@@ -2156,6 +2355,34 @@ function renderFinCharts(lines) {
       },
       options: { responsive: true, cutout: '60%',
         plugins: { legend: { position: 'bottom', labels: { font: { size: 10, family: 'Poppins' }, boxWidth: 12 } } } }
+    });
+  }
+  // Monthly revenue / expense line chart
+  const monthEl = document.getElementById('finMonthChart');
+  if (monthEl && Array.isArray(monthlyData) && monthlyData.length) {
+    const MONTH_LABELS_FR = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+    const labels = monthlyData.map(r => {
+      const [y, m] = r.mois.split('-');
+      return MONTH_LABELS_FR[parseInt(m) - 1] + ' ' + y.slice(2);
+    });
+    Chart.getChart(monthEl)?.destroy();
+    new Chart(monthEl, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Revenus', data: monthlyData.map(r => r.revenus || 0), borderColor: '#2e7d32', backgroundColor: 'rgba(46,125,50,.1)', tension: .35, fill: true, pointRadius: 4 },
+          { label: 'Dépenses', data: monthlyData.map(r => r.depenses || 0), borderColor: '#c62828', backgroundColor: 'rgba(198,40,40,.08)', tension: .35, fill: true, pointRadius: 4 },
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { position: 'bottom', labels: { font: { size: 11, family: 'Poppins' }, boxWidth: 14 } } },
+        scales: {
+          y: { beginAtZero: true, ticks: { callback: v => '$' + v.toFixed(0), font: { size: 10 } } },
+          x: { ticks: { font: { size: 10 } } }
+        }
+      }
     });
   }
 }
@@ -4966,8 +5193,32 @@ function setupDarkMode() {
 function setupSearch() {
   const input   = document.getElementById('searchInput');
   const results = document.getElementById('searchResults');
+  const wrap    = document.getElementById('searchWrap');
   if (!input) return;
   let timer = null;
+
+  // ── Ctrl+K / Cmd+K ouvre la recherche ──
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      e.preventDefault();
+      if (wrap) {
+        wrap.style.display = wrap.style.display === 'none' ? 'block' : 'none';
+        if (wrap.style.display !== 'none') {
+          input.focus();
+          input.select();
+        }
+      } else {
+        input.style.display = 'block';
+        input.focus();
+        input.select();
+      }
+    }
+    if (e.key === 'Escape') {
+      if (wrap) wrap.style.display = 'none';
+      results.style.display = 'none';
+    }
+  });
+
   input.addEventListener('input', () => {
     clearTimeout(timer);
     const q = input.value.trim();
@@ -4980,7 +5231,7 @@ function setupSearch() {
     }, 300);
   });
   input.addEventListener('focus', () => { if (input.value.trim().length >= 2) results.style.display = 'block'; });
-  document.addEventListener('click', e => { if (!e.target.closest('.search-wrap')) results.style.display = 'none'; });
+  document.addEventListener('click', e => { if (!e.target.closest('#searchWrap') && !e.target.closest('.search-wrap')) results.style.display = 'none'; });
 }
 
 function renderSearchResults(data, q) {
@@ -10618,11 +10869,24 @@ async function forumSubmitTopic() {
 
 let _nlHistory = [];
 
+const NL_TEMPLATES = [
+  { label:'🎉 Invitation activité', sujet:'Vous êtes invité(e) — [Titre]', corps:`Bonjour,\n\nNous avons le plaisir de vous inviter à notre prochaine activité :\n\n📅 Date : [date]\n📍 Lieu : [lieu]\n\n[Description de l'activité]\n\nVeuillez confirmer votre présence en vous connectant à votre espace membre.\n\nCordialement,\nL'équipe AHH Hamilton` },
+  { label:'💳 Rappel cotisation', sujet:'Rappel — Votre cotisation AHH Hamilton', corps:`Bonjour,\n\nNous vous rappelons que votre cotisation annuelle pour l'Association Haïtienne de Hamilton est maintenant due.\n\nPour renouveler votre adhésion, connectez-vous à votre espace membre et accédez à la section "Mon paiement".\n\nMerci pour votre soutien continu !\n\nCordialement,\nLe comité AHH Hamilton` },
+  { label:'📢 Annonce générale', sujet:'Nouvelles de l\'AHH Hamilton — [Mois]', corps:`Bonjour à tous,\n\nVoici les dernières nouvelles de l'Association Haïtienne de Hamilton :\n\n1. [Nouvelle 1]\n2. [Nouvelle 2]\n3. [Nouvelle 3]\n\nN'hésitez pas à partager cette infolettre avec votre entourage.\n\nCordialement,\nL'équipe AHH Hamilton` },
+  { label:'🙏 Remerciements', sujet:'Merci pour votre participation — [Activité]', corps:`Bonjour,\n\nAu nom de toute l'équipe de l'Association Haïtienne de Hamilton, nous tenons à vous remercier chaleureusement pour votre participation à [Activité].\n\nVotre présence et votre engagement enrichissent notre communauté.\n\nÀ très bientôt,\nL'équipe AHH Hamilton` },
+];
+
 async function newsletter() {
   setContent(`
     <div class="table-card" style="max-width:100%">
       <div class="table-card-header"><h3>📨 Infolettre — Envoi de masse</h3></div>
       <div style="padding:20px">
+        <div style="margin-bottom:16px">
+          <label class="form-label">Modèle rapide</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+            ${NL_TEMPLATES.map((t,i) => `<button class="btn btn-ghost btn-sm" onclick="nlApplyTemplate(${i})">${t.label}</button>`).join('')}
+          </div>
+        </div>
         <div style="margin-bottom:20px">
           <label class="form-label">Segment de destinataires</label>
           <select id="nlSegment" class="form-input" style="margin-bottom:14px">
@@ -10635,8 +10899,9 @@ async function newsletter() {
           <input id="nlSujet" class="form-input" placeholder="Objet de l'email" style="margin-bottom:14px"/>
           <label class="form-label">Corps du message</label>
           <textarea id="nlCorps" rows="10" class="form-input" placeholder="Contenu de votre infolettre..." style="resize:vertical;margin-bottom:14px"></textarea>
-          <div style="display:flex;gap:10px;align-items:center">
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
             <button class="btn btn-primary" onclick="sendNewsletter()">📨 Envoyer</button>
+            <button class="btn btn-outline" onclick="nlPreview()">👁 Aperçu</button>
             <span id="nlStatus" style="font-size:.85rem;color:var(--muted)"></span>
           </div>
         </div>
@@ -11010,6 +11275,35 @@ async function mesBadgesView() {
       }).join('')}
     </div>
   `);
+}
+
+function nlApplyTemplate(i) {
+  const t = NL_TEMPLATES[i];
+  if (!t) return;
+  const sj = document.getElementById('nlSujet');
+  const co = document.getElementById('nlCorps');
+  if (sj) sj.value = t.sujet;
+  if (co) co.value = t.corps;
+  toast('Modèle appliqué — adaptez le contenu avant d\'envoyer');
+}
+
+function nlPreview() {
+  const sujet = document.getElementById('nlSujet')?.value?.trim() || '(sans sujet)';
+  const corps = (document.getElementById('nlCorps')?.value?.trim() || '').replace(/\n/g, '<br>');
+  const preview = `
+    <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:560px;margin:0 auto">
+      <div style="background:linear-gradient(135deg,#003F87,#D21034);padding:24px;text-align:center;border-radius:10px 10px 0 0">
+        <div style="color:#fff;font-size:1rem;font-weight:700">Association Haïtienne de Hamilton</div>
+      </div>
+      <div style="background:#fff;padding:28px;border:1px solid #e0e0e0">
+        <div style="font-size:1.05rem;font-weight:700;color:#003F87;margin-bottom:16px">📧 ${escHtml(sujet)}</div>
+        <div style="font-size:.9rem;color:#333;line-height:1.7">${corps}</div>
+        <div style="margin-top:24px;font-size:.75rem;color:#aaa;border-top:1px solid #eee;padding-top:12px;text-align:center">
+          © ${new Date().getFullYear()} Association Haïtienne de Hamilton
+        </div>
+      </div>
+    </div>`;
+  openModal('👁 Aperçu de l\'infolettre', preview, 'lg');
 }
 
 async function sendNewsletter() {

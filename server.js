@@ -521,6 +521,16 @@ app.get('/api/users/:id', authMiddleware, (req, res) => {
   res.json(u);
 });
 
+app.get('/api/membres/anniversaires', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  const mois = new Date().getMonth() + 1;
+  const rows = db.prepare(`SELECT id, prenom, nom, date_naissance, photo_url FROM users
+    WHERE actif=1 AND (phantom IS NULL OR phantom=0)
+    AND date_naissance IS NOT NULL AND date_naissance != ''
+    AND CAST(strftime('%m', date_naissance) AS INTEGER) = ?
+    ORDER BY strftime('%d', date_naissance)`).all(mois);
+  res.json(rows);
+});
+
 app.post('/api/users', authMiddleware, requireRole('admin'), (req, res) => {
   const { prenom, nom, email, telephone, adresse, date_naissance, role, password } = req.body;
   if (!prenom || !nom || !email || !password)
@@ -854,6 +864,18 @@ app.patch('/api/activities/:id/unarchive', authMiddleware, requireRole('admin','
   res.json({ message: 'Activité restaurée' });
 });
 
+app.post('/api/activities/:id/duplicate', authMiddleware, requireRole(...ACTIVITY_ROLES), (req, res) => {
+  const orig = db.prepare('SELECT * FROM activities WHERE id=?').get(req.params.id);
+  if (!orig) return res.status(404).json({ error: 'Activité introuvable' });
+  const qr_token = crypto2.randomBytes(16).toString('hex');
+  const r = db.prepare(`INSERT INTO activities (titre, description, type, date_debut, date_fin, lieu, budget_prevu, max_participants, cree_par, prix, paiement_requis, rabais_json, qr_token)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run('Copie — ' + orig.titre, orig.description, orig.type, orig.date_debut, orig.date_fin, orig.lieu,
+         orig.budget_prevu||0, orig.max_participants, req.user.id,
+         orig.prix||0, orig.paiement_requis||0, orig.rabais_json||'{}', qr_token);
+  res.status(201).json({ id: r.lastInsertRowid });
+});
+
 app.post('/api/activities/:id/register', authMiddleware, (req, res) => {
   try {
     db.prepare('INSERT INTO activity_registrations (activity_id, user_id) VALUES (?, ?)')
@@ -894,6 +916,17 @@ app.get('/api/finance/lines', authMiddleware, requireRole('admin', 'tresoriere',
     LEFT JOIN projects p ON p.id = fl.project_id
     ORDER BY fl.date_creation DESC
   `).all();
+  res.json(rows);
+});
+
+app.get('/api/finance/chart', authMiddleware, requireRole('admin', 'tresoriere', 'secretaire'), (req, res) => {
+  const rows = db.prepare(`
+    SELECT strftime('%Y-%m', date_transaction) AS mois,
+           SUM(CASE WHEN type='revenu'  THEN montant ELSE 0 END) AS revenus,
+           SUM(CASE WHEN type='depense' THEN montant ELSE 0 END) AS depenses
+    FROM transactions
+    WHERE date_transaction >= date('now', '-12 months')
+    GROUP BY mois ORDER BY mois ASC`).all();
   res.json(rows);
 });
 
@@ -1696,11 +1729,14 @@ app.put('/api/stats/config', authMiddleware, requireRole('admin','tresoriere','s
 
 app.get('/api/stats', authMiddleware, (req, res) => {
   const stats = {
-    total_membres:    db.prepare("SELECT COUNT(*) AS c FROM users WHERE actif=1 AND role='member'").get().c,
-    total_activites:  db.prepare("SELECT COUNT(*) AS c FROM activities WHERE statut != 'annulee'").get().c,
-    total_heures:     db.prepare("SELECT COALESCE(SUM(heures),0) AS c FROM volunteer_hours WHERE statut='approuve'").get().c,
-    messages_non_lus: db.prepare("SELECT COUNT(*) AS c FROM message_recipients WHERE destinataire_id=? AND lu=0").get(req.user.id).c,
-    alertes_non_lues: db.prepare("SELECT COUNT(*) AS c FROM alerts WHERE destinataire_id=? AND lu=0").get(req.user.id).c,
+    total_membres:          db.prepare("SELECT COUNT(*) AS c FROM users WHERE actif=1 AND role='member'").get().c,
+    total_activites:        db.prepare("SELECT COUNT(*) AS c FROM activities WHERE statut != 'annulee'").get().c,
+    total_heures:           db.prepare("SELECT COALESCE(SUM(heures),0) AS c FROM volunteer_hours WHERE statut='approuve'").get().c,
+    messages_non_lus:       db.prepare("SELECT COUNT(*) AS c FROM message_recipients WHERE destinataire_id=? AND lu=0").get(req.user.id).c,
+    alertes_non_lues:       db.prepare("SELECT COUNT(*) AS c FROM alerts WHERE destinataire_id=? AND lu=0").get(req.user.id).c,
+    inscriptions_en_attente:['admin','secretaire','delegue','tresoriere'].includes(req.user.role)
+      ? db.prepare("SELECT COUNT(*) AS c FROM users WHERE actif=0 AND (phantom IS NULL OR phantom=0) AND date_inscription IS NOT NULL").get().c
+      : 0,
     prochaines_activites: db.prepare("SELECT id, titre, date_debut, lieu, (SELECT COUNT(*) FROM activity_registrations WHERE activity_id=activities.id) AS nb_inscrits FROM activities WHERE statut='planifiee' ORDER BY date_debut LIMIT 5").all(),
     derniers_membres: db.prepare("SELECT id, prenom, nom, date_inscription FROM users WHERE actif=1 AND (phantom IS NULL OR phantom=0) ORDER BY date_inscription DESC LIMIT 4").all(),
   };
