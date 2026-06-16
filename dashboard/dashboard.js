@@ -9779,7 +9779,7 @@ async function carteScannerView() {
 
   setContent(`
     <div class="page-header"><div><h2>📷 Scanner de cartes membres</h2><p>Pointez la caméra vers le QR code de la carte</p></div></div>
-    <div style="display:grid;grid-template-columns:minmax(280px,1fr) minmax(280px,1fr);gap:20px;max-width:920px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;max-width:920px">
 
       <div class="table-card" style="padding:20px">
         <h4 style="margin-bottom:12px;color:var(--g2)">📷 Caméra</h4>
@@ -9976,7 +9976,7 @@ async function carteScanSearch() {
         </div>`;
 
       actEl.innerHTML = `
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:920px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;max-width:920px">
           <div class="table-card">
             <div class="table-card-header" style="background:#e8f5e9">
               <h3 style="color:#2e7d32">🟢 Inscrit(e) (${inscrits.length})</h3>
