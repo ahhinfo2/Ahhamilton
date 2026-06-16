@@ -888,6 +888,20 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS ambassador (
 // S'assurer qu'il y a toujours une ligne
 try { db.exec("INSERT OR IGNORE INTO ambassador(id) VALUES(1)"); } catch {}
 
+// ── Sponsors / Commanditaires ─────────────────────────────────────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS sponsors (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nom TEXT NOT NULL,
+  description TEXT DEFAULT '',
+  site_web TEXT DEFAULT '',
+  photo_url TEXT,
+  categorie TEXT DEFAULT 'or',
+  actif INTEGER DEFAULT 1,
+  ordre INTEGER DEFAULT 0,
+  cree_par INTEGER REFERENCES users(id),
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
 init();
 
 module.exports = db;

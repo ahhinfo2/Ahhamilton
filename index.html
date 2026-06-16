@@ -307,6 +307,18 @@
     </div>
   </section>
 
+  <!-- ===== COMMANDITAIRES ===== -->
+  <section class="sponsors-section" id="commanditaires">
+    <div class="container">
+      <div class="section-header" data-reveal>
+        <span class="section-badge">Partenaires</span>
+        <h2>Nos commanditaires</h2>
+        <p>Merci à ceux qui soutiennent la mission de l'Association Haïtienne de Hamilton.</p>
+      </div>
+      <div id="sponsorsGrid" class="sponsors-grid"></div>
+    </div>
+  </section>
+
   <!-- ===== DON ===== -->
   <section class="donation" id="don">
     <div class="donation-bg"></div>
@@ -736,6 +748,35 @@
           '</div></div>';
       }).join('');
       wrap.style.display = '';
+    } catch(e) {}
+  })();
+
+  // Commanditaires dynamiques
+  (async function() {
+    try {
+      var r = await fetch(BASE_API + '/sponsors');
+      if (!r.ok) return;
+      var list = await r.json();
+      var grid = document.getElementById('sponsorsGrid');
+      var section = document.querySelector('.sponsors-section');
+      if (!grid) return;
+      if (!list.length) { if (section) section.style.display = 'none'; return; }
+      var CAT_COLORS = { platine:'#B0BEC5', or:'#F9A825', argent:'#9E9E9E', bronze:'#BF8A30' };
+      var CAT_LABELS = { platine:'Platine', or:'Or', argent:'Argent', bronze:'Bronze' };
+      grid.innerHTML = list.map(function(s) {
+        var tag = s.site_web ? 'a href="' + s.site_web + '" target="_blank" rel="noopener"' : 'div';
+        var tagClose = s.site_web ? 'a' : 'div';
+        return '<' + tag + ' class="sponsor-card">' +
+          (s.photo_url
+            ? '<img class="sponsor-card-img" src="' + s.photo_url + '" alt="' + s.nom + '" loading="lazy">'
+            : '<div class="sponsor-card-placeholder">🤝</div>') +
+          '<div class="sponsor-card-body">' +
+            '<span class="sponsor-card-cat" style="background:' + (CAT_COLORS[s.categorie]||'#9E9E9E') + '">' + (CAT_LABELS[s.categorie]||s.categorie) + '</span>' +
+            '<div class="sponsor-card-name">' + s.nom + '</div>' +
+            (s.description ? '<div class="sponsor-card-desc">' + s.description + '</div>' : '') +
+          '</div>' +
+        '</' + tagClose + '>';
+      }).join('');
     } catch(e) {}
   })();
 

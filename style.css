@@ -392,6 +392,68 @@ img   { display: block; max-width: 100%; }
 .donation-card p { color: rgba(255,255,255,.72); font-size: .84rem; margin-bottom: 20px; line-height: 1.6; }
 
 /* ═══════════════════════════════════════════════
+   COMMANDITAIRES / SPONSORS
+═══════════════════════════════════════════════ */
+.sponsors-section { padding: 80px 0; background: #f4f7f4; }
+.sponsors-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 28px;
+  justify-content: center;
+  margin-top: 40px;
+}
+.sponsor-card {
+  width: 100%;
+  max-width: 380px;
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.15);
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  background: #fff;
+  transition: transform .22s ease, box-shadow .22s ease;
+  cursor: pointer;
+}
+.sponsor-card:hover { transform: translateY(-6px); box-shadow: 0 20px 56px rgba(0,0,0,.22); }
+.sponsor-card-img {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  display: block;
+}
+.sponsor-card-placeholder {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 4rem;
+  background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+}
+.sponsor-card-body {
+  padding: 18px 20px 20px;
+}
+.sponsor-card-cat {
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  border-radius: 20px;
+  padding: 3px 12px;
+  color: #fff;
+  display: inline-block;
+  margin-bottom: 8px;
+}
+.sponsor-card-name { font-size: 1.05rem; font-weight: 700; margin-bottom: 4px; }
+.sponsor-card-desc { font-size: .84rem; color: var(--muted); line-height: 1.5; }
+
+@media (max-width: 600px) {
+  .sponsors-grid { gap: 18px; }
+  .sponsor-card { max-width: 100%; }
+}
+
+/* ═══════════════════════════════════════════════
    CONTACT
 ═══════════════════════════════════════════════ */
 .contact-section { padding: 80px 0; background: #fff; }
@@ -1139,6 +1201,8 @@ img   { display: block; max-width: 100%; }
 :root.dark .pillars { background: #141f14; }
 :root.dark .testimonials { background: #0e180e; }
 :root.dark .contact-section { background: #0e180e; }
+:root.dark .sponsors-section { background: #141f14; }
+:root.dark .sponsor-card { background: #1e2e1e; color: var(--text); }
 :root.dark .section-header h2 { color: var(--text); }
 :root.dark .donation-card { background: rgba(255,255,255,.06); }
 :root.dark .section-badge { background: rgba(45,158,95,.15); color: var(--g3); }

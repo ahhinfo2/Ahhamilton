@@ -335,6 +335,7 @@ function buildSidebar() {
       { id:'testimonials_mgmt', icon:'❝', label:'Témoignages',       roles:['admin','secretaire'] },
       { id:'videos_mgmt',       icon:'▶', label:'Vidéos',            roles:['admin','secretaire'] },
       { id:'documents_mgmt',    icon:'📁', label:'Documents',         roles:['admin','secretaire'] },
+      { id:'sponsors_mgmt',     icon:'🤝', label:'Commanditaires',    roles:['admin','secretaire'] },
     ]},
 
     // ── Espace Jeunes ─────────────────────────────────────────────
@@ -801,7 +802,7 @@ async function showView(viewId) {
     notes, reports, letters, projects, alerts, profile,
     gallery_mgmt, annuaire, talents_mgmt, annonces_mgmt, mes_talents, mes_annonces,
     inscriptions, paiements, recus, mon_paiement, mes_billets, testimonials_mgmt, videos_mgmt,
-    scanner, forum, newsletter, rapports_finance, documents_mgmt
+    scanner, forum, newsletter, rapports_finance, documents_mgmt, sponsors_mgmt
   };
   const extViews = {
     'pending-orders': pendingOrders,
@@ -8108,6 +8109,116 @@ async function documentDelete(id) {
   if (!confirm('Supprimer ce document définitivement ?')) return;
   await api('/documents/'+id, { method:'DELETE' });
   documents_mgmt(); toast('Document supprimé');
+}
+
+// ══ COMMANDITAIRES ═══════════════════════════════════════════════════════════
+async function sponsors_mgmt() {
+  const canEdit = can.adminOrSec();
+  const sponsors = await api('/sponsors/all').catch(() => []);
+  window._sponsors_cache = sponsors;
+  const CAT_LABELS = { platine:'Platine', or:'Or', argent:'Argent', bronze:'Bronze' };
+  const CAT_COLORS = { platine:'#B0BEC5', or:'#F9A825', argent:'#9E9E9E', bronze:'#BF8A30' };
+
+  setContent(`
+    <div class="page-header">
+      <h1>🤝 Commanditaires</h1>
+      ${canEdit ? '<button class="btn btn-primary" onclick="sponsorForm()">+ Ajouter</button>' : ''}
+    </div>
+    <p style="color:var(--muted);margin-bottom:24px">Gérez les commanditaires affichés sur le site public.</p>
+    <div id="sponsorsList">
+      ${sponsors.length === 0
+        ? '<p style="color:var(--muted);text-align:center;padding:40px 0">Aucun commanditaire pour l\'instant.</p>'
+        : sponsors.map(s => `
+          <div class="table-card" style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;margin-bottom:16px;opacity:${s.actif?1:.5}">
+            ${s.photo_url
+              ? `<img src="${s.photo_url}" alt="${s.nom}" style="width:90px;height:120px;object-fit:cover;border-radius:10px;flex-shrink:0;box-shadow:0 4px 16px rgba(0,0,0,.15)">`
+              : `<div style="width:90px;height:120px;border-radius:10px;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:2rem;flex-shrink:0">🤝</div>`}
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+                <strong style="font-size:1.1rem">${s.nom}</strong>
+                <span style="background:${CAT_COLORS[s.categorie]||'#9E9E9E'};color:#fff;font-size:.72rem;font-weight:700;border-radius:20px;padding:2px 10px">${CAT_LABELS[s.categorie]||s.categorie}</span>
+                ${!s.actif ? '<span style="background:#ccc;color:#555;font-size:.72rem;font-weight:700;border-radius:20px;padding:2px 10px">Inactif</span>' : ''}
+              </div>
+              ${s.description ? `<p style="color:var(--muted);font-size:.9rem;margin:0 0 6px">${s.description}</p>` : ''}
+              ${s.site_web ? `<a href="${s.site_web}" target="_blank" rel="noopener" style="font-size:.85rem;color:var(--accent)">${s.site_web}</a>` : ''}
+            </div>
+            ${canEdit ? `
+            <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+              <button class="btn btn-outline btn-sm" onclick="sponsorForm(${s.id})">✏️ Modifier</button>
+              <button class="btn btn-outline btn-sm" onclick="sponsorToggle(${s.id},${s.actif?0:1})">${s.actif?'⏸ Masquer':'▶ Afficher'}</button>
+              <div style="display:flex;gap:4px">
+                <button class="btn btn-outline btn-sm" onclick="sponsorOrdre(${s.id},'up')" title="Monter">↑</button>
+                <button class="btn btn-outline btn-sm" onclick="sponsorOrdre(${s.id},'down')" title="Descendre">↓</button>
+              </div>
+              <button class="btn btn-sm" style="background:#f44336;color:#fff" onclick="sponsorDelete(${s.id},'${s.nom.replace(/'/g,"\\'").replace(/"/g,'\\"')}')">🗑 Supprimer</button>
+            </div>` : ''}
+          </div>`).join('')}
+    </div>
+  `);
+}
+
+function sponsorForm(id) {
+  const sp = id ? window._sponsors_cache?.find(s => s.id === id) : null;
+  const CAT = ['platine','or','argent','bronze'];
+  openModal(id ? 'Modifier le commanditaire' : 'Ajouter un commanditaire', `
+    <form id="sponsorFrm" enctype="multipart/form-data">
+      <div class="form-group">
+        <label>Nom *</label>
+        <input name="nom" class="form-control" required value="${sp?.nom||''}">
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <textarea name="description" class="form-control" rows="2">${sp?.description||''}</textarea>
+      </div>
+      <div class="form-group">
+        <label>Site web</label>
+        <input name="site_web" class="form-control" type="url" placeholder="https://..." value="${sp?.site_web||''}">
+      </div>
+      <div class="form-group">
+        <label>Catégorie</label>
+        <select name="categorie" class="form-control">
+          ${CAT.map(c => `<option value="${c}" ${(sp?.categorie||'or')===c?'selected':''}>${c.charAt(0).toUpperCase()+c.slice(1)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Logo / Affiche (image)</label>
+        ${sp?.photo_url ? `<img src="${sp.photo_url}" style="width:80px;height:106px;object-fit:cover;border-radius:8px;margin-bottom:8px;display:block">` : ''}
+        <input type="file" name="photo" class="form-control" accept="image/*">
+      </div>
+      <button type="button" class="btn btn-primary" onclick="sponsorSave(${id||'null'})">💾 Enregistrer</button>
+    </form>
+  `);
+}
+
+async function sponsorSave(id) {
+  const frm = document.getElementById('sponsorFrm');
+  if (!frm.nom.value.trim()) { toast('Le nom est obligatoire','err'); return; }
+  const fd = new FormData(frm);
+  const url = API + (id ? '/sponsors/'+id : '/sponsors');
+  const method = id ? 'PUT' : 'POST';
+  try {
+    const res = await fetch(url, { method, headers: { Authorization: `Bearer ${TOKEN}` }, body: fd });
+    if (!res.ok) throw new Error();
+    closeModal(); sponsors_mgmt(); toast(id?'Commanditaire mis à jour':'Commanditaire ajouté');
+  } catch(e) { toast('Erreur lors de l\'enregistrement','err'); }
+}
+
+async function sponsorToggle(id, actif) {
+  const fd = new FormData();
+  fd.append('actif', actif);
+  await fetch(API+'/sponsors/'+id, { method:'PUT', headers:{ Authorization:`Bearer ${TOKEN}` }, body:fd }).catch(() => null);
+  sponsors_mgmt();
+}
+
+async function sponsorOrdre(id, direction) {
+  await api('/sponsors/'+id+'/ordre', { method:'PATCH', body:JSON.stringify({direction}) }).catch(() => null);
+  sponsors_mgmt();
+}
+
+async function sponsorDelete(id, nom) {
+  if (!confirm('Supprimer le commanditaire «'+nom+'» ?')) return;
+  await api('/sponsors/'+id, { method:'DELETE' });
+  sponsors_mgmt(); toast('Commanditaire supprimé');
 }
 
 async function mon_paiement() {
