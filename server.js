@@ -5442,6 +5442,82 @@ app.get('/api/members/:id/card', authMiddleware, (req, res) => {
   res.json(u);
 });
 
+// ── Sponsors / Commanditaires ─────────────────────────────────────────────────
+const sponsorStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, 'uploads', 'sponsors');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => cb(null, `sponsor_${Date.now()}${path.extname(file.originalname)}`)
+});
+const uploadSponsor = multer({ storage: sponsorStorage, limits: { fileSize: 10 * 1024 * 1024 } });
+
+app.use('/uploads/sponsors', express.static(path.join(__dirname, 'uploads', 'sponsors')));
+
+app.get('/api/sponsors', (req, res) => {
+  try {
+    const rows = db.prepare('SELECT * FROM sponsors WHERE actif=1 ORDER BY ordre ASC, date_creation ASC').all();
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/sponsors/all', authMiddleware, requireRole('admin','secretaire','tresoriere','delegue'), (req, res) => {
+  try {
+    const rows = db.prepare('SELECT * FROM sponsors ORDER BY ordre ASC, date_creation DESC').all();
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/sponsors', authMiddleware, requireRole('admin','secretaire'), uploadSponsor.single('photo'), (req, res) => {
+  try {
+    const { nom, description, site_web, categorie } = req.body;
+    if (!nom) return res.status(400).json({ error: 'Nom requis' });
+    const photo_url = req.file ? `/uploads/sponsors/${req.file.filename}` : null;
+    const maxOrdre = db.prepare('SELECT COALESCE(MAX(ordre),0) AS m FROM sponsors').get().m;
+    const r = db.prepare('INSERT INTO sponsors (nom, description, site_web, photo_url, categorie, cree_par, ordre) VALUES (?,?,?,?,?,?,?)')
+      .run(nom, description||'', site_web||'', photo_url, categorie||'or', req.user.id, maxOrdre + 1);
+    res.status(201).json({ id: r.lastInsertRowid });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/sponsors/:id', authMiddleware, requireRole('admin','secretaire'), uploadSponsor.single('photo'), (req, res) => {
+  try {
+    const existing = db.prepare('SELECT * FROM sponsors WHERE id=?').get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Sponsor introuvable' });
+    const { nom, description, site_web, categorie, actif, ordre } = req.body;
+    const photo_url = req.file ? `/uploads/sponsors/${req.file.filename}` : existing.photo_url;
+    db.prepare('UPDATE sponsors SET nom=?, description=?, site_web=?, photo_url=?, categorie=?, actif=?, ordre=? WHERE id=?')
+      .run(nom||existing.nom, description!=null?description:existing.description, site_web!=null?site_web:existing.site_web,
+           photo_url, categorie||existing.categorie,
+           actif!=null?parseInt(actif):existing.actif, ordre!=null?parseInt(ordre):existing.ordre, req.params.id);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/sponsors/:id', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  try {
+    db.prepare('DELETE FROM sponsors WHERE id=?').run(req.params.id);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.patch('/api/sponsors/:id/ordre', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  try {
+    const { direction } = req.body;
+    const current = db.prepare('SELECT * FROM sponsors WHERE id=?').get(req.params.id);
+    if (!current) return res.status(404).json({ error: 'Introuvable' });
+    const target = direction === 'up'
+      ? db.prepare('SELECT * FROM sponsors WHERE ordre < ? ORDER BY ordre DESC LIMIT 1').get(current.ordre)
+      : db.prepare('SELECT * FROM sponsors WHERE ordre > ? ORDER BY ordre ASC LIMIT 1').get(current.ordre);
+    if (target) {
+      db.prepare('UPDATE sponsors SET ordre=? WHERE id=?').run(target.ordre, current.id);
+      db.prepare('UPDATE sponsors SET ordre=? WHERE id=?').run(current.ordre, target.id);
+    }
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ══════════════════════════════════════════════════════════════════════════════
 // 404 HANDLER — doit être après toutes les routes
 // ══════════════════════════════════════════════════════════════════════════════
@@ -5804,72 +5880,6 @@ app.put('/api/ambassador', authMiddleware, requireRole('admin'), (req, res) => {
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
-
-// ── Sponsors / Commanditaires ─────────────────────────────────────────────────
-const sponsorStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = path.join(__dirname, 'uploads', 'sponsors');
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => cb(null, `sponsor_${Date.now()}${path.extname(file.originalname)}`)
-});
-const uploadSponsor = multer({ storage: sponsorStorage, limits: { fileSize: 10 * 1024 * 1024 } });
-
-app.get('/api/sponsors', (req, res) => {
-  const rows = db.prepare('SELECT * FROM sponsors WHERE actif=1 ORDER BY ordre ASC, date_creation ASC').all();
-  res.json(rows);
-});
-
-app.get('/api/sponsors/all', authMiddleware, requireRole('admin','secretaire','tresoriere','delegue'), (req, res) => {
-  const rows = db.prepare('SELECT * FROM sponsors ORDER BY ordre ASC, date_creation DESC').all();
-  res.json(rows);
-});
-
-app.post('/api/sponsors', authMiddleware, requireRole('admin','secretaire'), uploadSponsor.single('photo'), (req, res) => {
-  try {
-    const { nom, description, site_web, categorie } = req.body;
-    if (!nom) return res.status(400).json({ error: 'Nom requis' });
-    const photo_url = req.file ? `/uploads/sponsors/${req.file.filename}` : null;
-    const maxOrdre = db.prepare('SELECT COALESCE(MAX(ordre),0) AS m FROM sponsors').get().m;
-    const r = db.prepare('INSERT INTO sponsors (nom, description, site_web, photo_url, categorie, cree_par, ordre) VALUES (?,?,?,?,?,?,?)')
-      .run(nom, description||'', site_web||'', photo_url, categorie||'or', req.user.id, maxOrdre + 1);
-    res.status(201).json({ id: r.lastInsertRowid });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-app.put('/api/sponsors/:id', authMiddleware, requireRole('admin','secretaire'), uploadSponsor.single('photo'), (req, res) => {
-  const existing = db.prepare('SELECT * FROM sponsors WHERE id=?').get(req.params.id);
-  if (!existing) return res.status(404).json({ error: 'Sponsor introuvable' });
-  const { nom, description, site_web, categorie, actif, ordre } = req.body;
-  const photo_url = req.file ? `/uploads/sponsors/${req.file.filename}` : existing.photo_url;
-  db.prepare('UPDATE sponsors SET nom=?, description=?, site_web=?, photo_url=?, categorie=?, actif=?, ordre=? WHERE id=?')
-    .run(nom||existing.nom, description!=null?description:existing.description, site_web!=null?site_web:existing.site_web,
-         photo_url, categorie||existing.categorie,
-         actif!=null?parseInt(actif):existing.actif, ordre!=null?parseInt(ordre):existing.ordre, req.params.id);
-  res.json({ ok: true });
-});
-
-app.delete('/api/sponsors/:id', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
-  db.prepare('DELETE FROM sponsors WHERE id=?').run(req.params.id);
-  res.json({ ok: true });
-});
-
-app.patch('/api/sponsors/:id/ordre', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
-  const { direction } = req.body; // 'up' | 'down'
-  const current = db.prepare('SELECT * FROM sponsors WHERE id=?').get(req.params.id);
-  if (!current) return res.status(404).json({ error: 'Introuvable' });
-  const target = direction === 'up'
-    ? db.prepare('SELECT * FROM sponsors WHERE ordre < ? ORDER BY ordre DESC LIMIT 1').get(current.ordre)
-    : db.prepare('SELECT * FROM sponsors WHERE ordre > ? ORDER BY ordre ASC LIMIT 1').get(current.ordre);
-  if (target) {
-    db.prepare('UPDATE sponsors SET ordre=? WHERE id=?').run(target.ordre, current.id);
-    db.prepare('UPDATE sponsors SET ordre=? WHERE id=?').run(current.ordre, target.id);
-  }
-  res.json({ ok: true });
-});
-
-app.use('/uploads/sponsors', express.static(path.join(__dirname, 'uploads', 'sponsors')));
 
 // ── Guide d'accueil PDF ──────────────────────────────────────────────────────
 app.get('/api/guide.pdf', (req, res) => {

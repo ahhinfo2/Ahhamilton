@@ -34,6 +34,18 @@ const EMOJIS = [
   '🇭🇹','⭐','🙌','😮','🤩','👏','💚','🏆','📢','✨'
 ];
 
+// ── Permissions (déclaré tôt — utilisé dans home() avant la ligne 246 originale) ──
+const can = {
+  admin:       () => USER.role === 'admin',
+  tresoriere:  () => USER.role === 'tresoriere',
+  secretaire:  () => USER.role === 'secretaire',
+  delegue:     () => USER.role === 'delegue',
+  adminOrSec:  () => ['admin','secretaire'].includes(USER.role),
+  adminOrTre:  () => ['admin','tresoriere'].includes(USER.role),
+  financeView: () => ['admin','tresoriere','secretaire'].includes(USER.role),
+  executive:   () => ['admin','tresoriere','secretaire','delegue'].includes(USER.role),
+};
+
 // ── Détection âge jeune (15-30 ans) ────────────────────────────────────────
 function getUserAge() {
   if (!USER.date_naissance) return null;
@@ -242,17 +254,6 @@ function statusPill(s) {
 function roleName(r) {
   return { admin:'Admin', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Accompagnateur', member:'Membre' }[r] || r;
 }
-
-const can = {
-  admin:       () => USER.role === 'admin',
-  tresoriere:  () => USER.role === 'tresoriere',
-  secretaire:  () => USER.role === 'secretaire',
-  delegue:     () => USER.role === 'delegue',
-  adminOrSec:  () => ['admin','secretaire'].includes(USER.role),
-  adminOrTre:  () => ['admin','tresoriere'].includes(USER.role),
-  financeView: () => ['admin','tresoriere','secretaire'].includes(USER.role),
-  executive:   () => ['admin','tresoriere','secretaire','delegue'].includes(USER.role),
-};
 
 function setContent(html) {
   const mc = document.getElementById('mainContent');
