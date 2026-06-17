@@ -4732,8 +4732,79 @@ app.get('/api/stats/connexions', authMiddleware, requireRole('admin','secretaire
 
 // ── Documents officiels ──────────────────────────────────────────────────────
 app.get('/api/documents', authMiddleware, (req, res) => {
-  const docs = db.prepare(`SELECT d.*, u.prenom||' '||u.nom AS uploader FROM documents d LEFT JOIN users u ON u.id=d.upload_par ORDER BY d.date_upload DESC`).all();
+  const docs = db.prepare(`
+    SELECT d.*, u.prenom||' '||u.nom AS uploader,
+    (SELECT COUNT(*) FROM document_signatures ds WHERE ds.document_id = d.id) AS nb_signatures,
+    (SELECT date_signature FROM document_signatures WHERE document_id = d.id AND user_id = ?) AS date_ma_signature
+    FROM documents d LEFT JOIN users u ON u.id=d.upload_par ORDER BY d.date_upload DESC
+  `).all(req.user.id);
   res.json(docs);
+});
+app.get('/api/documents/:id/attestation', authMiddleware, (req, res) => {
+  const doc = db.prepare('SELECT * FROM documents WHERE id=?').get(req.params.id);
+  if (!doc) return res.status(404).send('Document introuvable');
+  const sigs = db.prepare(`
+    SELECT ds.*, u.prenom||' '||u.nom AS nom_signataire, u.role
+    FROM document_signatures ds JOIN users u ON u.id=ds.user_id
+    WHERE ds.document_id=? ORDER BY ds.date_signature
+  `).all(req.params.id);
+  const fmt = d => { try { return new Date(d).toLocaleString('fr-CA', { timeZone:'America/Toronto', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' }); } catch { return d||''; } };
+  const fmtDate = d => { try { return new Date(d).toLocaleDateString('fr-CA', { timeZone:'America/Toronto', year:'numeric', month:'long', day:'numeric' }); } catch { return d||''; } };
+  const ROLE_LABELS = { admin:'Administrateur', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Délégué', member:'Membre' };
+  const html = `<!DOCTYPE html><html lang="fr">
+<head><meta charset="UTF-8"><title>Attestation — ${doc.nom}</title>
+<style>
+  body{font-family:Arial,sans-serif;max-width:800px;margin:40px auto;padding:0 24px;color:#222}
+  .header{text-align:center;padding-bottom:24px;margin-bottom:32px;border-bottom:3px solid #1b5e20}
+  .header h1{color:#1b5e20;margin:8px 0 4px;font-size:1.4rem}
+  .header p{color:#555;margin:0;font-size:.9rem}
+  .doc-box{background:#f9f9f9;border:1px solid #ddd;border-radius:8px;padding:16px;margin-bottom:28px;font-size:.9rem;line-height:1.7}
+  .doc-box strong{color:#1b5e20}
+  h2{color:#1b5e20;font-size:1.1rem;border-bottom:1px solid #e0e0e0;padding-bottom:8px}
+  .sig-card{border:1px solid #e0e0e0;border-radius:8px;padding:16px;margin-bottom:14px;display:flex;gap:20px;align-items:center;page-break-inside:avoid}
+  .sig-img{width:200px;height:80px;object-fit:contain;border:1px solid #ccc;border-radius:4px;background:#fff;flex-shrink:0}
+  .sig-name{font-weight:bold;font-size:1rem}
+  .sig-role{color:#666;font-size:.85rem}
+  .sig-date{color:#1b5e20;font-size:.82rem;margin-top:4px}
+  .none{color:#999;font-style:italic}
+  .footer{margin-top:40px;text-align:center;font-size:.75rem;color:#aaa;border-top:1px solid #eee;padding-top:16px}
+  .stamp{display:inline-block;border:2px solid #1b5e20;color:#1b5e20;border-radius:6px;padding:4px 12px;font-size:.8rem;font-weight:bold;margin-top:8px}
+  @media print{.no-print{display:none}}
+</style></head>
+<body>
+<div class="header">
+  <div style="font-size:2.5rem">🔏</div>
+  <h1>Attestation de signature électronique</h1>
+  <p>Association Haïtienne de Hamilton — ahhamilton.ca</p>
+</div>
+<div class="doc-box">
+  <strong>Document :</strong> ${doc.nom}<br>
+  ${doc.description ? `<strong>Description :</strong> ${doc.description}<br>` : ''}
+  <strong>Catégorie :</strong> ${({proces_verbaux:'Procès-verbaux',statuts:'Statuts & Règlements',formulaires:'Formulaires officiels',rapports:'Rapports annuels',autre:'Autres documents'})[doc.categorie]||doc.categorie}<br>
+  <strong>Ajouté le :</strong> ${fmtDate(doc.date_upload)}<br>
+  <strong>Nombre de signataires :</strong> ${sigs.length}
+  <br><span class="stamp">${sigs.length > 0 ? '✅ SIGNÉ' : '⏳ EN ATTENTE DE SIGNATURE'}</span>
+</div>
+<h2>Signatures (${sigs.length})</h2>
+${sigs.length === 0 ? '<p class="none">Aucune signature enregistrée pour ce document.</p>' : sigs.map((s,i) => `
+<div class="sig-card">
+  <img class="sig-img" src="${s.signature_data}" alt="Signature">
+  <div>
+    <div class="sig-name">${s.nom_signataire}</div>
+    <div class="sig-role">${ROLE_LABELS[s.role]||s.role}</div>
+    <div class="sig-date">📅 Signé le ${fmt(s.date_signature)}</div>
+  </div>
+</div>`).join('')}
+<div class="footer">
+  Attestation générée le ${fmt(new Date().toISOString())} — Association Haïtienne de Hamilton
+  <br>Ce document constitue la preuve des signatures électroniques collectées sur la plateforme AHH.
+</div>
+<div style="text-align:center;margin-top:20px" class="no-print">
+  <button onclick="window.print()" style="padding:10px 24px;background:#1b5e20;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:.9rem">🖨 Imprimer / Enregistrer PDF</button>
+</div>
+</body></html>`;
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(html);
 });
 app.post('/api/documents', authMiddleware, requireRole('admin','secretaire'), uploadDoc.single('fichier'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Fichier requis' });

@@ -8073,20 +8073,30 @@ async function documents_mgmt() {
         <div class="table-card" style="margin-bottom:20px">
           <div class="table-card-header"><h3>${label}</h3></div>
           <div style="padding:4px 16px">
-            ${grouped[cat].map(d => `
+            ${grouped[cat].map(d => {
+              const signed = !!d.date_ma_signature;
+              const sigBadge = signed
+                ? `<span style="display:inline-flex;align-items:center;gap:4px;background:#e8f5e9;color:#1b5e20;border-radius:20px;padding:2px 10px;font-size:.72rem;font-weight:600">✅ Signé le ${fmt(d.date_ma_signature)}</span>`
+                : '';
+              const countBadge = d.nb_signatures > 0
+                ? `<span style="display:inline-flex;align-items:center;gap:3px;background:#e3f2fd;color:#1565c0;border-radius:20px;padding:2px 8px;font-size:.7rem;font-weight:600">🖊 ${d.nb_signatures} signature${d.nb_signatures>1?'s':''}</span>`
+                : '';
+              return `
               <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)">
                 <div style="font-size:1.6rem;flex-shrink:0">${docIcon(d.mime_type)}</div>
                 <div style="flex:1;min-width:0">
                   <div style="font-weight:600;font-size:.9rem">${escHtml(d.nom)}</div>
                   ${d.description ? `<div style="font-size:.78rem;color:var(--muted)">${escHtml(d.description)}</div>` : ''}
                   <div style="font-size:.72rem;color:var(--muted);margin-top:2px">${escHtml(d.uploader||'?')} · ${fmt(d.date_upload)} · ${fmtSize(d.taille)}</div>
+                  ${sigBadge || countBadge ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:5px">${sigBadge}${countBadge}</div>` : ''}
                 </div>
-                <div style="display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap">
+                <div style="display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;align-items:center">
                   <a href="/api/documents/${d.id}/download?token=${TOKEN}" class="btn btn-outline btn-sm" download>⬇ Télécharger</a>
-                  <button class="btn btn-sm btn-ghost" onclick="openSignatureModal(${d.id},'${escHtml(d.nom).replace(/'/g,"\\'")}')">✍️ Signer</button>
+                  ${d.nb_signatures > 0 ? `<a href="/api/documents/${d.id}/attestation?token=${TOKEN}" target="_blank" class="btn btn-outline btn-sm" style="color:#1b5e20;border-color:#1b5e20">🔏 Attestation</a>` : ''}
+                  <button class="btn btn-sm btn-ghost" onclick="openSignatureModal(${d.id},'${escHtml(d.nom).replace(/'/g,"\\'")}')">✍️ ${signed ? 'Re-signer' : 'Signer'}</button>
                   ${canUpload ? `<button class="btn btn-sm btn-ghost" style="color:var(--red)" onclick="documentDelete(${d.id})">🗑</button>` : ''}
                 </div>
-              </div>`).join('')}
+              </div>`;}).join('')}
           </div>
         </div>`).join('')}`);
 }
