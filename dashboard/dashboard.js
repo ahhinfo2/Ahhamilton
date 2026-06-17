@@ -2906,6 +2906,7 @@ function _openNoteEditor(n, allActs, forceReadOnly) {
   const noteId = n?.id || null;
   const today = new Date().toISOString().slice(0,10);
   const readOnly = forceReadOnly || !!n?.verrouille;
+  const autoTitle = n?.titre || `Note de ${USER.prenom} ${USER.nom} — ${new Date().toLocaleDateString('fr-CA')}`;
 
   setContent(`
     <!-- Éditeur plein écran style Word -->
@@ -2916,7 +2917,7 @@ function _openNoteEditor(n, allActs, forceReadOnly) {
 
         <!-- Méta document -->
         <div style="display:flex;gap:8px;align-items:center;margin-right:12px;padding-right:12px;border-right:1px solid #ddd;flex-wrap:wrap">
-          <input id="n_titre" style="border:1px solid #ddd;border-radius:6px;padding:5px 10px;font-size:.88rem;font-weight:600;width:220px" placeholder="Titre de la note" value="${escHtml(n?.titre||'')}"/>
+          <input id="n_titre" style="border:1px solid #ddd;border-radius:6px;padding:5px 10px;font-size:.88rem;font-weight:600;width:220px" placeholder="Titre de la note" value="${escHtml(autoTitle)}"/>
           <input type="date" id="n_date" style="border:1px solid #ddd;border-radius:6px;padding:5px 8px;font-size:.82rem" value="${n?.date_reunion||today}"/>
           <select id="n_lang" style="border:1px solid #ddd;border-radius:6px;padding:5px 8px;font-size:.82rem">
             <option value="fr" ${(!n||n.langue==='fr')?'selected':''}>🇫🇷 FR</option>
@@ -2988,32 +2989,53 @@ function _openNoteEditor(n, allActs, forceReadOnly) {
       </div>
 
       <!-- Zone de saisie style papier Word -->
-      <div style="flex:1;overflow-y:auto;padding:32px 0;background:#e0e0e0">
+      <div style="flex:1;overflow-y:auto;padding:32px 0 48px;background:#e0e0e0">
         ${n?.verrouille
           ? `<div style="text-align:center;padding:12px;background:#e8f5e9;color:#1b5e20;font-weight:600;font-size:.85rem">🔒 Cette note est verrouillée — lecture seule après 2 signatures</div>`
           : forceReadOnly
-            ? `<div style="text-align:center;padding:12px;background:#e3f2fd;color:#1565c0;font-weight:600;font-size:.85rem">👁 Mode lecture seule — un autre membre édite cette note</div>`
+            ? `<div style="text-align:center;padding:12px;background:#e3f2fd;color:#1565c0;font-weight:600;font-size:.85rem">👁 Mode lecture seule — un autre membre rédige cette note en ce moment</div>`
             : n?.nb_signatures > 0
-              ? `<div style="text-align:center;padding:10px 16px;background:#fff3cd;color:#856404;font-weight:600;font-size:.82rem">⚠️ Cette note a ${n.nb_signatures} signature(s). Toute sauvegarde annulera les signatures et le processus devra recommencer.</div>`
+              ? `<div style="text-align:center;padding:10px 16px;background:#fff3cd;color:#856404;font-weight:600;font-size:.82rem">⚠️ Cette note a ${n.nb_signatures} signature(s). Toute sauvegarde annulera les signatures.</div>`
               : ''
         }
-        <div style="
-          width:816px;max-width:calc(100vw - 40px);
-          min-height:1344px;
-          margin:0 auto;
-          background:#fff;
-          box-shadow:0 2px 16px rgba(0,0,0,.18);
-          padding:72px 80px;
-          font-family:'Times New Roman',serif;
-          font-size:12pt;
-          line-height:1.6;
-          color:#000;
-          outline:none;
-        " contenteditable="${readOnly ? 'false' : 'true'}" spellcheck="true" id="n_editor"
-          oninput="${readOnly ? '' : 'noteChanged()'}">${n?.contenu || '<p><br></p>'}</div>
+
+        <!-- Feuille 8,5 × 14 -->
+        <div style="width:816px;max-width:calc(100vw - 40px);margin:0 auto;background:#fff;box-shadow:0 2px 20px rgba(0,0,0,.22);">
+
+          <!-- En-tête AHH -->
+          <div style="border-bottom:3px solid #1a237e;padding:12px 64px 10px;display:flex;align-items:center;gap:14px;user-select:none" contenteditable="false">
+            <img src="/Public/logo1.png" style="height:52px;width:52px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display='none'">
+            <div style="flex:1">
+              <div style="font-weight:800;font-size:12pt;color:#1a237e;letter-spacing:.3px">Association Haïtienne de Hamilton (AHH)</div>
+              <div style="font-size:9pt;color:#555;margin-top:2px">Notes de réunion officielle</div>
+            </div>
+            <div style="font-size:9pt;color:#888;text-align:right">${new Date().toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'})}</div>
+          </div>
+
+          <!-- Contenu éditable -->
+          <div id="n_editor" style="
+            min-height:1184px;
+            padding:40px 64px;
+            font-family:'Times New Roman',serif;
+            font-size:12pt;
+            line-height:1.6;
+            color:#000;
+            outline:none;
+          " contenteditable="${readOnly ? 'false' : 'true'}" spellcheck="true"
+            oninput="${readOnly ? '' : 'noteChanged()'}">${n?.contenu || '<p><br></p>'}</div>
+
+          <!-- Pied de page AHH -->
+          <div style="border-top:2px solid #1a237e;padding:8px 64px;display:flex;justify-content:space-between;align-items:center;font-size:8pt;color:#888;user-select:none" contenteditable="false">
+            <span>Association Haïtienne de Hamilton — Hamilton, Ontario, Canada</span>
+            <span>Document officiel — confidentiel</span>
+          </div>
+        </div>
       </div>
     </div>
   `);
+
+  // Insérer le marqueur de session (rédacteur + date) si mode écriture
+  if (!readOnly) setTimeout(() => _insertSessionMarker(noteId), 80);
 
   // Styles des boutons toolbar
   const style = document.createElement('style');
@@ -3106,6 +3128,40 @@ function noteChanged() {
       autoSaveNote(id);
     }
   }, 1500);
+}
+
+// ── Marqueur de session (rédacteur + date) ──────────────────────────────
+function _insertSessionMarker(noteId) {
+  const editor = document.getElementById('n_editor');
+  if (!editor) return;
+  const today = new Date().toLocaleDateString('fr-CA', {year:'numeric', month:'long', day:'numeric'});
+  const userName = `${USER.prenom} ${USER.nom}`;
+  const markerText = `Notes prises par ${userName} — ${today}`;
+  // Ne pas insérer si le marqueur existe déjà pour aujourd'hui
+  if (editor.textContent.includes(markerText)) {
+    editor.focus();
+    return;
+  }
+  const markerHtml = `<p style="color:#1a237e;font-weight:700;font-size:.85rem;border-bottom:1px solid #c5cae9;padding-bottom:4px;margin:0 0 14px 0">✍️ ${markerText}</p>`;
+  const isEmpty = !editor.textContent.trim() || editor.innerHTML.trim() === '<p><br></p>';
+  if (isEmpty) {
+    editor.innerHTML = markerHtml + '<p><br></p>';
+  } else {
+    // Reprise : séparer par un trait et insérer le marqueur à la fin
+    editor.innerHTML += `<p><br></p><hr style="border:none;border-top:1px solid #e8eaf6;margin:20px 0"><p><br></p>` + markerHtml + '<p><br></p>';
+  }
+  // Placer le curseur à la fin
+  try {
+    const sel = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    range.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  } catch(e) {}
+  editor.focus();
+  // Sauvegarder le marqueur après 3s (sans action de l'utilisateur)
+  setTimeout(() => { if (document.getElementById('n_editor')) autoSaveNote(noteId); }, 3000);
 }
 
 // ── Signature modale pour les notes ──────────────────────────────────────

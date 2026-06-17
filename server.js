@@ -1275,34 +1275,43 @@ app.get('/api/notes/:id/download', authMiddleware, (req, res) => {
     FROM note_signatures ns JOIN users u ON u.id=ns.user_id WHERE ns.note_id=? ORDER BY ns.date_signature`).all(req.params.id);
   const ROLE_LABELS = { admin:'Administrateur', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Délégué', member:'Membre' };
   const fmt = d => { try { return new Date(d).toLocaleString('fr-CA', { timeZone:'America/Toronto', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' }); } catch { return d||''; } };
+  const siteUrl2 = process.env.SITE_URL || 'https://ahhamilton.ca';
   const html = `<!DOCTYPE html><html lang="fr">
 <head><meta charset="UTF-8"><title>${n.titre||'Note de réunion'}</title>
 <style>
-  body{font-family:'Times New Roman',serif;max-width:800px;margin:40px auto;padding:0 40px;color:#000;font-size:12pt;line-height:1.6}
-  .header{text-align:center;border-bottom:2px solid #1b5e20;padding-bottom:16px;margin-bottom:24px}
-  .header h1{font-size:18pt;color:#1b5e20;margin:0 0 4px}
-  .meta{font-size:9pt;color:#555;margin:0}
-  .content{min-height:400px;margin-bottom:40px}
-  .sig-section{border-top:2px solid #1b5e20;padding-top:20px;margin-top:40px}
-  .sig-section h2{color:#1b5e20;font-size:13pt}
+  @page{size:8.5in 14in;margin:0}
+  *{box-sizing:border-box}
+  body{font-family:'Times New Roman',serif;margin:0;padding:0;color:#000;font-size:12pt;line-height:1.6;background:#fff}
+  .page{width:8.5in;min-height:14in;margin:0 auto;display:flex;flex-direction:column}
+  .ahh-header{border-bottom:3px solid #1a237e;padding:12px 64px 10px;display:flex;align-items:center;gap:14px}
+  .ahh-header img{height:52px;width:52px;object-fit:cover;border-radius:8px;flex-shrink:0}
+  .ahh-header-text{flex:1}
+  .ahh-header-org{font-weight:800;font-size:12pt;color:#1a237e;letter-spacing:.3px}
+  .ahh-header-sub{font-size:9pt;color:#555;margin-top:2px}
+  .ahh-header-date{font-size:9pt;color:#888;text-align:right}
+  .content{flex:1;padding:36px 64px;min-height:900px}
+  .sig-section{border-top:2px solid #1a237e;padding-top:20px;margin-top:32px}
+  .sig-section h2{color:#1a237e;font-size:13pt}
   .sig-card{display:flex;gap:20px;align-items:center;border:1px solid #ccc;border-radius:6px;padding:12px;margin-bottom:10px;page-break-inside:avoid}
   .sig-img{width:180px;height:70px;object-fit:contain;border:1px solid #ddd;border-radius:4px;background:#fff;flex-shrink:0}
   .sig-name{font-weight:bold;font-size:11pt}
   .sig-role{font-size:9pt;color:#555}
-  .sig-date{font-size:9pt;color:#1b5e20;margin-top:2px}
-  .locked{background:#e8f5e9;color:#1b5e20;border:1px solid #a5d6a7;border-radius:6px;padding:8px 16px;display:inline-block;font-size:9pt;font-weight:bold;margin-bottom:8px}
-  .footer{text-align:center;font-size:8pt;color:#aaa;margin-top:40px;border-top:1px solid #eee;padding-top:12px}
+  .sig-date{font-size:9pt;color:#1a237e;margin-top:2px}
+  .locked{background:#e8eaf6;color:#1a237e;border:1px solid #9fa8da;border-radius:6px;padding:8px 16px;display:inline-block;font-size:9pt;font-weight:bold;margin-bottom:8px}
+  .ahh-footer{border-top:2px solid #1a237e;padding:8px 64px;display:flex;justify-content:space-between;font-size:8pt;color:#888;margin-top:auto}
   @media print{.no-print{display:none}}
 </style></head>
 <body>
-<div class="header">
-  <h1>${n.titre||'Note de réunion'}</h1>
-  <p class="meta">
-    Association Haïtienne de Hamilton · Rédigé par ${n.auteur||'?'}
-    ${n.date_reunion ? ' · ' + new Date(n.date_reunion).toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'}) : ''}
-    ${n.activite ? ' · 📎 ' + n.activite : ''}
-    ${n.verrouille ? ' · <span style="color:#1b5e20;font-weight:bold">🔒 Verrouillée</span>' : ''}
-  </p>
+<div class="page">
+<div class="ahh-header">
+  <img src="${siteUrl2}/Public/logo1.png" onerror="this.style.display='none'">
+  <div class="ahh-header-text">
+    <div class="ahh-header-org">Association Haïtienne de Hamilton (AHH)</div>
+    <div class="ahh-header-sub">Notes de réunion officielle${n.titre ? ' — ' + n.titre : ''}</div>
+  </div>
+  <div class="ahh-header-date">
+    ${n.date_reunion ? new Date(n.date_reunion).toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'}) : new Date().toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'})}
+  </div>
 </div>
 <div class="content">${n.contenu||''}</div>
 ${sigs.length ? `
@@ -1318,9 +1327,13 @@ ${sigs.length ? `
     </div>
   </div>`).join('')}
 </div>` : ''}
-<div class="footer">Généré le ${fmt(new Date().toISOString())} — ahhamilton.ca</div>
-<div style="text-align:center;margin-top:16px" class="no-print">
-  <button onclick="window.print()" style="padding:10px 24px;background:#1b5e20;color:#fff;border:none;border-radius:6px;cursor:pointer">🖨 Imprimer / PDF</button>
+<div class="ahh-footer">
+  <span>Association Haïtienne de Hamilton — Hamilton, Ontario, Canada</span>
+  <span>Généré le ${fmt(new Date().toISOString())} — Document officiel confidentiel</span>
+</div>
+</div>
+<div style="text-align:center;margin:16px 0" class="no-print">
+  <button onclick="window.print()" style="padding:10px 24px;background:#1a237e;color:#fff;border:none;border-radius:6px;cursor:pointer">🖨 Imprimer / Sauvegarder PDF</button>
 </div>
 </body></html>`;
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
