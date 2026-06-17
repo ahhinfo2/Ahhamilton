@@ -1288,10 +1288,10 @@ app.get('/api/notes/:id/download', authMiddleware, (req, res) => {
   const html = `<!DOCTYPE html><html lang="fr">
 <head><meta charset="UTF-8"><title>${n.titre||'Note de réunion'}</title>
 <style>
-  @page{size:8.5in 14in;margin:0}
+  @page{size:8.5in 11in;margin:0}
   *{box-sizing:border-box}
   body{font-family:'Times New Roman',serif;margin:0;padding:0;color:#000;font-size:12pt;line-height:1.6;background:#fff}
-  .page{width:8.5in;min-height:14in;margin:0 auto;display:flex;flex-direction:column}
+  .page{width:8.5in;min-height:11in;margin:0 auto;display:flex;flex-direction:column}
   .ahh-header{border-bottom:3px solid #1a237e;padding:12px 64px 10px;display:flex;align-items:center;gap:14px}
   .ahh-header img{height:52px;width:52px;object-fit:cover;border-radius:8px;flex-shrink:0}
   .ahh-header-text{flex:1}

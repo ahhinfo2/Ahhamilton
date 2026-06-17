@@ -3021,7 +3021,7 @@ function _openNoteEditor(n, allActs, forceReadOnly) {
                 </div>
                 <div style="font-size:9pt;color:#888;text-align:right">${new Date().toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'})}</div>
               </div>
-              <div id="n_editor" style="min-height:1184px;padding:40px 64px;font-family:'Times New Roman',serif;font-size:12pt;line-height:1.6;color:#000;outline:none"
+              <div id="n_editor" style="min-height:944px;padding:40px 64px;font-family:'Times New Roman',serif;font-size:12pt;line-height:1.6;color:#000;outline:none"
                 contenteditable="true" spellcheck="true" oninput="noteChanged()">${n?.contenu || '<p><br></p>'}</div>
               <div style="border-top:2px solid #1a237e;padding:8px 64px;display:flex;justify-content:space-between;align-items:center;font-size:8pt;color:#888;user-select:none">
                 <span>Association Haïtienne de Hamilton — Hamilton, Ontario, Canada</span>
@@ -3269,7 +3269,9 @@ function _paginateReadOnly(html) {
   _pagSig = sig;
   if (_pagTimer) { clearTimeout(_pagTimer); _pagTimer = null; }
 
-  const CONTENT_H = 1184;
+  // 8.5 × 11 pouces @ 96dpi = 816 × 1056px
+  // header ~76px + footer ~36px → contenu = 944px
+  const CONTENT_H = 944;
   const todayFr = new Date().toLocaleDateString('fr-CA', {year:'numeric',month:'long',day:'numeric'});
 
   const makeHeader = (pg, total) =>
@@ -3317,22 +3319,17 @@ function _paginateReadOnly(html) {
     area.innerHTML = out;
   };
 
-  // Étape 1 : rendu initial — page unique avec min-height pour un aspect correct
+  // Rendu initial — page unique
   buildPages(CONTENT_H);
 
-  // Étape 2 : mesurer la vraie hauteur APRÈS que le navigateur ait décodé les
-  // images et fini le layout, puis repaginer si nécessaire.
-  // On utilise setTimeout(600) qui est fiable partout, plutôt que
-  // requestAnimationFrame qui peut tirer avant le décodage des images base64.
+  // Mesurer après chargement des images puis repaginer si nécessaire
   _pagTimer = setTimeout(() => {
     _pagTimer = null;
-    // Créer un conteneur de mesure invisible mais dans le flux (pas display:none)
     const probe = document.createElement('div');
     probe.style.cssText =
       'position:absolute;visibility:hidden;top:0;left:-9999px;' +
       'width:688px;font-family:"Times New Roman",serif;font-size:12pt;line-height:1.6;word-break:break-word';
     probe.innerHTML = html || '<p><br></p>';
-    // Contraindre les images comme dans l'éditeur
     probe.querySelectorAll('img').forEach(img => {
       img.style.maxWidth  = '100%';
       img.style.maxHeight = '400px';
@@ -3341,8 +3338,6 @@ function _paginateReadOnly(html) {
       img.style.objectFit = 'contain';
     });
     area.appendChild(probe);
-
-    // Forcer un reflow synchrone pour obtenir la hauteur réelle
     const measuredH = probe.scrollHeight;
     probe.remove();
 
