@@ -3064,9 +3064,12 @@ function _openNoteEditor(n, allActs, forceReadOnly) {
     #n_editor ul,#n_editor ol{margin:6px 0 6px 24px}
     #n_editor li{margin:2px 0}
     #n_editor p{margin:4px 0}
-    #n_editor img{max-width:100%;height:auto;display:block;margin:8px auto;border-radius:4px;cursor:pointer}
-    #n_editor img:hover{outline:2px solid #1a237e}
+    #n_editor img{max-width:100%;max-height:400px;height:auto;display:block;margin:8px auto;border-radius:4px;cursor:pointer;object-fit:contain}
+    #n_editor img.img-selected{outline:3px solid #1a237e;outline-offset:2px}
     #n_editor.drag-over{outline:3px dashed #1a237e;outline-offset:4px;background:#e8eaf6}
+    .img-resize-bar{position:fixed;z-index:9999;background:#1a237e;color:#fff;border-radius:8px;padding:4px 10px;display:flex;gap:6px;align-items:center;font-size:.78rem;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+    .img-resize-bar button{background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:.78rem}
+    .img-resize-bar button:hover{background:rgba(255,255,255,.35)}
   `;
   document.head.appendChild(style);
 
@@ -3095,8 +3098,40 @@ function _openNoteEditor(n, allActs, forceReadOnly) {
         ed.classList.remove('drag-over');
         _insertNoteImageFile(e.dataTransfer.files[0]);
       });
+
+      // Clic sur image → barre de redimensionnement
+      ed.addEventListener('click', e => {
+        if (e.target.tagName !== 'IMG') {
+          document.querySelectorAll('#n_editor img.img-selected').forEach(i => i.classList.remove('img-selected'));
+          document.getElementById('_imgResizeBar')?.remove();
+          return;
+        }
+        const img = e.target;
+        document.querySelectorAll('#n_editor img.img-selected').forEach(i => i.classList.remove('img-selected'));
+        img.classList.add('img-selected');
+        document.getElementById('_imgResizeBar')?.remove();
+        const bar = document.createElement('div');
+        bar.id = '_imgResizeBar';
+        bar.className = 'img-resize-bar';
+        bar.innerHTML = `🖼 Taille :
+          <button onclick="_resizeNoteImg(this,'25%')">25%</button>
+          <button onclick="_resizeNoteImg(this,'50%')">50%</button>
+          <button onclick="_resizeNoteImg(this,'75%')">75%</button>
+          <button onclick="_resizeNoteImg(this,'100%')">100%</button>
+          <button onclick="_resizeNoteImg(this,'auto')" title="Supprimer la limite de hauteur">Pleine taille</button>
+          <button onclick="this.closest('.img-resize-bar').remove();document.querySelector('#n_editor img.img-selected')?.remove();noteChanged()" style="background:rgba(220,50,50,.5);margin-left:4px">🗑</button>`;
+        const rect = img.getBoundingClientRect();
+        bar.style.top = (rect.top - 40) + 'px';
+        bar.style.left = rect.left + 'px';
+        document.body.appendChild(bar);
+        // Stocker la référence à l'image sélectionnée
+        bar._targetImg = img;
+      });
     }
   }
+
+  // Fermer la barre de redim si on change de vue
+  document.getElementById('_imgResizeBar')?.remove();
 
   // Focus
   setTimeout(() => document.getElementById('n_editor')?.focus(), 100);
@@ -3184,7 +3219,7 @@ function _insertNoteImageFile(file) {
   reader.onload = ev => {
     const img = document.createElement('img');
     img.src = ev.target.result;
-    img.style.cssText = 'max-width:100%;height:auto;display:block;margin:8px auto;border-radius:4px';
+    img.style.cssText = 'max-width:100%;max-height:400px;height:auto;object-fit:contain;display:block;margin:8px auto;border-radius:4px';
     const ed = document.getElementById('n_editor');
     if (!ed) return;
     const sel = window.getSelection();
@@ -3206,6 +3241,22 @@ function _insertNoteImageFile(file) {
     noteChanged();
   };
   reader.readAsDataURL(file);
+}
+
+// Redimensionner l'image sélectionnée dans l'éditeur
+function _resizeNoteImg(btn, pct) {
+  const img = document.querySelector('#n_editor img.img-selected');
+  if (!img) return;
+  if (pct === 'auto') {
+    img.style.width = '';
+    img.style.maxWidth = '100%';
+    img.style.maxHeight = '400px';
+  } else {
+    img.style.width = pct;
+    img.style.maxWidth = pct;
+    img.style.maxHeight = pct === '100%' ? '400px' : 'none';
+  }
+  noteChanged();
 }
 
 // ── Marqueur de session (rédacteur + date) ──────────────────────────────
