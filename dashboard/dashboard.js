@@ -3004,37 +3004,28 @@ function _openNoteEditor(n, allActs, forceReadOnly) {
               : ''
         }
 
-        <!-- Feuille 8,5 × 14 -->
-        <div style="width:816px;max-width:calc(100vw - 40px);margin:0 auto;background:#fff;box-shadow:0 2px 20px rgba(0,0,0,.22);">
-
-          <!-- En-tête AHH -->
-          <div style="border-bottom:3px solid #1a237e;padding:12px 64px 10px;display:flex;align-items:center;gap:14px;user-select:none" contenteditable="false">
-            <img src="/Public/logo1.png" style="height:52px;width:52px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display='none'">
-            <div style="flex:1">
-              <div style="font-weight:800;font-size:12pt;color:#1a237e;letter-spacing:.3px">Association Haïtienne de Hamilton (AHH)</div>
-              <div style="font-size:9pt;color:#555;margin-top:2px">Notes de réunion officielle</div>
-            </div>
-            <div style="font-size:9pt;color:#888;text-align:right">${new Date().toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'})}</div>
-          </div>
-
-          <!-- Contenu éditable -->
-          <div id="n_editor" style="
-            min-height:1184px;
-            padding:40px 64px;
-            font-family:'Times New Roman',serif;
-            font-size:12pt;
-            line-height:1.6;
-            color:#000;
-            outline:none;
-          " contenteditable="${readOnly ? 'false' : 'true'}" spellcheck="true"
-            oninput="${readOnly ? '' : 'noteChanged()'}">${n?.contenu || '<p><br></p>'}</div>
-
-          <!-- Pied de page AHH -->
-          <div style="border-top:2px solid #1a237e;padding:8px 64px;display:flex;justify-content:space-between;align-items:center;font-size:8pt;color:#888;user-select:none" contenteditable="false">
-            <span>Association Haïtienne de Hamilton — Hamilton, Ontario, Canada</span>
-            <span>Document officiel — confidentiel</span>
-          </div>
-        </div>
+        ${readOnly
+          /* ─── LECTURE SEULE : pagination multi-pages ─── */
+          ? `<div id="notePagedArea"></div>
+             <div id="n_editor" style="display:none">${n?.contenu || ''}</div>`
+          /* ─── ÉDITION : feuille unique scrollable ─── */
+          : `<div id="notePageWrapper" style="width:816px;max-width:calc(100vw - 40px);margin:0 auto;background:#fff;box-shadow:0 2px 20px rgba(0,0,0,.22);position:relative">
+              <div style="border-bottom:3px solid #1a237e;padding:12px 64px 10px;display:flex;align-items:center;gap:14px;user-select:none">
+                <img src="/Public/logo1.png" style="height:52px;width:52px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display='none'">
+                <div style="flex:1">
+                  <div style="font-weight:800;font-size:12pt;color:#1a237e;letter-spacing:.3px">Association Haïtienne de Hamilton (AHH)</div>
+                  <div style="font-size:9pt;color:#555;margin-top:2px">Notes de réunion officielle</div>
+                </div>
+                <div style="font-size:9pt;color:#888;text-align:right">${new Date().toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'})}</div>
+              </div>
+              <div id="n_editor" style="min-height:1184px;padding:40px 64px;font-family:'Times New Roman',serif;font-size:12pt;line-height:1.6;color:#000;outline:none"
+                contenteditable="true" spellcheck="true" oninput="noteChanged()">${n?.contenu || '<p><br></p>'}</div>
+              <div style="border-top:2px solid #1a237e;padding:8px 64px;display:flex;justify-content:space-between;align-items:center;font-size:8pt;color:#888;user-select:none">
+                <span>Association Haïtienne de Hamilton — Hamilton, Ontario, Canada</span>
+                <span>Document officiel — confidentiel</span>
+              </div>
+            </div>`
+        }
       </div>
     </div>
   `);
@@ -3048,8 +3039,11 @@ function _openNoteEditor(n, allActs, forceReadOnly) {
       ed.innerHTML = '<p><br></p>';
       toast('⚠️ Contenu corrompu détecté et effacé automatiquement.', true);
     }
-    // Insérer le marqueur de session (rédacteur + date) si mode écriture
-    if (!readOnly) _insertSessionMarker(noteId);
+    if (readOnly) {
+      _paginateReadOnly(ed.innerHTML);
+    } else {
+      _insertSessionMarker(noteId);
+    }
   }, 80);
 
   // Styles des boutons toolbar
@@ -3165,17 +3159,18 @@ function _openNoteEditor(n, allActs, forceReadOnly) {
       } catch(e) {}
     }, 5000);
   } else if (noteId && readOnly) {
-    // En lecture seule : rafraîchir le contenu toutes les 5s
+    // En lecture seule : rafraîchir le contenu toutes les 5s et repaginer
     clearInterval(_noteSyncInterval);
     _noteSyncInterval = setInterval(async () => {
-      if (!document.getElementById('n_editor')) { clearInterval(_noteSyncInterval); return; }
+      if (!document.getElementById('notePagedArea')) { clearInterval(_noteSyncInterval); return; }
       try {
         const fresh = await api(`/notes/${noteId}`);
         if (!fresh) return;
-        const editor = document.getElementById('n_editor');
-        if (editor && fresh.contenu) editor.innerHTML = fresh.contenu;
+        const ed = document.getElementById('n_editor');
+        if (ed) ed.innerHTML = fresh.contenu || '';
+        _paginateReadOnly(fresh.contenu || '');
         const s = document.getElementById('noteStatus');
-        if (s && fresh.last_editor_nom) s.textContent = `👁 Dernière modif : ${fresh.le_prenom||''} ${fresh.le_nom||''} — ${new Date(fresh.date_modification||'').toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'})}`;
+        if (s) s.textContent = `👁 Dernière modif : ${fresh.le_prenom||''} ${fresh.le_nom||''} — ${new Date(fresh.date_modification||'').toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'})}`;
       } catch(e) {}
     }, 5000);
   }
@@ -3257,6 +3252,61 @@ function _resizeNoteImg(btn, pct) {
     img.style.maxHeight = pct === '100%' ? '400px' : 'none';
   }
   noteChanged();
+}
+
+// ── Pagination multi-pages (lecture seule) ───────────────────────────────
+function _paginateReadOnly(html) {
+  const area = document.getElementById('notePagedArea');
+  if (!area) return;
+
+  const CONTENT_H = 1184; // hauteur contenu par page (px à 96dpi)
+  const PAGE_W    = 688;  // largeur nette = 816 - 2×64px padding
+  const todayFr   = new Date().toLocaleDateString('fr-CA', {year:'numeric',month:'long',day:'numeric'});
+
+  // Mesurer la hauteur réelle du contenu dans un conteneur caché identique
+  const probe = document.createElement('div');
+  probe.style.cssText =
+    `width:${PAGE_W}px;position:fixed;visibility:hidden;top:-9999px;left:-9999px;` +
+    `font-family:'Times New Roman',serif;font-size:12pt;line-height:1.6;color:#000;word-break:break-word`;
+  probe.innerHTML = html || '<p><br></p>';
+  document.body.appendChild(probe);
+  const totalH = Math.max(probe.scrollHeight, CONTENT_H);
+  document.body.removeChild(probe);
+
+  const numPages = Math.ceil(totalH / CONTENT_H);
+
+  const makeHeader = (pageNum, total) =>
+    `<div style="border-bottom:3px solid #1a237e;padding:10px 64px 8px;display:flex;align-items:center;gap:14px;user-select:none">
+      <img src="/Public/logo1.png" style="height:48px;width:48px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display='none'">
+      <div style="flex:1">
+        <div style="font-weight:800;font-size:11pt;color:#1a237e;letter-spacing:.3px">Association Haïtienne de Hamilton (AHH)</div>
+        <div style="font-size:8.5pt;color:#555;margin-top:1px">Notes de réunion officielle</div>
+      </div>
+      <div style="font-size:8.5pt;color:#888;text-align:right">${todayFr}${total > 1 ? '<br><span style="font-size:7.5pt">Page&nbsp;'+pageNum+'&nbsp;/&nbsp;'+total+'</span>' : ''}</div>
+    </div>`;
+
+  const footer =
+    `<div style="border-top:2px solid #1a237e;padding:7px 64px;display:flex;justify-content:space-between;align-items:center;font-size:7.5pt;color:#888;user-select:none">
+      <span>Association Haïtienne de Hamilton — Hamilton, Ontario, Canada</span>
+      <span>Document officiel — confidentiel</span>
+    </div>`;
+
+  let out = '';
+  for (let p = 0; p < numPages; p++) {
+    const yOffset = p * CONTENT_H;
+    out +=
+      `<div style="width:816px;max-width:calc(100vw - 40px);margin:${p > 0 ? '32px' : '0'} auto 0;background:#fff;box-shadow:0 2px 20px rgba(0,0,0,.22)">
+        ${makeHeader(p + 1, numPages)}
+        <div style="height:${CONTENT_H}px;overflow:hidden;position:relative">
+          <div style="position:absolute;top:0;left:0;right:0;padding:40px 64px;transform:translateY(-${yOffset}px);font-family:'Times New Roman',serif;font-size:12pt;line-height:1.6;color:#000;word-break:break-word">
+            ${html || '<p><br></p>'}
+          </div>
+        </div>
+        ${footer}
+      </div>`;
+  }
+
+  area.innerHTML = out;
 }
 
 // ── Marqueur de session (rédacteur + date) ──────────────────────────────
