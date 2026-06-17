@@ -5048,11 +5048,12 @@ app.post('/api/cotisations/checkout', authMiddleware, async (req, res) => {
   const stripeKey = (process.env.STRIPE_SECRET_KEY || '').trim();
   if (!stripeKey) return res.status(500).json({ error: 'Stripe non configuré sur ce serveur' });
   const PRIX = { bienfaiteur: { monthly:1000, annual:10000 }, partenaire: { monthly:2000, annual:20000 } };
-  const plan = req.user.plan;
-  if (!PRIX[plan]) return res.status(400).json({ error: 'Plan gratuit — aucun paiement requis' });
+  const plan = req.user.plan || 'gratuit';
+  const prixPlan = PRIX[plan] || PRIX.bienfaiteur;
   const nbMois = parseInt(req.body.nb_mois) || 1;
   const isAnnuel = nbMois === 12;
-  const montantCents = isAnnuel ? PRIX[plan].annual : PRIX[plan].monthly * nbMois;
+  const montantCents = isAnnuel ? prixPlan.annual : prixPlan.monthly * nbMois;
+  const planLabel = plan === 'partenaire' ? 'Partenaire' : plan === 'bienfaiteur' ? 'Bienfaiteur' : 'Cotisation';
   const periode = new Date().toISOString().substring(0, 7);
   const siteUrl = process.env.SITE_URL || 'https://ahhamilton.ca';
   try {
@@ -5064,7 +5065,7 @@ app.post('/api/cotisations/checkout', authMiddleware, async (req, res) => {
       line_items: [{ price_data: {
         currency: 'cad',
         product_data: {
-          name: `Cotisation AHH — ${plan === 'bienfaiteur' ? 'Bienfaiteur' : 'Partenaire'}`,
+          name: `Cotisation AHH — ${planLabel}`,
           description: isAnnuel ? 'Année complète (2 mois offerts)' : `${nbMois} mois`
         },
         unit_amount: montantCents

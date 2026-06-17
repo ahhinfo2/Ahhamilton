@@ -8675,14 +8675,13 @@ async function mon_paiement() {
           '<div style="font-size:.75rem;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:4px">Mon plan</div>' +
           '<div style="font-size:1.4rem;font-weight:800">' + (plan==='bienfaiteur'?'💛 Bienfaiteur':plan==='partenaire'?'⭐ Partenaire':'🌱 Gratuit') + '</div>' +
           (isPaying ? '<div style="font-size:.85rem;color:var(--muted);margin-top:4px">$'+prix.monthly+'/mois &nbsp;·&nbsp; ou $'+prix.annual+'/an <span style="background:#e8f5e9;color:#2e7d32;font-size:.72rem;padding:2px 8px;border-radius:10px">2 mois offerts</span></div>'
-                    : '<div style="font-size:.85rem;color:var(--muted);margin-top:4px">Aucune cotisation mensuelle requise pour ce plan.</div>') +
+                    : '<div style="font-size:.85rem;color:var(--muted);margin-top:4px">Vous pouvez soumettre un paiement ou faire un don à tout moment.</div>') +
         '</div>' +
         '<div>' + statutBadge + '</div>' +
       '</div>' +
     '</div></div>' +
 
-    // Formulaire toujours visible pour plans payants
-    (isPaying ?
+    // Formulaire de paiement — toujours visible quel que soit le plan
       '<div class="table-card" style="margin-bottom:18px;border-left:4px solid var(--accent)">' +
       '<div class="table-card-header"><h3>💳 Soumettre un paiement</h3>' +
       (paieEnAttente ? '<span style="font-size:.8rem;color:#f57c00">Un paiement est déjà en attente de validation pour ce mois.</span>' : '') +
@@ -8746,8 +8745,7 @@ async function mon_paiement() {
         '<div style="display:flex;align-items:center;gap:10px;margin:14px 0"><hr style="flex:1;border:none;border-top:1px solid var(--border)"/><span style="color:var(--muted);font-size:.8rem;white-space:nowrap">OU payer maintenant</span><hr style="flex:1;border:none;border-top:1px solid var(--border)"/></div>' +
         '<button class="btn" style="width:100%;padding:14px;font-size:1rem;background:#635bff;color:#fff;border-radius:8px" onclick="payerEnLigne()">💳 Payer en ligne par carte de crédit</button>' +
         '<p style="font-size:.75rem;color:var(--muted);text-align:center;margin-top:6px">Paiement sécurisé via Stripe · Confirmation immédiate · Aucun frais supplémentaire</p>' +
-      '</div></div>'
-    : '') +
+      '</div></div>' +
 
     // Historique
     '<div class="table-card"><div class="table-card-header"><h3>Historique des paiements</h3></div>' +
