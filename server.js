@@ -5491,8 +5491,7 @@ app.get('/api/public/anniversaires', (req, res) => {
   const mois = now.getMonth() + 1;
   const jour = now.getDate();
   const rows = db.prepare(`
-    SELECT prenom, SUBSTR(nom,1,1) AS nom_initial, photo_url,
-           CAST(strftime('%Y','now') AS INTEGER) - CAST(strftime('%Y', date_naissance) AS INTEGER) AS age
+    SELECT prenom, SUBSTR(nom,1,1) AS nom_initial, photo_url
     FROM users
     WHERE actif=1 AND (phantom IS NULL OR phantom=0)
     AND date_naissance IS NOT NULL AND date_naissance != ''
