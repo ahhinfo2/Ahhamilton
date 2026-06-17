@@ -2967,7 +2967,12 @@ function openNoteForm(n, allActs) {
 
       <!-- Zone de saisie style papier Word -->
       <div style="flex:1;overflow-y:auto;padding:32px 0;background:#e0e0e0">
-        ${n?.verrouille ? `<div style="text-align:center;padding:12px;background:#e8f5e9;color:#1b5e20;font-weight:600;font-size:.85rem">🔒 Cette note est verrouillée — lecture seule après 2 signatures</div>` : ''}
+        ${n?.verrouille
+          ? `<div style="text-align:center;padding:12px;background:#e8f5e9;color:#1b5e20;font-weight:600;font-size:.85rem">🔒 Cette note est verrouillée — lecture seule après 2 signatures</div>`
+          : n?.nb_signatures > 0
+            ? `<div style="text-align:center;padding:10px 16px;background:#fff3cd;color:#856404;font-weight:600;font-size:.82rem">⚠️ Cette note a ${n.nb_signatures} signature(s). Toute sauvegarde annulera les signatures et le processus devra recommencer.</div>`
+            : ''
+        }
         <div style="
           width:794px;max-width:calc(100vw - 40px);
           min-height:1123px;
@@ -3128,8 +3133,12 @@ async function _doSaveNote(id, silent = false) {
     date_reunion: document.getElementById('n_date')?.value || new Date().toISOString().slice(0,10),
     activity_id: parseInt(document.getElementById('n_act')?.value) || null,
   };
-  if (id) await api(`/notes/${id}`, { method:'PUT', body:JSON.stringify(body) });
-  else {
+  if (id) {
+    const r = await api(`/notes/${id}`, { method:'PUT', body:JSON.stringify(body) });
+    if (r?.signatures_annulees > 0) {
+      toast('⚠️ Signatures annulées — le document a été modifié. Le processus de signature doit recommencer.', true);
+    }
+  } else {
     const r = await api('/notes', { method:'POST', body:JSON.stringify(body) });
     // Mettre à jour l'URL avec le nouvel ID pour les sauvegardes suivantes
     if (r?.id) {

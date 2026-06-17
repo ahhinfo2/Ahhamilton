@@ -1235,7 +1235,9 @@ app.put('/api/notes/:id', authMiddleware, (req, res) => {
     WHERE id=?`)
     .run(titre||'', contenu||'', contenu_corrige||null, langue||'fr',
       date_reunion||null, activity_id||null, req.user.id, req.params.id);
-  res.json({ ok: true });
+  // Toute modification annule les signatures existantes
+  const deleted = db.prepare('DELETE FROM note_signatures WHERE note_id=?').run(req.params.id);
+  res.json({ ok: true, signatures_annulees: deleted.changes });
 });
 
 // Signer une note
