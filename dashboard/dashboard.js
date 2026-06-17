@@ -10,6 +10,8 @@ let _noteAutoSave = null;
 let _noteEditingId = null;
 let _noteSyncInterval = null;
 let _noteDebounce = null;
+let _pagSig = '';
+let _pagTimer = null;
 
 // ── PWA INSTALL PROMPT ──────────────────────────────────────────────────────
 let _pwaPrompt = null;
@@ -264,6 +266,8 @@ function setContent(html) {
   if (_noteAutoSave) { clearInterval(_noteAutoSave); _noteAutoSave = null; }
   if (_noteDebounce) { clearTimeout(_noteDebounce); _noteDebounce = null; }
   if (_notesRefreshInterval) { clearInterval(_notesRefreshInterval); _notesRefreshInterval = null; }
+  if (_pagTimer) { clearTimeout(_pagTimer); _pagTimer = null; }
+  _pagSig = '';
   // Libérer la session d'édition si on quittait une note
   if (_noteEditingId) { api(`/notes/${_noteEditingId}/editing`, { method:'DELETE' }).catch(()=>{}); _noteEditingId = null; }
   // Réinitialiser le mode flex-fill (utilisé par certaines vues pleine hauteur)
@@ -3260,6 +3264,12 @@ function _paginateReadOnly(html) {
   const area = document.getElementById('notePagedArea');
   if (!area) return;
 
+  // Éviter de tout reconstruire si le contenu n'a pas changé
+  const sig = (html || '').length + '';
+  if (sig === _pagSig && area.children.length > 0) return;
+  _pagSig = sig;
+  if (_pagTimer) { clearTimeout(_pagTimer); _pagTimer = null; }
+
   const CONTENT_H = 1184;
   const todayFr = new Date().toLocaleDateString('fr-CA', {year:'numeric',month:'long',day:'numeric'});
 
@@ -3279,37 +3289,19 @@ function _paginateReadOnly(html) {
       <span>Document officiel — confidentiel</span>
     </div>`;
 
-  // Étape 1 : afficher d'abord une page unique SANS limite de hauteur pour
-  //           que le navigateur rende les images, puis on mesure et on pagine.
-  area.innerHTML =
-    `<div style="width:816px;max-width:calc(100vw - 40px);margin:0 auto;background:#fff;box-shadow:0 2px 20px rgba(0,0,0,.22)">
-      ${makeHeader(1, 1)}
-      <div id="_noteMeasure" style="padding:40px 64px;font-family:'Times New Roman',serif;font-size:12pt;line-height:1.6;color:#000;word-break:break-word">
-        ${html || '<p><br></p>'}
-      </div>
-      ${footer}
-    </div>`;
-
-  // Contraindre les images comme dans l'éditeur
-  area.querySelectorAll('#_noteMeasure img').forEach(img => {
-    img.style.maxWidth  = img.style.maxWidth  || '100%';
-    img.style.maxHeight = img.style.maxHeight || '400px';
-    img.style.height    = 'auto';
-    img.style.objectFit = 'contain';
-    img.style.display   = 'block';
-  });
-
-  // Étape 2 : mesurer après chargement des images, puis paginer si > 1 page
-  let _done = false;
-  const finalize = () => {
-    if (_done) return;
-    _done = true;
-    const m = document.getElementById('_noteMeasure');
-    if (!m || !document.getElementById('notePagedArea')) return;
-    const totalH = m.scrollHeight;
-    if (totalH <= CONTENT_H) return; // une seule page suffit : rien à changer
-
-    const numPages = Math.ceil(totalH / CONTENT_H);
+  const buildPages = (totalH) => {
+    const numPages = Math.max(1, Math.ceil(totalH / CONTENT_H));
+    if (numPages === 1) {
+      area.innerHTML =
+        `<div style="width:816px;max-width:calc(100vw - 40px);margin:0 auto;background:#fff;box-shadow:0 2px 20px rgba(0,0,0,.22)">
+          ${makeHeader(1, 1)}
+          <div style="min-height:${CONTENT_H}px;padding:40px 64px;font-family:'Times New Roman',serif;font-size:12pt;line-height:1.6;color:#000;word-break:break-word">
+            ${html || '<p><br></p>'}
+          </div>
+          ${footer}
+        </div>`;
+      return;
+    }
     let out = '';
     for (let p = 0; p < numPages; p++) {
       out +=
@@ -3324,28 +3316,41 @@ function _paginateReadOnly(html) {
         </div>`;
     }
     area.innerHTML = out;
-    // Re-contraindre les images dans la vue paginée
-    area.querySelectorAll('img:not([src*="logo1"])').forEach(img => {
-      img.style.maxWidth  = img.style.maxWidth  || '100%';
-      img.style.maxHeight = img.style.maxHeight || '400px';
-      img.style.height    = 'auto';
-      img.style.objectFit = 'contain';
-      img.style.display   = 'block';
-    });
   };
 
-  const imgs = area.querySelectorAll('#_noteMeasure img');
-  if (imgs.length === 0) {
-    requestAnimationFrame(finalize);
-  } else {
-    let loaded = 0;
-    const check = () => { if (++loaded >= imgs.length) requestAnimationFrame(finalize); };
-    imgs.forEach(img => {
-      if (img.complete) { check(); }
-      else { img.onload = check; img.onerror = check; }
+  // Étape 1 : rendu initial — page unique avec min-height pour un aspect correct
+  buildPages(CONTENT_H);
+
+  // Étape 2 : mesurer la vraie hauteur APRÈS que le navigateur ait décodé les
+  // images et fini le layout, puis repaginer si nécessaire.
+  // On utilise setTimeout(600) qui est fiable partout, plutôt que
+  // requestAnimationFrame qui peut tirer avant le décodage des images base64.
+  _pagTimer = setTimeout(() => {
+    _pagTimer = null;
+    // Créer un conteneur de mesure invisible mais dans le flux (pas display:none)
+    const probe = document.createElement('div');
+    probe.style.cssText =
+      'position:absolute;visibility:hidden;top:0;left:-9999px;' +
+      'width:688px;font-family:"Times New Roman",serif;font-size:12pt;line-height:1.6;word-break:break-word';
+    probe.innerHTML = html || '<p><br></p>';
+    // Contraindre les images comme dans l'éditeur
+    probe.querySelectorAll('img').forEach(img => {
+      img.style.maxWidth  = '100%';
+      img.style.maxHeight = '400px';
+      img.style.height    = 'auto';
+      img.style.display   = 'block';
+      img.style.objectFit = 'contain';
     });
-    setTimeout(finalize, 2000); // fallback si image échoue silencieusement
-  }
+    area.appendChild(probe);
+
+    // Forcer un reflow synchrone pour obtenir la hauteur réelle
+    const measuredH = probe.scrollHeight;
+    probe.remove();
+
+    if (measuredH > CONTENT_H) {
+      buildPages(measuredH);
+    }
+  }, 600);
 }
 
 // ── Marqueur de session (rédacteur + date) ──────────────────────────────
