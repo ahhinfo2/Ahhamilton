@@ -1064,6 +1064,13 @@ app.get('/api/messages', authMiddleware, (req, res) => {
   res.json({ inbox, sent });
 });
 
+// Vider la corbeille (suppression définitive de tous les messages dans la corbeille)
+app.delete('/api/messages/trash/empty', authMiddleware, (req, res) => {
+  const r1 = db.prepare('DELETE FROM message_recipients WHERE destinataire_id = ? AND supprime = 1').run(req.user.id);
+  const r2 = db.prepare("UPDATE messages SET supprime_sent = 2 WHERE expediteur_id = ? AND supprime_sent = 1").run(req.user.id);
+  res.json({ deleted: r1.changes + r2.changes });
+});
+
 // Supprimer (mettre en corbeille)
 app.delete('/api/messages/:id', authMiddleware, (req, res) => {
   const id   = req.params.id;
@@ -1091,9 +1098,10 @@ app.put('/api/messages/:id/restore', authMiddleware, (req, res) => {
   res.json({ message: 'Restauré' });
 });
 
-// Supprimer définitivement
+// Supprimer définitivement (reçu ou envoyé)
 app.delete('/api/messages/:id/permanent', authMiddleware, (req, res) => {
   db.prepare('DELETE FROM message_recipients WHERE message_id = ? AND destinataire_id = ?').run(req.params.id, req.user.id);
+  db.prepare('UPDATE messages SET supprime_sent = 2 WHERE id = ? AND expediteur_id = ? AND supprime_sent = 1').run(req.params.id, req.user.id);
   res.json({ message: 'Supprimé définitivement' });
 });
 

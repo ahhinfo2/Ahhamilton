@@ -4483,7 +4483,8 @@ function gmRenderList(msgs, type) {
         <button class="gm-tb-btn" style="color:#d93025" onclick="gmBulkDelete()">🗑️ Supprimer</button>
         ${type==='trash' ? `<button class="gm-tb-btn" onclick="gmBulkRestore()">↩️ Restaurer</button>` : ''}
       </div>
-      <span style="margin-left:auto;font-size:.75rem;color:var(--gm-muted)">${msgs.length} message${msgs.length>1?'s':''}</span>
+      ${type==='trash' && msgs.length ? `<button class="gm-tb-btn" style="color:#d93025;margin-left:auto;font-weight:600" onclick="gmEmptyTrash()">🗑️ Vider la corbeille</button>` : ''}
+      <span style="${type==='trash' && msgs.length ? '' : 'margin-left:auto;'}font-size:.75rem;color:var(--gm-muted)">${msgs.length} message${msgs.length>1?'s':''}</span>
     </div>
     <div class="gm-list">
       ${msgs.map(m => gmRow(m, type)).join('')}
@@ -4630,16 +4631,30 @@ async function gmRestore(id, type) {
 
 async function gmBulkDelete() {
   const cbs = [...document.querySelectorAll('.gm-cb:checked')];
+  const inTrash = _M.view === 'trash';
+  if (inTrash && !confirm(`Supprimer définitivement ${cbs.length} message${cbs.length>1?'s':''} ?`)) return;
   for (const cb of cbs) {
     const id   = parseInt(cb.dataset.id);
     const type = cb.dataset.type || _M.view;
-    await api(`/messages/${id}?type=${type}`, { method:'DELETE' }).catch(()=>{});
+    const url  = inTrash ? `/messages/${id}/permanent` : `/messages/${id}?type=${type}`;
+    await api(url, { method:'DELETE' }).catch(()=>{});
     const row = document.getElementById(`gmr-${id}`);
     if (row) row.remove();
   }
   _M.checked.clear();
   document.getElementById('gmBulk').style.display = 'none';
-  toast(`${cbs.length} message${cbs.length>1?'s':''} déplacé${cbs.length>1?'s':''} à la corbeille`);
+  toast(inTrash
+    ? `${cbs.length} message${cbs.length>1?'s':''} supprimé${cbs.length>1?'s':''} définitivement`
+    : `${cbs.length} message${cbs.length>1?'s':''} déplacé${cbs.length>1?'s':''} à la corbeille`);
+}
+
+async function gmEmptyTrash() {
+  if (!confirm('Vider la corbeille ? Tous les messages seront supprimés définitivement.')) return;
+  try {
+    const r = await api('/messages/trash/empty', { method:'DELETE' });
+    toast(`🗑️ Corbeille vidée — ${r.deleted || 0} message${(r.deleted||0)>1?'s':''} supprimé${(r.deleted||0)>1?'s':''}`);
+    gmLoadTrash();
+  } catch(e) { toast('Erreur : ' + e.message, true); }
 }
 
 async function gmBulkRestore() {
