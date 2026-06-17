@@ -2975,6 +2975,12 @@ function _openNoteEditor(n, allActs, forceReadOnly) {
         <button class="we-btn" onclick="document.execCommand('undo')" title="Annuler">↩</button>
         <button class="we-btn" onclick="document.execCommand('redo')" title="Rétablir">↪</button>
 
+        <!-- Séparateur -->
+        <div style="width:1px;height:24px;background:#ddd;margin:0 4px"></div>
+
+        <!-- Insérer image -->
+        ${!readOnly ? `<label class="we-btn" title="Insérer une image (ou collez Ctrl+V / glissez)" style="cursor:pointer">🖼<input type="file" accept="image/*" style="display:none" onchange="_insertNoteImageFile(this.files[0])"></label>` : ''}
+
         <!-- Spacer -->
         <div style="flex:1"></div>
 
@@ -3058,8 +3064,39 @@ function _openNoteEditor(n, allActs, forceReadOnly) {
     #n_editor ul,#n_editor ol{margin:6px 0 6px 24px}
     #n_editor li{margin:2px 0}
     #n_editor p{margin:4px 0}
+    #n_editor img{max-width:100%;height:auto;display:block;margin:8px auto;border-radius:4px;cursor:pointer}
+    #n_editor img:hover{outline:2px solid #1a237e}
+    #n_editor.drag-over{outline:3px dashed #1a237e;outline-offset:4px;background:#e8eaf6}
   `;
   document.head.appendChild(style);
+
+  // ── Coller / glisser-déposer / sélection d'images ────────────────────
+  if (!readOnly) {
+    const ed = document.getElementById('n_editor');
+    if (ed) {
+      // Coller (Ctrl+V)
+      ed.addEventListener('paste', e => {
+        const items = e.clipboardData?.items;
+        if (!items) return;
+        for (const item of items) {
+          if (item.type.startsWith('image/')) {
+            e.preventDefault();
+            _insertNoteImageFile(item.getAsFile());
+            return;
+          }
+        }
+      });
+
+      // Glisser-déposer
+      ed.addEventListener('dragover', e => { e.preventDefault(); ed.classList.add('drag-over'); });
+      ed.addEventListener('dragleave', () => ed.classList.remove('drag-over'));
+      ed.addEventListener('drop', e => {
+        e.preventDefault();
+        ed.classList.remove('drag-over');
+        _insertNoteImageFile(e.dataTransfer.files[0]);
+      });
+    }
+  }
 
   // Focus
   setTimeout(() => document.getElementById('n_editor')?.focus(), 100);
@@ -3137,6 +3174,38 @@ function noteChanged() {
       autoSaveNote(id);
     }
   }, 1500);
+}
+
+// ── Insertion d'image dans l'éditeur (coller / glisser / bouton) ─────────
+function _insertNoteImageFile(file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  if (file.size > 5 * 1024 * 1024) { toast('⚠️ Image trop grande (max 5 Mo).', true); return; }
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = document.createElement('img');
+    img.src = ev.target.result;
+    img.style.cssText = 'max-width:100%;height:auto;display:block;margin:8px auto;border-radius:4px';
+    const ed = document.getElementById('n_editor');
+    if (!ed) return;
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount && ed.contains(sel.anchorNode)) {
+      const range = sel.getRangeAt(0);
+      range.deleteContents();
+      range.insertNode(img);
+      // Placer le curseur après l'image
+      const p = document.createElement('p');
+      p.innerHTML = '<br>';
+      img.parentNode.insertBefore(p, img.nextSibling);
+      range.setStartAfter(p);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } else {
+      ed.appendChild(img);
+    }
+    noteChanged();
+  };
+  reader.readAsDataURL(file);
 }
 
 // ── Marqueur de session (rédacteur + date) ──────────────────────────────
