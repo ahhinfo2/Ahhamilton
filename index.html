@@ -775,7 +775,6 @@
       section.style.display = '';
       grid.innerHTML = list.map(function(m) {
         var initiale = (m.prenom||'?')[0].toUpperCase();
-        var ageLabel = m.age ? m.age + ' ans' : '';
         return '<div style="text-align:center;padding:20px 24px;background:#fff;border-radius:16px;box-shadow:0 4px 20px rgba(249,168,37,.2);min-width:140px">' +
           (m.photo_url
             ? '<img src="' + m.photo_url + '" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid #f9a825;margin-bottom:10px" loading="lazy">'
