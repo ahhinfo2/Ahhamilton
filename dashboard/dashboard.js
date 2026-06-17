@@ -400,7 +400,6 @@ function buildSidebar() {
       // ── Mon espace membres ───────────────────────────────────────
       { id:'carte-membre',  icon:'🪪', label:'Ma carte membre',   _section:'✨ Mon espace' },
       { id:'mon_paiement',  icon:'💳', label:'Mes cotisations' },
-      { id:'actualites',    icon:'📰', label:'Actualités' },
       { id:'young-polls',   icon:'📊', label:'Sondages' },
       { id:'parrainage',    icon:'🤝', label:'Parrainage' },
       { id:'notif-prefs',   icon:'🔔', label:'Notifications' },
