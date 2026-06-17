@@ -2890,8 +2890,45 @@ async function notes() {
 
 function openNoteForm(n, allActs) {
   const noteId = n?.id || null;
-  _noteEditingId = noteId;
   const today = new Date().toISOString().slice(0,10);
+
+  // Vérifier si quelqu'un d'autre édite déjà cette note
+  const otherEditor = n?.editing_by && n.editing_by !== USER.id ? n.editing_by_nom || 'Un autre membre' : null;
+  if (otherEditor && !n?.verrouille) {
+    // Proposer lecture seule ou forcer l'accès
+    openModal('⚠️ Note en cours d\'édition', `
+      <p style="font-size:.92rem;margin-bottom:16px">
+        <strong>${escHtml(otherEditor)}</strong> est en train d'écrire dans cette note en ce moment.<br>
+        Si vous ouvrez en édition simultanément, <strong style="color:#c62828">le dernier qui sauvegarde écrase l'autre</strong>.
+      </p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-outline" onclick="closeModal();_openNoteReadOnly(${JSON.stringify(n)},${JSON.stringify(allActs)})">👁 Lire seulement</button>
+        <button class="btn btn-primary" style="background:#c62828;border-color:#c62828" onclick="closeModal();_openNoteForce(${JSON.stringify(n)},${JSON.stringify(allActs)})">✏️ Ouvrir quand même</button>
+        <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+      </div>
+    `);
+    return;
+  }
+
+  _noteEditingId = noteId;
+  _openNoteEditor(n, allActs, false);
+}
+
+function _openNoteReadOnly(n, allActs) {
+  // Ouvrir en lecture seule sans prendre la session d'édition
+  _openNoteEditor(n, allActs, true);
+}
+
+function _openNoteForce(n, allActs) {
+  // Forcer l'ouverture en écriture malgré la session d'un autre
+  _noteEditingId = n?.id || null;
+  _openNoteEditor(n, allActs, false);
+}
+
+function _openNoteEditor(n, allActs, forceReadOnly) {
+  const noteId = n?.id || null;
+  const today = new Date().toISOString().slice(0,10);
+  const readOnly = forceReadOnly || !!n?.verrouille;
 
   setContent(`
     <!-- Éditeur plein écran style Word -->
@@ -2965,21 +3002,23 @@ function openNoteForm(n, allActs) {
         <div style="flex:1"></div>
 
         <!-- Statut + actions -->
-        <span id="noteStatus" style="font-size:.75rem;color:var(--muted);margin-right:8px">${n?.verrouille ? '🔒 Note verrouillée' : ''}</span>
+        <span id="noteStatus" style="font-size:.75rem;color:var(--muted);margin-right:8px">${readOnly ? (n?.verrouille ? '🔒 Note verrouillée' : '👁 Lecture seule') : ''}</span>
         <button class="btn btn-sm btn-ghost" onclick="if(_noteEditingId)api('/notes/'+_noteEditingId+'/editing',{method:'DELETE'}).catch(()=>{});clearInterval(_noteSyncInterval);notes()" title="Fermer">✕ Fermer</button>
         <a href="/api/notes/${noteId}/download?token=${TOKEN}" target="_blank" class="btn btn-sm btn-outline" title="Télécharger">⬇ PDF</a>
         ${n?.nb_signatures > 0 ? `<a href="/api/notes/${noteId}/attestation?token=${TOKEN}" target="_blank" class="btn btn-sm btn-outline" style="color:#1b5e20;border-color:#1b5e20">🔏 Attestation</a>` : ''}
-        ${!n?.verrouille ? `<button class="btn btn-sm btn-ghost" style="color:#6a1b9a;border:1px solid #6a1b9a" onclick="openNoteSignatureModal(${noteId},'${escHtml(n?.titre||'').replace(/'/g,"\\'")}')">✍️ Signer</button>` : ''}
-        ${!n?.verrouille ? `<button class="btn btn-sm btn-primary" onclick="saveNoteEditor(${noteId})" title="Sauvegarder">💾 Sauvegarder</button>` : ''}
+        ${!readOnly ? `<button class="btn btn-sm btn-ghost" style="color:#6a1b9a;border:1px solid #6a1b9a" onclick="openNoteSignatureModal(${noteId},'${escHtml(n?.titre||'').replace(/'/g,"\\'")}')">✍️ Signer</button>` : ''}
+        ${!readOnly ? `<button class="btn btn-sm btn-primary" onclick="saveNoteEditor(${noteId})" title="Sauvegarder">💾 Sauvegarder</button>` : ''}
       </div>
 
       <!-- Zone de saisie style papier Word -->
       <div style="flex:1;overflow-y:auto;padding:32px 0;background:#e0e0e0">
         ${n?.verrouille
           ? `<div style="text-align:center;padding:12px;background:#e8f5e9;color:#1b5e20;font-weight:600;font-size:.85rem">🔒 Cette note est verrouillée — lecture seule après 2 signatures</div>`
-          : n?.nb_signatures > 0
-            ? `<div style="text-align:center;padding:10px 16px;background:#fff3cd;color:#856404;font-weight:600;font-size:.82rem">⚠️ Cette note a ${n.nb_signatures} signature(s). Toute sauvegarde annulera les signatures et le processus devra recommencer.</div>`
-            : ''
+          : forceReadOnly
+            ? `<div style="text-align:center;padding:12px;background:#e3f2fd;color:#1565c0;font-weight:600;font-size:.85rem">👁 Mode lecture seule — un autre membre édite cette note</div>`
+            : n?.nb_signatures > 0
+              ? `<div style="text-align:center;padding:10px 16px;background:#fff3cd;color:#856404;font-weight:600;font-size:.82rem">⚠️ Cette note a ${n.nb_signatures} signature(s). Toute sauvegarde annulera les signatures et le processus devra recommencer.</div>`
+              : ''
         }
         <div style="
           width:794px;max-width:calc(100vw - 40px);
@@ -2993,9 +3032,8 @@ function openNoteForm(n, allActs) {
           line-height:1.6;
           color:#000;
           outline:none;
-          ${n?.verrouille ? 'user-select:text;' : ''}
-        " contenteditable="${n?.verrouille ? 'false' : 'true'}" spellcheck="true" id="n_editor"
-          oninput="${n?.verrouille ? '' : 'noteChanged()'}">${n?.contenu || '<p><br></p>'}</div>
+        " contenteditable="${readOnly ? 'false' : 'true'}" spellcheck="true" id="n_editor"
+          oninput="${readOnly ? '' : 'noteChanged()'}">${n?.contenu || '<p><br></p>'}</div>
       </div>
     </div>
   `);
@@ -3025,8 +3063,8 @@ function openNoteForm(n, allActs) {
     if (editor) autoSaveNote(noteId);
   }, 10000);
 
-  // Marquer "en train d'éditer" pour les autres
-  if (noteId) {
+  // Marquer "en train d'éditer" seulement si on n'est pas en lecture seule
+  if (noteId && !readOnly) {
     api(`/notes/${noteId}/editing`, { method:'POST' }).catch(()=>{});
     clearInterval(_noteSyncInterval);
     _noteSyncInterval = setInterval(async () => {
@@ -3044,6 +3082,20 @@ function openNoteForm(n, allActs) {
             s.textContent = `🔄 ${fresh.le_prenom || ''} ${fresh.le_nom || ''} a modifié — rechargez si vous voulez voir la dernière version`;
           }
         }
+      } catch(e) {}
+    }, 5000);
+  } else if (noteId && readOnly) {
+    // En lecture seule : rafraîchir le contenu toutes les 5s
+    clearInterval(_noteSyncInterval);
+    _noteSyncInterval = setInterval(async () => {
+      if (!document.getElementById('n_editor')) { clearInterval(_noteSyncInterval); return; }
+      try {
+        const fresh = await api(`/notes/${noteId}`);
+        if (!fresh) return;
+        const editor = document.getElementById('n_editor');
+        if (editor && fresh.contenu) editor.innerHTML = fresh.contenu;
+        const s = document.getElementById('noteStatus');
+        if (s && fresh.last_editor_nom) s.textContent = `👁 Dernière modif : ${fresh.le_prenom||''} ${fresh.le_nom||''} — ${new Date(fresh.date_modification||'').toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'})}`;
       } catch(e) {}
     }, 5000);
   }
