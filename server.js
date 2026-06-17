@@ -5004,10 +5004,11 @@ cron.schedule('0 9 * * *', async () => {
 // ── Anniversaires — cron 8h Toronto ──────────────────────────────────────────
 cron.schedule('0 8 * * *', async () => {
   try {
-    const now = new Date(new Date().toLocaleString('en-CA', { timeZone: 'America/Toronto' }));
-    const mois = now.getMonth() + 1;
-    const jour = now.getDate();
-    const annee = now.getFullYear();
+    const d = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto', year:'numeric', month:'2-digit', day:'2-digit' }).format(new Date());
+    const parts = d.split('-');
+    const mois = parseInt(parts[1]);
+    const jour = parseInt(parts[2]);
+    const annee = parseInt(parts[0]);
 
     const membres = db.prepare(`
       SELECT * FROM users
@@ -5487,9 +5488,10 @@ app.get('/api/members/:id/card', authMiddleware, (req, res) => {
 
 // ── Anniversaires du jour (public) ────────────────────────────────────────────
 app.get('/api/public/anniversaires', (req, res) => {
-  const now = new Date(new Date().toLocaleString('en-CA', { timeZone: 'America/Toronto' }));
-  const mois = now.getMonth() + 1;
-  const jour = now.getDate();
+  const d = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto', year:'numeric', month:'2-digit', day:'2-digit' }).format(new Date());
+  const parts = d.split('-');
+  const mois = parseInt(parts[1]);
+  const jour = parseInt(parts[2]);
   const rows = db.prepare(`
     SELECT prenom, SUBSTR(nom,1,1) AS nom_initial, photo_url
     FROM users
