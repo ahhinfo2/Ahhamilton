@@ -2833,13 +2833,15 @@ async function notes() {
       const isEditing = n.editing_by && n.editing_by !== USER.id;
       const locked = !!n.verrouille;
       const signed = !!n.date_ma_signature;
-      const editingLabel = isEditing ? `<span style="background:#fff3cd;color:#856404;font-size:.72rem;padding:2px 8px;border-radius:12px;font-weight:600">✏️ ${escHtml(n.editing_by_nom||'Quelqu\'un')} édite...</span>` : '';
-      const lockBadge = locked ? `<span style="background:#e8f5e9;color:#1b5e20;font-size:.72rem;padding:2px 9px;border-radius:12px;font-weight:600">🔒 Verrouillée</span>` : '';
-      const sigBadge = signed ? `<span style="background:#e3f2fd;color:#1565c0;font-size:.72rem;padding:2px 9px;border-radius:12px;font-weight:600">✅ Signé le ${fmt(n.date_ma_signature)}</span>` : '';
-      const countBadge = n.nb_signatures > 0 ? `<span style="background:#f3e5f5;color:#6a1b9a;font-size:.72rem;padding:2px 9px;border-radius:12px;font-weight:600">🖊 ${n.nb_signatures} signature${n.nb_signatures>1?'s':''}</span>` : '';
+      const editingLabel = `<span class="editing-badge" style="background:#fff3cd;color:#856404;font-size:.72rem;padding:2px 8px;border-radius:12px;font-weight:600;${isEditing?'':'display:none'}">${isEditing?'✏️ '+escHtml(n.editing_by_nom||'Quelqu\'un')+' édite...':''}</span>`;
+      const lockBadge = locked ? `<span style="background:#e8f5e9;color:#1b5e20;font-size:.72rem;padding:2px 9px;border-radius:12px;font-weight:600">🔒 Verrouillée — 2/2 signatures</span>` : '';
+      const sigBadge = signed && !locked ? `<span style="background:#e3f2fd;color:#1565c0;font-size:.72rem;padding:2px 9px;border-radius:12px;font-weight:600">✅ Vous avez signé</span>` : '';
+      const countBadge = n.nb_signatures === 1 && !locked
+        ? `<span style="background:#fff3cd;color:#856404;font-size:.72rem;padding:2px 9px;border-radius:12px;font-weight:600">⚠️ 1/2 signature — toute modification annule</span>`
+        : n.nb_signatures >= 2 && !locked ? `<span style="background:#f3e5f5;color:#6a1b9a;font-size:.72rem;padding:2px 9px;border-radius:12px;font-weight:600">🖊 ${n.nb_signatures} signatures</span>` : '';
       const lastEditorLabel = n.last_editor_nom ? `Modifié par <strong>${escHtml(n.last_editor_nom)}</strong>` : `Créé par <strong>${escHtml(n.auteur||'')}</strong>`;
       return `
-      <div class="table-card" style="margin-bottom:12px;${locked?'border-left:3px solid #1b5e20':isEditing?'border-left:3px solid #f9a825':''}">
+      <div class="table-card" data-note-id="${n.id}" style="margin-bottom:12px;${locked?'border-left:3px solid #1b5e20':isEditing?'border-left:3px solid #f9a825':''}">
         <div class="table-card-header">
           <div style="flex:1;min-width:0">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -2857,27 +2859,33 @@ async function notes() {
             ${(n.auteur_id===USER.id||can.admin()) && !locked ? `<button class="btn btn-sm btn-danger" onclick="deleteNote(${n.id})">🗑️</button>` : ''}
           </div>
         </div>
-        <div style="padding:10px 20px;font-size:.83rem;color:var(--muted);cursor:pointer;border-top:1px solid var(--border)" onclick='openNoteForm(${JSON.stringify(n)},${JSON.stringify(allActs)})'>
+        <div data-note-preview="${n.id}" style="padding:10px 20px;font-size:.83rem;color:var(--muted);cursor:pointer;border-top:1px solid var(--border)" onclick='openNoteForm(${JSON.stringify(n)},${JSON.stringify(allActs)})'>
           ${notePreview(n.contenu_corrige || n.contenu || '')}
         </div>
       </div>`}).join('') || '<div class="empty-state"><div class="es-icon">📝</div><p>Aucune note — créez la première !</p></div>'}
     </div>
   `);
 
-  // Auto-refresh de la liste toutes les 20 secondes
+  // Refresh temps réel toutes les 5 secondes : indicateurs d'édition + preview du contenu
   clearInterval(_notesRefreshInterval);
   _notesRefreshInterval = setInterval(async () => {
     if (!document.getElementById('notesList')) { clearInterval(_notesRefreshInterval); return; }
     const fresh = await api('/notes').catch(() => null);
-    if (fresh) {
-      // Mettre à jour seulement les indicateurs d'édition
-      fresh.forEach(n => {
-        const isEditing = n.editing_by && n.editing_by !== USER.id;
-        const card = document.querySelector(`[data-note-id="${n.id}"]`);
-        if (card) card.style.borderLeft = isEditing ? '3px solid #f9a825' : '';
-      });
-    }
-  }, 20000);
+    if (!fresh) return;
+    fresh.forEach(n => {
+      const card = document.querySelector(`[data-note-id="${n.id}"]`);
+      if (!card) return;
+      // Bordure selon état
+      const isEditing = n.editing_by && n.editing_by !== USER.id;
+      card.style.borderLeft = n.verrouille ? '3px solid #1b5e20' : isEditing ? '3px solid #f9a825' : '';
+      // Preview du contenu (mise à jour en temps réel)
+      const preview = card.querySelector(`[data-note-preview="${n.id}"]`);
+      if (preview) preview.innerHTML = notePreview(n.contenu_corrige || n.contenu || '');
+      // Badge édition en cours
+      const editingSpan = card.querySelector('.editing-badge');
+      if (editingSpan) editingSpan.textContent = isEditing ? `✏️ ${escHtml(n.editing_by_nom||'Quelqu\'un')} édite...` : '';
+    });
+  }, 5000);
 }
 
 function openNoteForm(n, allActs) {
@@ -3020,24 +3028,24 @@ function openNoteForm(n, allActs) {
   // Marquer "en train d'éditer" pour les autres
   if (noteId) {
     api(`/notes/${noteId}/editing`, { method:'POST' }).catch(()=>{});
-    // Renouveler toutes les 3 minutes (session expire après 5 min)
     clearInterval(_noteSyncInterval);
     _noteSyncInterval = setInterval(async () => {
       if (!document.getElementById('n_editor')) { clearInterval(_noteSyncInterval); return; }
-      // Signaler qu'on édite encore
-      if (noteId) api(`/notes/${noteId}/editing`, { method:'POST' }).catch(()=>{});
-      // Vérifier si quelqu'un d'autre a sauvegardé
+      // Renouveler la session d'édition (expire après 5 min)
+      api(`/notes/${noteId}/editing`, { method:'POST' }).catch(()=>{});
+      // Vérifier si quelqu'un d'autre a sauvegardé (toutes les 5s)
       try {
         const fresh = await api(`/notes/${noteId}`);
-        if (fresh && fresh.last_editor_id && fresh.last_editor_id !== USER.id) {
+        if (!fresh) return;
+        if (fresh.last_editor_id && fresh.last_editor_id !== USER.id) {
           const s = document.getElementById('noteStatus');
           if (s) {
             s.style.color = '#1565c0';
-            s.textContent = `🔄 ${fresh.le_prenom || ''} ${fresh.le_nom || ''} a modifié cette note`;
+            s.textContent = `🔄 ${fresh.le_prenom || ''} ${fresh.le_nom || ''} a modifié — rechargez si vous voulez voir la dernière version`;
           }
         }
       } catch(e) {}
-    }, 30000);
+    }, 5000);
   }
 }
 
@@ -3058,18 +3066,17 @@ async function autoSaveNote(id) {
 function noteChanged() {
   const s = document.getElementById('noteStatus');
   if (s) { s.style.color = '#e65100'; s.textContent = '● Modifications en cours...'; }
-  // Sauvegarde automatique 3 secondes après la dernière frappe
+  // Sauvegarde automatique 1.5 seconde après la dernière frappe
   clearTimeout(_noteDebounce);
   _noteDebounce = setTimeout(() => {
     const editor = document.getElementById('n_editor');
     if (editor) {
-      // Récupérer le noteId depuis le bouton sauvegarder
       const btn = document.querySelector('[onclick^="saveNoteEditor"]');
       const match = btn?.getAttribute('onclick')?.match(/saveNoteEditor\((\d+|null)\)/);
       const id = match ? (match[1] === 'null' ? null : parseInt(match[1])) : null;
       autoSaveNote(id);
     }
-  }, 3000);
+  }, 1500);
 }
 
 // ── Signature modale pour les notes ──────────────────────────────────────
