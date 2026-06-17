@@ -3059,6 +3059,7 @@ function _openNoteEditor(n, allActs, forceReadOnly) {
     #n_editor li{margin:2px 0}
     #n_editor p{margin:4px 0}
     #n_editor img{max-width:100%;max-height:400px;height:auto;display:block;margin:8px auto;border-radius:4px;cursor:pointer;object-fit:contain}
+    #notePagedArea img:not([src*="logo1"]){max-width:100%;max-height:400px;height:auto;display:block;margin:8px auto;border-radius:4px;object-fit:contain}
     #n_editor img.img-selected{outline:3px solid #1a237e;outline-offset:2px}
     #n_editor.drag-over{outline:3px dashed #1a237e;outline-offset:4px;background:#e8eaf6}
     .img-resize-bar{position:fixed;z-index:9999;background:#1a237e;color:#fff;border-radius:8px;padding:4px 10px;display:flex;gap:6px;align-items:center;font-size:.78rem;box-shadow:0 2px 8px rgba(0,0,0,.3)}
@@ -3259,30 +3260,17 @@ function _paginateReadOnly(html) {
   const area = document.getElementById('notePagedArea');
   if (!area) return;
 
-  const CONTENT_H = 1184; // hauteur contenu par page (px à 96dpi)
-  const PAGE_W    = 688;  // largeur nette = 816 - 2×64px padding
-  const todayFr   = new Date().toLocaleDateString('fr-CA', {year:'numeric',month:'long',day:'numeric'});
+  const CONTENT_H = 1184;
+  const todayFr = new Date().toLocaleDateString('fr-CA', {year:'numeric',month:'long',day:'numeric'});
 
-  // Mesurer la hauteur réelle du contenu dans un conteneur caché identique
-  const probe = document.createElement('div');
-  probe.style.cssText =
-    `width:${PAGE_W}px;position:fixed;visibility:hidden;top:-9999px;left:-9999px;` +
-    `font-family:'Times New Roman',serif;font-size:12pt;line-height:1.6;color:#000;word-break:break-word`;
-  probe.innerHTML = html || '<p><br></p>';
-  document.body.appendChild(probe);
-  const totalH = Math.max(probe.scrollHeight, CONTENT_H);
-  document.body.removeChild(probe);
-
-  const numPages = Math.ceil(totalH / CONTENT_H);
-
-  const makeHeader = (pageNum, total) =>
+  const makeHeader = (pg, total) =>
     `<div style="border-bottom:3px solid #1a237e;padding:10px 64px 8px;display:flex;align-items:center;gap:14px;user-select:none">
       <img src="/Public/logo1.png" style="height:48px;width:48px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display='none'">
       <div style="flex:1">
         <div style="font-weight:800;font-size:11pt;color:#1a237e;letter-spacing:.3px">Association Haïtienne de Hamilton (AHH)</div>
         <div style="font-size:8.5pt;color:#555;margin-top:1px">Notes de réunion officielle</div>
       </div>
-      <div style="font-size:8.5pt;color:#888;text-align:right">${todayFr}${total > 1 ? '<br><span style="font-size:7.5pt">Page&nbsp;'+pageNum+'&nbsp;/&nbsp;'+total+'</span>' : ''}</div>
+      <div style="font-size:8.5pt;color:#888;text-align:right">${todayFr}${total > 1 ? '<br><span style="font-size:7.5pt">Page&nbsp;'+pg+'&nbsp;/&nbsp;'+total+'</span>' : ''}</div>
     </div>`;
 
   const footer =
@@ -3291,22 +3279,73 @@ function _paginateReadOnly(html) {
       <span>Document officiel — confidentiel</span>
     </div>`;
 
-  let out = '';
-  for (let p = 0; p < numPages; p++) {
-    const yOffset = p * CONTENT_H;
-    out +=
-      `<div style="width:816px;max-width:calc(100vw - 40px);margin:${p > 0 ? '32px' : '0'} auto 0;background:#fff;box-shadow:0 2px 20px rgba(0,0,0,.22)">
-        ${makeHeader(p + 1, numPages)}
-        <div style="height:${CONTENT_H}px;overflow:hidden;position:relative">
-          <div style="position:absolute;top:0;left:0;right:0;padding:40px 64px;transform:translateY(-${yOffset}px);font-family:'Times New Roman',serif;font-size:12pt;line-height:1.6;color:#000;word-break:break-word">
-            ${html || '<p><br></p>'}
-          </div>
-        </div>
-        ${footer}
-      </div>`;
-  }
+  // Étape 1 : afficher d'abord une page unique SANS limite de hauteur pour
+  //           que le navigateur rende les images, puis on mesure et on pagine.
+  area.innerHTML =
+    `<div style="width:816px;max-width:calc(100vw - 40px);margin:0 auto;background:#fff;box-shadow:0 2px 20px rgba(0,0,0,.22)">
+      ${makeHeader(1, 1)}
+      <div id="_noteMeasure" style="padding:40px 64px;font-family:'Times New Roman',serif;font-size:12pt;line-height:1.6;color:#000;word-break:break-word">
+        ${html || '<p><br></p>'}
+      </div>
+      ${footer}
+    </div>`;
 
-  area.innerHTML = out;
+  // Contraindre les images comme dans l'éditeur
+  area.querySelectorAll('#_noteMeasure img').forEach(img => {
+    img.style.maxWidth  = img.style.maxWidth  || '100%';
+    img.style.maxHeight = img.style.maxHeight || '400px';
+    img.style.height    = 'auto';
+    img.style.objectFit = 'contain';
+    img.style.display   = 'block';
+  });
+
+  // Étape 2 : mesurer après chargement des images, puis paginer si > 1 page
+  let _done = false;
+  const finalize = () => {
+    if (_done) return;
+    _done = true;
+    const m = document.getElementById('_noteMeasure');
+    if (!m || !document.getElementById('notePagedArea')) return;
+    const totalH = m.scrollHeight;
+    if (totalH <= CONTENT_H) return; // une seule page suffit : rien à changer
+
+    const numPages = Math.ceil(totalH / CONTENT_H);
+    let out = '';
+    for (let p = 0; p < numPages; p++) {
+      out +=
+        `<div style="width:816px;max-width:calc(100vw - 40px);margin:${p > 0 ? '32px' : '0'} auto 0;background:#fff;box-shadow:0 2px 20px rgba(0,0,0,.22)">
+          ${makeHeader(p + 1, numPages)}
+          <div style="height:${CONTENT_H}px;overflow:hidden;position:relative">
+            <div style="position:absolute;top:0;left:0;right:0;padding:40px 64px;transform:translateY(-${p * CONTENT_H}px);font-family:'Times New Roman',serif;font-size:12pt;line-height:1.6;color:#000;word-break:break-word">
+              ${html || '<p><br></p>'}
+            </div>
+          </div>
+          ${footer}
+        </div>`;
+    }
+    area.innerHTML = out;
+    // Re-contraindre les images dans la vue paginée
+    area.querySelectorAll('img:not([src*="logo1"])').forEach(img => {
+      img.style.maxWidth  = img.style.maxWidth  || '100%';
+      img.style.maxHeight = img.style.maxHeight || '400px';
+      img.style.height    = 'auto';
+      img.style.objectFit = 'contain';
+      img.style.display   = 'block';
+    });
+  };
+
+  const imgs = area.querySelectorAll('#_noteMeasure img');
+  if (imgs.length === 0) {
+    requestAnimationFrame(finalize);
+  } else {
+    let loaded = 0;
+    const check = () => { if (++loaded >= imgs.length) requestAnimationFrame(finalize); };
+    imgs.forEach(img => {
+      if (img.complete) { check(); }
+      else { img.onload = check; img.onerror = check; }
+    });
+    setTimeout(finalize, 2000); // fallback si image échoue silencieusement
+  }
 }
 
 // ── Marqueur de session (rédacteur + date) ──────────────────────────────
