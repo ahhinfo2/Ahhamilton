@@ -2804,13 +2804,12 @@ async function deleteVol(id) {
 
 function notePreview(html) {
   if (!html) return '<em>Vide — cliquez pour éditer</em>';
-  // Extraire texte brut depuis HTML (exécuté côté client)
   const d = document.createElement('div');
   d.innerHTML = html;
   let txt = (d.textContent || d.innerText || '').trim();
-  // Si le contenu ressemble à du JSON ou est corrompu
-  if (txt.startsWith('{') || txt.startsWith('[') || txt.startsWith('"langue"') || txt.includes('"date_debut"')) {
-    return '<span style="color:#c62828">⚠️ Note corrompue — cliquez pour nettoyer le contenu</span>';
+  // Détecter contenu corrompu (JSON brut)
+  if (/[{[,]"(langue|date_debut|contenu_corrige|activity_id|editing_by|date_creation)"/.test(txt)) {
+    return '<span style="color:#c62828;font-size:.8rem">⚠️ Contenu corrompu — ouvrez la note pour effacer et recommencer</span>';
   }
   txt = txt.substring(0, 250);
   return escHtml(txt) + (txt.length >= 250 ? '…' : '');
@@ -2845,7 +2844,7 @@ async function notes() {
         <div class="table-card-header">
           <div style="flex:1;min-width:0">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              <h3 style="margin:0">${escHtml(n.titre)}</h3>
+              <h3 style="margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(n.titre)}</h3>
               ${lockBadge}${editingLabel}
             </div>
             <small style="color:var(--muted)">${lastEditorLabel} · ${fmt(n.date_modification||n.date_reunion)} · ${(n.langue||'fr').toUpperCase()} ${n.activite?'· 📎 '+escHtml(n.activite):''}</small>
@@ -2906,7 +2905,7 @@ function _openNoteEditor(n, allActs, forceReadOnly) {
   const noteId = n?.id || null;
   const today = new Date().toISOString().slice(0,10);
   const readOnly = forceReadOnly || !!n?.verrouille;
-  const autoTitle = n?.titre || `Note de ${USER.prenom} ${USER.nom} — ${new Date().toLocaleDateString('fr-CA')}`;
+  const autoTitle = n?.titre || `Note de ${USER.prenom} ${USER.nom} — ${new Date().toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'})}`;
 
   setContent(`
     <!-- Éditeur plein écran style Word -->
@@ -3034,8 +3033,18 @@ function _openNoteEditor(n, allActs, forceReadOnly) {
     </div>
   `);
 
-  // Insérer le marqueur de session (rédacteur + date) si mode écriture
-  if (!readOnly) setTimeout(() => _insertSessionMarker(noteId), 80);
+  // Détecter et nettoyer le contenu corrompu (JSON brut) au chargement
+  setTimeout(() => {
+    const ed = document.getElementById('n_editor');
+    if (!ed) return;
+    const txt = (ed.textContent || '').trim();
+    if (/[{[,]"(langue|date_debut|contenu_corrige|activity_id|editing_by|date_creation)"/.test(txt)) {
+      ed.innerHTML = '<p><br></p>';
+      toast('⚠️ Contenu corrompu détecté et effacé automatiquement.', true);
+    }
+    // Insérer le marqueur de session (rédacteur + date) si mode écriture
+    if (!readOnly) _insertSessionMarker(noteId);
+  }, 80);
 
   // Styles des boutons toolbar
   const style = document.createElement('style');
