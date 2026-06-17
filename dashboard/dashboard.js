@@ -10,6 +10,8 @@ let _noteAutoSave = null;
 let _noteEditingId = null;
 let _noteSyncInterval = null;
 let _noteDebounce = null;
+let _contribDebounce = null;
+let _collabNoteId = null;
 
 // ── PWA INSTALL PROMPT ──────────────────────────────────────────────────────
 let _pwaPrompt = null;
@@ -3143,9 +3145,6 @@ function noteChanged() {
 }
 
 // ── Mode collaboratif ────────────────────────────────────────────────────
-let _contribDebounce = null;
-let _collabNoteId = null;
-
 function _openNoteCollab(n, allActs) {
   _collabNoteId = n?.id;
   clearInterval(_noteSyncInterval);
