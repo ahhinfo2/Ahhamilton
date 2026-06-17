@@ -3263,14 +3263,13 @@ function _paginateReadOnly(html) {
   const area = document.getElementById('notePagedArea');
   if (!area) return;
 
-  // Éviter de tout reconstruire si le contenu n'a pas changé
   const sig = (html || '').length + '';
   if (sig === _pagSig && area.children.length > 0) return;
   _pagSig = sig;
   if (_pagTimer) { clearTimeout(_pagTimer); _pagTimer = null; }
 
   // 8.5 × 11 pouces @ 96dpi = 816 × 1056px
-  // header ~76px + footer ~36px → contenu = 944px
+  // header ~76px + footer ~36px → zone contenu = 944px
   const CONTENT_H = 944;
   const todayFr = new Date().toLocaleDateString('fr-CA', {year:'numeric',month:'long',day:'numeric'});
 
@@ -3290,19 +3289,33 @@ function _paginateReadOnly(html) {
       <span>Document officiel — confidentiel</span>
     </div>`;
 
-  const buildPages = (totalH) => {
-    const numPages = Math.max(1, Math.ceil(totalH / CONTENT_H));
-    if (numPages === 1) {
-      area.innerHTML =
-        `<div style="width:816px;max-width:calc(100vw - 40px);margin:0 auto;background:#fff;box-shadow:0 2px 20px rgba(0,0,0,.22)">
-          ${makeHeader(1, 1)}
-          <div style="min-height:${CONTENT_H}px;padding:40px 64px;font-family:'Times New Roman',serif;font-size:12pt;line-height:1.6;color:#000;word-break:break-word">
-            ${html || '<p><br></p>'}
-          </div>
-          ${footer}
-        </div>`;
+  // ── Étape 1 : rendu visible SANS min-height pour mesurer la vraie taille ──
+  // Pas de probe invisible — on mesure le div réellement affiché à l'écran,
+  // ce qui garantit que le navigateur a décodé les images base64.
+  area.innerHTML =
+    `<div style="width:816px;max-width:calc(100vw - 40px);margin:0 auto;background:#fff;box-shadow:0 2px 20px rgba(0,0,0,.22)">
+      ${makeHeader(1, 1)}
+      <div id="_noteMeasure" style="padding:40px 64px;font-family:'Times New Roman',serif;font-size:12pt;line-height:1.6;color:#000;word-break:break-word">
+        ${html || '<p><br></p>'}
+      </div>
+      ${footer}
+    </div>`;
+
+  // ── Étape 2 : mesurer le contenu visible puis paginer si > 1 page ──
+  _pagTimer = setTimeout(() => {
+    _pagTimer = null;
+    const m = document.getElementById('_noteMeasure');
+    if (!m || !document.getElementById('notePagedArea')) return;
+    const totalH = m.scrollHeight;
+
+    if (totalH <= CONTENT_H) {
+      // Une seule page — ajouter min-height pour l'aspect feuille complète
+      m.style.minHeight = CONTENT_H + 'px';
       return;
     }
+
+    // Plusieurs pages nécessaires
+    const numPages = Math.ceil(totalH / CONTENT_H);
     let out = '';
     for (let p = 0; p < numPages; p++) {
       out +=
@@ -3317,33 +3330,6 @@ function _paginateReadOnly(html) {
         </div>`;
     }
     area.innerHTML = out;
-  };
-
-  // Rendu initial — page unique
-  buildPages(CONTENT_H);
-
-  // Mesurer après chargement des images puis repaginer si nécessaire
-  _pagTimer = setTimeout(() => {
-    _pagTimer = null;
-    const probe = document.createElement('div');
-    probe.style.cssText =
-      'position:absolute;visibility:hidden;top:0;left:-9999px;' +
-      'width:688px;font-family:"Times New Roman",serif;font-size:12pt;line-height:1.6;word-break:break-word';
-    probe.innerHTML = html || '<p><br></p>';
-    probe.querySelectorAll('img').forEach(img => {
-      img.style.maxWidth  = '100%';
-      img.style.maxHeight = '400px';
-      img.style.height    = 'auto';
-      img.style.display   = 'block';
-      img.style.objectFit = 'contain';
-    });
-    area.appendChild(probe);
-    const measuredH = probe.scrollHeight;
-    probe.remove();
-
-    if (measuredH > CONTENT_H) {
-      buildPages(measuredH);
-    }
   }, 600);
 }
 
