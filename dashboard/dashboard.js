@@ -995,9 +995,9 @@ async function home() {
         <div class="table-card-header"><h3>🎂 Anniversaires ce mois</h3><span style="font-size:.78rem;color:var(--muted)">${new Date().toLocaleString('fr-CA',{month:'long'})}</span></div>
         <div style="padding:4px 0">
           ${birthdays.slice(0,6).map(m => {
-            const d = m.date_naissance ? new Date(m.date_naissance) : null;
-            const age = d ? new Date().getFullYear() - d.getFullYear() : null;
-            const jour = d ? d.getDate() : '?';
+            const parts = m.date_naissance ? m.date_naissance.split('-') : null;
+            const age = parts ? new Date().getFullYear() - parseInt(parts[0]) : null;
+            const jour = parts ? parseInt(parts[2]) : '?';
             return `<div style="display:flex;align-items:center;gap:10px;padding:8px 16px;border-bottom:1px solid var(--border)">
               <div style="width:32px;height:32px;background:var(--accent);color:#000;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:800;flex-shrink:0">${jour}</div>
               ${m.photo_url ? `<img src="${BASE}${m.photo_url}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0"/>` : `<div style="width:28px;height:28px;border-radius:50%;background:var(--g3);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0">${(m.prenom||'?')[0]}</div>`}

@@ -888,6 +888,8 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS ambassador (
 // S'assurer qu'il y a toujours une ligne
 try { db.exec("INSERT OR IGNORE INTO ambassador(id) VALUES(1)"); } catch {}
 
+try { db.exec("ALTER TABLE users ADD COLUMN birthday_notif_year INTEGER DEFAULT 0"); } catch {}
+
 // ── Sponsors / Commanditaires ─────────────────────────────────────────────
 try { db.exec(`CREATE TABLE IF NOT EXISTS sponsors (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

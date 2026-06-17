@@ -5001,6 +5001,49 @@ cron.schedule('0 9 * * *', async () => {
   } catch(e) { console.error('[CRON]', e.message); }
 });
 
+// ── Anniversaires — cron 8h Toronto ──────────────────────────────────────────
+cron.schedule('0 8 * * *', async () => {
+  try {
+    const now = new Date(new Date().toLocaleString('en-CA', { timeZone: 'America/Toronto' }));
+    const mois = now.getMonth() + 1;
+    const jour = now.getDate();
+    const annee = now.getFullYear();
+
+    const membres = db.prepare(`
+      SELECT * FROM users
+      WHERE actif=1 AND (phantom IS NULL OR phantom=0)
+      AND date_naissance IS NOT NULL AND date_naissance != ''
+      AND CAST(strftime('%m', date_naissance) AS INTEGER) = ?
+      AND CAST(strftime('%d', date_naissance) AS INTEGER) = ?
+      AND (birthday_notif_year IS NULL OR birthday_notif_year < ?)
+    `).all(mois, jour, annee);
+
+    if (!membres.length) return;
+
+    const admin = db.prepare("SELECT id FROM users WHERE role='admin' LIMIT 1").get();
+    const expediteurId = admin?.id || 1;
+
+    for (const u of membres) {
+      try {
+        // Email externe
+        await mailer.sendAnniversaire(u);
+
+        // Message interne
+        const sujet = `🎂 Joyeux anniversaire, ${u.prenom} !`;
+        const contenu = `Bonjour ${u.prenom},\n\nToute l'équipe de l'Association Haïtienne de Hamilton vous souhaite un très joyeux anniversaire ! 🎉🎂\n\nQue cette nouvelle année vous apporte santé, bonheur et succès.\n\nAvec toute notre affection,\nLe Comité de l'AHH`;
+        const msg = db.prepare("INSERT INTO messages (expediteur_id, sujet, contenu, type) VALUES (?,?,?,'individuel')")
+          .run(expediteurId, sujet, contenu);
+        db.prepare('INSERT INTO message_recipients (message_id, destinataire_id) VALUES (?,?)').run(msg.lastInsertRowid, u.id);
+
+        // Marquer comme envoyé pour cette année
+        db.prepare('UPDATE users SET birthday_notif_year=? WHERE id=?').run(annee, u.id);
+
+        console.log(`[ANNIVERSAIRE] Souhaits envoyés → ${u.prenom} ${u.nom} (${u.email})`);
+      } catch(e) { console.error(`[ANNIVERSAIRE] Erreur pour ${u.email}:`, e.message); }
+    }
+  } catch(e) { console.error('[CRON-ANNIVERSAIRE]', e.message); }
+}, { timezone: 'America/Toronto' });
+
 // ── Backup quotidien DB à 2h du matin ────────────────────────────────────────
 cron.schedule('0 2 * * *', () => {
   try {
@@ -5440,6 +5483,23 @@ app.get('/api/members/:id/card', authMiddleware, (req, res) => {
   const u = db.prepare('SELECT id, prenom, nom, email, telephone, plan, role, date_inscription, photo_url, carte_photo_approuvee, actif FROM users WHERE id=?').get(targetId);
   if (!u) return res.status(404).json({ error: 'Membre introuvable' });
   res.json(u);
+});
+
+// ── Anniversaires du jour (public) ────────────────────────────────────────────
+app.get('/api/public/anniversaires', (req, res) => {
+  const now = new Date(new Date().toLocaleString('en-CA', { timeZone: 'America/Toronto' }));
+  const mois = now.getMonth() + 1;
+  const jour = now.getDate();
+  const rows = db.prepare(`
+    SELECT prenom, SUBSTR(nom,1,1) AS nom_initial, photo_url,
+           CAST(strftime('%Y','now') AS INTEGER) - CAST(strftime('%Y', date_naissance) AS INTEGER) AS age
+    FROM users
+    WHERE actif=1 AND (phantom IS NULL OR phantom=0)
+    AND date_naissance IS NOT NULL AND date_naissance != ''
+    AND CAST(strftime('%m', date_naissance) AS INTEGER) = ?
+    AND CAST(strftime('%d', date_naissance) AS INTEGER) = ?
+  `).all(mois, jour);
+  res.json(rows);
 });
 
 // ── Sponsors / Commanditaires ─────────────────────────────────────────────────

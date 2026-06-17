@@ -540,11 +540,31 @@ async function sendRecuFiscalAuto(user, montant, mois, recuId) {
   });
 }
 
+async function sendAnniversaire(user) {
+  const prenom = user.prenom || 'cher membre';
+  const html = wrap(`🎂 Joyeux anniversaire, ${prenom} !`,
+    `<p>Bonjour <strong>${prenom}</strong>,</p>
+     <p>En ce jour spécial, toute l'équipe de l'<strong>Association Haïtienne de Hamilton</strong>
+     vous souhaite un très joyeux anniversaire ! 🎉</p>
+     <p>Que cette nouvelle année vous apporte santé, bonheur et de belles réussites,
+     entouré(e) de vos proches et de notre grande famille haïtienne à Hamilton.</p>
+     <p style="font-size:1.3rem;text-align:center;margin:20px 0">🇭🇹 🎂 🎊</p>
+     <p>Avec toute notre affection,<br/>
+     <strong>Le Comité de l'Association Haïtienne de Hamilton</strong></p>
+     <hr class="divider"/>
+     <p style="font-size:.8rem;color:#888">
+       Connectez-vous à votre espace membre pour voir les messages de la communauté.<br/>
+       <a href="${siteUrl}/dashboard/login.html" style="color:#2e7d32">Mon espace membre →</a>
+     </p>`
+  );
+  await sendMail({ to: user.email, subject: `🎂 Joyeux anniversaire, ${prenom} ! — AHH`, html });
+}
+
 module.exports = {
   sendMail, sendSMS, sendBienvenue, sendInscriptionRefusee, sendResetPassword,
   sendContact, sendRappelPaiement, sendPaiementApprouve, sendRappelAdhesion,
   sendRecuFiscal, sendRecuFiscalAuto, sendRappelExpiration,
   sendInscriptionActivite, sendNouvelleAdhesion, sendInvitation, sendHeuresBenevolat,
   sendBilletInterac, sendBilletQR, sendNouvelleCommandeBillet, sendExternalEmail,
-  sendCarteRenewal, SMS_GATEWAYS
+  sendCarteRenewal, sendAnniversaire, SMS_GATEWAYS
 };

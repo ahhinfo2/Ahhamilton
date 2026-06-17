@@ -307,6 +307,18 @@
     </div>
   </section>
 
+  <!-- ===== ANNIVERSAIRES DU JOUR ===== -->
+  <section id="anniversaires-section" style="display:none;padding:48px 0;background:linear-gradient(135deg,#fff8e1,#fff3cd)">
+    <div class="container">
+      <div class="section-header" data-reveal>
+        <span class="section-badge" style="background:rgba(249,168,37,.15);color:#f9a825">🎂 Aujourd'hui</span>
+        <h2>Joyeux anniversaire !</h2>
+        <p>La grande famille AHH célèbre avec vous en ce jour spécial.</p>
+      </div>
+      <div id="anniversairesGrid" style="display:flex;flex-wrap:wrap;gap:20px;justify-content:center;margin-top:32px"></div>
+    </div>
+  </section>
+
   <!-- ===== COMMANDITAIRES ===== -->
   <section class="sponsors-section" id="commanditaires">
     <div class="container">
@@ -748,6 +760,31 @@
           '</div></div>';
       }).join('');
       wrap.style.display = '';
+    } catch(e) {}
+  })();
+
+  // Anniversaires du jour
+  (async function() {
+    try {
+      var r = await fetch(BASE_API + '/public/anniversaires');
+      if (!r.ok) return;
+      var list = await r.json();
+      var section = document.getElementById('anniversaires-section');
+      var grid = document.getElementById('anniversairesGrid');
+      if (!list.length || !section || !grid) return;
+      section.style.display = '';
+      grid.innerHTML = list.map(function(m) {
+        var initiale = (m.prenom||'?')[0].toUpperCase();
+        var ageLabel = m.age ? m.age + ' ans' : '';
+        return '<div style="text-align:center;padding:20px 24px;background:#fff;border-radius:16px;box-shadow:0 4px 20px rgba(249,168,37,.2);min-width:140px">' +
+          (m.photo_url
+            ? '<img src="' + m.photo_url + '" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid #f9a825;margin-bottom:10px" loading="lazy">'
+            : '<div style="width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,#f9a825,#fb8c00);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.6rem;font-weight:800;margin:0 auto 10px">' + initiale + '</div>') +
+          '<div style="font-weight:700;font-size:.95rem">' + m.prenom + ' ' + m.nom_initial + '.</div>' +
+          (ageLabel ? '<div style="font-size:.78rem;color:#888;margin-top:3px">' + ageLabel + '</div>' : '') +
+          '<div style="font-size:1.4rem;margin-top:6px">🎂🎉</div>' +
+        '</div>';
+      }).join('');
     } catch(e) {}
   })();
 
