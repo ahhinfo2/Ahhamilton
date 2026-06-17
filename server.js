@@ -1416,6 +1416,60 @@ app.delete('/api/notes/:id', authMiddleware, (req, res) => {
   res.json({ message: 'Supprimée' });
 });
 
+// ── Contributions collaboratives ──────────────────────────────────────────────
+
+// Sauvegarder ma contribution (upsert)
+app.post('/api/notes/:id/contribute', authMiddleware, (req, res) => {
+  const { contenu } = req.body;
+  const note = db.prepare('SELECT verrouille FROM meeting_notes WHERE id=?').get(req.params.id);
+  if (!note) return res.status(404).json({ error: 'Note introuvable' });
+  if (note.verrouille) return res.status(403).json({ error: 'Note verrouillée' });
+  db.prepare(`INSERT OR REPLACE INTO note_contributions (note_id, user_id, contenu, derniere_frappe)
+    VALUES (?,?,?,CURRENT_TIMESTAMP)`).run(req.params.id, req.user.id, contenu || '');
+  res.json({ ok: true });
+});
+
+// Lire toutes les contributions actives
+app.get('/api/notes/:id/contributions', authMiddleware, (req, res) => {
+  const rows = db.prepare(`
+    SELECT nc.*, u.prenom||' '||u.nom AS nom, u.photo_url
+    FROM note_contributions nc JOIN users u ON u.id=nc.user_id
+    WHERE nc.note_id=? ORDER BY nc.derniere_frappe ASC
+  `).all(req.params.id);
+  res.json(rows);
+});
+
+// Fusionner toutes les contributions dans la note principale
+app.post('/api/notes/:id/merge', authMiddleware, (req, res) => {
+  const note = db.prepare('SELECT * FROM meeting_notes WHERE id=?').get(req.params.id);
+  if (!note) return res.status(404).json({ error: 'Note introuvable' });
+  if (note.verrouille) return res.status(403).json({ error: 'Note verrouillée' });
+  const contribs = db.prepare(`
+    SELECT nc.*, u.prenom||' '||u.nom AS nom
+    FROM note_contributions nc JOIN users u ON u.id=nc.user_id
+    WHERE nc.note_id=? AND nc.contenu != '' ORDER BY nc.derniere_frappe ASC
+  `).all(req.params.id);
+  if (!contribs.length) return res.json({ ok: true, merged: 0 });
+  const fmt = d => { try { return new Date(d).toLocaleString('fr-CA',{timeZone:'America/Toronto',year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'}); } catch { return d||''; } };
+  const separator = `<hr style="margin:28px 0 16px;border:none;border-top:2px solid #1b5e20"><p style="color:#888;font-size:9pt;text-align:center;margin:0 0 20px">— Contributions fusionnées le ${fmt(new Date().toISOString())} —</p>`;
+  const sections = contribs.map(c =>
+    `<h3 style="color:#1b5e20;margin:20px 0 6px;border-bottom:1px solid #e0e0e0;padding-bottom:4px;font-family:Arial,sans-serif">✍️ ${c.nom}</h3>${c.contenu}`
+  ).join('<br>');
+  const merged = (note.contenu || '') + separator + sections;
+  db.prepare(`UPDATE meeting_notes SET contenu=?, date_modification=CURRENT_TIMESTAMP, last_editor_id=? WHERE id=?`)
+    .run(merged, req.user.id, req.params.id);
+  db.prepare('DELETE FROM note_contributions WHERE note_id=?').run(req.params.id);
+  db.prepare('DELETE FROM note_signatures WHERE note_id=?').run(req.params.id);
+  logAdmin(req.user.id, 'note_merge', `note ${note.id} — ${contribs.length} contributions fusionnées`, note.id, 'note', req.ip);
+  res.json({ ok: true, merged: contribs.length, contenu: merged });
+});
+
+// Supprimer ma contribution (quand je quitte le mode collab)
+app.delete('/api/notes/:id/contribute', authMiddleware, (req, res) => {
+  db.prepare('DELETE FROM note_contributions WHERE note_id=? AND user_id=?').run(req.params.id, req.user.id);
+  res.json({ ok: true });
+});
+
 // ══════════════════════════════════════════════════════════════════════════════
 // AI – SPELL CHECK + RECOMMENDATION LETTERS
 // ══════════════════════════════════════════════════════════════════════════════

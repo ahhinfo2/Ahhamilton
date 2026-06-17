@@ -266,6 +266,9 @@ function setContent(html) {
   if (_notesRefreshInterval) { clearInterval(_notesRefreshInterval); _notesRefreshInterval = null; }
   // Libérer la session d'édition si on quittait une note
   if (_noteEditingId) { api(`/notes/${_noteEditingId}/editing`, { method:'DELETE' }).catch(()=>{}); _noteEditingId = null; }
+  // Nettoyer la contribution si on quittait le mode collaboratif
+  if (_collabNoteId) { api(`/notes/${_collabNoteId}/contribute`, { method:'DELETE' }).catch(()=>{}); _collabNoteId = null; }
+  if (_contribDebounce) { clearTimeout(_contribDebounce); _contribDebounce = null; }
   // Réinitialiser le mode flex-fill (utilisé par certaines vues pleine hauteur)
   mc.style.display = '';
   mc.style.flexDirection = '';
@@ -2895,15 +2898,23 @@ function openNoteForm(n, allActs) {
   // Vérifier si quelqu'un d'autre édite déjà cette note
   const otherEditor = n?.editing_by && n.editing_by !== USER.id ? n.editing_by_nom || 'Un autre membre' : null;
   if (otherEditor && !n?.verrouille) {
-    // Proposer lecture seule ou forcer l'accès
-    openModal('⚠️ Note en cours d\'édition', `
+    window._noteCollabCtx = { n, allActs };
+    openModal('👥 Note en cours d\'édition', `
       <p style="font-size:.92rem;margin-bottom:16px">
-        <strong>${escHtml(otherEditor)}</strong> est en train d'écrire dans cette note en ce moment.<br>
-        Si vous ouvrez en édition simultanément, <strong style="color:#c62828">le dernier qui sauvegarde écrase l'autre</strong>.
+        <strong>${escHtml(otherEditor)}</strong> est en train d'écrire dans cette note.
       </p>
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button class="btn btn-outline" onclick="closeModal();_openNoteReadOnly(${JSON.stringify(n)},${JSON.stringify(allActs)})">👁 Lire seulement</button>
-        <button class="btn btn-primary" style="background:#c62828;border-color:#c62828" onclick="closeModal();_openNoteForce(${JSON.stringify(n)},${JSON.stringify(allActs)})">✏️ Ouvrir quand même</button>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button class="btn btn-primary" onclick="closeModal();_openNoteCollab(window._noteCollabCtx.n,window._noteCollabCtx.allActs)" style="text-align:left;padding:12px 16px">
+          <div style="font-weight:700">✍️ Contribuer (mode collaboratif)</div>
+          <div style="font-size:.8rem;font-weight:400;opacity:.85">Vous écrivez dans votre propre zone — tout est fusionné à la fin avec vos noms</div>
+        </button>
+        <button class="btn btn-outline" onclick="closeModal();_openNoteReadOnly(window._noteCollabCtx.n,window._noteCollabCtx.allActs)" style="text-align:left;padding:12px 16px">
+          <div style="font-weight:700">👁 Lire et suivre en direct</div>
+          <div style="font-size:.8rem;font-weight:400;opacity:.85">Contenu rafraîchi toutes les 5s — vous voyez ce que l'autre écrit</div>
+        </button>
+        <button class="btn btn-ghost" onclick="closeModal();_openNoteForce(window._noteCollabCtx.n,window._noteCollabCtx.allActs)" style="color:#c62828;font-size:.82rem">
+          ✏️ Prendre la main (écrase l'autre)
+        </button>
         <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
       </div>
     `);
@@ -3129,6 +3140,154 @@ function noteChanged() {
       autoSaveNote(id);
     }
   }, 1500);
+}
+
+// ── Mode collaboratif ────────────────────────────────────────────────────
+let _contribDebounce = null;
+let _collabNoteId = null;
+
+function _openNoteCollab(n, allActs) {
+  _collabNoteId = n?.id;
+  clearInterval(_noteSyncInterval);
+  setContent(`
+    <div id="collabEditor" style="display:flex;flex-direction:column;height:calc(100vh - var(--strip-h) - 8px);background:#e0e0e0">
+
+      <!-- Barre collab -->
+      <div style="background:#fff;border-bottom:1px solid #d0d0d0;padding:8px 16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+        <span style="background:#e3f2fd;color:#1565c0;border-radius:20px;padding:3px 12px;font-size:.78rem;font-weight:700">👥 Mode collaboratif</span>
+        <span id="collabStatus" style="font-size:.75rem;color:var(--muted)"></span>
+        <div style="flex:1"></div>
+        <button class="btn btn-sm btn-ghost" onclick="_leaveCollab(${n?.id})">✕ Quitter</button>
+        <button class="btn btn-sm btn-primary" onclick="mergeContributions(${n?.id})">🔀 Fusionner et terminer</button>
+      </div>
+
+      <!-- Zone principale : note + contributions -->
+      <div style="flex:1;display:flex;overflow:hidden">
+
+        <!-- Gauche : note existante (lecture seule) -->
+        <div style="flex:1;overflow-y:auto;padding:24px 20px;background:#e0e0e0">
+          <div style="background:#e8f5e9;color:#1b5e20;border-radius:6px;padding:6px 12px;font-size:.78rem;font-weight:600;margin-bottom:14px;text-align:center">
+            📄 Note principale — lecture seule pendant la collaboration
+          </div>
+          <div id="collabMainNote" style="background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.15);padding:48px 56px;font-family:'Times New Roman',serif;font-size:12pt;line-height:1.6;color:#000;min-height:300px">
+            ${n?.contenu || '<p style="color:#aaa;font-style:italic">Note vide — les contributions apparaîtront ici après fusion.</p>'}
+          </div>
+        </div>
+
+        <!-- Droite : panneau contributions -->
+        <div style="width:400px;flex-shrink:0;border-left:2px solid #1b5e20;display:flex;flex-direction:column;background:#f8f9fa;overflow:hidden">
+
+          <!-- Contributions des autres (haut) -->
+          <div style="flex:1;overflow-y:auto;padding:12px;border-bottom:1px solid #ddd;min-height:0">
+            <div style="font-size:.72rem;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Contributions en direct</div>
+            <div id="otherContribsList"><em style="color:#aaa;font-size:.82rem">Chargement…</em></div>
+          </div>
+
+          <!-- Ma contribution (bas) -->
+          <div style="padding:12px;background:#fff;flex-shrink:0">
+            <div style="font-size:.75rem;font-weight:700;color:#1b5e20;margin-bottom:6px">✍️ Votre contribution</div>
+            <div id="myContrib" contenteditable="true" spellcheck="true"
+              oninput="scheduleContribSave(${n?.id})"
+              style="border:1px solid #c8e6c9;border-radius:6px;padding:10px;min-height:130px;max-height:280px;overflow-y:auto;font-family:'Times New Roman',serif;font-size:11pt;line-height:1.6;outline:none;background:#fafff9">
+              <p><br></p>
+            </div>
+            <div id="contribStatus" style="font-size:.7rem;color:var(--muted);margin-top:4px">Non sauvegardé</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `);
+
+  // Charger et rafraîchir les contributions toutes les 5s
+  _loadContribs(n?.id);
+  _noteSyncInterval = setInterval(async () => {
+    if (!document.getElementById('collabEditor')) { clearInterval(_noteSyncInterval); return; }
+    _loadContribs(n?.id);
+    // Rafraîchir aussi la note principale
+    try {
+      const fresh = await api(`/notes/${n?.id}`);
+      if (fresh?.contenu) { const v = document.getElementById('collabMainNote'); if (v) v.innerHTML = fresh.contenu; }
+    } catch(e) {}
+  }, 5000);
+}
+
+async function _loadContribs(noteId) {
+  try {
+    const all = await api(`/notes/${noteId}/contributions`);
+    const others = all.filter(c => c.user_id !== USER.id);
+    const myContrib = all.find(c => c.user_id === USER.id);
+
+    // Afficher les contributions des autres
+    const el = document.getElementById('otherContribsList');
+    if (el) {
+      if (!others.length) {
+        el.innerHTML = '<em style="color:#aaa;font-size:.82rem">Personne d\'autre ne contribue pour l\'instant.</em>';
+      } else {
+        el.innerHTML = others.map(c => `
+          <div style="margin-bottom:10px;border:1px solid #e0e0e0;border-radius:6px;padding:10px;background:#fff">
+            <div style="font-weight:700;font-size:.78rem;color:#1b5e20;margin-bottom:4px">✍️ ${escHtml(c.nom)}</div>
+            <div style="font-size:.85rem;font-family:'Times New Roman',serif;line-height:1.5;color:#333;max-height:160px;overflow-y:auto">${c.contenu||'<em style="color:#aaa">Rien encore...</em>'}</div>
+            <div style="font-size:.68rem;color:#aaa;margin-top:4px">Mis à jour ${fmt(c.derniere_frappe)}</div>
+          </div>
+        `).join('');
+      }
+    }
+
+    // Indiquer le nombre de contributeurs
+    const nb = all.length;
+    const s = document.getElementById('collabStatus');
+    if (s) s.textContent = nb > 0 ? `${nb} contributeur${nb>1?'s':''} actif${nb>1?'s':''}` : '';
+
+    // Auto-fusion si tout le monde est inactif depuis 2 minutes
+    if (all.length > 0) {
+      const allIdle = all.every(c => (Date.now() - new Date(c.derniere_frappe).getTime()) > 120000);
+      if (allIdle) {
+        const s = document.getElementById('collabStatus');
+        if (s) s.innerHTML = '<span style="color:#e65100;font-weight:600">⚠️ Tout le monde est inactif depuis 2 min — <button class="btn btn-sm btn-primary" onclick="mergeContributions(' + noteId + ')" style="padding:2px 10px;font-size:.75rem">🔀 Fusionner maintenant</button></span>';
+      }
+    }
+  } catch(e) {}
+}
+
+function scheduleContribSave(noteId) {
+  const s = document.getElementById('contribStatus');
+  if (s) { s.style.color = '#e65100'; s.textContent = '● En train d\'écrire...'; }
+  clearTimeout(_contribDebounce);
+  _contribDebounce = setTimeout(() => _saveContrib(noteId), 1500);
+}
+
+async function _saveContrib(noteId) {
+  const el = document.getElementById('myContrib');
+  if (!el) return;
+  const contenu = el.innerHTML;
+  try {
+    await api(`/notes/${noteId}/contribute`, { method:'POST', body: JSON.stringify({ contenu }) });
+    const s = document.getElementById('contribStatus');
+    if (s) { s.style.color = '#2e7d32'; s.textContent = '✅ Sauvegardé à ' + new Date().toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'}); }
+  } catch(e) {
+    const s = document.getElementById('contribStatus');
+    if (s) { s.style.color = '#c62828'; s.textContent = '❌ Erreur de sauvegarde'; }
+  }
+}
+
+async function mergeContributions(noteId) {
+  if (!confirm('Fusionner toutes les contributions dans la note principale ?\nLes zones de contribution seront effacées.')) return;
+  try {
+    const r = await api(`/notes/${noteId}/merge`, { method:'POST' });
+    if (r.merged === 0) return toast('Aucune contribution à fusionner.', true);
+    toast(`✅ ${r.merged} contribution(s) fusionnée(s) !`);
+    clearInterval(_noteSyncInterval); _collabNoteId = null;
+    const [fresh, allActs] = await Promise.all([api(`/notes/${noteId}`), api('/activities')]);
+    _noteEditingId = noteId;
+    _openNoteEditor(fresh, allActs, false);
+  } catch(e) { toast('Erreur: ' + e.message, true); }
+}
+
+async function _leaveCollab(noteId) {
+  clearInterval(_noteSyncInterval); _collabNoteId = null;
+  if (_contribDebounce) { clearTimeout(_contribDebounce); _contribDebounce = null; }
+  api(`/notes/${noteId}/contribute`, { method:'DELETE' }).catch(()=>{});
+  notes();
 }
 
 // ── Signature modale pour les notes ──────────────────────────────────────

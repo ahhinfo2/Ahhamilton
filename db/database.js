@@ -856,6 +856,16 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS document_signatures (
   UNIQUE(document_id, user_id)
 )`); } catch {}
 
+// ── Contributions collaboratives aux notes de réunion ────────────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS note_contributions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  note_id INTEGER REFERENCES meeting_notes(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  contenu TEXT NOT NULL DEFAULT '',
+  derniere_frappe TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(note_id, user_id)
+)`); } catch {}
+
 // ── Signatures électroniques des notes de réunion ────────────────────────
 try { db.exec(`CREATE TABLE IF NOT EXISTS note_signatures (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
