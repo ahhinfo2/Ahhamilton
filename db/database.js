@@ -856,6 +856,18 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS document_signatures (
   UNIQUE(document_id, user_id)
 )`); } catch {}
 
+// ── Signatures électroniques des notes de réunion ────────────────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS note_signatures (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  note_id INTEGER REFERENCES meeting_notes(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  signature_data TEXT NOT NULL,
+  date_signature TEXT DEFAULT CURRENT_TIMESTAMP,
+  ip TEXT,
+  UNIQUE(note_id, user_id)
+)`); } catch {}
+try { db.exec("ALTER TABLE meeting_notes ADD COLUMN verrouille INTEGER DEFAULT 0"); } catch {}
+
 // ── Token iCal personnel par membre ───────────────────────────────────────
 try { db.exec("ALTER TABLE users ADD COLUMN ical_token TEXT"); } catch {}
 

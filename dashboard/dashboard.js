@@ -2831,21 +2831,30 @@ async function notes() {
     <div id="notesList">
     ${data.map(n=>{
       const isEditing = n.editing_by && n.editing_by !== USER.id;
+      const locked = !!n.verrouille;
+      const signed = !!n.date_ma_signature;
       const editingLabel = isEditing ? `<span style="background:#fff3cd;color:#856404;font-size:.72rem;padding:2px 8px;border-radius:12px;font-weight:600">✏️ ${escHtml(n.editing_by_nom||'Quelqu\'un')} édite...</span>` : '';
+      const lockBadge = locked ? `<span style="background:#e8f5e9;color:#1b5e20;font-size:.72rem;padding:2px 9px;border-radius:12px;font-weight:600">🔒 Verrouillée</span>` : '';
+      const sigBadge = signed ? `<span style="background:#e3f2fd;color:#1565c0;font-size:.72rem;padding:2px 9px;border-radius:12px;font-weight:600">✅ Signé le ${fmt(n.date_ma_signature)}</span>` : '';
+      const countBadge = n.nb_signatures > 0 ? `<span style="background:#f3e5f5;color:#6a1b9a;font-size:.72rem;padding:2px 9px;border-radius:12px;font-weight:600">🖊 ${n.nb_signatures} signature${n.nb_signatures>1?'s':''}</span>` : '';
       const lastEditorLabel = n.last_editor_nom ? `Modifié par <strong>${escHtml(n.last_editor_nom)}</strong>` : `Créé par <strong>${escHtml(n.auteur||'')}</strong>`;
       return `
-      <div class="table-card" style="margin-bottom:12px;${isEditing?'border-left:3px solid #f9a825':''}">
+      <div class="table-card" style="margin-bottom:12px;${locked?'border-left:3px solid #1b5e20':isEditing?'border-left:3px solid #f9a825':''}">
         <div class="table-card-header">
           <div style="flex:1;min-width:0">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
               <h3 style="margin:0">${escHtml(n.titre)}</h3>
-              ${editingLabel}
+              ${lockBadge}${editingLabel}
             </div>
             <small style="color:var(--muted)">${lastEditorLabel} · ${fmt(n.date_modification||n.date_reunion)} · ${(n.langue||'fr').toUpperCase()} ${n.activite?'· 📎 '+escHtml(n.activite):''}</small>
+            ${sigBadge||countBadge ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:5px">${sigBadge}${countBadge}</div>` : ''}
           </div>
-          <div class="tc-actions">
-            <button class="btn btn-sm btn-primary" onclick='openNoteForm(${JSON.stringify(n)},${JSON.stringify(allActs)})'>✏️ Ouvrir</button>
-            ${n.auteur_id===USER.id||can.admin() ? `<button class="btn btn-sm btn-danger" onclick="deleteNote(${n.id})">🗑️</button>` : ''}
+          <div class="tc-actions" style="flex-wrap:wrap;gap:6px">
+            <button class="btn btn-sm btn-primary" onclick='openNoteForm(${JSON.stringify(n)},${JSON.stringify(allActs)})'>${locked?'👁 Voir':'✏️ Ouvrir'}</button>
+            <a href="/api/notes/${n.id}/download?token=${TOKEN}" target="_blank" class="btn btn-sm btn-outline">⬇ Télécharger</a>
+            ${n.nb_signatures > 0 ? `<a href="/api/notes/${n.id}/attestation?token=${TOKEN}" target="_blank" class="btn btn-sm btn-outline" style="color:#1b5e20;border-color:#1b5e20">🔏 Attestation</a>` : ''}
+            ${!locked ? `<button class="btn btn-sm btn-ghost" style="color:#6a1b9a;border:1px solid #6a1b9a" onclick="openNoteSignatureModal(${n.id},'${escHtml(n.titre).replace(/'/g,"\\'")}')">✍️ ${signed?'Re-signer':'Signer'}</button>` : ''}
+            ${(n.auteur_id===USER.id||can.admin()) && !locked ? `<button class="btn btn-sm btn-danger" onclick="deleteNote(${n.id})">🗑️</button>` : ''}
           </div>
         </div>
         <div style="padding:10px 20px;font-size:.83rem;color:var(--muted);cursor:pointer;border-top:1px solid var(--border)" onclick='openNoteForm(${JSON.stringify(n)},${JSON.stringify(allActs)})'>
@@ -2948,13 +2957,17 @@ function openNoteForm(n, allActs) {
         <div style="flex:1"></div>
 
         <!-- Statut + actions -->
-        <span id="noteStatus" style="font-size:.75rem;color:var(--muted);margin-right:8px"></span>
+        <span id="noteStatus" style="font-size:.75rem;color:var(--muted);margin-right:8px">${n?.verrouille ? '🔒 Note verrouillée' : ''}</span>
         <button class="btn btn-sm btn-ghost" onclick="if(_noteEditingId)api('/notes/'+_noteEditingId+'/editing',{method:'DELETE'}).catch(()=>{});clearInterval(_noteSyncInterval);notes()" title="Fermer">✕ Fermer</button>
-        <button class="btn btn-sm btn-primary" onclick="saveNoteEditor(${noteId})" title="Sauvegarder">💾 Sauvegarder</button>
+        <a href="/api/notes/${noteId}/download?token=${TOKEN}" target="_blank" class="btn btn-sm btn-outline" title="Télécharger">⬇ PDF</a>
+        ${n?.nb_signatures > 0 ? `<a href="/api/notes/${noteId}/attestation?token=${TOKEN}" target="_blank" class="btn btn-sm btn-outline" style="color:#1b5e20;border-color:#1b5e20">🔏 Attestation</a>` : ''}
+        ${!n?.verrouille ? `<button class="btn btn-sm btn-ghost" style="color:#6a1b9a;border:1px solid #6a1b9a" onclick="openNoteSignatureModal(${noteId},'${escHtml(n?.titre||'').replace(/'/g,"\\'")}')">✍️ Signer</button>` : ''}
+        ${!n?.verrouille ? `<button class="btn btn-sm btn-primary" onclick="saveNoteEditor(${noteId})" title="Sauvegarder">💾 Sauvegarder</button>` : ''}
       </div>
 
       <!-- Zone de saisie style papier Word -->
       <div style="flex:1;overflow-y:auto;padding:32px 0;background:#e0e0e0">
+        ${n?.verrouille ? `<div style="text-align:center;padding:12px;background:#e8f5e9;color:#1b5e20;font-weight:600;font-size:.85rem">🔒 Cette note est verrouillée — lecture seule après 2 signatures</div>` : ''}
         <div style="
           width:794px;max-width:calc(100vw - 40px);
           min-height:1123px;
@@ -2967,8 +2980,9 @@ function openNoteForm(n, allActs) {
           line-height:1.6;
           color:#000;
           outline:none;
-        " contenteditable="true" spellcheck="true" id="n_editor"
-          oninput="noteChanged()">${n?.contenu || '<p><br></p>'}</div>
+          ${n?.verrouille ? 'user-select:text;' : ''}
+        " contenteditable="${n?.verrouille ? 'false' : 'true'}" spellcheck="true" id="n_editor"
+          oninput="${n?.verrouille ? '' : 'noteChanged()'}">${n?.contenu || '<p><br></p>'}</div>
       </div>
     </div>
   `);
@@ -3051,6 +3065,57 @@ function noteChanged() {
       autoSaveNote(id);
     }
   }, 3000);
+}
+
+// ── Signature modale pour les notes ──────────────────────────────────────
+function openNoteSignatureModal(noteId, titre) {
+  openModal(`✍️ Signer — ${titre}`, `
+    <p style="font-size:.85rem;color:var(--muted);margin-bottom:12px">Dessinez votre signature dans la zone ci-dessous. Elle sera horodatée et liée à votre compte.<br>
+    <strong style="color:#1b5e20">⚠️ Après 2 signatures, la note sera verrouillée et ne pourra plus être modifiée.</strong></p>
+    <canvas id="noteSigCanvas" width="540" height="160" style="border:1px solid #ccc;border-radius:8px;cursor:crosshair;display:block;width:100%;touch-action:none"></canvas>
+    <div style="margin-top:8px;display:flex;gap:8px">
+      <button class="btn btn-sm btn-ghost" onclick="_clearNoteCanvas()">🗑 Effacer</button>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="_saveNoteSignature(${noteId})">✅ Signer le document</button>
+      <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+    </div>
+  `);
+  setTimeout(() => {
+    const canvas = document.getElementById('noteSigCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let drawing = false;
+    const getPos = e => {
+      const r = canvas.getBoundingClientRect();
+      const src = e.touches ? e.touches[0] : e;
+      return { x: (src.clientX - r.left) * (canvas.width / r.width), y: (src.clientY - r.top) * (canvas.height / r.height) };
+    };
+    canvas.addEventListener('mousedown', e => { drawing = true; const p = getPos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); });
+    canvas.addEventListener('mousemove', e => { if (!drawing) return; const p = getPos(e); ctx.lineWidth = 2.5; ctx.strokeStyle = '#1b5e20'; ctx.lineCap = 'round'; ctx.lineTo(p.x, p.y); ctx.stroke(); });
+    canvas.addEventListener('mouseup', () => { drawing = false; });
+    canvas.addEventListener('touchstart', e => { e.preventDefault(); drawing = true; const p = getPos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); }, { passive: false });
+    canvas.addEventListener('touchmove', e => { e.preventDefault(); if (!drawing) return; const p = getPos(e); ctx.lineWidth = 2.5; ctx.strokeStyle = '#1b5e20'; ctx.lineCap = 'round'; ctx.lineTo(p.x, p.y); ctx.stroke(); }, { passive: false });
+    canvas.addEventListener('touchend', () => { drawing = false; });
+  }, 50);
+}
+function _clearNoteCanvas() {
+  const c = document.getElementById('noteSigCanvas');
+  if (c) c.getContext('2d').clearRect(0, 0, c.width, c.height);
+}
+async function _saveNoteSignature(noteId) {
+  const canvas = document.getElementById('noteSigCanvas');
+  if (!canvas) return;
+  const blank = document.createElement('canvas'); blank.width = canvas.width; blank.height = canvas.height;
+  if (canvas.toDataURL() === blank.toDataURL()) return toast('Veuillez dessiner votre signature', true);
+  const signature_data = canvas.toDataURL('image/png');
+  try {
+    const r = await api(`/notes/${noteId}/sign`, { method:'POST', body: JSON.stringify({ signature_data }) });
+    closeModal();
+    if (r.verrouille) toast(`🔒 Note verrouillée — ${r.nb_signatures} signatures collectées`);
+    else toast(`✅ Signature enregistrée (${r.nb_signatures}/2 pour verrouiller)`);
+    notes();
+  } catch(e) { toast(e.message, true); }
 }
 
 async function _doSaveNote(id, silent = false) {

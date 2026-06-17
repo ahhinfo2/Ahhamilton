@@ -1198,13 +1198,14 @@ app.delete('/api/volunteer/:id', authMiddleware, requireRole('admin'), (req, res
 
 // Notes — toutes visibles au comité (style Google Docs partagé)
 app.get('/api/notes', authMiddleware, (req, res) => {
-  const COMITE = ['admin','tresoriere','secretaire','delegue'];
   const rows = db.prepare(`
     SELECT n.*,
       u.prenom || ' ' || u.nom AS auteur,
       a.titre AS activite,
       le.prenom || ' ' || le.nom AS last_editor_nom,
-      eb.prenom || ' ' || eb.nom AS editing_by_nom
+      eb.prenom || ' ' || eb.nom AS editing_by_nom,
+      (SELECT COUNT(*) FROM note_signatures ns WHERE ns.note_id = n.id) AS nb_signatures,
+      (SELECT date_signature FROM note_signatures WHERE note_id = n.id AND user_id = ?) AS date_ma_signature
     FROM meeting_notes n
     LEFT JOIN users u  ON u.id  = n.auteur_id
     LEFT JOIN users le ON le.id = n.last_editor_id
@@ -1212,8 +1213,7 @@ app.get('/api/notes', authMiddleware, (req, res) => {
     LEFT JOIN activities a ON a.id = n.activity_id
     WHERE (n.auteur_id = ? OR ? IN ('admin','secretaire','tresoriere','delegue'))
     ORDER BY COALESCE(n.date_modification, n.date_reunion) DESC
-  `).all(req.user.id, req.user.role);
-  // Nettoyer les sessions d'édition inactives (>5 min)
+  `).all(req.user.id, req.user.id, req.user.role);
   db.prepare("UPDATE meeting_notes SET editing_by=NULL, editing_since=NULL WHERE editing_since < datetime('now','-5 minutes')").run();
   res.json(rows);
 });
@@ -1226,6 +1226,8 @@ app.post('/api/notes', authMiddleware, (req, res) => {
 });
 
 app.put('/api/notes/:id', authMiddleware, (req, res) => {
+  const note = db.prepare('SELECT verrouille FROM meeting_notes WHERE id=?').get(req.params.id);
+  if (note?.verrouille) return res.status(403).json({ error: 'Note verrouillée — impossible de modifier après 2 signatures' });
   const { titre, contenu, contenu_corrige, langue, date_reunion, activity_id } = req.body;
   db.prepare(`UPDATE meeting_notes SET titre=?, contenu=?, contenu_corrige=?, langue=?,
     date_reunion=COALESCE(?,date_reunion), activity_id=?,
@@ -1234,6 +1236,151 @@ app.put('/api/notes/:id', authMiddleware, (req, res) => {
     .run(titre||'', contenu||'', contenu_corrige||null, langue||'fr',
       date_reunion||null, activity_id||null, req.user.id, req.params.id);
   res.json({ ok: true });
+});
+
+// Signer une note
+app.post('/api/notes/:id/sign', authMiddleware, (req, res) => {
+  const { signature_data } = req.body;
+  if (!signature_data) return res.status(400).json({ error: 'Signature requise' });
+  const note = db.prepare('SELECT * FROM meeting_notes WHERE id=?').get(req.params.id);
+  if (!note) return res.status(404).json({ error: 'Note introuvable' });
+  if (note.verrouille) return res.status(403).json({ error: 'Note déjà verrouillée' });
+  try {
+    db.prepare(`INSERT OR REPLACE INTO note_signatures (note_id, user_id, signature_data, ip) VALUES (?,?,?,?)`)
+      .run(note.id, req.user.id, signature_data, req.ip);
+    const { cnt } = db.prepare('SELECT COUNT(*) AS cnt FROM note_signatures WHERE note_id=?').get(note.id);
+    if (cnt >= 2) db.prepare('UPDATE meeting_notes SET verrouille=1 WHERE id=?').run(note.id);
+    logAdmin(req.user.id, 'signature_note', `note ${note.id} — ${note.titre}`, note.id, 'note', req.ip);
+    res.json({ ok: true, verrouille: cnt >= 2, nb_signatures: cnt });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Lister les signatures d'une note
+app.get('/api/notes/:id/signatures', authMiddleware, (req, res) => {
+  const rows = db.prepare(`SELECT ns.*, u.prenom||' '||u.nom AS nom_signataire, u.role
+    FROM note_signatures ns JOIN users u ON u.id=ns.user_id
+    WHERE ns.note_id=? ORDER BY ns.date_signature`).all(req.params.id);
+  res.json(rows);
+});
+
+// Télécharger une note (HTML imprimable)
+app.get('/api/notes/:id/download', authMiddleware, (req, res) => {
+  const n = db.prepare(`SELECT n.*, u.prenom||' '||u.nom AS auteur, a.titre AS activite
+    FROM meeting_notes n LEFT JOIN users u ON u.id=n.auteur_id LEFT JOIN activities a ON a.id=n.activity_id
+    WHERE n.id=?`).get(req.params.id);
+  if (!n) return res.status(404).send('Note introuvable');
+  const sigs = db.prepare(`SELECT ns.*, u.prenom||' '||u.nom AS nom_signataire, u.role
+    FROM note_signatures ns JOIN users u ON u.id=ns.user_id WHERE ns.note_id=? ORDER BY ns.date_signature`).all(req.params.id);
+  const ROLE_LABELS = { admin:'Administrateur', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Délégué', member:'Membre' };
+  const fmt = d => { try { return new Date(d).toLocaleString('fr-CA', { timeZone:'America/Toronto', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' }); } catch { return d||''; } };
+  const html = `<!DOCTYPE html><html lang="fr">
+<head><meta charset="UTF-8"><title>${n.titre||'Note de réunion'}</title>
+<style>
+  body{font-family:'Times New Roman',serif;max-width:800px;margin:40px auto;padding:0 40px;color:#000;font-size:12pt;line-height:1.6}
+  .header{text-align:center;border-bottom:2px solid #1b5e20;padding-bottom:16px;margin-bottom:24px}
+  .header h1{font-size:18pt;color:#1b5e20;margin:0 0 4px}
+  .meta{font-size:9pt;color:#555;margin:0}
+  .content{min-height:400px;margin-bottom:40px}
+  .sig-section{border-top:2px solid #1b5e20;padding-top:20px;margin-top:40px}
+  .sig-section h2{color:#1b5e20;font-size:13pt}
+  .sig-card{display:flex;gap:20px;align-items:center;border:1px solid #ccc;border-radius:6px;padding:12px;margin-bottom:10px;page-break-inside:avoid}
+  .sig-img{width:180px;height:70px;object-fit:contain;border:1px solid #ddd;border-radius:4px;background:#fff;flex-shrink:0}
+  .sig-name{font-weight:bold;font-size:11pt}
+  .sig-role{font-size:9pt;color:#555}
+  .sig-date{font-size:9pt;color:#1b5e20;margin-top:2px}
+  .locked{background:#e8f5e9;color:#1b5e20;border:1px solid #a5d6a7;border-radius:6px;padding:8px 16px;display:inline-block;font-size:9pt;font-weight:bold;margin-bottom:8px}
+  .footer{text-align:center;font-size:8pt;color:#aaa;margin-top:40px;border-top:1px solid #eee;padding-top:12px}
+  @media print{.no-print{display:none}}
+</style></head>
+<body>
+<div class="header">
+  <h1>${n.titre||'Note de réunion'}</h1>
+  <p class="meta">
+    Association Haïtienne de Hamilton · Rédigé par ${n.auteur||'?'}
+    ${n.date_reunion ? ' · ' + new Date(n.date_reunion).toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'}) : ''}
+    ${n.activite ? ' · 📎 ' + n.activite : ''}
+    ${n.verrouille ? ' · <span style="color:#1b5e20;font-weight:bold">🔒 Verrouillée</span>' : ''}
+  </p>
+</div>
+<div class="content">${n.contenu||''}</div>
+${sigs.length ? `
+<div class="sig-section">
+  ${n.verrouille ? '<div class="locked">✅ Note verrouillée — ' + sigs.length + ' signature(s)</div><br>' : ''}
+  <h2>Signatures</h2>
+  ${sigs.map(s => `<div class="sig-card">
+    <img class="sig-img" src="${s.signature_data}" alt="Signature">
+    <div>
+      <div class="sig-name">${s.nom_signataire}</div>
+      <div class="sig-role">${ROLE_LABELS[s.role]||s.role}</div>
+      <div class="sig-date">📅 Signé le ${fmt(s.date_signature)}</div>
+    </div>
+  </div>`).join('')}
+</div>` : ''}
+<div class="footer">Généré le ${fmt(new Date().toISOString())} — ahhamilton.ca</div>
+<div style="text-align:center;margin-top:16px" class="no-print">
+  <button onclick="window.print()" style="padding:10px 24px;background:#1b5e20;color:#fff;border:none;border-radius:6px;cursor:pointer">🖨 Imprimer / PDF</button>
+</div>
+</body></html>`;
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(html);
+});
+
+// Attestation de signature pour une note
+app.get('/api/notes/:id/attestation', authMiddleware, (req, res) => {
+  const n = db.prepare(`SELECT n.*, u.prenom||' '||u.nom AS auteur FROM meeting_notes n LEFT JOIN users u ON u.id=n.auteur_id WHERE n.id=?`).get(req.params.id);
+  if (!n) return res.status(404).send('Note introuvable');
+  const sigs = db.prepare(`SELECT ns.*, u.prenom||' '||u.nom AS nom_signataire, u.role
+    FROM note_signatures ns JOIN users u ON u.id=ns.user_id WHERE ns.note_id=? ORDER BY ns.date_signature`).all(req.params.id);
+  const ROLE_LABELS = { admin:'Administrateur', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Délégué', member:'Membre' };
+  const fmt = d => { try { return new Date(d).toLocaleString('fr-CA', { timeZone:'America/Toronto', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' }); } catch { return d||''; } };
+  const html = `<!DOCTYPE html><html lang="fr">
+<head><meta charset="UTF-8"><title>Attestation — ${n.titre}</title>
+<style>
+  body{font-family:Arial,sans-serif;max-width:800px;margin:40px auto;padding:0 24px;color:#222}
+  .header{text-align:center;padding-bottom:24px;margin-bottom:32px;border-bottom:3px solid #1b5e20}
+  .header h1{color:#1b5e20;margin:8px 0 4px;font-size:1.4rem}
+  .doc-box{background:#f9f9f9;border:1px solid #ddd;border-radius:8px;padding:16px;margin-bottom:28px;font-size:.9rem;line-height:1.7}
+  h2{color:#1b5e20;font-size:1.1rem;border-bottom:1px solid #e0e0e0;padding-bottom:8px}
+  .sig-card{border:1px solid #e0e0e0;border-radius:8px;padding:16px;margin-bottom:14px;display:flex;gap:20px;align-items:center}
+  .sig-img{width:200px;height:80px;object-fit:contain;border:1px solid #ccc;border-radius:4px;background:#fff;flex-shrink:0}
+  .sig-name{font-weight:bold;font-size:1rem}
+  .sig-role{color:#666;font-size:.85rem}
+  .sig-date{color:#1b5e20;font-size:.82rem;margin-top:4px}
+  .stamp{display:inline-block;border:2px solid #1b5e20;color:#1b5e20;border-radius:6px;padding:4px 12px;font-size:.8rem;font-weight:bold;margin-top:8px}
+  .footer{margin-top:40px;text-align:center;font-size:.75rem;color:#aaa;border-top:1px solid #eee;padding-top:16px}
+  @media print{.no-print{display:none}}
+</style></head>
+<body>
+<div class="header">
+  <div style="font-size:2.5rem">🔏</div>
+  <h1>Attestation de signature électronique</h1>
+  <p>Association Haïtienne de Hamilton — ahhamilton.ca</p>
+</div>
+<div class="doc-box">
+  <strong>Note :</strong> ${n.titre||'Sans titre'}<br>
+  <strong>Auteur :</strong> ${n.auteur||'?'}<br>
+  ${n.date_reunion ? `<strong>Date de réunion :</strong> ${new Date(n.date_reunion).toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'})}<br>` : ''}
+  <strong>Statut :</strong> ${n.verrouille ? '🔒 Verrouillée' : '📝 Ouverte'}<br>
+  <strong>Nombre de signataires :</strong> ${sigs.length}
+  <br><span class="stamp">${n.verrouille ? '🔒 VERROUILLÉE' : sigs.length >= 2 ? '✅ SIGNÉ' : '⏳ EN ATTENTE'}</span>
+</div>
+<h2>Signatures (${sigs.length})</h2>
+${sigs.length === 0 ? '<p style="color:#999;font-style:italic">Aucune signature.</p>' : sigs.map(s => `
+<div class="sig-card">
+  <img class="sig-img" src="${s.signature_data}" alt="Signature">
+  <div>
+    <div class="sig-name">${s.nom_signataire}</div>
+    <div class="sig-role">${ROLE_LABELS[s.role]||s.role}</div>
+    <div class="sig-date">📅 Signé le ${fmt(s.date_signature)}</div>
+  </div>
+</div>`).join('')}
+<div class="footer">Attestation générée le ${fmt(new Date().toISOString())} — Association Haïtienne de Hamilton</div>
+<div style="text-align:center;margin-top:20px" class="no-print">
+  <button onclick="window.print()" style="padding:10px 24px;background:#1b5e20;color:#fff;border:none;border-radius:6px;cursor:pointer">🖨 Imprimer / PDF</button>
+</div>
+</body></html>`;
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(html);
 });
 
 // Marquer "en train d'éditer"
