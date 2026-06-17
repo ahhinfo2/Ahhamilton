@@ -4027,8 +4027,26 @@ async function gmShowExternal(e) {
     const data = await api(`/email/inbox/${e.uid}`);
     const bodyEl = document.getElementById('gmExtBody');
     if (bodyEl) {
-      bodyEl.style.color = '';
-      bodyEl.textContent = data.body || '(corps vide)';
+      if (data.html) {
+        bodyEl.style.padding = '0';
+        bodyEl.style.whiteSpace = '';
+        bodyEl.style.color = '';
+        const iframe = document.createElement('iframe');
+        iframe.sandbox = 'allow-same-origin';
+        iframe.style.cssText = 'width:100%;border:none;min-height:400px;display:block;background:#fff';
+        bodyEl.innerHTML = '';
+        bodyEl.appendChild(iframe);
+        const doc = iframe.contentDocument || iframe.contentWindow.document;
+        doc.open();
+        doc.write(data.html);
+        doc.close();
+        setTimeout(() => {
+          try { iframe.style.height = (doc.body?.scrollHeight || 400) + 40 + 'px'; } catch {}
+        }, 300);
+      } else {
+        bodyEl.style.color = '';
+        bodyEl.textContent = data.body || '(corps vide)';
+      }
       if (_extCurrent) _extCurrent.body = data.body || '';
     }
   } catch(err) {

@@ -78,17 +78,21 @@ async function _doFetch(emailAddr, password) {
 }
 
 async function fetchEmailBody(emailAddr, password, uid) {
-  if (!IMAP_HOST || !emailAddr || !password) return '';
+  if (!IMAP_HOST || !emailAddr || !password) return { html: '', text: '' };
 
   const client = _makeClient(emailAddr, password);
-  let body = '';
+  let result = { html: '', text: '' };
   try {
     await client.connect();
     const lock = await client.getMailboxLock('INBOX');
     try {
       const msg = await client.fetchOne(String(uid), { source: true }, { uid: true });
       const src = msg?.source?.toString('utf-8') || '';
-      body = _parseMimeBody(src);
+      const parsed = _parseMimeBody(src);
+      result = {
+        html: (parsed.html || '').substring(0, 200000),
+        text: (parsed.text || '').substring(0, 8000)
+      };
     } finally {
       lock.release();
     }
@@ -97,42 +101,58 @@ async function fetchEmailBody(emailAddr, password, uid) {
     console.error('[IMAP] fetchEmailBody error:', e.message);
     try { await client.logout(); } catch {}
   }
-  return body;
+  return result;
 }
 
 // ── Extraction du corps depuis source MIME brute ──────────────────────────
 function _parseMimeBody(src) {
-  if (!src) return '';
+  if (!src) return { html: '', text: '' };
   const sepIdx = src.search(/\r?\n\r?\n/);
-  if (sepIdx < 0) return '';
+  if (sepIdx < 0) return { html: '', text: '' };
   const headers = src.slice(0, sepIdx);
   const rawBody = src.slice(sepIdx + src.slice(sepIdx).match(/^\r?\n\r?\n/)[0].length);
+  return _parsePart(headers, rawBody);
+}
 
-  const ct      = (headers.match(/^Content-Type:\s*(.+)/im) || [])[1] || '';
-  const enc     = (headers.match(/^Content-Transfer-Encoding:\s*(\S+)/im) || [])[1] || '';
-  const bndM    = ct.match(/boundary="?([^";\r\n]+)"?/i);
+function _parsePart(headers, body) {
+  const ct   = (headers.match(/^Content-Type:\s*([^\r\n]+(?:\r?\n[ \t][^\r\n]+)*)/im) || [])[1] || '';
+  const enc  = (headers.match(/^Content-Transfer-Encoding:\s*(\S+)/im) || [])[1] || '';
+  const bndM = ct.match(/boundary="?([^";\r\n]+)"?/i);
 
   if (bndM) {
-    // Courriel multipart : chercher text/plain d'abord, puis text/html
+    // Multipart : boundary peut avoir un suffixe (-Part_1 etc.)
     const bnd   = bndM[1].trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const parts = rawBody.split(new RegExp('--' + bnd + '(?:--|\\r?\\n|$)'));
-    let html = '';
+    // Diviser sur n'importe quelle ligne commençant par --boundary (avec ou sans suffixe)
+    const parts = body.split(new RegExp('[ \\t]*--' + bnd + '[^\\r\\n]*\\r?\\n'));
+    let html = '', text = '';
     for (const p of parts) {
+      if (!p || p.trimStart().startsWith('--')) continue;
       const si = p.search(/\r?\n\r?\n/);
       if (si < 0) continue;
       const ph  = p.slice(0, si);
-      const pb  = p.slice(si + p.slice(si).match(/^\r?\n\r?\n/)[0].length);
-      const pct = (ph.match(/^Content-Type:\s*(\S+)/im) || [])[1]?.toLowerCase() || '';
+      const pb  = p.slice(si + p.slice(si).match(/^\r?\n\r?\n/)[0].length).replace(/\r?\n--[^\r\n]*$/, '');
+      const pct = (ph.match(/^Content-Type:\s*([^\r\n;]+)/im) || [])[1]?.trim().toLowerCase() || '';
       const pe  = (ph.match(/^Content-Transfer-Encoding:\s*(\S+)/im) || [])[1] || '';
-      if (pct.startsWith('text/plain')) return _decode(pb, pe).trim().substring(0, 4000);
-      if (pct.startsWith('text/html') && !html) html = _decode(pb, pe);
+
+      if (pct.startsWith('multipart/')) {
+        const sub = _parsePart(ph, pb);
+        if (!html && sub.html) html = sub.html;
+        if (!text && sub.text) text = sub.text;
+      } else if (pct.startsWith('text/plain') && !text) {
+        text = _decode(pb, pe).trim();
+      } else if (pct.startsWith('text/html') && !html) {
+        html = _decode(pb, pe);
+      }
     }
-    return html ? _stripHtml(html).substring(0, 4000) : '';
+    return { html, text };
   }
 
-  // Courriel simple
-  const decoded = _decode(rawBody, enc);
-  return (ct.toLowerCase().includes('text/html') ? _stripHtml(decoded) : decoded).trim().substring(0, 4000);
+  // Message simple (non multipart)
+  const decoded = _decode(body, enc);
+  if (ct.toLowerCase().includes('text/html')) {
+    return { html: decoded, text: _stripHtml(decoded) };
+  }
+  return { html: '', text: decoded.trim() };
 }
 
 function _decode(text, enc) {

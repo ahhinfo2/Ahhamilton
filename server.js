@@ -1586,8 +1586,8 @@ app.get('/api/email/inbox/:uid', authMiddleware, requireRole(...COMITE_ROLES), a
   const uid = parseInt(req.params.uid);
   if (!uid) return res.status(400).json({ error: 'UID invalide' });
   try {
-    const body = await imap.fetchEmailBody(orgEmail, orgPass, uid);
-    res.json({ body });
+    const parsed = await imap.fetchEmailBody(orgEmail, orgPass, uid);
+    res.json({ body: parsed.text, html: parsed.html });
   } catch(e) {
     res.status(500).json({ error: e.message });
   }
@@ -5579,15 +5579,6 @@ app.patch('/api/sponsors/:id/ordre', authMiddleware, requireRole('admin','secret
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// ══════════════════════════════════════════════════════════════════════════════
-// 404 HANDLER — doit être après toutes les routes
-// ══════════════════════════════════════════════════════════════════════════════
-
-app.use((req, res) => {
-  if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Route introuvable' });
-  res.status(404).sendFile(path.join(__dirname, '404.html'));
-});
-
 // ── Fermeture propre de la DB à l'arrêt ────────────────────────────────────
 function gracefulShutdown(signal) {
   console.log(`\n[${signal}] Fermeture propre en cours...`);
@@ -5967,6 +5958,15 @@ app.get('/api/guide.pdf', (req, res) => {
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', 'attachment; filename="Guide-Accueil-AHH.pdf"');
   res.send(Buffer.from(content, 'latin1'));
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 404 HANDLER — doit être après toutes les routes
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.use((req, res) => {
+  if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Route introuvable' });
+  res.status(404).sendFile(path.join(__dirname, '404.html'));
 });
 
 // ── Start ───────────────────────────────────────────────────────────────────
