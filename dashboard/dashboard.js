@@ -3046,6 +3046,7 @@ function _openNoteEditor(n, allActs, forceReadOnly) {
       _paginateReadOnly(ed.innerHTML);
     } else {
       _insertSessionMarker(noteId);
+      setTimeout(_updateEditPages, 200);
     }
   }, 80);
 
@@ -3068,6 +3069,7 @@ function _openNoteEditor(n, allActs, forceReadOnly) {
     .img-resize-bar{position:fixed;z-index:9999;background:#1a237e;color:#fff;border-radius:8px;padding:4px 10px;display:flex;gap:6px;align-items:center;font-size:.78rem;box-shadow:0 2px 8px rgba(0,0,0,.3)}
     .img-resize-bar button{background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:.78rem}
     .img-resize-bar button:hover{background:rgba(255,255,255,.35)}
+    .pg-brk{transition:top .15s ease-out}
   `;
   document.head.appendChild(style);
 
@@ -3197,7 +3199,7 @@ async function autoSaveNote(id) {
 function noteChanged() {
   const s = document.getElementById('noteStatus');
   if (s) { s.style.color = '#e65100'; s.textContent = '● Modifications en cours...'; }
-  // Sauvegarde automatique 1.5 seconde après la dernière frappe
+  _updateEditPages();
   clearTimeout(_noteDebounce);
   _noteDebounce = setTimeout(() => {
     const editor = document.getElementById('n_editor');
@@ -3208,6 +3210,52 @@ function noteChanged() {
       autoSaveNote(id);
     }
   }, 1500);
+}
+
+// ── Indicateurs de saut de page dans l'éditeur (style Word) ─────────────
+function _updateEditPages() {
+  const ed = document.getElementById('n_editor');
+  const wrapper = document.getElementById('notePageWrapper');
+  if (!ed || !wrapper) return;
+
+  wrapper.querySelectorAll('.pg-brk').forEach(el => el.remove());
+
+  const CONTENT_H = 944;
+  const edH = ed.scrollHeight;
+  const numPages = Math.max(1, Math.ceil(edH / CONTENT_H));
+
+  // Compteur de pages flottant
+  let counter = document.getElementById('_pgCount');
+  if (numPages > 1) {
+    if (!counter) {
+      counter = document.createElement('div');
+      counter.id = '_pgCount';
+      counter.style.cssText = 'position:sticky;bottom:16px;text-align:center;pointer-events:none;z-index:20;margin-top:-30px';
+      wrapper.parentElement.appendChild(counter);
+    }
+    counter.innerHTML = '<span style="background:#1a237e;color:#fff;padding:5px 20px;border-radius:20px;font-size:.78rem;font-weight:600;box-shadow:0 2px 10px rgba(0,0,0,.3);letter-spacing:.3px">' + numPages + ' pages</span>';
+  } else if (counter) {
+    counter.remove();
+  }
+
+  if (numPages <= 1) return;
+
+  for (let i = 1; i < numPages; i++) {
+    const y = ed.offsetTop + i * CONTENT_H;
+    const brk = document.createElement('div');
+    brk.className = 'pg-brk';
+    brk.style.cssText = 'position:absolute;left:0;right:0;top:' + y + 'px;z-index:10;pointer-events:none';
+    brk.innerHTML =
+      '<div style="position:relative;margin:0 32px">' +
+        '<div style="border-top:2px dashed #7986cb"></div>' +
+        '<div style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;background:#e8eaf6;color:#3949ab;padding:3px 18px;border-radius:14px;font-size:.72rem;font-weight:700;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.12)">' +
+          '<span style="color:#9fa8da">page ' + i + '</span>' +
+          '<span style="color:#5c6bc0">▼</span>' +
+          '<span>Page ' + (i + 1) + '</span>' +
+        '</div>' +
+      '</div>';
+    wrapper.appendChild(brk);
+  }
 }
 
 // ── Insertion d'image dans l'éditeur (coller / glisser / bouton) ─────────
