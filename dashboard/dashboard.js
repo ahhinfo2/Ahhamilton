@@ -12778,46 +12778,137 @@ async function policyDelete(id) {
 }
 
 // ══ AUDIT LOG ══════════════════════════════════════════════════════════════
-let _auditPage = 1;
-async function auditLogView(page) {
+async function auditLogView() {
   if (!can.admin()) { toast('Accès réservé aux administrateurs', true); return; }
-  _auditPage = page || 1;
   try {
-    const data = await api('/audit?page=' + _auditPage + '&limit=50');
-    const logs = data.rows || [];
-    const totalPages = data.pages || 1;
-    const actionColors = { connexion:'#1976d2', creation:'#43a047', modification:'#fb8c00', suppression:'#e53935', export_members:'#1565c0', export_payments:'#1565c0', export_activities:'#1565c0', backup_created:'#6a1b9a', login:'#1976d2', member_approved:'#43a047', payment_approved:'#43a047', note_created:'#43a047', member_deleted:'#e53935' };
+    const [auditData, actLogs, allUsers] = await Promise.all([
+      api('/audit?page=1&limit=500').catch(() => ({ rows:[] })),
+      api('/activity-logs?limit=500').catch(() => []),
+      api('/members').catch(() => [])
+    ]);
 
-    const rows = logs.map(l => {
-      const color = actionColors[l.action] || '#666';
-      return `<tr>
-        <td>${fmt(l.date_action)}</td>
-        <td>${escHtml(l.user_nom || '–')}</td>
-        <td><span style="color:${color};font-weight:600">${escHtml(l.action || '–')}</span></td>
-        <td>${escHtml(l.cible || '–')}${l.cible_id ? ' #'+l.cible_id : ''}</td>
-        <td style="font-size:.8rem;color:var(--muted);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(l.details || '–')}</td>
-      </tr>`;
-    }).join('');
+    const allLogs = [
+      ...(auditData.rows || []).map(l => ({ nom: l.user_nom||'Système', action: l.action, details: l.details||'', date: l.date_action, user_id: l.user_id })),
+      ...(actLogs || []).map(l => ({ nom: l.nom_acteur||'Système', action: l.action, details: l.details||'', date: l.date_action, user_id: l.user_id }))
+    ].sort((a,b) => (b.date||'').localeCompare(a.date||''));
 
-    const pagination = `
-      <div style="display:flex;justify-content:center;gap:8px;padding:16px">
-        <button class="btn btn-ghost btn-sm" onclick="auditLogView(${_auditPage - 1})" ${_auditPage <= 1 ? 'disabled' : ''}>← Précédent</button>
-        <span style="padding:6px 12px;font-size:.85rem;color:var(--muted)">Page ${_auditPage} / ${totalPages}</span>
-        <button class="btn btn-ghost btn-sm" onclick="auditLogView(${_auditPage + 1})" ${_auditPage >= totalPages ? 'disabled' : ''}>Suivant →</button>
-      </div>`;
+    const loginsByUser = {};
+    allLogs.forEach(l => {
+      if (l.action === 'login' || l.action === 'connexion') {
+        if (!loginsByUser[l.user_id]) loginsByUser[l.user_id] = { count:0, last:null };
+        loginsByUser[l.user_id].count++;
+        if (!loginsByUser[l.user_id].last || l.date > loginsByUser[l.user_id].last) loginsByUser[l.user_id].last = l.date;
+      }
+    });
+
+    const userRows = (allUsers || []).map(u => {
+      const stats = loginsByUser[u.id] || { count:0, last:null };
+      const recentActions = allLogs.filter(l => l.user_id === u.id).slice(0, 3);
+      return { ...u, login_count: stats.count, last_login: stats.last, recent: recentActions };
+    }).sort((a,b) => (b.last_login||'').localeCompare(a.last_login||''));
+
+    const actionColors = {
+      login:'#1976d2', connexion:'#1976d2', paiement_approuve:'#2e7d32', payment_approved:'#2e7d32',
+      member_approved:'#43a047', note_created:'#43a047', creation:'#43a047',
+      export_csv:'#1565c0', export_members:'#1565c0', export_payments:'#1565c0',
+      badge_manuel:'#6a1b9a', member_deleted:'#e53935', suppression:'#e53935',
+      paiement_rejete:'#c62828', checkin:'#00838f', modification:'#fb8c00', backup_created:'#6a1b9a'
+    };
+
+    const roleLabels = { admin:'Admin', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Accompagnateur', member:'Membre' };
 
     setContent(`
-      <div class="table-card">
-        <div class="table-card-header"><h3>Journal d'audit</h3></div>
-        <div class="table-wrapper">
-          <table class="data-table">
-            <thead><tr><th>Date</th><th>Utilisateur</th><th>Action</th><th>Cible</th><th>Détails</th></tr></thead>
-            <tbody>${rows || '<tr><td colspan="5" style="text-align:center;color:var(--muted)">Aucune entrée</td></tr>'}</tbody>
-          </table>
+      <div class="page-header">
+        <div><h2>📋 Journal d'audit</h2><p>${userRows.length} utilisateurs · ${allLogs.length} actions enregistrées</p></div>
+        <div class="page-actions">
+          <button class="btn btn-outline btn-sm" onclick="auditLogView()">🔄 Rafraîchir</button>
+          <button class="btn btn-ghost btn-sm" onclick="_auditToggleMode()">📜 Voir toutes les actions</button>
         </div>
-        ${pagination}
-      </div>`);
+      </div>
+
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
+        <input id="auditSearch" type="text" placeholder="🔍 Rechercher un nom..." oninput="_auditFilter()" style="padding:8px 14px;border-radius:8px;border:1px solid #ddd;flex:1;min-width:200px">
+        <select id="auditFilterRole" onchange="_auditFilter()" style="padding:8px 10px;border-radius:8px;border:1px solid #ddd">
+          <option value="">Tous les rôles</option>
+          <option value="admin">Admin</option>
+          <option value="tresoriere">Trésorière</option>
+          <option value="secretaire">Secrétaire</option>
+          <option value="delegue">Accompagnateur</option>
+          <option value="member">Membre</option>
+        </select>
+        <select id="auditFilterActivity" onchange="_auditFilter()" style="padding:8px 10px;border-radius:8px;border:1px solid #ddd">
+          <option value="">Tous</option>
+          <option value="active">Actifs (connectés ce mois)</option>
+          <option value="inactive">Inactifs (jamais connecté)</option>
+        </select>
+      </div>
+
+      <div class="table-card">
+        <div class="table-wrapper"><table>
+          <thead><tr>
+            <th>Membre</th><th>Rôle</th><th>Connexions</th><th>Dernière connexion</th><th>Actions récentes</th>
+          </tr></thead>
+          <tbody id="auditTableBody">
+            ${userRows.map(u => {
+              const moisCourant = new Date().toISOString().substring(0,7);
+              const isActive = u.last_login && u.last_login.substring(0,7) === moisCourant;
+              return `<tr class="audit-row" data-name="${escHtml((u.prenom+' '+u.nom).toLowerCase())}" data-role="${u.role}" data-active="${isActive?'1':'0'}">
+                <td>
+                  <div style="font-weight:600">${escHtml(u.prenom)} ${escHtml(u.nom)}</div>
+                  <div style="font-size:.72rem;color:var(--muted)">${escHtml(u.email||'')}</div>
+                </td>
+                <td>${pill(roleLabels[u.role]||u.role, u.role==='admin'?'bp-orange':u.role==='member'?'bp-blue':'bp-green')}</td>
+                <td style="text-align:center">
+                  <span style="font-weight:700;font-size:1.1rem;color:${u.login_count>0?'#1976d2':'var(--muted)'}">${u.login_count}</span>
+                </td>
+                <td>${u.last_login ? fmt(u.last_login) : '<span style="color:var(--muted)">Jamais</span>'}</td>
+                <td style="font-size:.78rem">
+                  ${u.recent.length ? u.recent.map(a =>
+                    `<span style="display:inline-block;background:${actionColors[a.action]||'#607d8b'}18;color:${actionColors[a.action]||'#607d8b'};padding:1px 7px;border-radius:8px;font-size:.7rem;font-weight:600;margin:1px 2px">${escHtml(a.action)}</span>`
+                  ).join('') : '<span style="color:var(--muted)">–</span>'}
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table></div>
+      </div>
+
+      <div id="auditAllActions" style="display:none">
+        <div class="table-card" style="margin-top:16px">
+          <div class="table-card-header"><h3>📜 Toutes les actions (${Math.min(allLogs.length, 200)} dernières)</h3></div>
+          <div class="table-wrapper"><table>
+            <thead><tr><th>Date</th><th>Acteur</th><th>Action</th><th>Détails</th></tr></thead>
+            <tbody>
+              ${allLogs.slice(0, 200).map(l => `<tr style="border-bottom:1px solid var(--border)">
+                <td style="white-space:nowrap;font-size:.75rem;color:var(--muted)">${fmt(l.date)}</td>
+                <td style="font-weight:600">${escHtml(l.nom)}</td>
+                <td><span style="background:${actionColors[l.action]||'#607d8b'}18;color:${actionColors[l.action]||'#607d8b'};padding:2px 8px;border-radius:10px;font-size:.72rem;font-weight:600">${escHtml(l.action)}</span></td>
+                <td style="font-size:.78rem;color:var(--muted);max-width:350px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(l.details||'–')}</td>
+              </tr>`).join('') || '<tr><td colspan="4" style="text-align:center;padding:40px;color:var(--muted)">Aucune action</td></tr>'}
+            </tbody>
+          </table></div>
+        </div>
+      </div>
+    `);
   } catch(e) { toast(e.message, true); }
+}
+
+function _auditFilter() {
+  const search = (document.getElementById('auditSearch')?.value || '').toLowerCase();
+  const role = document.getElementById('auditFilterRole')?.value || '';
+  const activity = document.getElementById('auditFilterActivity')?.value || '';
+  document.querySelectorAll('.audit-row').forEach(row => {
+    const matchN = !search || row.dataset.name.includes(search);
+    const matchR = !role || row.dataset.role === role;
+    const matchA = !activity || (activity === 'active' ? row.dataset.active === '1' : row.dataset.active === '0');
+    row.style.display = (matchN && matchR && matchA) ? '' : 'none';
+  });
+}
+
+function _auditToggleMode() {
+  const el = document.getElementById('auditAllActions');
+  if (!el) return;
+  el.style.display = el.style.display === 'none' ? '' : 'none';
 }
 
 // ══ EMAIL TEMPLATES ════════════════════════════════════════════════════════
