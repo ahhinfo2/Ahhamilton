@@ -329,6 +329,19 @@ function buildSidebar() {
       { id:'letters',      icon:'◎', label:'Lettres',         roles:['admin','secretaire'] },
       { id:'alerts',       icon:'◇', label:'Alertes',         roles:['admin','tresoriere'] },
       { id:'stats-site',   icon:'📊', label:'Stats du site',  roles:EXEC },
+      { id:'audit-log',    icon:'📋', label:'Journal d\'audit', roles:['admin'] },
+    ]},
+
+    // ── Outils ────────────────────────────────────────────────────
+    { label: '🔧 Outils', items: [
+      { id:'tasks',             icon:'✓', label:'Tâches',              roles:EXEC },
+      { id:'meeting-calendar',  icon:'📅', label:'Calendrier réunions', roles:EXEC },
+      { id:'meeting-agendas',   icon:'📝', label:'Ordres du jour',      roles:EXEC },
+      { id:'decision-registry', icon:'⚖', label:'Décisions',           roles:EXEC },
+      { id:'policies',          icon:'📜', label:'Politiques',          roles:EXEC },
+      { id:'email-templates',   icon:'✉', label:'Modèles courriels',   roles:EXEC },
+      { id:'export-data',       icon:'📦', label:'Export données',      roles:['admin','secretaire','tresoriere'] },
+      { id:'annual-report',     icon:'📊', label:'Rapport annuel',      roles:['admin'] },
     ]},
 
     // ── Contenu ───────────────────────────────────────────────────
@@ -472,7 +485,16 @@ function setActiveNav(viewId) {
     'carte-membre':'Ma carte membre', 'actualites':'Actualités', 'notif-prefs':'Notifications',
     'carte-gestion':'Gestion des cartes', 'carte-scanner':'Scanner cartes',
     'journal-admin':'Journal d\'activité', 'mes-badges':'Mes badges', 'ambassadeur-admin':'Ambassadeur du mois',
-    'abonnes-newsletter':'Abonnés newsletter'
+    'abonnes-newsletter':'Abonnés newsletter',
+    'tasks':'Tâches',
+    'meeting-calendar':'Calendrier des réunions',
+    'meeting-agendas':'Ordres du jour',
+    'decision-registry':'Registre des décisions',
+    'policies':'Politiques et règlements',
+    'audit-log':'Journal d\'audit',
+    'email-templates':'Modèles de courriels',
+    'export-data':'Export données',
+    'annual-report':'Rapport annuel'
   };
   const raw = labels[viewId] || 'Dashboard';
   document.getElementById('topbarTitle').textContent = window.AHH_LANG ? AHH_LANG.get(raw) : raw;
@@ -829,6 +851,15 @@ async function showView(viewId) {
     'mes-badges': mesBadgesView,
     'ambassadeur-admin': ambassadeurAdmin,
     'abonnes-newsletter': abonnesNewsletter,
+    'tasks': tasksView,
+    'meeting-calendar': meetingCalendarView,
+    'meeting-agendas': meetingAgendasView,
+    'decision-registry': decisionRegistryView,
+    'policies': policiesView,
+    'audit-log': auditLogView,
+    'email-templates': emailTemplatesView,
+    'export-data': exportDataView,
+    'annual-report': annualReportView,
   };
   if (extViews[viewId]) {
     try { await extViews[viewId](); } catch(e) { setContent(`<div class="empty-state"><div class="es-icon">⚠️</div><p>${e.message}</p></div>`); }
@@ -12064,4 +12095,972 @@ async function nlSubDelete(id, email) {
   await api('/newsletter/subscribers/' + id, { method: 'DELETE' });
   toast('Abonné retiré');
   await refreshNlSubs();
+}
+
+// ══ TASKS (Kanban) ═════════════════════════════════════════════════════════
+async function tasksView() {
+  try {
+    const tasks = await api('/tasks');
+    const priorityColors = { haute:'#e53935', moyenne:'#fb8c00', basse:'#43a047' };
+    const priorityLabels = { haute:'Haute', moyenne:'Moyenne', basse:'Basse' };
+    const statusCols = [
+      { key:'a_faire',  label:'À faire',  color:'#1976d2' },
+      { key:'en_cours', label:'En cours',  color:'#fb8c00' },
+      { key:'terminee', label:'Terminé',   color:'#43a047' },
+    ];
+
+    const filterHtml = `
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
+        <select id="taskFilterAssignee" onchange="tasksApplyFilter()" style="padding:6px 10px;border-radius:6px;border:1px solid #ddd">
+          <option value="">Tous les assignés</option>
+          ${[...new Set(tasks.map(t => t.assigne_nom).filter(Boolean))].map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('')}
+        </select>
+        <select id="taskFilterPriority" onchange="tasksApplyFilter()" style="padding:6px 10px;border-radius:6px;border:1px solid #ddd">
+          <option value="">Toutes priorités</option>
+          <option value="haute">Haute</option>
+          <option value="moyenne">Moyenne</option>
+          <option value="basse">Basse</option>
+        </select>
+        <select id="taskFilterCategory" onchange="tasksApplyFilter()" style="padding:6px 10px;border-radius:6px;border:1px solid #ddd">
+          <option value="">Toutes catégories</option>
+          ${[...new Set(tasks.map(t => t.categorie).filter(Boolean))].map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('')}
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="taskShowForm()" style="margin-left:auto">+ Nouvelle tâche</button>
+      </div>`;
+
+    const buildCard = (t) => {
+      const pc = priorityColors[t.priorite] || '#999';
+      return `<div class="task-card" data-id="${t.id}" data-assignee="${escHtml(t.assigne_nom || '')}" data-priority="${t.priorite || ''}" data-category="${escHtml(t.categorie || '')}" style="background:#fff;border-radius:8px;padding:12px;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,.1);border-left:4px solid ${pc}">
+        <div style="font-weight:600;margin-bottom:4px">${escHtml(t.titre)}</div>
+        <div style="font-size:.8rem;color:var(--muted);margin-bottom:6px">${escHtml(t.description || '')}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          ${t.assigne_nom ? pill(escHtml(t.assigne_nom), 'bp-blue') : ''}
+          ${t.priorite ? `<span style="font-size:.7rem;padding:2px 8px;border-radius:10px;background:${pc};color:#fff">${priorityLabels[t.priorite] || t.priorite}</span>` : ''}
+          ${t.echeance ? `<span style="font-size:.75rem;color:var(--muted)">📅 ${fmt(t.echeance)}</span>` : ''}
+        </div>
+        <div style="display:flex;gap:4px;margin-top:8px;justify-content:flex-end">
+          <button class="btn btn-ghost btn-sm" onclick="taskEdit(${t.id})" style="padding:2px 8px;font-size:.75rem">✏️</button>
+          <button class="btn btn-ghost btn-sm" onclick="taskDelete(${t.id})" style="padding:2px 8px;font-size:.75rem;color:#c62828">🗑️</button>
+        </div>
+      </div>`;
+    };
+
+    const colsHtml = statusCols.map(col => {
+      const colTasks = (tasks || []).filter(t => t.statut === col.key);
+      return `<div style="flex:1;min-width:260px;background:#f5f5f5;border-radius:10px;padding:12px">
+        <div style="font-weight:700;margin-bottom:12px;padding-bottom:8px;border-bottom:3px solid ${col.color};color:${col.color}">${col.label} (${colTasks.length})</div>
+        <div class="task-col" data-status="${col.key}">${colTasks.map(buildCard).join('')}</div>
+      </div>`;
+    }).join('');
+
+    setContent(`
+      <div class="table-card">
+        <div class="table-card-header"><h3>Tâches</h3></div>
+        <div style="padding:16px">
+          ${filterHtml}
+          <div id="taskFormArea"></div>
+          <div style="display:flex;gap:16px;flex-wrap:wrap">${colsHtml}</div>
+        </div>
+      </div>`);
+  } catch(e) { toast(e.message, true); }
+}
+
+function tasksApplyFilter() {
+  const assignee = document.getElementById('taskFilterAssignee').value;
+  const priority = document.getElementById('taskFilterPriority').value;
+  const category = document.getElementById('taskFilterCategory').value;
+  document.querySelectorAll('.task-card').forEach(c => {
+    const matchA = !assignee || c.dataset.assignee === assignee;
+    const matchP = !priority || c.dataset.priority === priority;
+    const matchC = !category || c.dataset.category === category;
+    c.style.display = (matchA && matchP && matchC) ? '' : 'none';
+  });
+}
+
+function taskShowForm(existing) {
+  const t = existing || {};
+  document.getElementById('taskFormArea').innerHTML = `
+    <div style="background:#f9f9f9;border-radius:10px;padding:16px;margin-bottom:16px;border:1px solid #e0e0e0">
+      <h4 style="margin:0 0 12px">${t.id ? 'Modifier la tâche' : 'Nouvelle tâche'}</h4>
+      <div class="form-row">
+        <div class="form-group"><label>Titre *</label><input id="taskTitre" value="${escHtml(t.titre || '')}" required></div>
+        <div class="form-group"><label>Catégorie</label><input id="taskCategorie" value="${escHtml(t.categorie || '')}"></div>
+      </div>
+      <div class="form-group"><label>Description</label><textarea id="taskDesc" rows="2">${escHtml(t.description || '')}</textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label>Priorité</label>
+          <select id="taskPriorite"><option value="basse" ${t.priorite==='basse'?'selected':''}>Basse</option><option value="moyenne" ${t.priorite==='moyenne'?'selected':''}>Moyenne</option><option value="haute" ${t.priorite==='haute'?'selected':''}>Haute</option></select>
+        </div>
+        <div class="form-group"><label>Statut</label>
+          <select id="taskStatut"><option value="a_faire" ${t.statut==='a_faire'?'selected':''}>À faire</option><option value="en_cours" ${t.statut==='en_cours'?'selected':''}>En cours</option><option value="terminee" ${t.statut==='terminee'?'selected':''}>Terminé</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Assigné à (ID)</label><input id="taskAssigne" type="number" value="${t.assigne_a || ''}"></div>
+        <div class="form-group"><label>Échéance</label><input id="taskEcheance" type="date" value="${t.echeance ? t.echeance.substring(0,10) : ''}"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn btn-primary btn-sm" onclick="taskSave(${t.id || 'null'})">${t.id ? 'Mettre à jour' : 'Créer'}</button>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('taskFormArea').innerHTML=''">Annuler</button>
+      </div>
+    </div>`;
+}
+
+async function taskSave(id) {
+  try {
+    const data = {
+      titre: document.getElementById('taskTitre').value,
+      description: document.getElementById('taskDesc').value,
+      categorie: document.getElementById('taskCategorie').value,
+      priorite: document.getElementById('taskPriorite').value,
+      statut: document.getElementById('taskStatut').value,
+      assigne_a: document.getElementById('taskAssigne').value || null,
+      echeance: document.getElementById('taskEcheance').value || null,
+    };
+    if (!data.titre) { toast('Le titre est requis', true); return; }
+    if (id) {
+      await api('/tasks/' + id, { method:'PUT', body: JSON.stringify(data) });
+      toast('Tâche mise à jour');
+    } else {
+      await api('/tasks', { method:'POST', body: JSON.stringify(data) });
+      toast('Tâche créée');
+    }
+    await tasksView();
+  } catch(e) { toast(e.message, true); }
+}
+
+async function taskEdit(id) {
+  try {
+    const tasks = await api('/tasks');
+    const t = tasks.find(x => x.id === id);
+    if (t) taskShowForm(t);
+  } catch(e) { toast(e.message, true); }
+}
+
+async function taskDelete(id) {
+  if (!confirm('Supprimer cette tâche ?')) return;
+  try {
+    await api('/tasks/' + id, { method:'DELETE' });
+    toast('Tâche supprimée');
+    await tasksView();
+  } catch(e) { toast(e.message, true); }
+}
+
+// ══ MEETING CALENDAR ═══════════════════════════════════════════════════════
+async function meetingCalendarView() {
+  try {
+    const meetings = await api('/meetings');
+    const typePills = { ordinaire:'bp-blue', extraordinaire:'bp-orange', comite:'bp-green', assemblee:'bp-gray' };
+
+    const rows = (meetings || []).map(m => `<tr>
+      <td>${fmt(m.date_heure)}</td>
+      <td>${escHtml(m.titre)}</td>
+      <td>${pill(m.type || '–', typePills[m.type] || 'bp-gray')}</td>
+      <td>${escHtml(m.lieu || '–')}</td>
+      <td>${m.duree_minutes ? m.duree_minutes + ' min' : '–'}</td>
+      <td>${m.lien_virtuel ? `<a href="${escHtml(m.lien_virtuel)}" target="_blank" style="color:var(--accent)">Lien</a>` : '–'}</td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick="meetingEdit(${m.id})" style="padding:2px 8px">✏️</button>
+        <button class="btn btn-ghost btn-sm" onclick="meetingDelete(${m.id})" style="padding:2px 8px;color:#c62828">🗑️</button>
+      </td>
+    </tr>`).join('');
+
+    setContent(`
+      <div class="table-card">
+        <div class="table-card-header">
+          <h3>Calendrier des réunions</h3>
+          <button class="btn btn-primary btn-sm" onclick="meetingShowForm()">+ Nouvelle réunion</button>
+        </div>
+        <div id="meetingFormArea" style="padding:0 16px"></div>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead><tr><th>Date</th><th>Titre</th><th>Type</th><th>Lieu</th><th>Durée</th><th>Lien</th><th>Actions</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="7" style="text-align:center;color:var(--muted)">Aucune réunion</td></tr>'}</tbody>
+          </table>
+        </div>
+      </div>`);
+  } catch(e) { toast(e.message, true); }
+}
+
+function meetingShowForm(existing) {
+  const m = existing || {};
+  const dtVal = m.date_heure ? m.date_heure.substring(0,16) : '';
+  document.getElementById('meetingFormArea').innerHTML = `
+    <div style="background:#f9f9f9;border-radius:10px;padding:16px;margin:12px 0;border:1px solid #e0e0e0">
+      <h4 style="margin:0 0 12px">${m.id ? 'Modifier la réunion' : 'Nouvelle réunion'}</h4>
+      <div class="form-row">
+        <div class="form-group"><label>Titre *</label><input id="mtgTitre" value="${escHtml(m.titre || '')}"></div>
+        <div class="form-group"><label>Type</label>
+          <select id="mtgType">
+            <option value="ordinaire" ${m.type==='ordinaire'?'selected':''}>Ordinaire</option>
+            <option value="extraordinaire" ${m.type==='extraordinaire'?'selected':''}>Extraordinaire</option>
+            <option value="comite" ${m.type==='comite'?'selected':''}>Comité</option>
+            <option value="assemblee" ${m.type==='assemblee'?'selected':''}>Assemblée</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Date et heure *</label><input id="mtgDate" type="datetime-local" value="${dtVal}"></div>
+        <div class="form-group"><label>Durée (minutes)</label><input id="mtgDuree" type="number" value="${m.duree_minutes || 60}"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Lieu</label><input id="mtgLieu" value="${escHtml(m.lieu || '')}"></div>
+        <div class="form-group"><label>Lien virtuel</label><input id="mtgLien" value="${escHtml(m.lien_virtuel || '')}"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn btn-primary btn-sm" onclick="meetingSave(${m.id || 'null'})">${m.id ? 'Mettre à jour' : 'Créer'}</button>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('meetingFormArea').innerHTML=''">Annuler</button>
+      </div>
+    </div>`;
+}
+
+async function meetingSave(id) {
+  try {
+    const data = {
+      titre: document.getElementById('mtgTitre').value,
+      type: document.getElementById('mtgType').value,
+      date_heure: document.getElementById('mtgDate').value,
+      duree_minutes: parseInt(document.getElementById('mtgDuree').value) || 60,
+      lieu: document.getElementById('mtgLieu').value,
+      lien_virtuel: document.getElementById('mtgLien').value,
+    };
+    if (!data.titre) { toast('Le titre est requis', true); return; }
+    if (!data.date_heure) { toast('La date est requise', true); return; }
+    if (id) {
+      await api('/meetings/' + id, { method:'PUT', body: JSON.stringify(data) });
+      toast('Réunion mise à jour');
+    } else {
+      await api('/meetings', { method:'POST', body: JSON.stringify(data) });
+      toast('Réunion créée');
+    }
+    await meetingCalendarView();
+  } catch(e) { toast(e.message, true); }
+}
+
+async function meetingEdit(id) {
+  try {
+    const meetings = await api('/meetings');
+    const m = meetings.find(x => x.id === id);
+    if (m) meetingShowForm(m);
+  } catch(e) { toast(e.message, true); }
+}
+
+async function meetingDelete(id) {
+  if (!confirm('Supprimer cette réunion ?')) return;
+  try {
+    await api('/meetings/' + id, { method:'DELETE' });
+    toast('Réunion supprimée');
+    await meetingCalendarView();
+  } catch(e) { toast(e.message, true); }
+}
+
+// ══ MEETING AGENDAS ════════════════════════════════════════════════════════
+async function meetingAgendasView() {
+  try {
+    const agendas = await api('/agendas');
+    const rows = (agendas || []).map(a => `<tr style="cursor:pointer" onclick="agendaDetail(${a.id})">
+      <td>${escHtml(a.titre)}</td>
+      <td>${fmt(a.date_reunion)}</td>
+      <td>${statusPill(a.statut)}</td>
+      <td>${escHtml(a.cree_par_nom || '–')}</td>
+    </tr>`).join('');
+
+    setContent(`
+      <div class="table-card">
+        <div class="table-card-header">
+          <h3>Ordres du jour</h3>
+          <button class="btn btn-primary btn-sm" onclick="agendaShowForm()">+ Nouvel ordre du jour</button>
+        </div>
+        <div id="agendaFormArea" style="padding:0 16px"></div>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead><tr><th>Titre</th><th>Date réunion</th><th>Statut</th><th>Créé par</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="4" style="text-align:center;color:var(--muted)">Aucun ordre du jour</td></tr>'}</tbody>
+          </table>
+        </div>
+        <div id="agendaDetailArea" style="padding:16px"></div>
+      </div>`);
+  } catch(e) { toast(e.message, true); }
+}
+
+function agendaShowForm(existing) {
+  const a = existing || {};
+  document.getElementById('agendaFormArea').innerHTML = `
+    <div style="background:#f9f9f9;border-radius:10px;padding:16px;margin:12px 0;border:1px solid #e0e0e0">
+      <h4 style="margin:0 0 12px">${a.id ? 'Modifier l\'ordre du jour' : 'Nouvel ordre du jour'}</h4>
+      <div class="form-row">
+        <div class="form-group"><label>Titre *</label><input id="agTitre" value="${escHtml(a.titre || '')}"></div>
+        <div class="form-group"><label>Date de réunion</label><input id="agDate" type="date" value="${a.date_reunion ? a.date_reunion.substring(0,10) : ''}"></div>
+      </div>
+      <div class="form-group"><label>Statut</label>
+        <select id="agStatut">
+          <option value="brouillon" ${a.statut==='brouillon'?'selected':''}>Brouillon</option>
+          <option value="en_cours" ${a.statut==='en_cours'?'selected':''}>En cours</option>
+          <option value="approuve" ${a.statut==='approuve'?'selected':''}>Approuvé</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn btn-primary btn-sm" onclick="agendaSave(${a.id || 'null'})">${a.id ? 'Mettre à jour' : 'Créer'}</button>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('agendaFormArea').innerHTML=''">Annuler</button>
+      </div>
+    </div>`;
+}
+
+async function agendaSave(id) {
+  try {
+    const data = {
+      titre: document.getElementById('agTitre').value,
+      date_reunion: document.getElementById('agDate').value || null,
+      statut: document.getElementById('agStatut').value,
+    };
+    if (!data.titre) { toast('Le titre est requis', true); return; }
+    if (id) {
+      await api('/agendas/' + id, { method:'PUT', body: JSON.stringify(data) });
+      toast('Ordre du jour mis à jour');
+    } else {
+      await api('/agendas', { method:'POST', body: JSON.stringify(data) });
+      toast('Ordre du jour créé');
+    }
+    await meetingAgendasView();
+  } catch(e) { toast(e.message, true); }
+}
+
+async function agendaDetail(id) {
+  try {
+    const agenda = await api('/agendas/' + id);
+    const items = agenda.items || [];
+    const itemsHtml = items.sort((a,b) => a.ordre - b.ordre).map((it, idx) => `
+      <div style="display:flex;align-items:flex-start;gap:12px;padding:10px;background:${idx % 2 === 0 ? '#fafafa' : '#fff'};border-radius:6px;margin-bottom:4px">
+        <span style="font-weight:700;color:var(--accent);min-width:24px">${it.ordre}.</span>
+        <div style="flex:1">
+          <div style="font-weight:600">${escHtml(it.texte)}</div>
+          <div style="font-size:.8rem;color:var(--muted);margin-top:2px">
+            ${it.duree ? it.duree + ' min' : ''} ${it.responsable ? '· ' + escHtml(it.responsable) : ''}
+          </div>
+          ${it.note ? `<div style="font-size:.8rem;color:#666;margin-top:4px;font-style:italic">${escHtml(it.note)}</div>` : ''}
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="agendaItemDelete(${id},${it.id})" style="padding:2px 6px;color:#c62828;font-size:.75rem">🗑️</button>
+      </div>`).join('');
+
+    const detailArea = document.getElementById('agendaDetailArea');
+    detailArea.innerHTML = `
+      <div style="border:1px solid #e0e0e0;border-radius:10px;padding:16px;margin-top:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h4 style="margin:0">${escHtml(agenda.titre)}</h4>
+          <span style="font-size:.85rem;color:var(--muted)">${fmt(agenda.date_reunion)}</span>
+        </div>
+        ${itemsHtml || '<p style="color:var(--muted);text-align:center">Aucun point à l\'ordre du jour</p>'}
+        <div style="margin-top:16px;padding-top:12px;border-top:1px solid #eee">
+          <h5 style="margin:0 0 8px">Ajouter un point</h5>
+          <div class="form-row">
+            <div class="form-group"><label>Texte *</label><input id="aiTexte"></div>
+            <div class="form-group"><label>Ordre</label><input id="aiOrdre" type="number" value="${items.length + 1}"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Durée (min)</label><input id="aiDuree" type="number"></div>
+            <div class="form-group"><label>Responsable</label><input id="aiResp"></div>
+          </div>
+          <div class="form-group"><label>Note</label><input id="aiNote"></div>
+          <button class="btn btn-primary btn-sm" onclick="agendaItemSave(${id})" style="margin-top:8px">Ajouter</button>
+        </div>
+      </div>`;
+  } catch(e) { toast(e.message, true); }
+}
+
+async function agendaItemSave(agendaId) {
+  try {
+    const data = {
+      texte: document.getElementById('aiTexte').value,
+      ordre: parseInt(document.getElementById('aiOrdre').value) || 1,
+      duree: parseInt(document.getElementById('aiDuree').value) || null,
+      responsable: document.getElementById('aiResp').value || null,
+      note: document.getElementById('aiNote').value || null,
+    };
+    if (!data.texte) { toast('Le texte est requis', true); return; }
+    await api('/agendas/' + agendaId + '/items', { method:'POST', body: JSON.stringify(data) });
+    toast('Point ajouté');
+    await agendaDetail(agendaId);
+  } catch(e) { toast(e.message, true); }
+}
+
+async function agendaItemDelete(agendaId, itemId) {
+  if (!confirm('Supprimer ce point ?')) return;
+  try {
+    await api('/agendas/' + agendaId + '/items/' + itemId, { method:'DELETE' });
+    toast('Point supprimé');
+    await agendaDetail(agendaId);
+  } catch(e) { toast(e.message, true); }
+}
+
+// ══ DECISION REGISTRY ══════════════════════════════════════════════════════
+async function decisionRegistryView() {
+  try {
+    const decisions = await api('/decisions');
+    const statutOptions = { en_cours:'En cours', completee:'Complétée', reportee:'Reportée', annulee:'Annulée' };
+    const statutPills = { en_cours:'bp-blue', completee:'bp-green', reportee:'bp-orange', annulee:'bp-red' };
+
+    const rows = (decisions || []).map(d => `<tr style="cursor:pointer" onclick="decisionEdit(${d.id})">
+      <td>${fmt(d.date_decision)}</td>
+      <td>${escHtml(d.titre)}</td>
+      <td>${escHtml(d.decidee_par || '–')}</td>
+      <td>${escHtml(d.responsable_nom || '–')}</td>
+      <td>${d.echeance ? fmt(d.echeance) : '–'}</td>
+      <td>${pill(statutOptions[d.statut] || d.statut || '–', statutPills[d.statut] || 'bp-gray')}</td>
+    </tr>`).join('');
+
+    setContent(`
+      <div class="table-card">
+        <div class="table-card-header">
+          <h3>Registre des décisions</h3>
+          <button class="btn btn-primary btn-sm" onclick="decisionShowForm()">+ Nouvelle décision</button>
+        </div>
+        <div id="decisionFormArea" style="padding:0 16px"></div>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead><tr><th>Date</th><th>Titre</th><th>Décidée par</th><th>Responsable</th><th>Échéance</th><th>Statut</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="6" style="text-align:center;color:var(--muted)">Aucune décision</td></tr>'}</tbody>
+          </table>
+        </div>
+      </div>`);
+  } catch(e) { toast(e.message, true); }
+}
+
+function decisionShowForm(existing) {
+  const d = existing || {};
+  document.getElementById('decisionFormArea').innerHTML = `
+    <div style="background:#f9f9f9;border-radius:10px;padding:16px;margin:12px 0;border:1px solid #e0e0e0">
+      <h4 style="margin:0 0 12px">${d.id ? 'Modifier la décision' : 'Nouvelle décision'}</h4>
+      <div class="form-row">
+        <div class="form-group"><label>Titre *</label><input id="decTitre" value="${escHtml(d.titre || '')}"></div>
+        <div class="form-group"><label>Décidée par</label><input id="decPar" value="${escHtml(d.decidee_par || '')}"></div>
+      </div>
+      <div class="form-group"><label>Description</label><textarea id="decDesc" rows="2">${escHtml(d.description || '')}</textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label>Date décision</label><input id="decDate" type="date" value="${d.date_decision ? d.date_decision.substring(0,10) : new Date().toISOString().substring(0,10)}"></div>
+        <div class="form-group"><label>Échéance</label><input id="decEcheance" type="date" value="${d.echeance ? d.echeance.substring(0,10) : ''}"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Responsable (ID)</label><input id="decResp" type="number" value="${d.responsable_id || ''}"></div>
+        <div class="form-group"><label>Statut</label>
+          <select id="decStatut">
+            <option value="en_cours" ${d.statut==='en_cours'?'selected':''}>En cours</option>
+            <option value="completee" ${d.statut==='completee'?'selected':''}>Complétée</option>
+            <option value="reportee" ${d.statut==='reportee'?'selected':''}>Reportée</option>
+            <option value="annulee" ${d.statut==='annulee'?'selected':''}>Annulée</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn btn-primary btn-sm" onclick="decisionSave(${d.id || 'null'})">${d.id ? 'Mettre à jour' : 'Créer'}</button>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('decisionFormArea').innerHTML=''">Annuler</button>
+      </div>
+    </div>`;
+}
+
+async function decisionSave(id) {
+  try {
+    const data = {
+      titre: document.getElementById('decTitre').value,
+      description: document.getElementById('decDesc').value,
+      decidee_par: document.getElementById('decPar').value,
+      date_decision: document.getElementById('decDate').value,
+      echeance: document.getElementById('decEcheance').value || null,
+      responsable_id: document.getElementById('decResp').value || null,
+      statut: document.getElementById('decStatut').value,
+    };
+    if (!data.titre) { toast('Le titre est requis', true); return; }
+    if (id) {
+      await api('/decisions/' + id, { method:'PUT', body: JSON.stringify(data) });
+      toast('Décision mise à jour');
+    } else {
+      await api('/decisions', { method:'POST', body: JSON.stringify(data) });
+      toast('Décision créée');
+    }
+    await decisionRegistryView();
+  } catch(e) { toast(e.message, true); }
+}
+
+async function decisionEdit(id) {
+  try {
+    const decisions = await api('/decisions');
+    const d = decisions.find(x => x.id === id);
+    if (d) decisionShowForm(d);
+  } catch(e) { toast(e.message, true); }
+}
+
+// ══ POLICIES ═══════════════════════════════════════════════════════════════
+async function policiesView() {
+  try {
+    const policies = await api('/policies');
+    const catLabels = { reglement:'Règlement', politique:'Politique', procedure:'Procédure', guide:'Guide' };
+    const catPills = { reglement:'bp-blue', politique:'bp-green', procedure:'bp-orange', guide:'bp-gray' };
+
+    const filterHtml = `
+      <div style="display:flex;gap:12px;margin-bottom:16px;align-items:center">
+        <select id="policyFilterCat" onchange="policiesApplyFilter()" style="padding:6px 10px;border-radius:6px;border:1px solid #ddd">
+          <option value="">Toutes catégories</option>
+          <option value="reglement">Règlement</option>
+          <option value="politique">Politique</option>
+          <option value="procedure">Procédure</option>
+          <option value="guide">Guide</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="policyShowForm()" style="margin-left:auto">+ Nouvelle politique</button>
+      </div>`;
+
+    const rows = (policies || []).map(p => `<tr class="policy-row" data-cat="${p.categorie || ''}" style="cursor:pointer" onclick="policyShowDetail(${p.id})">
+      <td>${escHtml(p.titre)}</td>
+      <td>${pill(catLabels[p.categorie] || p.categorie || '–', catPills[p.categorie] || 'bp-gray')}</td>
+      <td>${p.version || '–'}</td>
+      <td>${statusPill(p.statut)}</td>
+      <td>${fmt(p.date_adoption)}</td>
+    </tr>`).join('');
+
+    setContent(`
+      <div class="table-card">
+        <div class="table-card-header"><h3>Politiques et règlements</h3></div>
+        <div style="padding:0 16px">
+          ${filterHtml}
+          <div id="policyFormArea"></div>
+        </div>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead><tr><th>Titre</th><th>Catégorie</th><th>Version</th><th>Statut</th><th>Date</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="5" style="text-align:center;color:var(--muted)">Aucune politique</td></tr>'}</tbody>
+          </table>
+        </div>
+        <div id="policyDetailArea" style="padding:16px"></div>
+      </div>`);
+  } catch(e) { toast(e.message, true); }
+}
+
+function policiesApplyFilter() {
+  const cat = document.getElementById('policyFilterCat').value;
+  document.querySelectorAll('.policy-row').forEach(r => {
+    r.style.display = (!cat || r.dataset.cat === cat) ? '' : 'none';
+  });
+}
+
+function policyShowForm(existing) {
+  const p = existing || {};
+  document.getElementById('policyFormArea').innerHTML = `
+    <div style="background:#f9f9f9;border-radius:10px;padding:16px;margin-bottom:16px;border:1px solid #e0e0e0">
+      <h4 style="margin:0 0 12px">${p.id ? 'Modifier la politique' : 'Nouvelle politique'}</h4>
+      <div class="form-row">
+        <div class="form-group"><label>Titre *</label><input id="polTitre" value="${escHtml(p.titre || '')}"></div>
+        <div class="form-group"><label>Catégorie</label>
+          <select id="polCat">
+            <option value="reglement" ${p.categorie==='reglement'?'selected':''}>Règlement</option>
+            <option value="politique" ${p.categorie==='politique'?'selected':''}>Politique</option>
+            <option value="procedure" ${p.categorie==='procedure'?'selected':''}>Procédure</option>
+            <option value="guide" ${p.categorie==='guide'?'selected':''}>Guide</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Version</label><input id="polVersion" value="${escHtml(p.version || '1.0')}"></div>
+        <div class="form-group"><label>Statut</label>
+          <select id="polStatut">
+            <option value="brouillon" ${p.statut==='brouillon'?'selected':''}>Brouillon</option>
+            <option value="actif" ${p.statut==='actif'?'selected':''}>Actif</option>
+            <option value="archive" ${p.statut==='archive'?'selected':''}>Archivé</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group"><label>Date d'adoption</label><input id="polDate" type="date" value="${p.date_adoption ? p.date_adoption.substring(0,10) : ''}"></div>
+      <div class="form-group"><label>Contenu</label><textarea id="polContenu" rows="6" style="font-family:inherit">${escHtml(p.contenu || '')}</textarea></div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn btn-primary btn-sm" onclick="policySave(${p.id || 'null'})">${p.id ? 'Mettre à jour' : 'Créer'}</button>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('policyFormArea').innerHTML=''">Annuler</button>
+      </div>
+    </div>`;
+}
+
+async function policySave(id) {
+  try {
+    const data = {
+      titre: document.getElementById('polTitre').value,
+      categorie: document.getElementById('polCat').value,
+      version: document.getElementById('polVersion').value,
+      statut: document.getElementById('polStatut').value,
+      date_adoption: document.getElementById('polDate').value || null,
+      contenu: document.getElementById('polContenu').value,
+    };
+    if (!data.titre) { toast('Le titre est requis', true); return; }
+    if (id) {
+      await api('/policies/' + id, { method:'PUT', body: JSON.stringify(data) });
+      toast('Politique mise à jour');
+    } else {
+      await api('/policies', { method:'POST', body: JSON.stringify(data) });
+      toast('Politique créée');
+    }
+    await policiesView();
+  } catch(e) { toast(e.message, true); }
+}
+
+async function policyShowDetail(id) {
+  try {
+    const p = await api('/policies/' + id);
+    const detailArea = document.getElementById('policyDetailArea');
+    detailArea.innerHTML = `
+      <div style="border:1px solid #e0e0e0;border-radius:10px;padding:20px;margin-top:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h4 style="margin:0">${escHtml(p.titre)}</h4>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost btn-sm" onclick="policyEditFromDetail(${p.id})">✏️ Modifier</button>
+            <button class="btn btn-ghost btn-sm" onclick="policyDelete(${p.id})" style="color:#c62828">🗑️ Supprimer</button>
+          </div>
+        </div>
+        <div style="font-size:.85rem;color:var(--muted);margin-bottom:12px">
+          Version ${escHtml(p.version || '–')} · ${fmt(p.date_adoption)} · ${statusPill(p.statut)}
+        </div>
+        <div style="white-space:pre-wrap;line-height:1.6;padding:16px;background:#fafafa;border-radius:8px;font-size:.9rem">${escHtml(p.contenu || 'Aucun contenu')}</div>
+      </div>`;
+  } catch(e) { toast(e.message, true); }
+}
+
+async function policyEditFromDetail(id) {
+  try {
+    const policies = await api('/policies');
+    const p = policies.find(x => x.id === id);
+    if (p) policyShowForm(p);
+  } catch(e) { toast(e.message, true); }
+}
+
+async function policyDelete(id) {
+  if (!confirm('Supprimer cette politique ?')) return;
+  try {
+    await api('/policies/' + id, { method:'DELETE' });
+    toast('Politique supprimée');
+    await policiesView();
+  } catch(e) { toast(e.message, true); }
+}
+
+// ══ AUDIT LOG ══════════════════════════════════════════════════════════════
+let _auditPage = 1;
+async function auditLogView(page) {
+  if (!can.admin()) { toast('Accès réservé aux administrateurs', true); return; }
+  _auditPage = page || 1;
+  try {
+    const data = await api('/audit?page=' + _auditPage + '&limit=50');
+    const logs = data.logs || data || [];
+    const total = data.total || logs.length;
+    const totalPages = Math.ceil(total / 50) || 1;
+    const actionColors = { connexion:'#1976d2', creation:'#43a047', modification:'#fb8c00', suppression:'#e53935' };
+
+    const rows = logs.map(l => {
+      const color = actionColors[l.action] || '#666';
+      return `<tr>
+        <td>${fmt(l.created_at || l.date)}</td>
+        <td>${escHtml(l.utilisateur || l.user_name || '–')}</td>
+        <td><span style="color:${color};font-weight:600">${escHtml(l.action || '–')}</span></td>
+        <td>${escHtml(l.cible || l.target || '–')}</td>
+        <td style="font-size:.8rem;color:var(--muted);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(l.details || l.description || '–')}</td>
+      </tr>`;
+    }).join('');
+
+    const pagination = `
+      <div style="display:flex;justify-content:center;gap:8px;padding:16px">
+        <button class="btn btn-ghost btn-sm" onclick="auditLogView(${_auditPage - 1})" ${_auditPage <= 1 ? 'disabled' : ''}>← Précédent</button>
+        <span style="padding:6px 12px;font-size:.85rem;color:var(--muted)">Page ${_auditPage} / ${totalPages}</span>
+        <button class="btn btn-ghost btn-sm" onclick="auditLogView(${_auditPage + 1})" ${_auditPage >= totalPages ? 'disabled' : ''}>Suivant →</button>
+      </div>`;
+
+    setContent(`
+      <div class="table-card">
+        <div class="table-card-header"><h3>Journal d'audit</h3></div>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead><tr><th>Date</th><th>Utilisateur</th><th>Action</th><th>Cible</th><th>Détails</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="5" style="text-align:center;color:var(--muted)">Aucune entrée</td></tr>'}</tbody>
+          </table>
+        </div>
+        ${pagination}
+      </div>`);
+  } catch(e) { toast(e.message, true); }
+}
+
+// ══ EMAIL TEMPLATES ════════════════════════════════════════════════════════
+async function emailTemplatesView() {
+  try {
+    const templates = await api('/email-templates');
+    const catLabels = { notification:'Notification', rappel:'Rappel', bienvenue:'Bienvenue', evenement:'Événement', administratif:'Administratif' };
+
+    const cards = (templates || []).map(t => `
+      <div style="background:#fff;border-radius:10px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.08);border:1px solid #eee" data-id="${t.id}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+          <div style="font-weight:700;font-size:1rem">${escHtml(t.nom)}</div>
+          ${pill(catLabels[t.categorie] || t.categorie || '–', 'bp-blue')}
+        </div>
+        <div style="font-size:.85rem;color:var(--muted);margin-bottom:12px">Sujet : ${escHtml(t.sujet || '–')}</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="emailTemplateEdit(${t.id})">✏️ Modifier</button>
+          <button class="btn btn-ghost btn-sm" onclick="emailTemplatePreview(${t.id})">👁 Aperçu</button>
+          <button class="btn btn-ghost btn-sm" onclick="emailTemplateDelete(${t.id})" style="color:#c62828">🗑️</button>
+        </div>
+      </div>`).join('');
+
+    setContent(`
+      <div class="table-card">
+        <div class="table-card-header">
+          <h3>Modèles de courriels</h3>
+          <button class="btn btn-primary btn-sm" onclick="emailTemplateShowForm()">+ Nouveau modèle</button>
+        </div>
+        <div id="emailTplFormArea" style="padding:0 16px"></div>
+        <div style="padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px">
+          ${cards || '<p style="color:var(--muted);text-align:center;grid-column:1/-1">Aucun modèle</p>'}
+        </div>
+        <div id="emailTplPreviewArea" style="padding:0 16px 16px"></div>
+      </div>`);
+  } catch(e) { toast(e.message, true); }
+}
+
+function emailTemplateShowForm(existing) {
+  const t = existing || {};
+  document.getElementById('emailTplFormArea').innerHTML = `
+    <div style="background:#f9f9f9;border-radius:10px;padding:16px;margin:12px 0;border:1px solid #e0e0e0">
+      <h4 style="margin:0 0 12px">${t.id ? 'Modifier le modèle' : 'Nouveau modèle de courriel'}</h4>
+      <div class="form-row">
+        <div class="form-group"><label>Nom *</label><input id="etNom" value="${escHtml(t.nom || '')}"></div>
+        <div class="form-group"><label>Catégorie</label>
+          <select id="etCat">
+            <option value="notification" ${t.categorie==='notification'?'selected':''}>Notification</option>
+            <option value="rappel" ${t.categorie==='rappel'?'selected':''}>Rappel</option>
+            <option value="bienvenue" ${t.categorie==='bienvenue'?'selected':''}>Bienvenue</option>
+            <option value="evenement" ${t.categorie==='evenement'?'selected':''}>Événement</option>
+            <option value="administratif" ${t.categorie==='administratif'?'selected':''}>Administratif</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group"><label>Sujet *</label><input id="etSujet" value="${escHtml(t.sujet || '')}"></div>
+      <div class="form-group"><label>Corps du courriel</label><textarea id="etCorps" rows="8" style="font-family:monospace;font-size:.85rem">${escHtml(t.corps || '')}</textarea></div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn btn-primary btn-sm" onclick="emailTemplateSave(${t.id || 'null'})">${t.id ? 'Mettre à jour' : 'Créer'}</button>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('emailTplFormArea').innerHTML=''">Annuler</button>
+      </div>
+    </div>`;
+}
+
+async function emailTemplateSave(id) {
+  try {
+    const data = {
+      nom: document.getElementById('etNom').value,
+      categorie: document.getElementById('etCat').value,
+      sujet: document.getElementById('etSujet').value,
+      corps: document.getElementById('etCorps').value,
+    };
+    if (!data.nom) { toast('Le nom est requis', true); return; }
+    if (!data.sujet) { toast('Le sujet est requis', true); return; }
+    if (id) {
+      await api('/email-templates/' + id, { method:'PUT', body: JSON.stringify(data) });
+      toast('Modèle mis à jour');
+    } else {
+      await api('/email-templates', { method:'POST', body: JSON.stringify(data) });
+      toast('Modèle créé');
+    }
+    await emailTemplatesView();
+  } catch(e) { toast(e.message, true); }
+}
+
+async function emailTemplateEdit(id) {
+  try {
+    const templates = await api('/email-templates');
+    const t = templates.find(x => x.id === id);
+    if (t) emailTemplateShowForm(t);
+  } catch(e) { toast(e.message, true); }
+}
+
+async function emailTemplatePreview(id) {
+  try {
+    const templates = await api('/email-templates');
+    const t = templates.find(x => x.id === id);
+    if (!t) return;
+    const previewArea = document.getElementById('emailTplPreviewArea');
+    previewArea.innerHTML = `
+      <div style="border:1px solid #e0e0e0;border-radius:10px;padding:20px;margin-top:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h4 style="margin:0">Aperçu : ${escHtml(t.nom)}</h4>
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('emailTplPreviewArea').innerHTML=''">Fermer</button>
+        </div>
+        <div style="background:#f5f5f5;padding:12px;border-radius:8px;margin-bottom:12px">
+          <strong>Sujet :</strong> ${escHtml(t.sujet)}
+        </div>
+        <div style="background:#fff;padding:16px;border:1px solid #eee;border-radius:8px;white-space:pre-wrap;font-size:.9rem;line-height:1.6">${escHtml(t.corps || 'Aucun contenu')}</div>
+      </div>`;
+  } catch(e) { toast(e.message, true); }
+}
+
+async function emailTemplateDelete(id) {
+  if (!confirm('Supprimer ce modèle ?')) return;
+  try {
+    await api('/email-templates/' + id, { method:'DELETE' });
+    toast('Modèle supprimé');
+    await emailTemplatesView();
+  } catch(e) { toast(e.message, true); }
+}
+
+// ══ EXPORT DATA ════════════════════════════════════════════════════════════
+async function exportDataView() {
+  try {
+    const token = localStorage.getItem('token');
+    const backupsHtml = can.admin() ? `
+      <div class="table-card" style="margin-top:20px">
+        <div class="table-card-header">
+          <h3>Sauvegardes</h3>
+          <button class="btn btn-primary btn-sm" onclick="exportCreateBackup()">Créer une sauvegarde</button>
+        </div>
+        <div id="backupsList" style="padding:16px">
+          <div style="text-align:center;color:var(--muted);padding:20px">Chargement...</div>
+        </div>
+      </div>` : '';
+
+    setContent(`
+      <div class="table-card">
+        <div class="table-card-header"><h3>Export de données</h3></div>
+        <div style="padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">
+          <div style="background:#fff;border-radius:12px;padding:20px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.08);border:1px solid #eee">
+            <div style="font-size:2.5rem;margin-bottom:8px">👥</div>
+            <div style="font-weight:700;margin-bottom:4px">Export Membres</div>
+            <div style="font-size:.85rem;color:var(--muted);margin-bottom:16px">Télécharger la liste complète des membres en format CSV</div>
+            <button class="btn btn-primary btn-sm" onclick="window.open('${BASE}/api/export/members?token=${token}')">Télécharger CSV</button>
+          </div>
+          <div style="background:#fff;border-radius:12px;padding:20px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.08);border:1px solid #eee">
+            <div style="font-size:2.5rem;margin-bottom:8px">💰</div>
+            <div style="font-weight:700;margin-bottom:4px">Export Paiements</div>
+            <div style="font-size:.85rem;color:var(--muted);margin-bottom:16px">Télécharger l'historique des paiements en format CSV</div>
+            <button class="btn btn-primary btn-sm" onclick="window.open('${BASE}/api/export/payments?token=${token}')">Télécharger CSV</button>
+          </div>
+          <div style="background:#fff;border-radius:12px;padding:20px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.08);border:1px solid #eee">
+            <div style="font-size:2.5rem;margin-bottom:8px">📅</div>
+            <div style="font-weight:700;margin-bottom:4px">Export Activités</div>
+            <div style="font-size:.85rem;color:var(--muted);margin-bottom:16px">Télécharger la liste des activités en format CSV</div>
+            <button class="btn btn-primary btn-sm" onclick="window.open('${BASE}/api/export/activities?token=${token}')">Télécharger CSV</button>
+          </div>
+        </div>
+      </div>
+      ${backupsHtml}`);
+
+    if (can.admin()) exportLoadBackups();
+  } catch(e) { toast(e.message, true); }
+}
+
+async function exportLoadBackups() {
+  try {
+    const backups = await api('/backups');
+    const container = document.getElementById('backupsList');
+    if (!container) return;
+    if (!backups || !backups.length) {
+      container.innerHTML = '<p style="text-align:center;color:var(--muted);padding:20px">Aucune sauvegarde disponible</p>';
+      return;
+    }
+    container.innerHTML = `
+      <table class="data-table">
+        <thead><tr><th>Date</th><th>Nom</th><th>Taille</th><th>Actions</th></tr></thead>
+        <tbody>${backups.map(b => `<tr>
+          <td>${fmt(b.created_at || b.date)}</td>
+          <td>${escHtml(b.nom || b.filename || '–')}</td>
+          <td>${b.taille || b.size || '–'}</td>
+          <td><button class="btn btn-ghost btn-sm" onclick="window.open('${BASE}/api/backups/${b.id}/download?token=${localStorage.getItem('token')}')">Télécharger</button></td>
+        </tr>`).join('')}</tbody>
+      </table>`;
+  } catch(e) {
+    const container = document.getElementById('backupsList');
+    if (container) container.innerHTML = '<p style="text-align:center;color:#c62828;padding:20px">Erreur de chargement des sauvegardes</p>';
+  }
+}
+
+async function exportCreateBackup() {
+  try {
+    await api('/backup', { method:'POST' });
+    toast('Sauvegarde créée');
+    await exportLoadBackups();
+  } catch(e) { toast(e.message, true); }
+}
+
+// ══ ANNUAL REPORT ══════════════════════════════════════════════════════════
+async function annualReportView() {
+  if (!can.admin()) { toast('Accès réservé aux administrateurs', true); return; }
+  try {
+    const currentYear = new Date().getFullYear();
+    const yearSelect = `
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+        <label style="font-weight:600">Année :</label>
+        <select id="annualYear" onchange="annualReportLoad()" style="padding:6px 12px;border-radius:6px;border:1px solid #ddd;font-size:1rem">
+          ${[currentYear, currentYear - 1, currentYear - 2, currentYear - 3].map(y => `<option value="${y}">${y}</option>`).join('')}
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="window.print()" style="margin-left:auto">🖨 Imprimer</button>
+      </div>`;
+
+    setContent(`
+      <div class="table-card">
+        <div class="table-card-header"><h3>Rapport annuel</h3></div>
+        <div style="padding:16px">
+          ${yearSelect}
+          <div id="annualReportContent"><div class="loading-screen"><div class="spinner"></div><p>Chargement...</p></div></div>
+        </div>
+      </div>`);
+
+    await annualReportLoad();
+  } catch(e) { toast(e.message, true); }
+}
+
+async function annualReportLoad() {
+  try {
+    const year = document.getElementById('annualYear').value;
+    const report = await api('/reports/annual?annee=' + year);
+    const container = document.getElementById('annualReportContent');
+    if (!container) return;
+
+    const kpi = (value, label) => `
+      <div style="background:#fff;border-radius:12px;padding:20px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+        <div style="font-size:2rem;font-weight:800;color:var(--accent)">${value}</div>
+        <div style="font-size:.85rem;color:var(--muted);margin-top:4px">${label}</div>
+      </div>`;
+
+    const kpisHtml = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px;margin-bottom:24px">
+        ${kpi(report.total_membres || 0, 'Total membres')}
+        ${kpi(report.nouveaux_membres || 0, 'Nouveaux membres')}
+        ${kpi(fmtMoney(report.revenus || 0), 'Revenus')}
+        ${kpi(fmtMoney(report.depenses || 0), 'Dépenses')}
+        ${kpi(report.total_activites || 0, 'Activités')}
+        ${kpi(report.total_participants || 0, 'Participants')}
+        ${kpi((report.taux_recouvrement || 0) + '%', 'Taux recouvrement')}
+      </div>`;
+
+    const planRows = (report.plan_distribution || []).map(p => `<tr>
+      <td>${escHtml(p.plan || p.nom || '–')}</td>
+      <td style="text-align:center">${p.count || p.nombre || 0}</td>
+      <td style="text-align:right">${fmtMoney(p.montant || 0)}</td>
+    </tr>`).join('');
+
+    const planTable = planRows ? `
+      <div style="margin-bottom:24px">
+        <h4 style="margin-bottom:12px">Distribution par plan</h4>
+        <table class="data-table">
+          <thead><tr><th>Plan</th><th style="text-align:center">Nombre</th><th style="text-align:right">Montant</th></tr></thead>
+          <tbody>${planRows}</tbody>
+        </table>
+      </div>` : '';
+
+    const topActivities = (report.top_activites || []).map((a, i) => `<tr>
+      <td style="font-weight:600">${i + 1}</td>
+      <td>${escHtml(a.titre || a.nom || '–')}</td>
+      <td style="text-align:center">${a.participants || a.nb_participants || 0}</td>
+      <td>${fmt(a.date)}</td>
+    </tr>`).join('');
+
+    const topTable = topActivities ? `
+      <div>
+        <h4 style="margin-bottom:12px">Activités les plus populaires</h4>
+        <table class="data-table">
+          <thead><tr><th>#</th><th>Activité</th><th style="text-align:center">Participants</th><th>Date</th></tr></thead>
+          <tbody>${topActivities}</tbody>
+        </table>
+      </div>` : '';
+
+    container.innerHTML = kpisHtml + planTable + topTable;
+  } catch(e) {
+    const container = document.getElementById('annualReportContent');
+    if (container) container.innerHTML = '<p style="text-align:center;color:#c62828;padding:20px">Erreur de chargement du rapport</p>';
+  }
 }

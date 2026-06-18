@@ -439,6 +439,117 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS cotisations (
 try { db.exec("ALTER TABLE payments ADD COLUMN periodicite TEXT DEFAULT 'mensuel'"); } catch {}
 try { db.exec("ALTER TABLE payments ADD COLUMN periode_fin TEXT"); } catch {}
 
+// ── Tâches assignées ─────────────────────────────────────────────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS tasks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  titre TEXT NOT NULL,
+  description TEXT,
+  statut TEXT DEFAULT 'a_faire',
+  priorite TEXT DEFAULT 'moyenne',
+  assigne_a INTEGER REFERENCES users(id),
+  cree_par INTEGER REFERENCES users(id),
+  echeance TEXT,
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+  date_completion TEXT,
+  categorie TEXT DEFAULT 'autre'
+)`); } catch {}
+
+// ── Ordre du jour (Agendas) ──────────────────────────────────────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS agendas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  titre TEXT NOT NULL,
+  date_reunion TEXT,
+  statut TEXT DEFAULT 'brouillon',
+  cree_par INTEGER REFERENCES users(id),
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
+try { db.exec(`CREATE TABLE IF NOT EXISTS agenda_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  agenda_id INTEGER REFERENCES agendas(id) ON DELETE CASCADE,
+  texte TEXT NOT NULL,
+  ordre INTEGER DEFAULT 0,
+  duree_minutes INTEGER DEFAULT 5,
+  responsable_id INTEGER REFERENCES users(id),
+  note TEXT
+)`); } catch {}
+
+// ── Registre des décisions ───────────────────────────────────────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS decisions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  titre TEXT NOT NULL,
+  description TEXT,
+  date_decision TEXT,
+  decidee_par TEXT,
+  responsable_id INTEGER REFERENCES users(id),
+  echeance TEXT,
+  statut TEXT DEFAULT 'en_cours',
+  agenda_id INTEGER REFERENCES agendas(id),
+  cree_par INTEGER REFERENCES users(id),
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
+// ── Politiques et règlements ─────────────────────────────────────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS policies (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  titre TEXT NOT NULL,
+  categorie TEXT DEFAULT 'reglement',
+  contenu TEXT,
+  version TEXT DEFAULT '1.0',
+  statut TEXT DEFAULT 'brouillon',
+  approuve_par INTEGER REFERENCES users(id),
+  date_approbation TEXT,
+  cree_par INTEGER REFERENCES users(id),
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+  date_modification TEXT
+)`); } catch {}
+
+// ── Journal d'audit ──────────────────────────────────────────────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER REFERENCES users(id),
+  action TEXT NOT NULL,
+  cible TEXT,
+  cible_id INTEGER,
+  details TEXT,
+  ip TEXT,
+  date_action TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
+// ── Modèles de courriels ─────────────────────────────────────────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS email_templates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nom TEXT NOT NULL UNIQUE,
+  sujet TEXT NOT NULL,
+  corps TEXT NOT NULL,
+  categorie TEXT DEFAULT 'general',
+  cree_par INTEGER REFERENCES users(id),
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+  date_modification TEXT
+)`); } catch {}
+// Seed default templates
+try { db.exec(`INSERT OR IGNORE INTO email_templates (nom, sujet, corps, categorie) VALUES
+  ('Bienvenue nouveau membre', 'Bienvenue à l''Association Haïtienne de Hamilton !', 'Bonjour {prenom},\n\nNous avons le plaisir de vous accueillir au sein de l''Association Haïtienne de Hamilton (AHH).\n\nVotre adhésion a été approuvée. Vous pouvez dès maintenant accéder à votre espace membre.\n\nCordialement,\nLe comité exécutif de l''AHH', 'bienvenue'),
+  ('Rappel cotisation', 'Rappel — Cotisation AHH', 'Bonjour {prenom},\n\nNous vous rappelons que votre cotisation pour le mois de {mois} est en attente.\n\nMerci de procéder au paiement dans les meilleurs délais.\n\nCordialement,\nLe comité exécutif de l''AHH', 'rappel'),
+  ('Convocation réunion', 'Convocation — Réunion AHH', 'Bonjour {prenom},\n\nVous êtes convoqué(e) à la prochaine réunion de l''AHH.\n\nDate : {date}\nLieu : {lieu}\n\nVotre présence est importante.\n\nCordialement,\nLe comité exécutif de l''AHH', 'notification')
+`); } catch {}
+
+// ── Calendrier des réunions ──────────────────────────────────────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS meeting_schedule (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  titre TEXT NOT NULL,
+  description TEXT,
+  type TEXT DEFAULT 'ordinaire',
+  date_heure TEXT NOT NULL,
+  duree_minutes INTEGER DEFAULT 60,
+  lieu TEXT,
+  lien_virtuel TEXT,
+  agenda_id INTEGER REFERENCES agendas(id),
+  cree_par INTEGER REFERENCES users(id),
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+  rappel_envoye INTEGER DEFAULT 0
+)`); } catch {}
+
 function init() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (

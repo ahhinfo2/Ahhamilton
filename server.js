@@ -281,6 +281,13 @@ function logAdmin(userId, action, details, cibleId = null, cibleType = null, ip 
   } catch {}
 }
 
+function logAudit(userId, action, cible, cibleId, details, ip) {
+  try {
+    db.prepare(`INSERT INTO audit_log (user_id, action, cible, cible_id, details, ip) VALUES (?,?,?,?,?,?)`)
+      .run(userId || null, action, cible || null, cibleId || null, details || null, ip || null);
+  } catch {}
+}
+
 // ── Endpoint SSE ──────────────────────────────────────────────────────────
 app.get('/api/sse', authMiddleware, (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
@@ -328,6 +335,7 @@ app.post('/api/auth/login', (req, res) => {
     { id: user.id, email: user.email, role: user.role, prenom: user.prenom, nom: user.nom, date_naissance: user.date_naissance },
     JWT_SECRET, { expiresIn: '24h' }
   );
+  logAudit(user.id, 'login', 'user', user.id, `Connexion réussie — ${user.email}`, req.ip);
   const { password_hash, ...safeUser } = user;
   res.json({ token, user: safeUser });
 });
@@ -441,6 +449,7 @@ app.patch('/api/inscriptions/:id/approuver', authMiddleware, requireRole('admin'
   const generalRoom = db.prepare("SELECT id FROM chat_rooms WHERE type='general'").get();
   if (generalRoom) db.prepare('INSERT OR IGNORE INTO chat_room_members (room_id, user_id) VALUES (?,?)').run(generalRoom.id, newUserId);
 
+  logAudit(req.user.id, 'member_approved', 'user', newUserId, `Membre approuvé: ${p.prenom} ${p.nom} (${p.email})`, req.ip);
   console.log(`✅ Nouveau membre approuvé: ${p.prenom} ${p.nom} (${p.email})`);
   res.json({ message: 'Membre approuvé et compte créé', userId: newUserId });
 });
@@ -607,6 +616,7 @@ app.use('/uploads/profiles', express.static(path.join(__dirname, 'uploads', 'pro
 app.delete('/api/users/:id', authMiddleware, requireRole('admin','secretaire','delegue','tresoriere'), (req, res) => {
   const uid = parseInt(req.params.id);
   if (uid === req.user.id) return res.status(400).json({ error: 'Vous ne pouvez pas vous supprimer vous-même' });
+  const deletedUser = db.prepare('SELECT prenom, nom, email FROM users WHERE id = ?').get(uid);
   try {
     db.prepare('BEGIN').run();
 
@@ -653,6 +663,7 @@ app.delete('/api/users/:id', authMiddleware, requireRole('admin','secretaire','d
     db.prepare('DELETE FROM users WHERE id = ?').run(uid);
 
     db.prepare('COMMIT').run();
+    logAudit(req.user.id, 'member_deleted', 'user', uid, `Membre supprimé: ${deletedUser ? deletedUser.prenom + ' ' + deletedUser.nom + ' (' + deletedUser.email + ')' : 'id=' + uid}`, req.ip);
     res.json({ message: 'Membre supprimé' });
   } catch(e) {
     try { db.prepare('ROLLBACK').run(); } catch {}
@@ -1231,6 +1242,7 @@ app.post('/api/notes', authMiddleware, (req, res) => {
   const { titre, contenu, langue, date_reunion, activity_id } = req.body;
   const r = db.prepare(`INSERT INTO meeting_notes (auteur_id, titre, contenu, langue, date_reunion, activity_id, last_editor_id)
     VALUES (?, ?, ?, ?, ?, ?, ?)`).run(req.user.id, titre||'Sans titre', contenu||'', langue||'fr', date_reunion||'', activity_id||null, req.user.id);
+  logAudit(req.user.id, 'note_created', 'note', r.lastInsertRowid, `Note créée: ${titre||'Sans titre'}`, req.ip);
   res.status(201).json({ id: r.lastInsertRowid });
 });
 
@@ -2695,6 +2707,7 @@ app.patch('/api/payments/:id/approuver', authMiddleware, requireRole('admin','tr
   if (membre) mailer.sendPaiementApprouve(membre, pay.montant, mois).catch(()=>{});
 
   logAdmin(req.user.id, 'paiement_approuve', `$${pay.montant} — user ${pay.user_id}`, pay.id, 'payment', req.ip);
+  logAudit(req.user.id, 'payment_approved', 'payment', pay.id, `Paiement $${pay.montant} approuvé — user ${pay.user_id}`, req.ip);
   res.json({ message: 'Paiement approuvé' });
 });
 
@@ -6255,6 +6268,511 @@ app.get('/api/guide.pdf', (req, res) => {
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', 'attachment; filename="Guide-Accueil-AHH.pdf"');
   res.send(Buffer.from(content, 'latin1'));
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TÂCHES ASSIGNÉES
+// ══════════════════════════════════════════════════════════════════════════════
+
+const EXEC_ROLES = ['admin','tresoriere','secretaire','delegue'];
+
+app.get('/api/tasks', authMiddleware, (req, res) => {
+  const rows = db.prepare(`SELECT t.*, u.prenom || ' ' || u.nom AS assigne_nom,
+    c.prenom || ' ' || c.nom AS createur_nom
+    FROM tasks t
+    LEFT JOIN users u ON u.id = t.assigne_a
+    LEFT JOIN users c ON c.id = t.cree_par
+    ORDER BY CASE t.priorite WHEN 'haute' THEN 1 WHEN 'moyenne' THEN 2 ELSE 3 END, t.date_creation DESC`).all();
+  res.json(rows);
+});
+
+app.get('/api/tasks/my', authMiddleware, (req, res) => {
+  const rows = db.prepare(`SELECT t.*, u.prenom || ' ' || u.nom AS assigne_nom,
+    c.prenom || ' ' || c.nom AS createur_nom
+    FROM tasks t
+    LEFT JOIN users u ON u.id = t.assigne_a
+    LEFT JOIN users c ON c.id = t.cree_par
+    WHERE t.assigne_a = ?
+    ORDER BY CASE t.priorite WHEN 'haute' THEN 1 WHEN 'moyenne' THEN 2 ELSE 3 END, t.date_creation DESC`).all(req.user.id);
+  res.json(rows);
+});
+
+app.post('/api/tasks', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const { titre, description, statut, priorite, assigne_a, echeance, categorie } = req.body;
+  if (!titre) return res.status(400).json({ error: 'Titre requis' });
+  const r = db.prepare(`INSERT INTO tasks (titre, description, statut, priorite, assigne_a, cree_par, echeance, categorie)
+    VALUES (?,?,?,?,?,?,?,?)`)
+    .run(titre, description||'', statut||'a_faire', priorite||'moyenne', assigne_a||null, req.user.id, echeance||null, categorie||'autre');
+  res.status(201).json({ id: r.lastInsertRowid });
+});
+
+app.put('/api/tasks/:id', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const { titre, description, statut, priorite, assigne_a, echeance, categorie } = req.body;
+  const existing = db.prepare('SELECT id FROM tasks WHERE id=?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Tâche introuvable' });
+  const dateCompletion = statut === 'termine' ? new Date().toISOString() : null;
+  db.prepare(`UPDATE tasks SET titre=?, description=?, statut=?, priorite=?, assigne_a=?, echeance=?, categorie=?, date_completion=COALESCE(?,date_completion) WHERE id=?`)
+    .run(titre, description||'', statut||'a_faire', priorite||'moyenne', assigne_a||null, echeance||null, categorie||'autre', dateCompletion, req.params.id);
+  res.json({ message: 'Tâche mise à jour' });
+});
+
+app.delete('/api/tasks/:id', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const existing = db.prepare('SELECT id FROM tasks WHERE id=?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Tâche introuvable' });
+  db.prepare('DELETE FROM tasks WHERE id=?').run(req.params.id);
+  res.json({ message: 'Tâche supprimée' });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ORDRE DU JOUR (AGENDAS)
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.get('/api/agendas', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const rows = db.prepare(`SELECT a.*, u.prenom || ' ' || u.nom AS createur_nom,
+    (SELECT COUNT(*) FROM agenda_items WHERE agenda_id = a.id) AS nb_items
+    FROM agendas a LEFT JOIN users u ON u.id = a.cree_par
+    ORDER BY a.date_reunion DESC`).all();
+  res.json(rows);
+});
+
+app.get('/api/agendas/:id', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const agenda = db.prepare(`SELECT a.*, u.prenom || ' ' || u.nom AS createur_nom
+    FROM agendas a LEFT JOIN users u ON u.id = a.cree_par WHERE a.id=?`).get(req.params.id);
+  if (!agenda) return res.status(404).json({ error: 'Agenda introuvable' });
+  const items = db.prepare(`SELECT ai.*, u.prenom || ' ' || u.nom AS responsable_nom
+    FROM agenda_items ai LEFT JOIN users u ON u.id = ai.responsable_id
+    WHERE ai.agenda_id=? ORDER BY ai.ordre`).all(req.params.id);
+  res.json({ ...agenda, items });
+});
+
+app.post('/api/agendas', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const { titre, date_reunion, statut } = req.body;
+  if (!titre) return res.status(400).json({ error: 'Titre requis' });
+  const r = db.prepare('INSERT INTO agendas (titre, date_reunion, statut, cree_par) VALUES (?,?,?,?)')
+    .run(titre, date_reunion||null, statut||'brouillon', req.user.id);
+  res.status(201).json({ id: r.lastInsertRowid });
+});
+
+app.put('/api/agendas/:id', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const { titre, date_reunion, statut } = req.body;
+  const existing = db.prepare('SELECT id FROM agendas WHERE id=?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Agenda introuvable' });
+  db.prepare('UPDATE agendas SET titre=?, date_reunion=?, statut=? WHERE id=?')
+    .run(titre, date_reunion||null, statut||'brouillon', req.params.id);
+  res.json({ message: 'Agenda mis à jour' });
+});
+
+app.delete('/api/agendas/:id', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const existing = db.prepare('SELECT id FROM agendas WHERE id=?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Agenda introuvable' });
+  db.prepare('DELETE FROM agendas WHERE id=?').run(req.params.id);
+  res.json({ message: 'Agenda supprimé' });
+});
+
+// Agenda items
+app.post('/api/agendas/:id/items', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const { texte, ordre, duree_minutes, responsable_id, note } = req.body;
+  if (!texte) return res.status(400).json({ error: 'Texte requis' });
+  const existing = db.prepare('SELECT id FROM agendas WHERE id=?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Agenda introuvable' });
+  const r = db.prepare('INSERT INTO agenda_items (agenda_id, texte, ordre, duree_minutes, responsable_id, note) VALUES (?,?,?,?,?,?)')
+    .run(req.params.id, texte, ordre||0, duree_minutes||5, responsable_id||null, note||null);
+  res.status(201).json({ id: r.lastInsertRowid });
+});
+
+app.put('/api/agendas/:agendaId/items/:itemId', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const { texte, ordre, duree_minutes, responsable_id, note } = req.body;
+  const existing = db.prepare('SELECT id FROM agenda_items WHERE id=? AND agenda_id=?').get(req.params.itemId, req.params.agendaId);
+  if (!existing) return res.status(404).json({ error: 'Item introuvable' });
+  db.prepare('UPDATE agenda_items SET texte=?, ordre=?, duree_minutes=?, responsable_id=?, note=? WHERE id=?')
+    .run(texte, ordre||0, duree_minutes||5, responsable_id||null, note||null, req.params.itemId);
+  res.json({ message: 'Item mis à jour' });
+});
+
+app.delete('/api/agendas/:agendaId/items/:itemId', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const existing = db.prepare('SELECT id FROM agenda_items WHERE id=? AND agenda_id=?').get(req.params.itemId, req.params.agendaId);
+  if (!existing) return res.status(404).json({ error: 'Item introuvable' });
+  db.prepare('DELETE FROM agenda_items WHERE id=?').run(req.params.itemId);
+  res.json({ message: 'Item supprimé' });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// REGISTRE DES DÉCISIONS
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.get('/api/decisions', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const rows = db.prepare(`SELECT d.*, u.prenom || ' ' || u.nom AS responsable_nom,
+    c.prenom || ' ' || c.nom AS createur_nom
+    FROM decisions d
+    LEFT JOIN users u ON u.id = d.responsable_id
+    LEFT JOIN users c ON c.id = d.cree_par
+    ORDER BY d.date_creation DESC`).all();
+  res.json(rows);
+});
+
+app.get('/api/decisions/:id', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const row = db.prepare(`SELECT d.*, u.prenom || ' ' || u.nom AS responsable_nom,
+    c.prenom || ' ' || c.nom AS createur_nom
+    FROM decisions d
+    LEFT JOIN users u ON u.id = d.responsable_id
+    LEFT JOIN users c ON c.id = d.cree_par
+    WHERE d.id=?`).get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Décision introuvable' });
+  res.json(row);
+});
+
+app.post('/api/decisions', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const { titre, description, date_decision, decidee_par, responsable_id, echeance, statut, agenda_id } = req.body;
+  if (!titre) return res.status(400).json({ error: 'Titre requis' });
+  const r = db.prepare(`INSERT INTO decisions (titre, description, date_decision, decidee_par, responsable_id, echeance, statut, agenda_id, cree_par)
+    VALUES (?,?,?,?,?,?,?,?,?)`)
+    .run(titre, description||'', date_decision||null, decidee_par||null, responsable_id||null, echeance||null, statut||'en_cours', agenda_id||null, req.user.id);
+  res.status(201).json({ id: r.lastInsertRowid });
+});
+
+app.put('/api/decisions/:id', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const { titre, description, date_decision, decidee_par, responsable_id, echeance, statut, agenda_id } = req.body;
+  const existing = db.prepare('SELECT id FROM decisions WHERE id=?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Décision introuvable' });
+  db.prepare(`UPDATE decisions SET titre=?, description=?, date_decision=?, decidee_par=?, responsable_id=?, echeance=?, statut=?, agenda_id=? WHERE id=?`)
+    .run(titre, description||'', date_decision||null, decidee_par||null, responsable_id||null, echeance||null, statut||'en_cours', agenda_id||null, req.params.id);
+  res.json({ message: 'Décision mise à jour' });
+});
+
+app.delete('/api/decisions/:id', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const existing = db.prepare('SELECT id FROM decisions WHERE id=?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Décision introuvable' });
+  db.prepare('DELETE FROM decisions WHERE id=?').run(req.params.id);
+  res.json({ message: 'Décision supprimée' });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// POLITIQUES ET RÈGLEMENTS
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.get('/api/policies', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const rows = db.prepare(`SELECT p.*, u.prenom || ' ' || u.nom AS createur_nom,
+    a.prenom || ' ' || a.nom AS approuveur_nom
+    FROM policies p
+    LEFT JOIN users u ON u.id = p.cree_par
+    LEFT JOIN users a ON a.id = p.approuve_par
+    ORDER BY p.date_creation DESC`).all();
+  res.json(rows);
+});
+
+app.get('/api/policies/:id', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const row = db.prepare(`SELECT p.*, u.prenom || ' ' || u.nom AS createur_nom,
+    a.prenom || ' ' || a.nom AS approuveur_nom
+    FROM policies p
+    LEFT JOIN users u ON u.id = p.cree_par
+    LEFT JOIN users a ON a.id = p.approuve_par
+    WHERE p.id=?`).get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Politique introuvable' });
+  res.json(row);
+});
+
+app.post('/api/policies', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  const { titre, categorie, contenu, version, statut, approuve_par, date_approbation } = req.body;
+  if (!titre) return res.status(400).json({ error: 'Titre requis' });
+  const r = db.prepare(`INSERT INTO policies (titre, categorie, contenu, version, statut, approuve_par, date_approbation, cree_par)
+    VALUES (?,?,?,?,?,?,?,?)`)
+    .run(titre, categorie||'reglement', contenu||'', version||'1.0', statut||'brouillon', approuve_par||null, date_approbation||null, req.user.id);
+  res.status(201).json({ id: r.lastInsertRowid });
+});
+
+app.put('/api/policies/:id', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  const { titre, categorie, contenu, version, statut, approuve_par, date_approbation } = req.body;
+  const existing = db.prepare('SELECT id FROM policies WHERE id=?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Politique introuvable' });
+  db.prepare(`UPDATE policies SET titre=?, categorie=?, contenu=?, version=?, statut=?, approuve_par=?, date_approbation=?, date_modification=CURRENT_TIMESTAMP WHERE id=?`)
+    .run(titre, categorie||'reglement', contenu||'', version||'1.0', statut||'brouillon', approuve_par||null, date_approbation||null, req.params.id);
+  res.json({ message: 'Politique mise à jour' });
+});
+
+app.delete('/api/policies/:id', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  const existing = db.prepare('SELECT id FROM policies WHERE id=?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Politique introuvable' });
+  db.prepare('DELETE FROM policies WHERE id=?').run(req.params.id);
+  res.json({ message: 'Politique supprimée' });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// JOURNAL D'AUDIT
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.get('/api/audit', authMiddleware, requireRole('admin'), (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 50;
+  const offset = (page - 1) * limit;
+  const total = db.prepare('SELECT COUNT(*) AS c FROM audit_log').get().c;
+  const rows = db.prepare(`SELECT al.*, u.prenom || ' ' || u.nom AS user_nom, u.email AS user_email
+    FROM audit_log al LEFT JOIN users u ON u.id = al.user_id
+    ORDER BY al.date_action DESC LIMIT ? OFFSET ?`).all(limit, offset);
+  res.json({ rows, total, page, limit, pages: Math.ceil(total / limit) });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MODÈLES DE COURRIELS
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.get('/api/email-templates', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const rows = db.prepare(`SELECT et.*, u.prenom || ' ' || u.nom AS createur_nom
+    FROM email_templates et LEFT JOIN users u ON u.id = et.cree_par
+    ORDER BY et.categorie, et.nom`).all();
+  res.json(rows);
+});
+
+app.get('/api/email-templates/:id', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const row = db.prepare(`SELECT et.*, u.prenom || ' ' || u.nom AS createur_nom
+    FROM email_templates et LEFT JOIN users u ON u.id = et.cree_par WHERE et.id=?`).get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Modèle introuvable' });
+  res.json(row);
+});
+
+app.post('/api/email-templates', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const { nom, sujet, corps, categorie } = req.body;
+  if (!nom || !sujet || !corps) return res.status(400).json({ error: 'Nom, sujet et corps requis' });
+  try {
+    const r = db.prepare('INSERT INTO email_templates (nom, sujet, corps, categorie, cree_par) VALUES (?,?,?,?,?)')
+      .run(nom, sujet, corps, categorie||'general', req.user.id);
+    res.status(201).json({ id: r.lastInsertRowid });
+  } catch(e) {
+    if (e.message && e.message.includes('UNIQUE')) return res.status(409).json({ error: 'Un modèle avec ce nom existe déjà' });
+    throw e;
+  }
+});
+
+app.put('/api/email-templates/:id', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const { nom, sujet, corps, categorie } = req.body;
+  const existing = db.prepare('SELECT id FROM email_templates WHERE id=?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Modèle introuvable' });
+  try {
+    db.prepare('UPDATE email_templates SET nom=?, sujet=?, corps=?, categorie=?, date_modification=CURRENT_TIMESTAMP WHERE id=?')
+      .run(nom, sujet, corps, categorie||'general', req.params.id);
+    res.json({ message: 'Modèle mis à jour' });
+  } catch(e) {
+    if (e.message && e.message.includes('UNIQUE')) return res.status(409).json({ error: 'Un modèle avec ce nom existe déjà' });
+    throw e;
+  }
+});
+
+app.delete('/api/email-templates/:id', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const existing = db.prepare('SELECT id FROM email_templates WHERE id=?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Modèle introuvable' });
+  db.prepare('DELETE FROM email_templates WHERE id=?').run(req.params.id);
+  res.json({ message: 'Modèle supprimé' });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CALENDRIER DES RÉUNIONS
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.get('/api/meetings', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const rows = db.prepare(`SELECT ms.*, u.prenom || ' ' || u.nom AS createur_nom,
+    a.titre AS agenda_titre
+    FROM meeting_schedule ms
+    LEFT JOIN users u ON u.id = ms.cree_par
+    LEFT JOIN agendas a ON a.id = ms.agenda_id
+    ORDER BY ms.date_heure ASC`).all();
+  res.json(rows);
+});
+
+app.get('/api/meetings/:id', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const row = db.prepare(`SELECT ms.*, u.prenom || ' ' || u.nom AS createur_nom,
+    a.titre AS agenda_titre
+    FROM meeting_schedule ms
+    LEFT JOIN users u ON u.id = ms.cree_par
+    LEFT JOIN agendas a ON a.id = ms.agenda_id
+    WHERE ms.id=?`).get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Réunion introuvable' });
+  res.json(row);
+});
+
+app.post('/api/meetings', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const { titre, description, type, date_heure, duree_minutes, lieu, lien_virtuel, agenda_id } = req.body;
+  if (!titre || !date_heure) return res.status(400).json({ error: 'Titre et date/heure requis' });
+  const r = db.prepare(`INSERT INTO meeting_schedule (titre, description, type, date_heure, duree_minutes, lieu, lien_virtuel, agenda_id, cree_par)
+    VALUES (?,?,?,?,?,?,?,?,?)`)
+    .run(titre, description||'', type||'ordinaire', date_heure, duree_minutes||60, lieu||'', lien_virtuel||'', agenda_id||null, req.user.id);
+  res.status(201).json({ id: r.lastInsertRowid });
+});
+
+app.put('/api/meetings/:id', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const { titre, description, type, date_heure, duree_minutes, lieu, lien_virtuel, agenda_id, rappel_envoye } = req.body;
+  const existing = db.prepare('SELECT id FROM meeting_schedule WHERE id=?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Réunion introuvable' });
+  db.prepare(`UPDATE meeting_schedule SET titre=?, description=?, type=?, date_heure=?, duree_minutes=?, lieu=?, lien_virtuel=?, agenda_id=?, rappel_envoye=COALESCE(?,rappel_envoye) WHERE id=?`)
+    .run(titre, description||'', type||'ordinaire', date_heure, duree_minutes||60, lieu||'', lien_virtuel||'', agenda_id||null, rappel_envoye!=null?rappel_envoye:null, req.params.id);
+  res.json({ message: 'Réunion mise à jour' });
+});
+
+app.delete('/api/meetings/:id', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const existing = db.prepare('SELECT id FROM meeting_schedule WHERE id=?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Réunion introuvable' });
+  db.prepare('DELETE FROM meeting_schedule WHERE id=?').run(req.params.id);
+  res.json({ message: 'Réunion supprimée' });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// EXPORT CSV (nouveaux endpoints sans .csv)
+// ══════════════════════════════════════════════════════════════════════════════
+
+function exportCSV(rows, cols) {
+  const header = cols.map(c => `"${c.label}"`).join(',');
+  const lines = rows.map(r => cols.map(c => {
+    const v = r[c.key] ?? '';
+    return `"${String(v).replace(/"/g,'""')}"`;
+  }).join(','));
+  return [header, ...lines].join('\n');
+}
+
+app.get('/api/export/members', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  const rows = db.prepare(`SELECT prenom,nom,email,telephone,role,plan,actif,
+    date_inscription FROM users WHERE actif=1 AND (phantom IS NULL OR phantom=0) ORDER BY nom`).all();
+  const csv = exportCSV(rows, [
+    {key:'prenom',label:'Prénom'},{key:'nom',label:'Nom'},{key:'email',label:'Courriel'},
+    {key:'telephone',label:'Téléphone'},{key:'role',label:'Rôle'},{key:'plan',label:'Plan'},
+    {key:'actif',label:'Actif'},{key:'date_inscription',label:"Date d'inscription"}
+  ]);
+  logAudit(req.user.id, 'export_members', 'export', null, 'Export CSV membres', req.ip);
+  res.setHeader('Content-Type','text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition','attachment; filename="membres-ahh.csv"');
+  res.send('﻿' + csv);
+});
+
+app.get('/api/export/payments', authMiddleware, requireRole('admin','tresoriere'), (req, res) => {
+  const rows = db.prepare(`SELECT p.id, u.prenom, u.nom, u.email, p.montant, p.type, p.mois,
+    p.methode, p.reference, p.statut, p.date_soumission
+    FROM payments p LEFT JOIN users u ON u.id=p.user_id ORDER BY p.date_soumission DESC`).all();
+  const csv = exportCSV(rows, [
+    {key:'id',label:'ID'},{key:'prenom',label:'Prénom'},{key:'nom',label:'Nom'},
+    {key:'email',label:'Courriel'},{key:'montant',label:'Montant ($)'},
+    {key:'type',label:'Type'},{key:'mois',label:'Mois'},{key:'methode',label:'Méthode'},
+    {key:'reference',label:'Référence'},{key:'statut',label:'Statut'},
+    {key:'date_soumission',label:'Date soumission'}
+  ]);
+  logAudit(req.user.id, 'export_payments', 'export', null, 'Export CSV paiements', req.ip);
+  res.setHeader('Content-Type','text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition','attachment; filename="paiements-ahh.csv"');
+  res.send('﻿' + csv);
+});
+
+app.get('/api/export/activities', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const rows = db.prepare(`SELECT a.id, a.titre, a.type, a.date_debut, a.date_fin, a.lieu,
+    a.budget_prevu, a.statut, a.prix,
+    (SELECT COUNT(*) FROM activity_registrations WHERE activity_id=a.id) AS nb_inscrits,
+    u.prenom || ' ' || u.nom AS createur
+    FROM activities a LEFT JOIN users u ON u.id=a.cree_par ORDER BY a.date_debut DESC`).all();
+  const csv = exportCSV(rows, [
+    {key:'id',label:'ID'},{key:'titre',label:'Titre'},{key:'type',label:'Type'},
+    {key:'date_debut',label:'Début'},{key:'date_fin',label:'Fin'},{key:'lieu',label:'Lieu'},
+    {key:'budget_prevu',label:'Budget ($)'},{key:'statut',label:'Statut'},
+    {key:'prix',label:'Prix ($)'},{key:'nb_inscrits',label:'Inscrits'},
+    {key:'createur',label:'Créé par'}
+  ]);
+  logAudit(req.user.id, 'export_activities', 'export', null, 'Export CSV activités', req.ip);
+  res.setHeader('Content-Type','text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition','attachment; filename="activites-ahh.csv"');
+  res.send('﻿' + csv);
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SAUVEGARDE BASE DE DONNÉES
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.post('/api/backup', authMiddleware, requireRole('admin'), (req, res) => {
+  try {
+    const backupDir = path.join(__dirname, 'backups');
+    if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+    const now = new Date();
+    const ts = now.getFullYear() + '-' +
+      String(now.getMonth()+1).padStart(2,'0') + '-' +
+      String(now.getDate()).padStart(2,'0') + '-' +
+      String(now.getHours()).padStart(2,'0') +
+      String(now.getMinutes()).padStart(2,'0') +
+      String(now.getSeconds()).padStart(2,'0');
+    const filename = `ahh-${ts}.db`;
+    const destPath = path.join(backupDir, filename);
+    const dbPath = process.env.DB_PATH || path.join(process.env.LOCALAPPDATA || process.env.HOME || __dirname, 'ahh-hamilton', 'ahh.db');
+    fs.copyFileSync(dbPath, destPath);
+    logAudit(req.user.id, 'backup_created', 'backup', null, `Sauvegarde: ${filename}`, req.ip);
+    res.json({ message: 'Sauvegarde créée', filename });
+  } catch(e) {
+    console.error('Erreur backup:', e.message);
+    res.status(500).json({ error: 'Erreur lors de la sauvegarde: ' + e.message });
+  }
+});
+
+app.get('/api/backups', authMiddleware, requireRole('admin'), (req, res) => {
+  try {
+    const backupDir = path.join(__dirname, 'backups');
+    if (!fs.existsSync(backupDir)) return res.json([]);
+    const files = fs.readdirSync(backupDir)
+      .filter(f => f.endsWith('.db'))
+      .map(f => {
+        const stat = fs.statSync(path.join(backupDir, f));
+        return { filename: f, size: stat.size, date: stat.mtime.toISOString() };
+      })
+      .sort((a, b) => b.date.localeCompare(a.date));
+    res.json(files);
+  } catch(e) {
+    res.status(500).json({ error: 'Erreur: ' + e.message });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// RAPPORT ANNUEL
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.get('/api/reports/annual', authMiddleware, requireRole('admin'), (req, res) => {
+  const annee = parseInt(req.query.annee) || new Date().getFullYear();
+  const anneeStr = String(annee);
+
+  // Membres actifs
+  const total_membres = db.prepare("SELECT COUNT(*) AS c FROM users WHERE actif=1 AND role='member' AND (phantom IS NULL OR phantom=0)").get().c;
+
+  // Nouveaux membres cette année
+  const nouveaux_membres = db.prepare("SELECT COUNT(*) AS c FROM users WHERE actif=1 AND (phantom IS NULL OR phantom=0) AND substr(date_inscription,1,4)=?").get(anneeStr).c;
+
+  // Revenus (paiements approuvés cette année)
+  const total_revenus = db.prepare("SELECT COALESCE(SUM(montant),0) AS t FROM payments WHERE statut='approuve' AND substr(date_soumission,1,4)=?").get(anneeStr).t;
+
+  // Dépenses (transactions de type depense cette année)
+  const total_depenses = db.prepare("SELECT COALESCE(SUM(montant),0) AS t FROM transactions WHERE type='depense' AND substr(date_transaction,1,4)=?").get(anneeStr).t;
+
+  // Activités cette année
+  const total_activites = db.prepare("SELECT COUNT(*) AS c FROM activities WHERE substr(date_debut,1,4)=?").get(anneeStr).c;
+
+  // Total participants cette année
+  const total_participants = db.prepare(`SELECT COUNT(*) AS c FROM activity_registrations ar
+    JOIN activities a ON a.id=ar.activity_id WHERE substr(a.date_debut,1,4)=?`).get(anneeStr).c;
+
+  // Taux de recouvrement des cotisations
+  const cotisations_attendues = db.prepare("SELECT COUNT(*) AS c FROM cotisations WHERE substr(periode,1,4)=?").get(anneeStr).c;
+  const cotisations_payees = db.prepare("SELECT COUNT(*) AS c FROM cotisations WHERE substr(periode,1,4)=? AND statut='paye'").get(anneeStr).c;
+  const taux_recouvrement_cotisations = cotisations_attendues > 0 ? Math.round((cotisations_payees / cotisations_attendues) * 100) : 0;
+
+  // Top activités par participation
+  const top_activities = db.prepare(`SELECT a.titre, a.date_debut,
+    (SELECT COUNT(*) FROM activity_registrations WHERE activity_id=a.id) AS nb_participants
+    FROM activities a WHERE substr(a.date_debut,1,4)=?
+    ORDER BY nb_participants DESC LIMIT 5`).all(anneeStr);
+
+  // Distribution des plans
+  const plan_distribution = db.prepare("SELECT plan, COUNT(*) AS count FROM users WHERE actif=1 AND role='member' AND (phantom IS NULL OR phantom=0) GROUP BY plan").all();
+
+  res.json({
+    annee,
+    total_membres,
+    nouveaux_membres,
+    total_revenus,
+    total_depenses,
+    total_activites,
+    total_participants,
+    taux_recouvrement_cotisations,
+    top_activities,
+    plan_distribution
+  });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
