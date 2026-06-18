@@ -744,10 +744,23 @@ async function pollBadges() {
       _prevMsgCount = newMsgs;
       _prevAlertCount = newAlerts;
 
-      // ── Badges sur les items du sidebar ──
-      setSidebarBadge('inscriptions', stats.inscriptions_en_attente);
-      setSidebarBadge('alerts',       newAlerts);
-      setSidebarBadge('annuaire',     newMsgs);
+      // ── Badges sur tous les items du sidebar ──
+      setSidebarBadge('annuaire',           newMsgs);
+      setSidebarBadge('alerts',             newAlerts);
+      setSidebarBadge('inscriptions',       stats.inscriptions_en_attente);
+      setSidebarBadge('paiements',          stats.paiements_en_attente);
+      setSidebarBadge('tasks',              stats.taches_a_faire);
+      setSidebarBadge('activities',         stats.activites_a_venir);
+      setSidebarBadge('meeting-calendar',   stats.reunions_a_venir);
+      setSidebarBadge('meeting-agendas',    stats.agendas_brouillon);
+      setSidebarBadge('decision-registry',  stats.decisions_en_cours);
+      setSidebarBadge('notes',              stats.notes_actives);
+      setSidebarBadge('forum',              stats.forum_non_lu);
+      setSidebarBadge('young-polls',        stats.sondages_actifs);
+      setSidebarBadge('mes_billets',        stats.billets_a_venir);
+      setSidebarBadge('mon_paiement',       stats.cotisation_due);
+      setSidebarBadge('mes-badges',         stats.badges_nouveaux);
+      setSidebarBadge('notif-prefs',        newAlerts);
     }
   } catch {}
   setTimeout(pollBadges, 30000);

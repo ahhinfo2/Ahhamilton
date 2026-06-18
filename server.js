@@ -1965,19 +1965,57 @@ app.put('/api/stats/config', authMiddleware, requireRole('admin','tresoriere','s
 // ══════════════════════════════════════════════════════════════════════════════
 
 app.get('/api/stats', authMiddleware, (req, res) => {
+  const uid = req.user.id;
+  const role = req.user.role;
+  const isExec = ['admin','tresoriere','secretaire','delegue'].includes(role);
+  const moisCourant = new Date().toISOString().substring(0, 7);
+
   const stats = {
     total_membres:          db.prepare("SELECT COUNT(*) AS c FROM users WHERE actif=1 AND role='member'").get().c,
     total_activites:        db.prepare("SELECT COUNT(*) AS c FROM activities WHERE statut != 'annulee'").get().c,
     total_heures:           db.prepare("SELECT COALESCE(SUM(heures),0) AS c FROM volunteer_hours WHERE statut='approuve'").get().c,
-    messages_non_lus:       db.prepare("SELECT COUNT(*) AS c FROM message_recipients WHERE destinataire_id=? AND lu=0").get(req.user.id).c,
-    alertes_non_lues:       db.prepare("SELECT COUNT(*) AS c FROM alerts WHERE destinataire_id=? AND lu=0").get(req.user.id).c,
-    inscriptions_en_attente:['admin','secretaire','delegue','tresoriere'].includes(req.user.role)
-      ? db.prepare("SELECT COUNT(*) AS c FROM users WHERE actif=0 AND (phantom IS NULL OR phantom=0) AND date_inscription IS NOT NULL").get().c
+    messages_non_lus:       db.prepare("SELECT COUNT(*) AS c FROM message_recipients WHERE destinataire_id=? AND lu=0 AND supprime=0").get(uid).c,
+    alertes_non_lues:       db.prepare("SELECT COUNT(*) AS c FROM alerts WHERE destinataire_id=? AND lu=0").get(uid).c,
+    // Badges pour le comité
+    inscriptions_en_attente: isExec
+      ? db.prepare("SELECT COUNT(*) AS c FROM pending_registrations WHERE statut='en_attente'").get().c
       : 0,
+    paiements_en_attente: isExec
+      ? db.prepare("SELECT COUNT(*) AS c FROM payments WHERE statut='en_attente'").get().c
+      : 0,
+    taches_a_faire: db.prepare("SELECT COUNT(*) AS c FROM tasks WHERE assigne_a=? AND statut IN ('a_faire','en_cours')").get(uid).c,
+    activites_a_venir: db.prepare("SELECT COUNT(*) AS c FROM activities WHERE statut='planifiee' AND date_debut >= date('now')").get().c,
+    reunions_a_venir: isExec
+      ? db.prepare("SELECT COUNT(*) AS c FROM meeting_schedule WHERE date_heure >= datetime('now')").get().c
+      : 0,
+    agendas_brouillon: isExec
+      ? db.prepare("SELECT COUNT(*) AS c FROM agendas WHERE statut='brouillon'").get().c
+      : 0,
+    decisions_en_cours: isExec
+      ? db.prepare("SELECT COUNT(*) AS c FROM decisions WHERE statut='en_cours'").get().c
+      : 0,
+    notes_actives: isExec
+      ? db.prepare("SELECT COUNT(*) AS c FROM meeting_notes WHERE verrouille=0").get().c
+      : 0,
+    forum_non_lu: db.prepare(`SELECT COUNT(*) AS c FROM forum_posts fp
+      WHERE fp.date_creation > COALESCE((SELECT MAX(date_creation) FROM forum_posts WHERE auteur_id=?), '2000-01-01')
+      AND fp.auteur_id != ?`).get(uid, uid).c,
+    sondages_actifs: db.prepare("SELECT COUNT(*) AS c FROM young_polls WHERE actif=1 AND (date_fin IS NULL OR date_fin >= date('now'))").get().c,
+    // Badges pour les membres
+    billets_a_venir: db.prepare(`SELECT COUNT(*) AS c FROM tickets t
+      JOIN activities a ON a.id = t.activity_id
+      WHERE t.user_id=? AND a.date_debut >= date('now')`).get(uid).c,
+    cotisation_due: (() => {
+      const plan = db.prepare("SELECT plan, plan_paid_month FROM users WHERE id=?").get(uid);
+      if (!plan || !['bienfaiteur','partenaire'].includes(plan.plan)) return 0;
+      return plan.plan_paid_month >= moisCourant ? 0 : 1;
+    })(),
+    badges_nouveaux: db.prepare(`SELECT COUNT(*) AS c FROM user_badges WHERE user_id=? AND date_attribution > datetime('now','-7 days')`).get(uid).c,
+    // Dashboard home
     prochaines_activites: db.prepare("SELECT id, titre, date_debut, lieu, (SELECT COUNT(*) FROM activity_registrations WHERE activity_id=activities.id) AS nb_inscrits FROM activities WHERE statut='planifiee' ORDER BY date_debut LIMIT 5").all(),
     derniers_membres: db.prepare("SELECT id, prenom, nom, date_inscription FROM users WHERE actif=1 AND (phantom IS NULL OR phantom=0) ORDER BY date_inscription DESC LIMIT 4").all(),
   };
-  if (['admin','tresoriere'].includes(req.user.role)) {
+  if (['admin','tresoriere'].includes(role)) {
     const acc = db.prepare('SELECT solde FROM account_info WHERE id=1').get();
     stats.solde = acc?.solde || 0;
   }
