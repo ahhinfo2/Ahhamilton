@@ -12921,13 +12921,13 @@ async function exportDataView() {
             <div style="font-size:2.5rem;margin-bottom:8px">👥</div>
             <div style="font-weight:700;margin-bottom:4px">Export Membres</div>
             <div style="font-size:.85rem;color:var(--muted);margin-bottom:16px">Télécharger la liste complète des membres en format CSV</div>
-            <button class="btn btn-primary btn-sm" onclick="window.open('${BASE}/api/export/members?token=${token}')">Télécharger CSV</button>
+            <button class="btn btn-primary btn-sm" onclick="window.open('${BASE}/api/export/membres.csv?token=${token}')">Télécharger CSV</button>
           </div>
           <div style="background:#fff;border-radius:12px;padding:20px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.08);border:1px solid #eee">
             <div style="font-size:2.5rem;margin-bottom:8px">💰</div>
             <div style="font-weight:700;margin-bottom:4px">Export Paiements</div>
             <div style="font-size:.85rem;color:var(--muted);margin-bottom:16px">Télécharger l'historique des paiements en format CSV</div>
-            <button class="btn btn-primary btn-sm" onclick="window.open('${BASE}/api/export/payments?token=${token}')">Télécharger CSV</button>
+            <button class="btn btn-primary btn-sm" onclick="window.open('${BASE}/api/export/paiements.csv?token=${token}')">Télécharger CSV</button>
           </div>
           <div style="background:#fff;border-radius:12px;padding:20px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.08);border:1px solid #eee">
             <div style="font-size:2.5rem;margin-bottom:8px">📅</div>
@@ -12954,12 +12954,11 @@ async function exportLoadBackups() {
     }
     container.innerHTML = `
       <table class="data-table">
-        <thead><tr><th>Date</th><th>Nom</th><th>Taille</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Date</th><th>Fichier</th><th>Taille</th></tr></thead>
         <tbody>${backups.map(b => `<tr>
-          <td>${fmt(b.created_at || b.date)}</td>
-          <td>${escHtml(b.nom || b.filename || '–')}</td>
-          <td>${b.taille || b.size || '–'}</td>
-          <td><button class="btn btn-ghost btn-sm" onclick="window.open('${BASE}/api/backups/${b.id}/download?token=${localStorage.getItem('token')}')">Télécharger</button></td>
+          <td>${fmt(b.date)}</td>
+          <td>${escHtml(b.filename)}</td>
+          <td>${b.size ? (b.size / 1024 / 1024).toFixed(2) + ' Mo' : '–'}</td>
         </tr>`).join('')}</tbody>
       </table>`;
   } catch(e) {

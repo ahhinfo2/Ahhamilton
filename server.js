@@ -6614,48 +6614,8 @@ app.delete('/api/meetings/:id', authMiddleware, requireRole(...EXEC_ROLES), (req
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// EXPORT CSV (nouveaux endpoints sans .csv)
+// EXPORT CSV ACTIVITÉS
 // ══════════════════════════════════════════════════════════════════════════════
-
-function exportCSV(rows, cols) {
-  const header = cols.map(c => `"${c.label}"`).join(',');
-  const lines = rows.map(r => cols.map(c => {
-    const v = r[c.key] ?? '';
-    return `"${String(v).replace(/"/g,'""')}"`;
-  }).join(','));
-  return [header, ...lines].join('\n');
-}
-
-app.get('/api/export/members', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
-  const rows = db.prepare(`SELECT prenom,nom,email,telephone,role,plan,actif,
-    date_inscription FROM users WHERE actif=1 AND (phantom IS NULL OR phantom=0) ORDER BY nom`).all();
-  const csv = exportCSV(rows, [
-    {key:'prenom',label:'Prénom'},{key:'nom',label:'Nom'},{key:'email',label:'Courriel'},
-    {key:'telephone',label:'Téléphone'},{key:'role',label:'Rôle'},{key:'plan',label:'Plan'},
-    {key:'actif',label:'Actif'},{key:'date_inscription',label:"Date d'inscription"}
-  ]);
-  logAudit(req.user.id, 'export_members', 'export', null, 'Export CSV membres', req.ip);
-  res.setHeader('Content-Type','text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition','attachment; filename="membres-ahh.csv"');
-  res.send('﻿' + csv);
-});
-
-app.get('/api/export/payments', authMiddleware, requireRole('admin','tresoriere'), (req, res) => {
-  const rows = db.prepare(`SELECT p.id, u.prenom, u.nom, u.email, p.montant, p.type, p.mois,
-    p.methode, p.reference, p.statut, p.date_soumission
-    FROM payments p LEFT JOIN users u ON u.id=p.user_id ORDER BY p.date_soumission DESC`).all();
-  const csv = exportCSV(rows, [
-    {key:'id',label:'ID'},{key:'prenom',label:'Prénom'},{key:'nom',label:'Nom'},
-    {key:'email',label:'Courriel'},{key:'montant',label:'Montant ($)'},
-    {key:'type',label:'Type'},{key:'mois',label:'Mois'},{key:'methode',label:'Méthode'},
-    {key:'reference',label:'Référence'},{key:'statut',label:'Statut'},
-    {key:'date_soumission',label:'Date soumission'}
-  ]);
-  logAudit(req.user.id, 'export_payments', 'export', null, 'Export CSV paiements', req.ip);
-  res.setHeader('Content-Type','text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition','attachment; filename="paiements-ahh.csv"');
-  res.send('﻿' + csv);
-});
 
 app.get('/api/export/activities', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
   const rows = db.prepare(`SELECT a.id, a.titre, a.type, a.date_debut, a.date_fin, a.lieu,
@@ -6663,7 +6623,7 @@ app.get('/api/export/activities', authMiddleware, requireRole(...EXEC_ROLES), (r
     (SELECT COUNT(*) FROM activity_registrations WHERE activity_id=a.id) AS nb_inscrits,
     u.prenom || ' ' || u.nom AS createur
     FROM activities a LEFT JOIN users u ON u.id=a.cree_par ORDER BY a.date_debut DESC`).all();
-  const csv = exportCSV(rows, [
+  const csv = toCSV(rows, [
     {key:'id',label:'ID'},{key:'titre',label:'Titre'},{key:'type',label:'Type'},
     {key:'date_debut',label:'Début'},{key:'date_fin',label:'Fin'},{key:'lieu',label:'Lieu'},
     {key:'budget_prevu',label:'Budget ($)'},{key:'statut',label:'Statut'},
