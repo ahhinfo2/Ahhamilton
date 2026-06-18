@@ -12784,19 +12784,18 @@ async function auditLogView(page) {
   _auditPage = page || 1;
   try {
     const data = await api('/audit?page=' + _auditPage + '&limit=50');
-    const logs = data.logs || data || [];
-    const total = data.total || logs.length;
-    const totalPages = Math.ceil(total / 50) || 1;
-    const actionColors = { connexion:'#1976d2', creation:'#43a047', modification:'#fb8c00', suppression:'#e53935' };
+    const logs = data.rows || [];
+    const totalPages = data.pages || 1;
+    const actionColors = { connexion:'#1976d2', creation:'#43a047', modification:'#fb8c00', suppression:'#e53935', export_members:'#1565c0', export_payments:'#1565c0', export_activities:'#1565c0', backup_created:'#6a1b9a', login:'#1976d2', member_approved:'#43a047', payment_approved:'#43a047', note_created:'#43a047', member_deleted:'#e53935' };
 
     const rows = logs.map(l => {
       const color = actionColors[l.action] || '#666';
       return `<tr>
-        <td>${fmt(l.created_at || l.date)}</td>
-        <td>${escHtml(l.utilisateur || l.user_name || '–')}</td>
+        <td>${fmt(l.date_action)}</td>
+        <td>${escHtml(l.user_nom || '–')}</td>
         <td><span style="color:${color};font-weight:600">${escHtml(l.action || '–')}</span></td>
-        <td>${escHtml(l.cible || l.target || '–')}</td>
-        <td style="font-size:.8rem;color:var(--muted);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(l.details || l.description || '–')}</td>
+        <td>${escHtml(l.cible || '–')}${l.cible_id ? ' #'+l.cible_id : ''}</td>
+        <td style="font-size:.8rem;color:var(--muted);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(l.details || '–')}</td>
       </tr>`;
     }).join('');
 
