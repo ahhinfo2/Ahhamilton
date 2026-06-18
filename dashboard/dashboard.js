@@ -12777,138 +12777,123 @@ async function policyDelete(id) {
   } catch(e) { toast(e.message, true); }
 }
 
-// ══ AUDIT LOG ══════════════════════════════════════════════════════════════
+// ══ AUDIT LOG — même style que Stats du site (connexions par membre) ════
 async function auditLogView() {
   if (!can.admin()) { toast('Accès réservé aux administrateurs', true); return; }
-  try {
-    const [auditData, actLogs, allUsers] = await Promise.all([
-      api('/audit?page=1&limit=500').catch(() => ({ rows:[] })),
-      api('/activity-logs?limit=500').catch(() => []),
-      api('/members').catch(() => [])
-    ]);
 
-    const allLogs = [
-      ...(auditData.rows || []).map(l => ({ nom: l.user_nom||'Système', action: l.action, details: l.details||'', date: l.date_action, user_id: l.user_id })),
-      ...(actLogs || []).map(l => ({ nom: l.nom_acteur||'Système', action: l.action, details: l.details||'', date: l.date_action, user_id: l.user_id }))
-    ].sort((a,b) => (b.date||'').localeCompare(a.date||''));
-
-    const loginsByUser = {};
-    allLogs.forEach(l => {
-      if (l.action === 'login' || l.action === 'connexion') {
-        if (!loginsByUser[l.user_id]) loginsByUser[l.user_id] = { count:0, last:null };
-        loginsByUser[l.user_id].count++;
-        if (!loginsByUser[l.user_id].last || l.date > loginsByUser[l.user_id].last) loginsByUser[l.user_id].last = l.date;
-      }
-    });
-
-    const userRows = (allUsers || []).map(u => {
-      const stats = loginsByUser[u.id] || { count:0, last:null };
-      const recentActions = allLogs.filter(l => l.user_id === u.id).slice(0, 3);
-      return { ...u, login_count: stats.count, last_login: stats.last, recent: recentActions };
-    }).sort((a,b) => (b.last_login||'').localeCompare(a.last_login||''));
-
-    const actionColors = {
-      login:'#1976d2', connexion:'#1976d2', paiement_approuve:'#2e7d32', payment_approved:'#2e7d32',
-      member_approved:'#43a047', note_created:'#43a047', creation:'#43a047',
-      export_csv:'#1565c0', export_members:'#1565c0', export_payments:'#1565c0',
-      badge_manuel:'#6a1b9a', member_deleted:'#e53935', suppression:'#e53935',
-      paiement_rejete:'#c62828', checkin:'#00838f', modification:'#fb8c00', backup_created:'#6a1b9a'
-    };
-
-    const roleLabels = { admin:'Admin', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Accompagnateur', member:'Membre' };
-
-    setContent(`
-      <div class="page-header">
-        <div><h2>📋 Journal d'audit</h2><p>${userRows.length} utilisateurs · ${allLogs.length} actions enregistrées</p></div>
-        <div class="page-actions">
-          <button class="btn btn-outline btn-sm" onclick="auditLogView()">🔄 Rafraîchir</button>
-          <button class="btn btn-ghost btn-sm" onclick="_auditToggleMode()">📜 Voir toutes les actions</button>
+  setContent(`
+    <div class="page-header">
+      <div><h2>📋 Journal d'audit</h2><p>Connexions et actions des membres</p></div>
+      <div class="page-actions">
+        <button class="btn btn-outline btn-sm" onclick="auditLogView()">🔄 Rafraîchir</button>
+      </div>
+    </div>
+    <div class="table-card">
+      <div style="padding:20px">
+        <div id="audit_connexions_section">
+          <div style="text-align:center;padding:24px;color:var(--muted)">Chargement…</div>
         </div>
       </div>
+    </div>`);
 
-      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
-        <input id="auditSearch" type="text" placeholder="🔍 Rechercher un nom..." oninput="_auditFilter()" style="padding:8px 14px;border-radius:8px;border:1px solid #ddd;flex:1;min-width:200px">
-        <select id="auditFilterRole" onchange="_auditFilter()" style="padding:8px 10px;border-radius:8px;border:1px solid #ddd">
-          <option value="">Tous les rôles</option>
-          <option value="admin">Admin</option>
-          <option value="tresoriere">Trésorière</option>
-          <option value="secretaire">Secrétaire</option>
-          <option value="delegue">Accompagnateur</option>
-          <option value="member">Membre</option>
-        </select>
-        <select id="auditFilterActivity" onchange="_auditFilter()" style="padding:8px 10px;border-radius:8px;border:1px solid #ddd">
-          <option value="">Tous</option>
-          <option value="active">Actifs (connectés ce mois)</option>
-          <option value="inactive">Inactifs (jamais connecté)</option>
-        </select>
-      </div>
-
-      <div class="table-card">
-        <div class="table-wrapper"><table>
-          <thead><tr>
-            <th>Membre</th><th>Rôle</th><th>Connexions</th><th>Dernière connexion</th><th>Actions récentes</th>
-          </tr></thead>
-          <tbody id="auditTableBody">
-            ${userRows.map(u => {
-              const moisCourant = new Date().toISOString().substring(0,7);
-              const isActive = u.last_login && u.last_login.substring(0,7) === moisCourant;
-              return `<tr class="audit-row" data-name="${escHtml((u.prenom+' '+u.nom).toLowerCase())}" data-role="${u.role}" data-active="${isActive?'1':'0'}">
-                <td>
-                  <div style="font-weight:600">${escHtml(u.prenom)} ${escHtml(u.nom)}</div>
-                  <div style="font-size:.72rem;color:var(--muted)">${escHtml(u.email||'')}</div>
-                </td>
-                <td>${pill(roleLabels[u.role]||u.role, u.role==='admin'?'bp-orange':u.role==='member'?'bp-blue':'bp-green')}</td>
-                <td style="text-align:center">
-                  <span style="font-weight:700;font-size:1.1rem;color:${u.login_count>0?'#1976d2':'var(--muted)'}">${u.login_count}</span>
-                </td>
-                <td>${u.last_login ? fmt(u.last_login) : '<span style="color:var(--muted)">Jamais</span>'}</td>
-                <td style="font-size:.78rem">
-                  ${u.recent.length ? u.recent.map(a =>
-                    `<span style="display:inline-block;background:${actionColors[a.action]||'#607d8b'}18;color:${actionColors[a.action]||'#607d8b'};padding:1px 7px;border-radius:8px;font-size:.7rem;font-weight:600;margin:1px 2px">${escHtml(a.action)}</span>`
-                  ).join('') : '<span style="color:var(--muted)">–</span>'}
-                </td>
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table></div>
-      </div>
-
-      <div id="auditAllActions" style="display:none">
-        <div class="table-card" style="margin-top:16px">
-          <div class="table-card-header"><h3>📜 Toutes les actions (${Math.min(allLogs.length, 200)} dernières)</h3></div>
-          <div class="table-wrapper"><table>
-            <thead><tr><th>Date</th><th>Acteur</th><th>Action</th><th>Détails</th></tr></thead>
-            <tbody>
-              ${allLogs.slice(0, 200).map(l => `<tr style="border-bottom:1px solid var(--border)">
-                <td style="white-space:nowrap;font-size:.75rem;color:var(--muted)">${fmt(l.date)}</td>
-                <td style="font-weight:600">${escHtml(l.nom)}</td>
-                <td><span style="background:${actionColors[l.action]||'#607d8b'}18;color:${actionColors[l.action]||'#607d8b'};padding:2px 8px;border-radius:10px;font-size:.72rem;font-weight:600">${escHtml(l.action)}</span></td>
-                <td style="font-size:.78rem;color:var(--muted);max-width:350px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(l.details||'–')}</td>
-              </tr>`).join('') || '<tr><td colspan="4" style="text-align:center;padding:40px;color:var(--muted)">Aucune action</td></tr>'}
-            </tbody>
-          </table></div>
-        </div>
-      </div>
-    `);
-  } catch(e) { toast(e.message, true); }
+  window._auditConnData = null;
+  window._auditConnFiltres = { recherche: '', role: '', plan: '' };
+  _auditChargerConnexions('nb_connexions', 'desc');
 }
 
-function _auditFilter() {
-  const search = (document.getElementById('auditSearch')?.value || '').toLowerCase();
-  const role = document.getElementById('auditFilterRole')?.value || '';
-  const activity = document.getElementById('auditFilterActivity')?.value || '';
-  document.querySelectorAll('.audit-row').forEach(row => {
-    const matchN = !search || row.dataset.name.includes(search);
-    const matchR = !role || row.dataset.role === role;
-    const matchA = !activity || (activity === 'active' ? row.dataset.active === '1' : row.dataset.active === '0');
-    row.style.display = (matchN && matchR && matchA) ? '' : 'none';
+async function _auditChargerConnexions(triCol, triDir) {
+  const section = document.getElementById('audit_connexions_section');
+  if (!section) return;
+
+  if (!window._auditConnData) {
+    section.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted)">Chargement…</div>';
+    try { window._auditConnData = await api('/stats/connexions'); }
+    catch { section.innerHTML = '<div style="color:#c62828;padding:12px">Erreur de chargement</div>'; return; }
+  }
+
+  window._auditConnTri = { col: triCol, dir: triDir };
+  _auditRendreConnexions();
+}
+
+function _auditRendreConnexions() {
+  const section = document.getElementById('audit_connexions_section');
+  if (!section) return;
+  const { col: triCol, dir: triDir } = window._auditConnTri || { col:'nb_connexions', dir:'desc' };
+  const { recherche, role, plan } = window._auditConnFiltres || {};
+  const ROLE_FR = { admin:'Admin', secretaire:'Secrétaire', tresoriere:'Trésorière', delegue:'Délégué', membre:'Membre' };
+
+  let rows = (window._auditConnData || []).filter(u => {
+    if (recherche) {
+      const q = recherche.toLowerCase();
+      const nom = (u.prenom + ' ' + u.nom).toLowerCase();
+      const email = (u.email || '').toLowerCase();
+      if (!nom.includes(q) && !email.includes(q)) return false;
+    }
+    if (role && u.role !== role) return false;
+    if (plan && (u.plan || 'gratuit') !== plan) return false;
+    return true;
   });
-}
 
-function _auditToggleMode() {
-  const el = document.getElementById('auditAllActions');
-  if (!el) return;
-  el.style.display = el.style.display === 'none' ? '' : 'none';
+  rows = [...rows].sort((a, b) => {
+    let va = a[triCol] ?? 0, vb = b[triCol] ?? 0;
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    return triDir === 'asc' ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
+  });
+
+  const inv = d => d === 'asc' ? 'desc' : 'asc';
+  const th = (label, colId) => {
+    const active = triCol === colId;
+    const arrow  = active ? (triDir === 'asc' ? ' ▲' : ' ▼') : '';
+    const center = colId === 'nb_connexions';
+    return '<th onclick="_auditChargerConnexions(\'' + colId + '\',\'' + (active ? inv(triDir) : 'desc') + '\')" ' +
+      'style="padding:8px 12px;text-align:' + (center ? 'center' : 'left') + ';cursor:pointer;user-select:none;white-space:nowrap;' +
+      'background:' + (active ? '#e8f0fe' : '#f8f8f8') + ';color:' + (active ? '#1565c0' : 'var(--text)') + '">' + label + arrow + '</th>';
+  };
+
+  const roles  = [...new Set((window._auditConnData||[]).map(u => u.role).filter(Boolean))];
+  const plans  = [...new Set((window._auditConnData||[]).map(u => u.plan || 'gratuit').filter(Boolean))];
+  const selStyle = 'border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:.82rem;background:#fff;cursor:pointer;';
+
+  section.innerHTML =
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;padding:12px 14px;background:var(--off);border-radius:10px;border:1px solid var(--border)">' +
+      '<input id="aud_recherche" type="text" placeholder="🔍 Rechercher un membre…" value="' + escHtml(recherche || '') + '" ' +
+        'oninput="window._auditConnFiltres.recherche=this.value;_auditRendreConnexions()" ' +
+        'style="flex:1;min-width:180px;border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:.84rem"/>' +
+      '<select onchange="window._auditConnFiltres.role=this.value;_auditRendreConnexions()" style="' + selStyle + '">' +
+        '<option value="">Tous les rôles</option>' +
+        roles.map(r => '<option value="' + r + '"' + (role === r ? ' selected' : '') + '>' + (ROLE_FR[r] || r) + '</option>').join('') +
+      '</select>' +
+      '<select onchange="window._auditConnFiltres.plan=this.value;_auditRendreConnexions()" style="' + selStyle + '">' +
+        '<option value="">Tous les plans</option>' +
+        plans.map(p => '<option value="' + p + '"' + (plan === p ? ' selected' : '') + '>' + (p.charAt(0).toUpperCase() + p.slice(1)) + '</option>').join('') +
+      '</select>' +
+      (recherche || role || plan
+        ? '<button onclick="window._auditConnFiltres={recherche:\'\',role:\'\',plan:\'\'};_auditRendreConnexions()" style="border:1px solid #c62828;color:#c62828;background:#fff;border-radius:8px;padding:6px 12px;font-size:.8rem;cursor:pointer">✕ Réinitialiser</button>'
+        : '') +
+    '</div>' +
+    '<div style="font-size:.8rem;color:var(--muted);margin-bottom:8px">' + rows.length + ' membre(s) affiché(s) sur ' + (window._auditConnData||[]).length + ' · Cliquez sur une colonne pour trier</div>' +
+    '<div style="overflow-x:auto;border:1px solid var(--border);border-radius:10px">' +
+    '<table style="width:100%;border-collapse:collapse;font-size:.84rem">' +
+    '<thead><tr>' +
+    th('Membre', 'nom') + th('Rôle', 'role') + th('Plan', 'plan') + th('Connexions', 'nb_connexions') + th('Dernière connexion', 'derniere_connexion') +
+    '</tr></thead><tbody>' +
+    (rows.length ? rows.map((u, i) => {
+      const initials = ((u.prenom||'')[0]||'').toUpperCase() + ((u.nom||'')[0]||'').toUpperCase();
+      const date = u.derniere_connexion ? u.derniere_connexion.substring(0, 16).replace('T', ' ') : 'Jamais';
+      const heat = u.nb_connexions >= 20 ? '#1b5e20' : u.nb_connexions >= 5 ? '#e65100' : '#555';
+      return '<tr style="border-top:1px solid var(--border)' + (i % 2 ? ';background:#fafafa' : '') + '">' +
+        '<td style="padding:9px 12px"><div style="display:flex;align-items:center;gap:8px">' +
+        '<div style="width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;flex-shrink:0">' + initials + '</div>' +
+        '<div><strong>' + escHtml(u.prenom + ' ' + u.nom) + '</strong><div style="font-size:.73rem;color:var(--muted)">' + (u.email || '') + '</div></div>' +
+        '</div></td>' +
+        '<td style="padding:9px 12px">' + (ROLE_FR[u.role] || u.role || '') + '</td>' +
+        '<td style="padding:9px 12px">' + planBadge(u.plan) + '</td>' +
+        '<td style="padding:9px;text-align:center;font-size:1.1rem;font-weight:800;color:' + heat + '">' + (u.nb_connexions || 0) + '</td>' +
+        '<td style="padding:9px 12px;font-size:.8rem;color:var(--muted)">' + date + '</td>' +
+        '</tr>';
+    }).join('') : '<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--muted)">Aucun résultat pour ces filtres</td></tr>') +
+    '</tbody></table></div>';
 }
 
 // ══ EMAIL TEMPLATES ════════════════════════════════════════════════════════
