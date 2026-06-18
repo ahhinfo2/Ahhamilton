@@ -8896,7 +8896,7 @@ async function soumettreMonPaiement(moisCourant) {
   if (proofFile) fd.append('proof', proofFile);
 
   try {
-    await fetch(BASE + '/api/payments', { method:'POST', headers:{ Authorization:'Bearer '+localStorage.getItem('token') }, body:fd });
+    await fetch(BASE + '/api/payments', { method:'POST', headers:{ Authorization:'Bearer '+TOKEN }, body:fd });
     toast(isDon ? '✅ Don soumis. Merci pour votre contribution!' : '✅ Paiement soumis. La trésorière recevra une notification.');
     mon_paiement();
   } catch(ex) { toast(ex.message, 'error'); }
@@ -12901,7 +12901,6 @@ async function emailTemplateDelete(id) {
 // ══ EXPORT DATA ════════════════════════════════════════════════════════════
 async function exportDataView() {
   try {
-    const token = localStorage.getItem('token');
     const backupsHtml = can.admin() ? `
       <div class="table-card" style="margin-top:20px">
         <div class="table-card-header">
@@ -12921,19 +12920,19 @@ async function exportDataView() {
             <div style="font-size:2.5rem;margin-bottom:8px">👥</div>
             <div style="font-weight:700;margin-bottom:4px">Export Membres</div>
             <div style="font-size:.85rem;color:var(--muted);margin-bottom:16px">Télécharger la liste complète des membres en format CSV</div>
-            <button class="btn btn-primary btn-sm" onclick="window.open('${BASE}/api/export/membres.csv?token=${token}')">Télécharger CSV</button>
+            <button class="btn btn-primary btn-sm" onclick="window.open('${BASE}/api/export/membres.csv?token=${TOKEN}')">Télécharger CSV</button>
           </div>
           <div style="background:#fff;border-radius:12px;padding:20px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.08);border:1px solid #eee">
             <div style="font-size:2.5rem;margin-bottom:8px">💰</div>
             <div style="font-weight:700;margin-bottom:4px">Export Paiements</div>
             <div style="font-size:.85rem;color:var(--muted);margin-bottom:16px">Télécharger l'historique des paiements en format CSV</div>
-            <button class="btn btn-primary btn-sm" onclick="window.open('${BASE}/api/export/paiements.csv?token=${token}')">Télécharger CSV</button>
+            <button class="btn btn-primary btn-sm" onclick="window.open('${BASE}/api/export/paiements.csv?token=${TOKEN}')">Télécharger CSV</button>
           </div>
           <div style="background:#fff;border-radius:12px;padding:20px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.08);border:1px solid #eee">
             <div style="font-size:2.5rem;margin-bottom:8px">📅</div>
             <div style="font-weight:700;margin-bottom:4px">Export Activités</div>
             <div style="font-size:.85rem;color:var(--muted);margin-bottom:16px">Télécharger la liste des activités en format CSV</div>
-            <button class="btn btn-primary btn-sm" onclick="window.open('${BASE}/api/export/activities?token=${token}')">Télécharger CSV</button>
+            <button class="btn btn-primary btn-sm" onclick="window.open('${BASE}/api/export/activities?token=${TOKEN}')">Télécharger CSV</button>
           </div>
         </div>
       </div>
