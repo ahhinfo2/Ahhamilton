@@ -296,8 +296,7 @@ function buildSidebar() {
       { id:'members',       icon:'◎', label:'Annuaire',         roles:['admin','secretaire','delegue'] },
       { id:'inscriptions',  icon:'◈', label:'Inscriptions',     roles:EXEC },
       { id:'volunteer',     icon:'◇', label:'Bénévolat',        roles:['admin','secretaire'] },
-      { id:'carte-gestion', icon:'🪪', label:'Cartes membres',  roles:['admin','secretaire','tresoriere','delegue'] },
-      { id:'carte-scanner', icon:'📷', label:'Scanner cartes',  roles:['admin','secretaire','tresoriere','delegue'] },
+      { id:'carte-gestion', icon:'🪪', label:'Cartes membres',  roles:EXEC },
     ]},
 
     // ── Activités ─────────────────────────────────────────────────
@@ -313,7 +312,7 @@ function buildSidebar() {
       { id:'finance',           icon:'◇', label:'Budget',          roles:['admin','tresoriere','secretaire'] },
       { id:'invoices',          icon:'◈', label:'Factures',        roles:['admin','tresoriere','secretaire'] },
       { id:'recus',             icon:'◉', label:'Reçus fiscaux',  roles:['admin','tresoriere','secretaire'] },
-      { id:'rapports_finance',  icon:'📊', label:'Rapports',       roles:['admin','tresoriere','secretaire'] },
+      { id:'rapports_finance',  icon:'📊', label:'Rapports finance', roles:['admin','tresoriere','secretaire'] },
     ]},
 
     // ── Communication ─────────────────────────────────────────────
@@ -326,9 +325,7 @@ function buildSidebar() {
     { label: 'Rapports', items: [
       { id:'reports',      icon:'◆', label:'Rapports',        roles:STAFF },
       { id:'stats-growth', icon:'📈', label:'Statistiques',   roles:EXEC },
-      { id:'letters',      icon:'◎', label:'Lettres',         roles:['admin','secretaire'] },
       { id:'alerts',       icon:'◇', label:'Alertes',         roles:['admin','tresoriere'] },
-      { id:'stats-site',   icon:'📊', label:'Stats du site',  roles:EXEC },
       { id:'audit-log',    icon:'📋', label:'Journal d\'audit', roles:['admin'] },
     ]},
 
@@ -338,9 +335,10 @@ function buildSidebar() {
       { id:'meeting-calendar',  icon:'📅', label:'Calendrier réunions', roles:EXEC },
       { id:'meeting-agendas',   icon:'📝', label:'Ordres du jour',      roles:EXEC },
       { id:'decision-registry', icon:'⚖', label:'Décisions',           roles:EXEC },
+      { id:'notes',             icon:'◇', label:'Notes réunion',       roles:EXEC },
       { id:'policies',          icon:'📜', label:'Politiques',          roles:EXEC },
       { id:'email-templates',   icon:'✉', label:'Modèles courriels',   roles:EXEC },
-      { id:'export-data',       icon:'📦', label:'Export données',      roles:['admin','secretaire','tresoriere'] },
+      { id:'export-data',       icon:'📦', label:'Export / Backup',     roles:['admin','secretaire','tresoriere'] },
       { id:'annual-report',     icon:'📊', label:'Rapport annuel',      roles:['admin'] },
     ]},
 
@@ -349,7 +347,6 @@ function buildSidebar() {
       { id:'gallery_mgmt',      icon:'◎', label:'Galerie',          roles:['admin','secretaire'] },
       { id:'talents_mgmt',      icon:'◈', label:'Talents',           roles:['admin','secretaire'] },
       { id:'annonces_mgmt',     icon:'◉', label:'Annonces',          roles:['admin','secretaire'] },
-      { id:'notes',             icon:'◇', label:'Notes réunion',     roles:EXEC },
       { id:'testimonials_mgmt', icon:'❝', label:'Témoignages',       roles:['admin','secretaire'] },
       { id:'videos_mgmt',       icon:'▶', label:'Vidéos',            roles:['admin','secretaire'] },
       { id:'documents_mgmt',    icon:'📁', label:'Documents',         roles:['admin','secretaire'] },
@@ -372,32 +369,30 @@ function buildSidebar() {
     { label: 'Gouvernance', items: [
       { id:'votes',         icon:'🗳️', label:'Votes & Élections',  roles:EXEC },
       { id:'parrainage',    icon:'🤝', label:'Parrainage',           roles: ALL },
-      { id:'journal-admin', icon:'📋', label:'Journal d\'activité', roles:['admin'] },
-      { id:'ambassadeur-admin',    icon:'⭐', label:'Ambassadeur du mois',    roles:['admin'] },
-      { id:'abonnes-newsletter',   icon:'📧', label:'Abonnés newsletter',      roles:['admin','secretaire'] },
     ]},
 
-    // ── Mon espace membre ─────────────────────────────────────────
-    {
-      label: 'Mon espace',
-      items: [
-        { id:'mes_talents',  icon:'◈', label:'Mon talent',   roles:['member','delegue'], planMin:['bienfaiteur','partenaire'] },
-        { id:'mes_annonces', icon:'◉', label:'Mes annonces', roles:['member','delegue'], planMin:['bienfaiteur','partenaire'] },
-        { id:'mon_paiement', icon:'◆', label:'Mon paiement', roles:['member','delegue'], planMin:['bienfaiteur','partenaire'] },
-        { id:'mes_billets',  icon:'🎟', label:'Mes billets',  roles: ALL },
-        { id:'carte-membre', icon:'🪪', label:'Ma carte membre', roles: ALL },
-        { id:'alerts',       icon:'◇', label:'Alertes',      roles:['admin','tresoriere'] },
-        { id:'mes-badges',   icon:'🏅', label:'Mes badges',   roles: ALL },
-        { id:'profile',      icon:'◎', label:'Mon profil',   roles: ALL },
-      ]
-    },
+    // ── Scanners ──────────────────────────────────────────────────
+    { label: 'Scanners', items: [
+      { id:'carte-scanner', icon:'📷', label:'Scanner cartes',   roles:EXEC },
+      { id:'scanner',       icon:'📷', label:'Scanner billets',  roles:EXEC },
+    ]},
 
     // ── Billetterie ───────────────────────────────────────────────
     { label: 'Billetterie', items: [
       { id:'vente-personne',  icon:'💵', label:'Vendre (cash)',        roles:EXEC },
-      { id:'scanner',         icon:'📷', label:'Scanner billets',      roles:EXEC },
       { id:'pending-orders',  icon:'🎟', label:'Commandes en attente', roles:STAFF },
     ]},
+
+    // ── Mon espace ────────────────────────────────────────────────
+    {
+      label: 'Mon espace',
+      items: [
+        { id:'mes_billets',  icon:'🎟', label:'Mes billets',  roles: ALL },
+        { id:'carte-membre', icon:'🪪', label:'Ma carte membre', roles: ALL },
+        { id:'mes-badges',   icon:'🏅', label:'Mes badges',   roles: ALL },
+        { id:'profile',      icon:'◎', label:'Mon profil',   roles: ALL },
+      ]
+    },
   ];
 
   // Membres réguliers → sidebar épurée définie ici, sections ignorées
@@ -973,9 +968,9 @@ async function home() {
             </button>`).join('')}
         </div>
         <div style="border-top:1px solid var(--border);margin-top:8px;padding:10px 16px;display:flex;gap:10px;flex-wrap:wrap">
-          <button class="btn btn-ghost btn-sm" onclick="showView('carte-scanner')">📷 Scanner</button>
+          <button class="btn btn-ghost btn-sm" onclick="showView('carte-scanner')">📷 Scanner cartes</button>
           <button class="btn btn-ghost btn-sm" onclick="showView('inscriptions')">📝 Inscriptions</button>
-          <button class="btn btn-ghost btn-sm" onclick="showView('abonnes-newsletter')">📧 Newsletter</button>
+          <button class="btn btn-ghost btn-sm" onclick="showView('tasks')">✓ Tâches</button>
         </div>
         <!-- Widget météo -->
         <div id="weatherWidget" style="border-top:1px solid var(--border);padding:12px 16px"></div>
