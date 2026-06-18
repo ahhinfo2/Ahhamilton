@@ -12196,7 +12196,12 @@ function taskShowForm(existing) {
         </div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>Assigné à (ID)</label><input id="taskAssigne" type="number" value="${t.assigne_a || ''}"></div>
+        <div class="form-group" style="position:relative">
+          <label>Assigné à</label>
+          <input id="taskAssigneSearch" autocomplete="off" placeholder="Tapez un nom..." value="${escHtml(t.assigne_nom || '')}" oninput="_taskSearchMember(this.value)">
+          <input id="taskAssigne" type="hidden" value="${t.assigne_a || ''}">
+          <div id="taskAssigneDropdown" style="position:absolute;top:100%;left:0;right:0;z-index:50;background:#fff;border:1px solid #ddd;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.15);max-height:180px;overflow-y:auto;display:none"></div>
+        </div>
         <div class="form-group"><label>Échéance</label><input id="taskEcheance" type="date" value="${t.echeance ? t.echeance.substring(0,10) : ''}"></div>
       </div>
       <div style="display:flex;gap:8px;margin-top:12px">
@@ -12206,15 +12211,44 @@ function taskShowForm(existing) {
     </div>`;
 }
 
+let _taskSearchTimer = null;
+async function _taskSearchMember(query) {
+  const dd = document.getElementById('taskAssigneDropdown');
+  if (!dd) return;
+  clearTimeout(_taskSearchTimer);
+  if (!query || query.length < 2) { dd.style.display = 'none'; return; }
+  _taskSearchTimer = setTimeout(async () => {
+    try {
+      const members = await api('/members/search?q=' + encodeURIComponent(query));
+      if (!members || !members.length) { dd.style.display = 'none'; return; }
+      dd.innerHTML = members.map(m =>
+        `<div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:.88rem" onmouseover="this.style.background='#e3f2fd'" onmouseout="this.style.background=''" onclick="_taskSelectMember(${m.id},'${escHtml(m.prenom)} ${escHtml(m.nom)}')">
+          <strong>${escHtml(m.prenom)} ${escHtml(m.nom)}</strong> <span style="color:var(--muted);font-size:.78rem">${escHtml(m.email || '')}</span>
+        </div>`
+      ).join('');
+      dd.style.display = '';
+    } catch(e) { dd.style.display = 'none'; }
+  }, 250);
+}
+
+function _taskSelectMember(id, nom) {
+  document.getElementById('taskAssigne').value = id;
+  document.getElementById('taskAssigneSearch').value = nom;
+  document.getElementById('taskAssigneDropdown').style.display = 'none';
+}
+
 async function taskSave(id) {
   try {
+    const assigneId = document.getElementById('taskAssigne').value;
+    const assigneNom = document.getElementById('taskAssigneSearch').value;
     const data = {
       titre: document.getElementById('taskTitre').value,
       description: document.getElementById('taskDesc').value,
       categorie: document.getElementById('taskCategorie').value,
       priorite: document.getElementById('taskPriorite').value,
       statut: document.getElementById('taskStatut').value,
-      assigne_a: document.getElementById('taskAssigne').value || null,
+      assigne_a: assigneId || null,
+      assigne_nom_libre: !assigneId && assigneNom ? assigneNom : null,
       echeance: document.getElementById('taskEcheance').value || null,
     };
     if (!data.titre) { toast('Le titre est requis', true); return; }

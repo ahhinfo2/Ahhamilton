@@ -6276,6 +6276,17 @@ app.get('/api/guide.pdf', (req, res) => {
 
 const EXEC_ROLES = ['admin','tresoriere','secretaire','delegue'];
 
+// Recherche de membres par nom (autocomplétion)
+app.get('/api/members/search', authMiddleware, (req, res) => {
+  const q = (req.query.q || '').trim();
+  if (q.length < 2) return res.json([]);
+  const rows = db.prepare(`SELECT id, prenom, nom, email, role FROM users
+    WHERE actif=1 AND (phantom IS NULL OR phantom=0)
+    AND (prenom || ' ' || nom LIKE ? OR email LIKE ?)
+    ORDER BY nom LIMIT 10`).all(`%${q}%`, `%${q}%`);
+  res.json(rows);
+});
+
 app.get('/api/tasks', authMiddleware, (req, res) => {
   const rows = db.prepare(`SELECT t.*, u.prenom || ' ' || u.nom AS assigne_nom,
     c.prenom || ' ' || c.nom AS createur_nom
@@ -6297,22 +6308,73 @@ app.get('/api/tasks/my', authMiddleware, (req, res) => {
   res.json(rows);
 });
 
-app.post('/api/tasks', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+app.post('/api/tasks', authMiddleware, requireRole(...EXEC_ROLES), async (req, res) => {
   const { titre, description, statut, priorite, assigne_a, echeance, categorie } = req.body;
   if (!titre) return res.status(400).json({ error: 'Titre requis' });
   const r = db.prepare(`INSERT INTO tasks (titre, description, statut, priorite, assigne_a, cree_par, echeance, categorie)
     VALUES (?,?,?,?,?,?,?,?)`)
     .run(titre, description||'', statut||'a_faire', priorite||'moyenne', assigne_a||null, req.user.id, echeance||null, categorie||'autre');
+  if (assigne_a) {
+    const assignee = db.prepare('SELECT prenom, nom, email FROM users WHERE id=?').get(assigne_a);
+    if (assignee?.email) {
+      const siteUrl = process.env.SITE_URL || 'https://ahhamilton.ca';
+      const prioriteLabel = {haute:'Haute',moyenne:'Moyenne',basse:'Basse'}[priorite] || priorite || 'Moyenne';
+      mailer.sendMail({
+        to: assignee.email,
+        subject: `📋 Nouvelle tâche assignée — ${titre}`,
+        html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;border:1px solid #e0e0e0;border-radius:12px;overflow:hidden">
+          <div style="background:#1a237e;color:#fff;padding:20px 24px"><h2 style="margin:0;font-size:1.1rem">📋 Nouvelle tâche assignée</h2></div>
+          <div style="padding:24px">
+            <p>Bonjour <strong>${assignee.prenom}</strong>,</p>
+            <p>Une nouvelle tâche vous a été assignée par <strong>${req.user.prenom} ${req.user.nom}</strong> :</p>
+            <table style="width:100%;border-collapse:collapse;margin:16px 0">
+              <tr><td style="padding:8px;color:#888;width:120px">Titre</td><td style="padding:8px;font-weight:700">${titre}</td></tr>
+              ${description ? `<tr><td style="padding:8px;color:#888">Description</td><td style="padding:8px">${description}</td></tr>` : ''}
+              <tr><td style="padding:8px;color:#888">Priorité</td><td style="padding:8px">${prioriteLabel}</td></tr>
+              ${echeance ? `<tr><td style="padding:8px;color:#888">Échéance</td><td style="padding:8px">${echeance}</td></tr>` : ''}
+              ${categorie ? `<tr><td style="padding:8px;color:#888">Catégorie</td><td style="padding:8px">${categorie}</td></tr>` : ''}
+            </table>
+            <a href="${siteUrl}/dashboard/app.html" style="display:inline-block;background:#1a237e;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700;margin-top:12px">Voir mes tâches</a>
+          </div>
+        </div>`
+      }).catch(e => console.error('[TASK EMAIL]', e.message));
+      createAlert(parseInt(assigne_a), 'tache', `📋 Tâche assignée : ${titre}`, description || '');
+    }
+  }
   res.status(201).json({ id: r.lastInsertRowid });
 });
 
-app.put('/api/tasks/:id', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+app.put('/api/tasks/:id', authMiddleware, requireRole(...EXEC_ROLES), async (req, res) => {
   const { titre, description, statut, priorite, assigne_a, echeance, categorie } = req.body;
-  const existing = db.prepare('SELECT id FROM tasks WHERE id=?').get(req.params.id);
+  const existing = db.prepare('SELECT * FROM tasks WHERE id=?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Tâche introuvable' });
-  const dateCompletion = statut === 'termine' ? new Date().toISOString() : null;
+  const dateCompletion = statut === 'terminee' ? new Date().toISOString() : null;
   db.prepare(`UPDATE tasks SET titre=?, description=?, statut=?, priorite=?, assigne_a=?, echeance=?, categorie=?, date_completion=COALESCE(?,date_completion) WHERE id=?`)
     .run(titre, description||'', statut||'a_faire', priorite||'moyenne', assigne_a||null, echeance||null, categorie||'autre', dateCompletion, req.params.id);
+  if (assigne_a && String(assigne_a) !== String(existing.assigne_a)) {
+    const assignee = db.prepare('SELECT prenom, nom, email FROM users WHERE id=?').get(assigne_a);
+    if (assignee?.email) {
+      const siteUrl = process.env.SITE_URL || 'https://ahhamilton.ca';
+      mailer.sendMail({
+        to: assignee.email,
+        subject: `📋 Tâche assignée — ${titre}`,
+        html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;border:1px solid #e0e0e0;border-radius:12px;overflow:hidden">
+          <div style="background:#1a237e;color:#fff;padding:20px 24px"><h2 style="margin:0;font-size:1.1rem">📋 Tâche assignée</h2></div>
+          <div style="padding:24px">
+            <p>Bonjour <strong>${assignee.prenom}</strong>,</p>
+            <p><strong>${req.user.prenom} ${req.user.nom}</strong> vous a assigné une tâche :</p>
+            <table style="width:100%;border-collapse:collapse;margin:16px 0">
+              <tr><td style="padding:8px;color:#888;width:120px">Titre</td><td style="padding:8px;font-weight:700">${titre}</td></tr>
+              ${description ? `<tr><td style="padding:8px;color:#888">Description</td><td style="padding:8px">${description}</td></tr>` : ''}
+              ${echeance ? `<tr><td style="padding:8px;color:#888">Échéance</td><td style="padding:8px">${echeance}</td></tr>` : ''}
+            </table>
+            <a href="${siteUrl}/dashboard/app.html" style="display:inline-block;background:#1a237e;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700">Voir mes tâches</a>
+          </div>
+        </div>`
+      }).catch(e => console.error('[TASK EMAIL]', e.message));
+      createAlert(parseInt(assigne_a), 'tache', `📋 Tâche assignée : ${titre}`, description || '');
+    }
+  }
   res.json({ message: 'Tâche mise à jour' });
 });
 
