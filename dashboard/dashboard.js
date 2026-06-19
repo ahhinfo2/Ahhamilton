@@ -323,10 +323,10 @@ function buildSidebar() {
 
     // ── Rapports & Admin ──────────────────────────────────────────
     { label: 'Rapports', items: [
-      { id:'reports',      icon:'◆', label:'Rapports',        roles:STAFF },
-      { id:'stats-growth', icon:'📈', label:'Statistiques',   roles:EXEC },
-      { id:'alerts',       icon:'◇', label:'Alertes',         roles:['admin','tresoriere'] },
-      { id:'audit-log',    icon:'📋', label:'Journal d\'audit', roles:['admin'] },
+      { id:'reports',      icon:'◆', label:'Rapports',         roles:EXEC },
+      { id:'stats-growth', icon:'📈', label:'Statistiques',    roles:EXEC },
+      { id:'alerts',       icon:'◇', label:'Alertes',          roles:EXEC },
+      { id:'audit-log',    icon:'📋', label:'Journal d\'audit', roles:EXEC },
     ]},
 
     // ── Outils ────────────────────────────────────────────────────
