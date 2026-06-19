@@ -88,12 +88,13 @@
   <header class="navbar" id="navbar">
     <div class="container nav-inner">
 
-      <!-- Logo -->
-      <a href="${pre}index.html" class="logo">
+      <!-- Logos -->
+      <a href="${pre}index.html" class="logo" style="display:flex;align-items:center;gap:10px">
         <img src="${pre}Public/logo1.png" alt="AHH" class="logo-img"/>
         <div class="logo-text-group">
           <span class="logo-sub" style="font-size:.85rem;line-height:1.35">Association<br/>Haïtienne<br/>Hamilton</span>
         </div>
+        <img src="${pre}Public/Fond/logo-Hamilton.png" alt="Hamilton" style="height:36px;margin-left:6px;opacity:.85" onerror="this.style.display='none'"/>
       </a>
 
       <!-- Overlay mobile -->
