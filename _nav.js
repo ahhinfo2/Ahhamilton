@@ -88,12 +88,11 @@
   <header class="navbar" id="navbar">
     <div class="container nav-inner">
 
-      <!-- Logos -->
+      <!-- Logo -->
       <a href="${pre}index.html" class="logo">
         <img src="${pre}Public/logo1.png" alt="AHH" class="logo-img"/>
-        <div class="logo-text-group" style="display:flex;flex-direction:column;align-items:flex-start;gap:4px">
+        <div class="logo-text-group">
           <span class="logo-sub" style="font-size:.85rem;line-height:1.35">Association<br/>Haïtienne<br/>Hamilton</span>
-          <img src="${pre}Public/Fond/logo-Hamilton.png" alt="Hamilton" style="height:22px;opacity:.8" onerror="this.style.display='none'"/>
         </div>
       </a>
 
@@ -172,9 +171,12 @@
   <footer class="footer">
     <div class="container footer-inner">
       <div class="footer-brand">
-        <a href="${pre}index.html" class="logo footer-logo">
-          <img src="${pre}Public/logo1.png" alt="AHH" class="logo-img"/>
-        </a>
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:8px">
+          <a href="${pre}index.html" class="logo footer-logo">
+            <img src="${pre}Public/logo1.png" alt="AHH" class="logo-img"/>
+          </a>
+          <img src="${pre}Public/Fond/logo-Hamilton.png" alt="Ville de Hamilton" style="height:40px;opacity:.9" onerror="this.style.display='none'"/>
+        </div>
         <p data-i18n="footer-desc">Association Haïtienne de Hamilton, une communauté unie dans la culture et la solidarité.</p>
         <div class="footer-socials">
           <a href="https://www.facebook.com/profile.php?id=61563612753408" target="_blank" rel="noopener" class="social-icon" aria-label="Facebook">f</a>
