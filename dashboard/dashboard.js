@@ -12779,7 +12779,7 @@ async function policyDelete(id) {
 
 // ══ AUDIT LOG — même style que Stats du site (connexions par membre) ════
 async function auditLogView() {
-  if (!can.admin()) { toast('Accès réservé aux administrateurs', true); return; }
+  if (!can.executive()) { toast('Accès réservé au comité exécutif', true); return; }
 
   setContent(`
     <div class="page-header">
