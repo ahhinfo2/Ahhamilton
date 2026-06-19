@@ -89,12 +89,12 @@
     <div class="container nav-inner">
 
       <!-- Logos -->
-      <a href="${pre}index.html" class="logo" style="display:flex;align-items:center;gap:10px">
+      <a href="${pre}index.html" class="logo">
         <img src="${pre}Public/logo1.png" alt="AHH" class="logo-img"/>
-        <div class="logo-text-group">
+        <div class="logo-text-group" style="display:flex;flex-direction:column;align-items:flex-start;gap:4px">
           <span class="logo-sub" style="font-size:.85rem;line-height:1.35">Association<br/>Haïtienne<br/>Hamilton</span>
+          <img src="${pre}Public/Fond/logo-Hamilton.png" alt="Hamilton" style="height:22px;opacity:.8" onerror="this.style.display='none'"/>
         </div>
-        <img src="${pre}Public/Fond/logo-Hamilton.png" alt="Hamilton" style="height:36px;margin-left:6px;opacity:.85" onerror="this.style.display='none'"/>
       </a>
 
       <!-- Overlay mobile -->
