@@ -385,33 +385,23 @@ async function loadActivities() {
 
 // ── Scanner ───────────────────────────────────────────────────────────────────
 function startScanner() {
-  scanner = new Html5Qrcode('reader');
-  const isMobile = window.innerWidth < 640;
-  const qrSize = isMobile ? Math.min(200, Math.floor(window.innerWidth * 0.55)) : 260;
-  const config = {
-    fps: isMobile ? 15 : 30,
-    qrbox: { width: qrSize, height: qrSize },
-    aspectRatio: isMobile ? 1.0 : 1.0,
-    disableFlip: false,
+  scanner = new Html5Qrcode('reader', {
     formatsToSupport: [ Html5QrcodeSupportedFormats.QR_CODE ],
     experimentalFeatures: { useBarCodeDetectorIfSupported: true }
-  };
+  });
+  const isMobile = window.innerWidth < 640;
+  const qrSize = isMobile ? Math.min(180, Math.floor(window.innerWidth * 0.5)) : 250;
+  const config = { fps: 10, qrbox: qrSize, disableFlip: false };
 
-  // Essai 1 : caméra arrière exacte (Android Chrome)
-  scanner.start({ facingMode: { exact: 'environment' } }, config, onQRDetected, () => {})
+  scanner.start({ facingMode: 'environment' }, config, onQRDetected, () => {})
     .catch(() => {
-      // Essai 2 : caméra arrière préférée (iOS Safari + Chrome)
-      scanner.start({ facingMode: 'environment' }, config, onQRDetected, () => {})
+      scanner.start({ facingMode: 'user' }, config, onQRDetected, () => {})
         .catch(() => {
-          // Essai 3 : n'importe quelle caméra
-          scanner.start({ facingMode: 'user' }, config, onQRDetected, () => {})
-            .catch(() => {
-              // Essai 4 : laisser le navigateur choisir
-              scanner.start(null, config, onQRDetected, () => {})
-                .catch(err => {
-                  const tip = document.querySelector('.cam-tip');
-                  if (tip) { tip.textContent = '⚠️ Caméra inaccessible. Autorisez l\'accès dans les réglages.'; tip.style.color = '#ef5350'; }
-                });
+          scanner.start(true, config, onQRDetected, () => {})
+            .catch(err => {
+              console.error('[SCAN] Caméra échouée:', err);
+              const tip = document.querySelector('.cam-tip');
+              if (tip) { tip.textContent = '⚠️ Caméra inaccessible. Utilisez la saisie manuelle ci-dessous.'; tip.style.color = '#ef5350'; tip.style.display = 'block'; }
             });
         });
     });
