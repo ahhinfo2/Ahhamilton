@@ -380,6 +380,7 @@ function buildSidebar() {
   if (USER.role === 'member') {
     const memberItems = [
       { id:'home',         icon:'⊞', label:'Tableau de bord' },
+      { id:'activities',   icon:'◉', label:'Activités' },
       { id:'mes_billets',  icon:'🎟', label:'Mes billets' },
       USER.in_subcommittee ? { id:'subcommittees', icon:'◐', label:'Sous-comités' } : null,
       ['bienfaiteur','partenaire'].includes(USER.plan) ? { id:'mes_talents',  icon:'◈', label:'Mon talent' }   : null,
