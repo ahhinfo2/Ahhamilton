@@ -351,12 +351,15 @@ async function loadActivities() {
     const delegatedActIds = myDelegations.map(d => d.activity_id).filter(Boolean);
     const hasGlobalDelegation = myDelegations.some(d => !d.activity_id);
 
-    let filteredActs = acts.filter(a => a.statut !== 'terminee' && a.statut !== 'archivee');
+    let filteredActs = acts.filter(a => a.statut === 'planifiee' || a.statut === 'en_cours');
     if (!isExec && !hasGlobalDelegation) {
       filteredActs = filteredActs.filter(a => delegatedActIds.includes(a.id));
-      // Pas d'option "Toutes les activités" pour les délégués limités
-      if (filteredActs.length > 0) sel.innerHTML = '';
     }
+
+    // Toujours garder "Toutes les activités" en premier pour EXEC
+    sel.innerHTML = isExec || hasGlobalDelegation
+      ? '<option value="">Toutes les activités</option>'
+      : '';
 
     filteredActs.forEach(a => {
       const opt = document.createElement('option');
@@ -365,12 +368,13 @@ async function loadActivities() {
       sel.appendChild(opt);
     });
 
-    // Auto-sélection si un seul choix ou via URL
+    // Auto-sélection uniquement pour délégués avec 1 seule activité
     if (!isExec && !hasGlobalDelegation && filteredActs.length === 1) {
       sel.value = filteredActs[0].id;
     }
     const urlActId = new URLSearchParams(window.location.search).get('activity_id');
     if (urlActId) sel.value = urlActId;
+    console.log('[SCAN] ' + filteredActs.length + ' activités chargées, role=' + USER.role);
   } catch(e) {}
 }
 
