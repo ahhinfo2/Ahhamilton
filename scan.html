@@ -387,7 +387,7 @@ async function loadActivities() {
 function startScanner() {
   scanner = new Html5Qrcode('reader');
   const config = {
-    fps: 10,
+    fps: 30,
     qrbox: { width: 250, height: 250 },
     aspectRatio: 1.0,
     disableFlip: false
