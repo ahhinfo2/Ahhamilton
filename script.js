@@ -298,7 +298,13 @@ if (contactForm) {
       if (act.prix > 0) meta.push('💳 ' + act.prix.toFixed(2) + ' $');
       else meta.push('✅ Entrée libre');
       document.getElementById('featured-meta').innerHTML = meta.join('&nbsp;·&nbsp;');
-      if (act.description) document.getElementById('featured-desc').textContent = act.description.substring(0, 240) + (act.description.length > 240 ? '...' : '');
+      if (act.description) {
+        var descEl = document.getElementById('featured-desc');
+        var tmp = document.createElement('div'); tmp.innerHTML = act.description;
+        var plain = tmp.textContent || tmp.innerText || '';
+        if (plain.length <= 300) { descEl.innerHTML = act.description; }
+        else { descEl.textContent = plain.substring(0, 240) + '...'; }
+      }
       const imgDiv = document.getElementById('featured-img');
       if (act.flyer) imgDiv.innerHTML = '<img src="' + BASE + act.flyer + '" alt="' + act.titre + '" style="width:100%;max-width:380px;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.3);object-fit:cover;aspect-ratio:3/4;display:block">';
       const btn = document.getElementById('featured-btn');

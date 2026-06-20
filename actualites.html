@@ -231,7 +231,10 @@
       const typeLabel = ev.type.charAt(0).toUpperCase() + ev.type.slice(1);
       const dateStr  = ev.date_debut ? '📅 ' + new Date(ev.date_debut).toLocaleDateString('fr-CA') : '';
       const lieuStr  = ev.lieu ? '📍 ' + ev.lieu : '';
-      const desc     = ev.description || 'Rejoignez-nous pour cet événement communautaire.';
+      var descRaw = ev.description || 'Rejoignez-nous pour cet événement communautaire.';
+      var descTmp = document.createElement('div'); descTmp.innerHTML = descRaw;
+      var descPlain = descTmp.textContent || descTmp.innerText || '';
+      const desc = descPlain.length <= 200 ? descRaw : descPlain.substring(0, 200) + '…';
       const prixStr  = ev.paiement_requis && ev.prix > 0 ? '<span>💳 ' + ev.prix.toFixed(2) + ' $</span>' : '';
 
       // Header: photo thumbnail if available, otherwise emoji gradient
