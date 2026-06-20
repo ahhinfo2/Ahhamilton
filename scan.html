@@ -385,23 +385,26 @@ async function loadActivities() {
 
 // ── Scanner ───────────────────────────────────────────────────────────────────
 function startScanner() {
-  scanner = new Html5Qrcode('reader', {
-    formatsToSupport: [ Html5QrcodeSupportedFormats.QR_CODE ],
-    experimentalFeatures: { useBarCodeDetectorIfSupported: true }
-  });
-  const isMobile = window.innerWidth < 640;
-  const qrSize = isMobile ? Math.min(180, Math.floor(window.innerWidth * 0.5)) : 250;
-  const config = { fps: 10, qrbox: qrSize, disableFlip: false };
+  scanner = new Html5Qrcode('reader');
+  const config = {
+    fps: 10,
+    qrbox: { width: 250, height: 250 },
+    aspectRatio: 1.0,
+    disableFlip: false
+  };
 
-  scanner.start({ facingMode: 'environment' }, config, onQRDetected, () => {})
+  scanner.start({ facingMode: { exact: 'environment' } }, config, onQRDetected, () => {})
     .catch(() => {
-      scanner.start({ facingMode: 'user' }, config, onQRDetected, () => {})
+      scanner.start({ facingMode: 'environment' }, config, onQRDetected, () => {})
         .catch(() => {
-          scanner.start(true, config, onQRDetected, () => {})
-            .catch(err => {
-              console.error('[SCAN] Caméra échouée:', err);
-              const tip = document.querySelector('.cam-tip');
-              if (tip) { tip.textContent = '⚠️ Caméra inaccessible. Utilisez la saisie manuelle ci-dessous.'; tip.style.color = '#ef5350'; tip.style.display = 'block'; }
+          scanner.start({ facingMode: 'user' }, config, onQRDetected, () => {})
+            .catch(() => {
+              scanner.start(true, config, onQRDetected, () => {})
+                .catch(err => {
+                  console.error('[SCAN] Caméra échouée:', err);
+                  var tip = document.querySelector('.cam-tip');
+                  if (tip) { tip.textContent = '⚠️ Caméra inaccessible. Utilisez la saisie manuelle.'; tip.style.color = '#ef5350'; tip.style.display = 'block'; }
+                });
             });
         });
     });
