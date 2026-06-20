@@ -1609,6 +1609,26 @@ const canCreateActivity = () => ['admin','tresoriere','secretaire','delegue'].in
 // Seuls VP (admin) et Présidente (admin) peuvent définir les rabais
 const canSetDiscount = () => USER.role === 'admin';
 
+async function _uploadActivityImage(actId, file) {
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('image', file);
+  try {
+    const r = await fetch(BASE + '/api/activities/' + actId + '/image', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + TOKEN },
+      body: fd
+    });
+    if (!r.ok) throw new Error('Erreur upload');
+    const data = await r.json();
+    toast('Image ajoutée');
+    const acts = window._activitiesData || [];
+    const a = acts.find(x => x.id === actId);
+    if (a) a.image_path = data.image_path;
+    openActivityDetail(actId);
+  } catch(e) { toast('Erreur : ' + e.message, true); }
+}
+
 async function openActivityDetail(actId) {
   try {
     const a = (window._activitiesData || []).find(x => x.id === actId);
@@ -1622,6 +1642,13 @@ async function openActivityDetail(actId) {
 
     openModal(`📅 ${escHtml(a.titre)}`, `
       <div style="display:flex;flex-direction:column;gap:16px">
+        ${a.image_path ? `<img src="${a.image_path}" alt="${escHtml(a.titre)}" style="width:100%;max-height:300px;object-fit:cover;border-radius:12px" onerror="this.style.display='none'"/>` : ''}
+        ${!a.image_path && canCreateActivity() ? `<div style="text-align:center;padding:16px;background:var(--off);border-radius:10px;border:2px dashed #ccc">
+          <label style="cursor:pointer;color:var(--muted);font-size:.85rem">
+            📷 Ajouter une image à cette activité
+            <input type="file" accept="image/*" style="display:none" onchange="_uploadActivityImage(${a.id},this.files[0])"/>
+          </label>
+        </div>` : ''}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
           <div style="background:var(--off);padding:12px;border-radius:10px">
             <div style="font-size:.75rem;color:var(--muted);text-transform:uppercase;font-weight:600;margin-bottom:4px">Date</div>

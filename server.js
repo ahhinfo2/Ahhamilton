@@ -830,6 +830,13 @@ app.put('/api/activities/:id', authMiddleware, requireRole(...ACTIVITY_ROLES), (
   res.json({ message: 'Activité mise à jour' });
 });
 
+app.post('/api/activities/:id/image', authMiddleware, requireRole(...ACTIVITY_ROLES), uploadActivityPhoto.single('image'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Image requise' });
+  const imagePath = `/uploads/activities/${req.params.id}/${req.file.filename}`;
+  db.prepare('UPDATE activities SET image_path=? WHERE id=?').run(imagePath, req.params.id);
+  res.json({ image_path: imagePath });
+});
+
 app.delete('/api/activities/:id', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
   const actId = parseInt(req.params.id);
   const act = db.prepare('SELECT * FROM activities WHERE id = ?').get(actId);
