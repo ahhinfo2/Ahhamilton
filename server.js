@@ -3993,9 +3993,23 @@ app.post('/api/tickets/checkin', authMiddleware, (req, res) => {
     return res.status(409).json({ error: `Ce billet est pour l'activité : ${ticket.activite}` });
   }
 
-  const alreadyIn = ticket.checked_in === 1;
-  if (!alreadyIn) {
+  // Vérifier aussi si déjà entré via scan de carte membre
+  const regAlreadyIn = ticket.user_id
+    ? db.prepare('SELECT checked_in FROM activity_registrations WHERE user_id=? AND activity_id=? AND checked_in=1').get(ticket.user_id, ticket.act_id)
+    : null;
+  const alreadyIn = ticket.checked_in === 1 || !!regAlreadyIn;
+
+  if (!ticket.checked_in) {
     db.prepare('UPDATE tickets SET checked_in=1, date_checkin=CURRENT_TIMESTAMP WHERE id=?').run(ticket.id);
+  }
+  // Check-in croisé : marquer aussi la registration du membre
+  if (ticket.user_id) {
+    const reg = db.prepare('SELECT id FROM activity_registrations WHERE user_id=? AND activity_id=?').get(ticket.user_id, ticket.act_id);
+    if (reg) {
+      db.prepare("UPDATE activity_registrations SET statut='present', checked_in=1, date_checkin=COALESCE(date_checkin,CURRENT_TIMESTAMP) WHERE user_id=? AND activity_id=?").run(ticket.user_id, ticket.act_id);
+    } else {
+      db.prepare("INSERT INTO activity_registrations (user_id, activity_id, statut, checked_in, date_checkin) VALUES (?,?,'present',1,CURRENT_TIMESTAMP)").run(ticket.user_id, ticket.act_id);
+    }
   }
 
   const nomBillet = ticket.acheteur_nom || ((ticket.buyer_prenom||'') + ' ' + (ticket.buyer_nom||'')).trim();
@@ -5902,35 +5916,47 @@ app.post('/api/carte-scan/presencer', authMiddleware, (req, res) => {
 
   const scannedIsExec = CARTE_ROLES.includes(scannedUser.role);
 
-  // Activité payante : vérifier si le membre a un billet ou est du comité
-  if (act.paiement_requis && act.prix > 0 && !scannedIsExec) {
-    const hasBillet = db.prepare("SELECT id FROM tickets WHERE activity_id=? AND (user_id=? OR acheteur_email=(SELECT email FROM users WHERE id=?)) AND payment_status='paid' AND statut='actif'").get(activity_id, user_id, user_id);
-    if (!hasBillet) {
-      return res.status(403).json({
-        error: 'Pas de billet — activité payante',
-        detail: `${scannedUser.prenom} ${scannedUser.nom} n'a pas de billet pour cette activité (${act.prix.toFixed(2)} $). Achat requis.`
-      });
-    }
+  // Chercher le billet du membre pour cette activité
+  const billet = db.prepare("SELECT * FROM tickets WHERE activity_id=? AND (user_id=? OR acheteur_email=(SELECT email FROM users WHERE id=?)) AND payment_status='paid' AND statut='actif'").get(activity_id, user_id, user_id);
+
+  // Activité payante : vérifier billet ou comité
+  if (act.paiement_requis && act.prix > 0 && !scannedIsExec && !billet) {
+    return res.status(403).json({
+      error: 'Pas de billet — activité payante',
+      detail: `${scannedUser.prenom} ${scannedUser.nom} n'a pas de billet pour cette activité (${act.prix.toFixed(2)} $). Achat requis.`
+    });
   }
 
-  // Comité : entrée gratuite à toutes les activités
-  const statut = scannedIsExec ? 'present' : 'confirme';
+  // Vérifier si déjà entré (via billet OU registration)
+  const existingReg = db.prepare('SELECT * FROM activity_registrations WHERE user_id=? AND activity_id=?').get(user_id, activity_id);
+  const billetDejaScanne = billet?.checked_in === 1;
+  const regDejaPresent = existingReg?.checked_in === 1;
+  const alreadyIn = billetDejaScanne || regDejaPresent;
 
-  const existing = db.prepare('SELECT * FROM activity_registrations WHERE user_id=? AND activity_id=?').get(user_id, activity_id);
-  if (existing) {
-    db.prepare('UPDATE activity_registrations SET statut=?, checked_in=1, date_checkin=CURRENT_TIMESTAMP WHERE user_id=? AND activity_id=?')
+  // Marquer présence dans la registration
+  const statut = scannedIsExec ? 'present' : 'confirme';
+  if (existingReg) {
+    db.prepare('UPDATE activity_registrations SET statut=?, checked_in=1, date_checkin=COALESCE(date_checkin,CURRENT_TIMESTAMP) WHERE user_id=? AND activity_id=?')
       .run(statut, user_id, activity_id);
   } else {
     db.prepare("INSERT INTO activity_registrations (user_id, activity_id, statut, checked_in, date_checkin) VALUES (?,?,?,1,CURRENT_TIMESTAMP)")
       .run(user_id, activity_id, statut);
   }
 
+  // Check-in croisé : marquer le billet aussi
+  if (billet && !billetDejaScanne) {
+    db.prepare('UPDATE tickets SET checked_in=1, date_checkin=CURRENT_TIMESTAMP WHERE id=?').run(billet.id);
+  }
+
+  const label = scannedIsExec ? 'Comité (entrée VIP)' : 'Présence confirmée';
   res.json({
     ok: true,
+    already_in: alreadyIn,
     vip: scannedIsExec,
-    message: scannedIsExec
-      ? `✅ ${scannedUser.prenom} ${scannedUser.nom} — Comité (entrée VIP)`
-      : `✅ ${scannedUser.prenom} ${scannedUser.nom} — Présence confirmée`
+    billet_code: billet?.barcode_data || null,
+    message: alreadyIn
+      ? `🔄 ${scannedUser.prenom} ${scannedUser.nom} — Déjà entré(e)`
+      : `✅ ${scannedUser.prenom} ${scannedUser.nom} — ${label}`
   });
 });
 
