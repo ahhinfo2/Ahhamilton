@@ -11015,11 +11015,17 @@ async function carteScanSearch() {
             ? `<img src="${BASE}${m.photo_url}" style="width:88px;height:88px;border-radius:50%;object-fit:cover;border:4px solid #1565c0;margin-bottom:10px;opacity:.7"/>`
             : `<div style="width:88px;height:88px;border-radius:50%;background:${avatarBg};color:#fff;font-size:2.2rem;font-weight:900;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;border:4px solid ${avatarBg}">${initials}</div>`}
         <div style="font-size:1.15rem;font-weight:800">${escHtml(m.prenom)} ${escHtml(m.nom)}</div>
-        <div style="font-size:.8rem;color:var(--muted);margin-top:2px">#${String(m.id).padStart(5,'0')} · ${planLabel[m.plan]||''}</div>
+        <div style="font-size:.8rem;color:var(--muted);margin-top:2px">#${String(m.id).padStart(5,'0')} · ${planLabel[m.plan]||''} ${m.is_comite ? '· <span style="color:#1b5e20;font-weight:700">COMITÉ</span>' : ''}</div>
         <div style="margin-top:10px;padding:8px 16px;border-radius:20px;display:inline-block;font-size:.82rem;font-weight:700;
           background:${expiBg};color:${expiColor}">
           ${validLabel}
         </div>
+        ${sansPhoto && can.executive() ? `<div style="margin-top:10px">
+          <label style="cursor:pointer;background:var(--accent);color:#000;padding:8px 16px;border-radius:8px;font-size:.8rem;font-weight:700;display:inline-block">
+            📷 Prendre / Ajouter photo
+            <input type="file" accept="image/*" capture="environment" style="display:none" onchange="_uploadCartePhoto(${m.id},this.files[0])"/>
+          </label>
+        </div>` : ''}
       </div>`;
 
     window._scanUserId = m.id;
@@ -11042,15 +11048,19 @@ async function carteScanSearch() {
             : `<button class="btn btn-sm btn-primary" style="background:#2e7d32;white-space:nowrap" onclick="carteScanPresencer(${a.id})">✅ Confirmer présence</button>`}
         </div>`;
 
-      const rowDisponible = (a) => `
-        <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid #e3f2fd;flex-wrap:wrap">
+      const rowDisponible = (a) => {
+        const billetInfo = a.nb_billets > 0
+          ? `<span style="font-size:.72rem;background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:8px;font-weight:600">${a.billets_non_utilises}/${a.nb_billets} billet(s)</span>`
+          : (a.paiement_requis && a.prix > 0 ? `<span style="font-size:.72rem;background:#fdecea;color:#c62828;padding:2px 8px;border-radius:8px;font-weight:600">Pas de billet</span>` : '');
+        return `<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid #e3f2fd;flex-wrap:wrap">
           <div style="width:8px;height:8px;border-radius:50%;background:#1565c0;flex-shrink:0"></div>
           <div style="flex:1;min-width:0">
-            <div style="font-weight:600;font-size:.88rem">${escHtml(a.titre)}</div>
+            <div style="font-weight:600;font-size:.88rem">${escHtml(a.titre)} ${billetInfo}</div>
             <div style="font-size:.74rem;color:var(--muted)">${a.date_debut ? new Date(a.date_debut).toLocaleDateString('fr-CA',{weekday:'short',month:'short',day:'numeric'}) : '–'}${a.lieu ? ' · ' + escHtml(a.lieu) : ''}</div>
           </div>
-          <button class="btn btn-sm btn-outline" style="border-color:#1565c0;color:#1565c0;white-space:nowrap" onclick="carteScanPresencer(${a.id})">+ Ajouter présence</button>
+          <button class="btn btn-sm btn-outline" style="border-color:#1565c0;color:#1565c0;white-space:nowrap" onclick="carteScanPresencer(${a.id})">+ Présence</button>
         </div>`;
+      };
 
       actEl.innerHTML = `
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;max-width:920px">
@@ -11073,6 +11083,22 @@ async function carteScanSearch() {
     const actEl = document.getElementById('scanActivities');
     if (actEl) actEl.style.display = 'none';
   }
+}
+
+async function _uploadCartePhoto(userId, file) {
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('photo', file);
+  try {
+    await fetch(BASE + '/api/admin/cartes/' + userId + '/photo', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + TOKEN },
+      body: fd
+    });
+    toast('✅ Photo ajoutée — carte validée');
+    const input = document.getElementById('scanQrInput');
+    if (input?.value) carteScanSearch();
+  } catch(e) { toast('Erreur photo : ' + e.message, true); }
 }
 
 async function carteScanPresencer(actId) {

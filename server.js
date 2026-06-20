@@ -5852,6 +5852,14 @@ app.post('/api/admin/cartes/:id/rejeter-photo', authMiddleware, requireRole(...C
   res.json({ ok: true });
 });
 
+// Upload photo membre depuis le scanner (comité prend la photo)
+app.post('/api/admin/cartes/:id/photo', authMiddleware, requireRole(...CARTE_ROLES), uploadProfile.single('photo'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Photo requise' });
+  const photoUrl = `/uploads/profiles/${req.file.filename}`;
+  db.prepare('UPDATE users SET photo_url=?, carte_photo_approuvee=1 WHERE id=?').run(photoUrl, req.params.id);
+  res.json({ ok: true, photo_url: photoUrl });
+});
+
 app.post('/api/admin/cartes/:id/renouveler', authMiddleware, requireRole(...CARTE_ROLES), (req, res) => {
   const today = new Date().toISOString().split('T')[0];
   db.prepare('UPDATE users SET date_inscription=?, carte_notif_renouv=0 WHERE id=?').run(today, req.params.id);
@@ -5882,20 +5890,29 @@ app.get('/api/carte-scan/:qr', authMiddleware, (req, res) => {
 
   if (!userId || isNaN(userId)) return res.status(404).json({ error: 'QR invalide' });
 
-  const member = db.prepare(`SELECT id, prenom, nom, email, plan, photo_url, carte_photo_approuvee, date_inscription
-    FROM users WHERE id=? AND actif=1`).get(userId);
+  const member = db.prepare(`SELECT id, prenom, nom, email, role, plan, photo_url, carte_photo_approuvee, date_inscription, actif
+    FROM users WHERE id=?`).get(userId);
   if (!member) return res.status(404).json({ error: 'Membre introuvable' });
+  if (!member.actif) return res.status(403).json({ error: 'Compte désactivé' });
 
   const expiration = carteExpiration(member.date_inscription);
   const expired = expiration ? new Date() > new Date(expiration) : false;
+  const carteValide = !expired && member.carte_photo_approuvee === 1 && !!member.photo_url;
+  const isExecMember = CARTE_ROLES.includes(member.role);
 
   const activities = db.prepare(`
-    SELECT a.id, a.titre, a.date_debut, a.lieu,
-      (SELECT statut FROM activity_registrations WHERE activity_id=a.id AND user_id=? LIMIT 1) AS reg_statut
-    FROM activities a WHERE a.statut='planifiee' ORDER BY a.date_debut LIMIT 40
-  `).all(userId);
+    SELECT a.id, a.titre, a.date_debut, a.lieu, a.prix, a.paiement_requis,
+      (SELECT statut FROM activity_registrations WHERE activity_id=a.id AND user_id=? LIMIT 1) AS reg_statut,
+      (SELECT checked_in FROM activity_registrations WHERE activity_id=a.id AND user_id=? LIMIT 1) AS reg_checked_in,
+      (SELECT COUNT(*) FROM tickets WHERE activity_id=a.id AND (user_id=? OR acheteur_email=?) AND payment_status='paid' AND statut='actif') AS nb_billets,
+      (SELECT COUNT(*) FROM tickets WHERE activity_id=a.id AND (user_id=? OR acheteur_email=?) AND payment_status='paid' AND statut='actif' AND checked_in=0) AS billets_non_utilises
+    FROM activities a WHERE a.statut IN ('planifiee','en_cours') ORDER BY a.date_debut LIMIT 40
+  `).all(userId, userId, userId, member.email, userId, member.email);
 
-  res.json({ member: { ...member, expiration, expired }, activities });
+  res.json({
+    member: { ...member, expiration, expired, carte_valide: carteValide, is_comite: isExecMember },
+    activities
+  });
 });
 
 // Marquer présence via scanner carte
@@ -5905,35 +5922,57 @@ app.post('/api/carte-scan/presencer', authMiddleware, (req, res) => {
     const deleg = db.prepare("SELECT id FROM scan_delegations WHERE user_id=? AND actif=1 AND type IN ('cartes','tous') AND (date_expiration IS NULL OR date_expiration > datetime('now'))").get(req.user.id);
     if (!deleg) return res.status(403).json({ error: 'Accès refusé' });
   }
-  const { user_id, activity_id } = req.body;
+  const { user_id, activity_id, nb_entrees } = req.body;
   if (!user_id || !activity_id) return res.status(400).json({ error: 'Paramètres manquants' });
 
   const act = db.prepare('SELECT * FROM activities WHERE id=?').get(activity_id);
   if (!act) return res.status(404).json({ error: 'Activité introuvable' });
 
-  const scannedUser = db.prepare('SELECT id, role, prenom, nom FROM users WHERE id=?').get(user_id);
+  const scannedUser = db.prepare('SELECT id, role, prenom, nom, email, date_inscription, carte_photo_approuvee, photo_url FROM users WHERE id=?').get(user_id);
   if (!scannedUser) return res.status(404).json({ error: 'Membre introuvable' });
 
   const scannedIsExec = CARTE_ROLES.includes(scannedUser.role);
 
-  // Chercher le billet du membre pour cette activité
-  const billet = db.prepare("SELECT * FROM tickets WHERE activity_id=? AND (user_id=? OR acheteur_email=(SELECT email FROM users WHERE id=?)) AND payment_status='paid' AND statut='actif'").get(activity_id, user_id, user_id);
+  // Vérifier validité de la carte (sauf comité)
+  if (!scannedIsExec) {
+    const exp = carteExpiration(scannedUser.date_inscription);
+    const carteExpired = exp ? new Date() > new Date(exp) : false;
+    if (carteExpired) {
+      return res.status(403).json({
+        error: 'Carte expirée',
+        detail: `La carte de ${scannedUser.prenom} ${scannedUser.nom} est expirée depuis le ${exp}. Renouvellement requis.`
+      });
+    }
+  }
+
+  // Chercher TOUS les billets du membre pour cette activité
+  const billets = db.prepare("SELECT * FROM tickets WHERE activity_id=? AND (user_id=? OR acheteur_email=?) AND payment_status='paid' AND statut='actif' ORDER BY checked_in ASC, id ASC")
+    .all(activity_id, user_id, scannedUser.email);
+  const billetsNonUtilises = billets.filter(b => !b.checked_in);
 
   // Activité payante : vérifier billet ou comité
-  if (act.paiement_requis && act.prix > 0 && !scannedIsExec && !billet) {
+  if (act.paiement_requis && act.prix > 0 && !scannedIsExec && billets.length === 0) {
     return res.status(403).json({
       error: 'Pas de billet — activité payante',
       detail: `${scannedUser.prenom} ${scannedUser.nom} n'a pas de billet pour cette activité (${act.prix.toFixed(2)} $). Achat requis.`
     });
   }
 
-  // Vérifier si déjà entré (via billet OU registration)
+  // Vérifier si le membre est déjà entré
   const existingReg = db.prepare('SELECT * FROM activity_registrations WHERE user_id=? AND activity_id=?').get(user_id, activity_id);
-  const billetDejaScanne = billet?.checked_in === 1;
   const regDejaPresent = existingReg?.checked_in === 1;
-  const alreadyIn = billetDejaScanne || regDejaPresent;
 
-  // Marquer présence dans la registration
+  // Nombre d'entrées à marquer (1 pour le membre, + accompagnateurs via billets supplémentaires)
+  const entreesVoulues = Math.min(parseInt(nb_entrees) || 1, billetsNonUtilises.length || 1);
+
+  // Check-in croisé : marquer les billets non utilisés
+  let billetsCheckedIn = 0;
+  for (let i = 0; i < entreesVoulues && i < billetsNonUtilises.length; i++) {
+    db.prepare('UPDATE tickets SET checked_in=1, date_checkin=CURRENT_TIMESTAMP WHERE id=?').run(billetsNonUtilises[i].id);
+    billetsCheckedIn++;
+  }
+
+  // Marquer présence du membre
   const statut = scannedIsExec ? 'present' : 'confirme';
   if (existingReg) {
     db.prepare('UPDATE activity_registrations SET statut=?, checked_in=1, date_checkin=COALESCE(date_checkin,CURRENT_TIMESTAMP) WHERE user_id=? AND activity_id=?')
@@ -5943,20 +5982,29 @@ app.post('/api/carte-scan/presencer', authMiddleware, (req, res) => {
       .run(user_id, activity_id, statut);
   }
 
-  // Check-in croisé : marquer le billet aussi
-  if (billet && !billetDejaScanne) {
-    db.prepare('UPDATE tickets SET checked_in=1, date_checkin=CURRENT_TIMESTAMP WHERE id=?').run(billet.id);
+  const totalBillets = billets.length;
+  const restants = billetsNonUtilises.length - billetsCheckedIn;
+  const alreadyIn = regDejaPresent && billetsNonUtilises.length === 0;
+
+  let message;
+  if (alreadyIn) {
+    message = `🔄 ${scannedUser.prenom} ${scannedUser.nom} — Déjà entré(e), aucun billet restant`;
+  } else if (scannedIsExec) {
+    message = `✅ ${scannedUser.prenom} ${scannedUser.nom} — Comité (entrée VIP)`;
+  } else if (totalBillets > 1) {
+    message = `✅ ${scannedUser.prenom} ${scannedUser.nom} — ${billetsCheckedIn} entrée(s) validée(s), ${restants} billet(s) restant(s) sur ${totalBillets}`;
+  } else {
+    message = `✅ ${scannedUser.prenom} ${scannedUser.nom} — Présence confirmée`;
   }
 
-  const label = scannedIsExec ? 'Comité (entrée VIP)' : 'Présence confirmée';
   res.json({
     ok: true,
     already_in: alreadyIn,
     vip: scannedIsExec,
-    billet_code: billet?.barcode_data || null,
-    message: alreadyIn
-      ? `🔄 ${scannedUser.prenom} ${scannedUser.nom} — Déjà entré(e)`
-      : `✅ ${scannedUser.prenom} ${scannedUser.nom} — ${label}`
+    total_billets: totalBillets,
+    billets_utilises: totalBillets - restants,
+    billets_restants: restants,
+    message
   });
 });
 
