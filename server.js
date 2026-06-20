@@ -7180,7 +7180,6 @@ app.get('/api/reports/annual', authMiddleware, requireRole('admin'), (req, res) 
 // ── Simulation test scan 50 billets (temporaire) ──────────
 app.post('/api/test/create-scan-simulation', authMiddleware, requireRole('admin','secretaire'), async (req, res) => {
   try {
-    const crypto2 = require('crypto');
     function _bc() { const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s='AHH-'; for(let i=0;i<6;i++) s+=c[Math.floor(Math.random()*c.length)]; return s; }
     const siteBase = process.env.SITE_URL || 'https://ahhamilton.ca';
     const qrDir = path.join(__dirname, 'uploads', 'qr');
