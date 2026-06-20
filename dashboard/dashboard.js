@@ -354,8 +354,9 @@ async function buildSidebar() {
 
     // ── Scanners ──────────────────────────────────────────────────
     { label: 'Scanners', items: [
-      { id:'carte-scanner', icon:'📷', label:'Scanner cartes',   roles:EXEC },
-      { id:'scanner',       icon:'📷', label:'Scanner billets',  roles:EXEC },
+      { id:'carte-scanner',     icon:'📷', label:'Scanner cartes',      roles:EXEC },
+      { id:'scanner',           icon:'📷', label:'Scanner billets',     roles:EXEC },
+      { id:'scan-delegations',  icon:'📱', label:'Déléguer un scanner', roles:EXEC },
     ]},
 
     // ── Billetterie ───────────────────────────────────────────────
@@ -488,7 +489,8 @@ function setActiveNav(viewId) {
     'audit-log':'Journal d\'audit',
     'email-templates':'Modèles de courriels',
     'export-data':'Export données',
-    'annual-report':'Rapport annuel'
+    'annual-report':'Rapport annuel',
+    'scan-delegations':'Déléguer un scanner'
   };
   const raw = labels[viewId] || 'Dashboard';
   document.getElementById('topbarTitle').textContent = window.AHH_LANG ? AHH_LANG.get(raw) : raw;
@@ -881,6 +883,7 @@ async function showView(viewId) {
     'email-templates': emailTemplatesView,
     'export-data': exportDataView,
     'annual-report': annualReportView,
+    'scan-delegations': scanDelegationsListView,
   };
   if (extViews[viewId]) {
     try { await extViews[viewId](); } catch(e) { setContent(`<div class="empty-state"><div class="es-icon">⚠️</div><p>${e.message}</p></div>`); }
@@ -13225,6 +13228,111 @@ async function emailTemplateDelete(id) {
     await api('/email-templates/' + id, { method:'DELETE' });
     toast('Modèle supprimé');
     await emailTemplatesView();
+  } catch(e) { toast(e.message, true); }
+}
+
+// ══ DÉLÉGATIONS DE SCAN (vue complète) ═════════════════════════════════════
+async function scanDelegationsListView() {
+  if (!can.executive()) { toast('Accès réservé au comité', true); return; }
+  try {
+    const [delegations, acts] = await Promise.all([
+      api('/scan-delegations'),
+      api('/activities')
+    ]);
+    const activeActs = acts.filter(a => a.statut === 'planifiee' || a.statut === 'en_cours');
+
+    setContent(`
+      <div class="page-header">
+        <div><h2>📱 Déléguer un scanner</h2><p>Donnez à un membre le droit de scanner des billets ou cartes lors d'un événement.</p></div>
+      </div>
+
+      <div class="table-card" style="margin-bottom:18px">
+        <div class="table-card-header"><h3>Nouvelle délégation</h3></div>
+        <div style="padding:16px">
+          <div class="form-row">
+            <div class="form-group" style="position:relative">
+              <label>Membre</label>
+              <input id="sdSearch" autocomplete="off" placeholder="Tapez un nom..." oninput="_taskSearchMember(this.value);document.getElementById('sdDropdown').id='taskAssigneDropdown'">
+              <input id="sdUserId" type="hidden">
+              <div id="sdDropdown" style="position:absolute;top:100%;left:0;right:0;z-index:50;background:#fff;border:1px solid #ddd;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.15);max-height:180px;overflow-y:auto;display:none"></div>
+            </div>
+            <div class="form-group">
+              <label>Activité</label>
+              <select id="sdActivity">
+                <option value="">Toutes les activités</option>
+                ${activeActs.map(a => `<option value="${a.id}">${escHtml(a.titre)}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Type de scan</label>
+              <select id="sdType">
+                <option value="billets">Billets uniquement</option>
+                <option value="cartes">Cartes membres uniquement</option>
+                <option value="tous">Billets + Cartes</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Expiration</label>
+              <input type="datetime-local" id="sdExpiration" value="${new Date(Date.now()+24*60*60*1000).toISOString().slice(0,16)}">
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="_sdCreate()">Déléguer le scanner</button>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <div class="table-card-header"><h3>Délégations actives (${delegations.length})</h3></div>
+        <div class="table-wrapper"><table>
+          <thead><tr><th>Membre</th><th>Activité</th><th>Type</th><th>Expiration</th><th>Actions</th></tr></thead>
+          <tbody>
+            ${delegations.length ? delegations.map(d => `<tr>
+              <td><strong>${escHtml(d.user_nom || '–')}</strong></td>
+              <td>${escHtml(d.activity_titre || 'Toutes')}</td>
+              <td>${pill(d.type === 'tous' ? 'Tous' : d.type === 'cartes' ? 'Cartes' : 'Billets', d.type === 'tous' ? 'bp-green' : 'bp-blue')}</td>
+              <td>${d.date_expiration ? fmt(d.date_expiration) : 'Illimitée'}</td>
+              <td><button class="btn btn-ghost btn-sm" style="color:#c62828" onclick="_sdRevoke(${d.id})">Révoquer</button></td>
+            </tr>`).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">Aucune délégation active</td></tr>'}
+          </tbody>
+        </table></div>
+      </div>
+    `);
+
+    // Réutiliser le dropdown de recherche de membres
+    setTimeout(() => {
+      const dd = document.getElementById('sdDropdown');
+      if (dd) {
+        dd.id = 'taskAssigneDropdown';
+        window._taskSelectMember = function(id, nom) {
+          document.getElementById('sdUserId').value = id;
+          document.getElementById('sdSearch').value = nom;
+          document.getElementById('taskAssigneDropdown').style.display = 'none';
+        };
+      }
+    }, 100);
+  } catch(e) { toast(e.message, true); }
+}
+
+async function _sdCreate() {
+  const userId = document.getElementById('sdUserId')?.value;
+  const actId = document.getElementById('sdActivity')?.value || null;
+  const type = document.getElementById('sdType')?.value || 'billets';
+  const expiration = document.getElementById('sdExpiration')?.value || null;
+  if (!userId) { toast('Sélectionnez un membre', true); return; }
+  try {
+    await api('/scan-delegations', { method:'POST', body: JSON.stringify({ user_id: parseInt(userId), activity_id: actId ? parseInt(actId) : null, type, date_expiration: expiration }) });
+    toast('✅ Scanner délégué');
+    scanDelegationsListView();
+  } catch(e) { toast(e.message, true); }
+}
+
+async function _sdRevoke(id) {
+  if (!confirm('Révoquer cette délégation ?')) return;
+  try {
+    await api('/scan-delegations/' + id, { method:'DELETE' });
+    toast('Délégation révoquée');
+    scanDelegationsListView();
   } catch(e) { toast(e.message, true); }
 }
 
