@@ -3999,6 +3999,7 @@ app.post('/api/tickets/checkin', authMiddleware, (req, res) => {
   db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details, ticket_id) VALUES (?,?,?,?,?,?)")
     .run(ticket.act_id || null, req.user.id, qr_data, alreadyIn ? 'deja_scanne' : 'valide', nomBillet + (ticket.table_numero ? ' | Table ' + ticket.table_numero : ''), ticket.id);
 
+  const actInfo = ticket.act_id ? db.prepare('SELECT date_debut, lieu FROM activities WHERE id=?').get(ticket.act_id) : {};
   res.json({
     ok: true,
     already_checked_in: alreadyIn,
@@ -4008,7 +4009,10 @@ app.post('/api/tickets/checkin', authMiddleware, (req, res) => {
     vendeur_nom: ticket.vendeur_nom,
     vendu_en_ligne: !ticket.vendu_par,
     prix: ticket.prix,
-    date_checkin: alreadyIn ? ticket.date_checkin : new Date().toISOString()
+    barcode: ticket.barcode_data,
+    date_checkin: alreadyIn ? ticket.date_checkin : new Date().toISOString(),
+    date_evenement: actInfo?.date_debut || '',
+    lieu: actInfo?.lieu || ''
   });
 });
 

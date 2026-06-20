@@ -219,13 +219,14 @@
 </head>
 <body>
 
-<!-- Overlay résultat plein écran -->
-<div id="scanOverlay">
+<!-- Overlay résultat plein écran — tap anywhere to close -->
+<div id="scanOverlay" onclick="closeOverlay()">
   <div class="ov-icon" id="ovIcon"></div>
   <div class="ov-status" id="ovStatus"></div>
   <div class="ov-name" id="ovName"></div>
+  <div id="ovDetails" style="width:100%;max-width:400px"></div>
   <div class="ov-sub" id="ovSub"></div>
-  <button class="ov-close" onclick="closeOverlay()">Continuer le scan</button>
+  <div style="font-size:.75rem;opacity:.5;margin-top:12px">Touchez n'importe où pour continuer</div>
 </div>
 
 <div id="scanBanner"></div>
@@ -430,18 +431,18 @@ async function onQRDetected(rawText) {
     const data = await res.json();
 
     if (!res.ok) {
-      if (res.status === 409) showResult('warn', '⚠️', 'MAUVAISE ACTIVITÉ', data.error, null, null, null);
-      else showResult('err', '❌', 'BILLET INVALIDE', data.error || 'QR non reconnu', null, null, null);
+      if (res.status === 409) showResult('warn', '⚠️', 'MAUVAISE ACTIVITÉ', data.error, null, null, null, false, {});
+      else showResult('err', '❌', 'INTROUVABLE', data.error || 'QR non reconnu', null, null, null, false, {});
       playBeep(false);
       addHistory('err', qrText.split('\n')[0] || 'Inconnu', data.error || 'Invalide');
     } else if (data.already_checked_in) {
-      showResult('dup', '🔄', 'DÉJÀ ENTRÉ', data.nom, data.table_numero, data.vendeur_nom, data.activite, true);
+      showResult('dup', '🔄', 'DÉJÀ SCANNÉ', data.nom, data.table_numero, data.vendeur_nom, data.activite, true, data);
       playBeep(false);
-      addHistory('dup', data.nom, 'Déjà scanné, table ' + (data.table_numero || '?'));
+      addHistory('dup', data.nom, 'Répétition — ' + (data.barcode || ''));
     } else {
-      showResult('ok', '✅', 'BIENVENUE', data.nom, data.table_numero, data.vendeur_nom, data.activite, false);
+      showResult('ok', '✅', 'VALIDE', data.nom, data.table_numero, data.vendeur_nom, data.activite, false, data);
       playBeep(true);
-      addHistory('ok', data.nom, (data.table_numero ? 'Table ' + data.table_numero + ', ' : '') + (data.vendu_en_ligne ? 'En ligne' : 'Vendu par ' + data.vendeur_nom));
+      addHistory('ok', data.nom, (data.barcode || '') + (data.table_numero ? ' · Table ' + data.table_numero : ''));
     }
   } catch(e) {
     showResult('err', '⚠️', 'ERREUR RÉSEAU', 'Vérifiez la connexion', null, null, null);
@@ -456,22 +457,37 @@ function closeOverlay() {
   lastQR = ''; // réinitialiser cooldown pour re-scanner
 }
 
-function showResult(cls, icon, status, nom, table, vendeur, activite, isdup) {
-  // Overlay plein écran
+function showResult(cls, icon, status, nom, table, vendeur, activite, isdup, extra) {
+  extra = extra || {};
   const o = document.getElementById('scanOverlay');
   o.className = 'visible ' + cls;
-  const icons = { ok:'✅', dup:'🔄', err:'❌', warn:'⚠️' };
-  document.getElementById('ovIcon').textContent = icons[cls] || icon;
+  document.getElementById('ovIcon').textContent = icon;
   document.getElementById('ovStatus').textContent = status;
   document.getElementById('ovName').textContent = nom || '';
-  const subs = [];
-  if (table) subs.push('🪑 Table ' + table);
-  if (vendeur) subs.push('👤 ' + vendeur);
-  if (activite) subs.push('🎉 ' + activite);
-  document.getElementById('ovSub').textContent = subs.join(' · ');
+
+  // Détails riches
+  var detailRows = [];
+  if (activite) detailRows.push('<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.15)"><span style="opacity:.7">Activité</span><strong>' + activite + '</strong></div>');
+  if (extra.barcode) detailRows.push('<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.15)"><span style="opacity:.7">N° billet</span><strong style="font-family:monospace">' + extra.barcode + '</strong></div>');
+  if (table) detailRows.push('<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.15)"><span style="opacity:.7">Table</span><strong>' + table + '</strong></div>');
+  if (extra.prix) detailRows.push('<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.15)"><span style="opacity:.7">Prix</span><strong>' + extra.prix.toFixed(2) + ' $</strong></div>');
+  if (extra.lieu) detailRows.push('<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.15)"><span style="opacity:.7">Lieu</span><strong>' + extra.lieu + '</strong></div>');
+  if (extra.date_evenement) detailRows.push('<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.15)"><span style="opacity:.7">Date événement</span><strong>' + new Date(extra.date_evenement).toLocaleDateString('fr-CA',{day:'numeric',month:'short',year:'numeric'}) + '</strong></div>');
+  if (vendeur) detailRows.push('<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.15)"><span style="opacity:.7">Vendu par</span><strong>' + vendeur + '</strong></div>');
+  else if (cls === 'ok' || cls === 'dup') detailRows.push('<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.15)"><span style="opacity:.7">Achat</span><strong>En ligne</strong></div>');
+  if (isdup) detailRows.push('<div style="padding:8px 0;text-align:center;font-weight:700;color:#ffab91">⚠️ Ce billet a déjà été scanné</div>');
+
+  var detailsEl = document.getElementById('ovDetails');
+  if (detailRows.length) {
+    detailsEl.innerHTML = '<div style="background:rgba(0,0,0,.2);border-radius:14px;padding:10px 16px;margin:10px 0;font-size:.88rem;text-align:left">' + detailRows.join('') + '</div>';
+  } else {
+    detailsEl.innerHTML = '';
+  }
+
+  document.getElementById('ovSub').textContent = new Date().toLocaleTimeString('fr-CA', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+
   clearTimeout(_overlayTimer);
-  // Auto-fermeture après 4s (succès) ou 3s (erreur)
-  _overlayTimer = setTimeout(closeOverlay, cls === 'ok' || cls === 'dup' ? 4000 : 3000);
+  _overlayTimer = setTimeout(closeOverlay, cls === 'ok' ? 3000 : cls === 'dup' ? 4000 : 2500);
 
   // Aussi mettre à jour le panel desktop
   const box = document.getElementById('resultMain');
