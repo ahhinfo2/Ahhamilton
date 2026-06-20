@@ -269,6 +269,10 @@
       </select>
     </div>
     <div class="cam-tip">📱 Pointez la caméra vers le QR code du billet</div>
+    <div style="padding:6px 10px;display:flex;gap:6px;background:#222">
+      <input id="manualCode" placeholder="Code manuel (AHH-XXXXX ou URL)" style="flex:1;padding:6px 10px;border-radius:6px;border:1px solid #555;background:#333;color:#fff;font-size:.82rem;font-family:monospace" onkeydown="if(event.key==='Enter'){event.preventDefault();_manualScan();}"/>
+      <button onclick="_manualScan()" style="background:#2e7d32;color:#fff;border:none;padding:6px 14px;border-radius:6px;font-weight:700;font-size:.82rem;cursor:pointer">Vérifier</button>
+    </div>
   </div>
 
   <!-- Résultat -->
@@ -382,12 +386,15 @@ async function loadActivities() {
 // ── Scanner ───────────────────────────────────────────────────────────────────
 function startScanner() {
   scanner = new Html5Qrcode('reader');
+  const isMobile = window.innerWidth < 640;
+  const qrSize = isMobile ? Math.min(200, Math.floor(window.innerWidth * 0.55)) : 260;
   const config = {
-    fps: 30,
-    qrbox: { width: 260, height: 260 },
-    aspectRatio: 1.0,
+    fps: isMobile ? 15 : 30,
+    qrbox: { width: qrSize, height: qrSize },
+    aspectRatio: isMobile ? 1.0 : 1.0,
     disableFlip: false,
-    experimentalFeatures: { useBarCodeDetectorIfSupported: false }
+    formatsToSupport: [ Html5QrcodeSupportedFormats.QR_CODE ],
+    experimentalFeatures: { useBarCodeDetectorIfSupported: true }
   };
 
   // Essai 1 : caméra arrière exacte (Android Chrome)
@@ -408,6 +415,14 @@ function startScanner() {
             });
         });
     });
+}
+
+function _manualScan() {
+  const input = document.getElementById('manualCode');
+  const val = (input?.value || '').trim();
+  if (!val) return;
+  input.value = '';
+  onQRDetected(val);
 }
 
 // ── QR Détecté ───────────────────────────────────────────────────────────────
