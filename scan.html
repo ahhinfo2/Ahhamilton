@@ -386,12 +386,8 @@ async function loadActivities() {
 // ── Scanner ───────────────────────────────────────────────────────────────────
 function startScanner() {
   scanner = new Html5Qrcode('reader');
-  const config = {
-    fps: 30,
-    qrbox: { width: 250, height: 250 },
-    aspectRatio: 1.0,
-    disableFlip: false
-  };
+  var qrSize = Math.min(250, Math.floor(window.innerWidth * 0.6));
+  const config = { fps: 30, qrbox: qrSize };
 
   scanner.start({ facingMode: { exact: 'environment' } }, config, onQRDetected, () => {})
     .catch(() => {
