@@ -1200,6 +1200,16 @@ async function memberHome() {
       <div class="table-card-header"><h3>🎟 Mes prochaines activités</h3></div>
       <div id="prochActivites" style="padding:8px 16px"></div>
     </div>
+
+    <div class="table-card">
+      <div class="table-card-header">
+        <h3>📅 Activités et événements à venir</h3>
+        <button class="btn btn-ghost btn-sm" onclick="showView('activities')">Voir tout →</button>
+      </div>
+      <div id="activitesDisponibles" style="padding:8px 16px">
+        <div style="text-align:center;padding:20px;color:var(--muted)">Chargement...</div>
+      </div>
+    </div>
   `);
 
   window._calActs = calActs;
@@ -1207,6 +1217,61 @@ async function memberHome() {
   window._calMonth = new Date().getMonth();
   renderMemberCal();
   renderProchActivites();
+  _loadActivitesDisponibles();
+}
+
+async function _loadActivitesDisponibles() {
+  const el = document.getElementById('activitesDisponibles');
+  if (!el) return;
+  try {
+    const acts = await api('/activities');
+    window._activitiesData = acts;
+    const inscritsIds = new Set((window._calActs || []).filter(a => a.status === 'inscrit').map(a => a.id));
+    const disponibles = acts
+      .filter(a => a.statut === 'planifiee' && !inscritsIds.has(a.id) && new Date(a.date_debut) >= new Date(new Date().toDateString()))
+      .sort((a, b) => new Date(a.date_debut) - new Date(b.date_debut))
+      .slice(0, 6);
+
+    if (!disponibles.length) {
+      el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted)">Aucune activité à venir pour le moment</div>';
+      return;
+    }
+
+    el.innerHTML = disponibles.map(a => {
+      const dateFr = new Date(a.date_debut).toLocaleDateString('fr-CA', {weekday:'short', day:'numeric', month:'short'});
+      const img = a.flyer || a.image_path;
+      return `
+      <div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--border)">
+        ${img
+          ? `<img src="${img}" alt="" style="width:60px;height:60px;border-radius:10px;object-fit:cover;flex-shrink:0;cursor:pointer" onclick="openActivityDetail(${a.id})" onerror="this.style.display='none'"/>`
+          : `<div style="width:60px;height:60px;border-radius:10px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;cursor:pointer" onclick="openActivityDetail(${a.id})">📅</div>`
+        }
+        <div style="flex:1;min-width:0">
+          <strong style="font-size:.92rem"><a href="javascript:void(0)" onclick="openActivityDetail(${a.id})" style="color:inherit;text-decoration:none;cursor:pointer">${escHtml(a.titre)}</a></strong>
+          <div style="font-size:.78rem;color:var(--muted);margin-top:2px">
+            📅 ${dateFr}${a.lieu ? ' · 📍 ' + escHtml(a.lieu) : ''}${a.prix > 0 ? ' · 💳 ' + a.prix.toFixed(2) + ' $' : ''}
+          </div>
+          <div style="font-size:.72rem;color:var(--muted);margin-top:2px">${a.nb_inscrits || 0} participant${(a.nb_inscrits||0)>1?'s':''} inscrit${(a.nb_inscrits||0)>1?'s':''}</div>
+        </div>
+        <div style="flex-shrink:0">
+          ${a.paiement_requis && a.prix > 0
+            ? `<a href="billets.html?id=${a.id}" class="btn btn-primary btn-sm" style="white-space:nowrap">🎟 ${a.prix.toFixed(2)} $</a>`
+            : `<button class="btn btn-primary btn-sm" onclick="_homeRegister(${a.id},this)" style="white-space:nowrap">S'inscrire</button>`
+          }
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = '<div style="text-align:center;padding:20px;color:#c62828">Erreur de chargement</div>';
+  }
+}
+
+async function _homeRegister(actId, btn) {
+  try {
+    await api('/activities/' + actId + '/register', { method:'POST' });
+    toast('✅ Inscription confirmée !');
+    if (btn) { btn.outerHTML = '<span style="color:var(--g2);font-weight:700;font-size:.85rem">✅ Inscrit(e)</span>'; }
+  } catch(e) { toast(e.message, true); }
 }
 
 function renderProchActivites() {
@@ -1686,10 +1751,10 @@ async function openActivityDetail(actId) {
               </div>` : ''}
 
               <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:28px">
-                <div style="background:rgba(255,255,255,.15);padding:12px 20px;border-radius:12px;text-align:center">
+                ${canCreateActivity() ? `<div style="background:rgba(255,255,255,.15);padding:12px 20px;border-radius:12px;text-align:center">
                   <div style="font-size:1.5rem;font-weight:800">${a.nb_inscrits || 0}${a.max_participants ? '<span style="font-size:.9rem;opacity:.6"> / ' + a.max_participants + '</span>' : ''}</div>
                   <div style="font-size:.75rem;opacity:.7">Participants</div>
-                </div>
+                </div>` : ''}
                 <div style="background:rgba(255,255,255,.15);padding:12px 20px;border-radius:12px;text-align:center">
                   <div style="font-size:1.5rem;font-weight:800">${escHtml(a.type || '–')}</div>
                   <div style="font-size:.75rem;opacity:.7">Type</div>
