@@ -5846,8 +5846,13 @@ app.post('/api/admin/cartes/:id/renouveler', authMiddleware, requireRole(...CART
   res.json({ ok: true, expiration: carteExpiration(today) });
 });
 
-// Scanner QR carte — chercher un membre
-app.get('/api/carte-scan/:qr', authMiddleware, requireRole(...CARTE_ROLES), (req, res) => {
+// Scanner QR carte — chercher un membre (EXEC + membres délégués type cartes/tous)
+app.get('/api/carte-scan/:qr', authMiddleware, (req, res) => {
+  const isExec = CARTE_ROLES.includes(req.user.role);
+  if (!isExec) {
+    const deleg = db.prepare("SELECT id FROM scan_delegations WHERE user_id=? AND actif=1 AND type IN ('cartes','tous') AND (date_expiration IS NULL OR date_expiration > datetime('now'))").get(req.user.id);
+    if (!deleg) return res.status(403).json({ error: 'Accès refusé — pas de délégation de scan cartes' });
+  }
   const raw = decodeURIComponent(req.params.qr);
   let userId = null;
 
@@ -5880,7 +5885,12 @@ app.get('/api/carte-scan/:qr', authMiddleware, requireRole(...CARTE_ROLES), (req
 });
 
 // Marquer présence via scanner carte (présence uniquement, pas de paiement)
-app.post('/api/carte-scan/presencer', authMiddleware, requireRole(...CARTE_ROLES), (req, res) => {
+app.post('/api/carte-scan/presencer', authMiddleware, (req, res) => {
+  const isExec = CARTE_ROLES.includes(req.user.role);
+  if (!isExec) {
+    const deleg = db.prepare("SELECT id FROM scan_delegations WHERE user_id=? AND actif=1 AND type IN ('cartes','tous') AND (date_expiration IS NULL OR date_expiration > datetime('now'))").get(req.user.id);
+    if (!deleg) return res.status(403).json({ error: 'Accès refusé' });
+  }
   const { user_id, activity_id } = req.body;
   if (!user_id || !activity_id) return res.status(400).json({ error: 'Paramètres manquants' });
 
