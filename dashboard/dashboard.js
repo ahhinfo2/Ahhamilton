@@ -10858,11 +10858,11 @@ async function carteScannerView() {
     <div class="page-header"><div><h2>📷 Scanner de cartes membres</h2><p>Pointez la caméra vers le QR code de la carte</p></div></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;max-width:920px">
 
-      <div class="table-card" style="padding:20px">
-        <h4 style="margin-bottom:12px;color:var(--g2)">📷 Caméra</h4>
-        <div id="carteReaderWrap" style="border-radius:12px;overflow:hidden;background:#111;min-height:220px;position:relative">
+      <div class="table-card" style="padding:14px">
+        <h4 style="margin-bottom:8px;color:var(--g2);font-size:.9rem">📷 Caméra</h4>
+        <div id="carteReaderWrap" style="border-radius:12px;overflow:hidden;background:#111;min-height:160px;max-height:40vh;position:relative">
           <!-- video pour BarcodeDetector natif -->
-          <video id="scanVideo" autoplay muted playsinline style="width:100%;display:none;border-radius:12px;max-height:280px;object-fit:cover"></video>
+          <video id="scanVideo" autoplay muted playsinline style="width:100%;display:none;border-radius:12px;max-height:40vh;object-fit:cover"></video>
           <!-- viseur -->
           <div id="scanViewfinder" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;pointer-events:none">
             <div style="position:relative;width:190px;height:190px;border:2.5px solid rgba(255,255,255,.75);border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,.45)">
