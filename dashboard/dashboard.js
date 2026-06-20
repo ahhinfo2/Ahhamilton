@@ -13611,45 +13611,120 @@ async function revokeScanDelegation(delegId, actId, titre) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 async function viewScanLogs(actId, titre) {
-  openModal('Journal des scans — ' + titre, '<div style="text-align:center;padding:30px;color:var(--muted)">Chargement...</div>');
+  openModal('📋 Journal des scans — ' + titre, '<div style="text-align:center;padding:30px;color:var(--muted)">Chargement...</div>');
   try {
     const logs = await api('/scan-logs?activity_id=' + actId);
-    if (!logs || logs.length === 0) {
-      document.querySelector('.print-content').innerHTML = '<p style="text-align:center;padding:30px;color:var(--muted)">Aucun scan enregistre pour cette activite.</p>';
-      return;
-    }
-    const badgeColors = { valide: '#2e7d32', deja_scanne: '#6a1a75', introuvable: '#c62828', invalide: '#e65100' };
-    const badgeLabels = { valide: 'Valide', deja_scanne: 'Deja scanne', introuvable: 'Introuvable', invalide: 'Invalide' };
-
-    const rows = logs.map(l => {
-      const d = new Date(l.date_scan);
-      const dateStr = d.toLocaleDateString('fr-CA') + ' ' + d.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      const bg = badgeColors[l.resultat] || '#666';
-      const label = badgeLabels[l.resultat] || l.resultat;
-      return `<tr>
-        <td style="white-space:nowrap;font-size:.78rem">${dateStr}</td>
-        <td>${escHtml(l.scanner_prenom)} ${escHtml(l.scanner_nom)}</td>
-        <td style="font-size:.78rem;font-family:monospace;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(l.code_scanne || '')}">${escHtml((l.code_scanne || '').substring(0, 30))}</td>
-        <td><span style="display:inline-block;padding:2px 10px;border-radius:12px;font-size:.72rem;font-weight:600;color:#fff;background:${bg}">${label}</span></td>
-        <td style="font-size:.78rem;color:var(--muted)">${escHtml(l.details || '—')}</td>
-      </tr>`;
-    }).join('');
-
-    document.querySelector('.print-content').innerHTML = `
-      <div style="margin-bottom:12px;color:var(--muted);font-size:.82rem">${logs.length} scan(s) enregistre(s)</div>
-      <div style="overflow-x:auto">
-        <table class="data-table">
-          <thead><tr>
-            <th>Date/Heure</th>
-            <th>Scanner</th>
-            <th>Code scanne</th>
-            <th>Resultat</th>
-            <th>Details</th>
-          </tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>`;
+    window._scanLogs = logs || [];
+    window._scanLogsSort = { col: 'date_scan', dir: 'desc' };
+    window._scanLogsFilter = { search: '', resultat: '' };
+    _renderScanLogs();
   } catch(e) {
-    document.querySelector('.print-content').innerHTML = '<p style="text-align:center;color:#c62828;padding:20px">' + (e.message || 'Erreur de chargement') + '</p>';
+    document.querySelector('.print-content').innerHTML = '<p style="text-align:center;color:#c62828;padding:20px">' + (e.message || 'Erreur') + '</p>';
   }
+}
+
+function _renderScanLogs() {
+  const container = document.querySelector('.print-content');
+  if (!container) return;
+  const logs = window._scanLogs || [];
+  const { col, dir } = window._scanLogsSort;
+  const { search, resultat } = window._scanLogsFilter;
+
+  const badgeColors = { valide:'#2e7d32', deja_scanne:'#6a1a75', introuvable:'#c62828', invalide:'#e65100' };
+  const badgeLabels = { valide:'Valide', deja_scanne:'Déjà scanné', introuvable:'Introuvable', invalide:'Invalide' };
+
+  let filtered = logs.filter(l => {
+    if (resultat && l.resultat !== resultat) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      const nom = ((l.scanner_prenom||'') + ' ' + (l.scanner_nom||'')).toLowerCase();
+      const code = (l.code_scanne||'').toLowerCase();
+      const det = (l.details||'').toLowerCase();
+      if (!nom.includes(q) && !code.includes(q) && !det.includes(q)) return false;
+    }
+    return true;
+  });
+
+  filtered.sort((a, b) => {
+    let va = a[col] || '', vb = b[col] || '';
+    if (col === 'date_scan') { va = new Date(va); vb = new Date(vb); }
+    else { va = String(va).toLowerCase(); vb = String(vb).toLowerCase(); }
+    return dir === 'asc' ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
+  });
+
+  const stats = {
+    total: logs.length,
+    valide: logs.filter(l => l.resultat === 'valide').length,
+    deja: logs.filter(l => l.resultat === 'deja_scanne').length,
+    invalide: logs.filter(l => l.resultat === 'invalide' || l.resultat === 'introuvable').length
+  };
+
+  const thSort = (label, colId) => {
+    const active = col === colId;
+    const arrow = active ? (dir === 'asc' ? ' ▲' : ' ▼') : '';
+    return '<th onclick="window._scanLogsSort={col:\'' + colId + '\',dir:\'' + (active && dir === 'desc' ? 'asc' : 'desc') + '\'};_renderScanLogs()" style="cursor:pointer;user-select:none;white-space:nowrap;' + (active ? 'color:#1565c0;background:#e8f0fe' : '') + '">' + label + arrow + '</th>';
+  };
+
+  const rows = filtered.map(l => {
+    const d = new Date(l.date_scan);
+    const dateStr = d.toLocaleDateString('fr-CA') + ' ' + d.toLocaleTimeString('fr-CA', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    const bg = badgeColors[l.resultat] || '#666';
+    const label = badgeLabels[l.resultat] || l.resultat;
+    return `<tr>
+      <td style="white-space:nowrap;font-size:.78rem">${dateStr}</td>
+      <td style="font-weight:600">${escHtml((l.scanner_prenom||'') + ' ' + (l.scanner_nom||''))}</td>
+      <td style="font-size:.76rem;font-family:monospace;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(l.code_scanne||'')}">${escHtml((l.code_scanne||'').substring(0, 35))}</td>
+      <td><span style="display:inline-block;padding:3px 12px;border-radius:12px;font-size:.72rem;font-weight:700;color:#fff;background:${bg}">${label}</span></td>
+      <td style="font-size:.78rem;color:var(--muted)">${escHtml(l.details || '–')}</td>
+    </tr>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+      <div style="background:#e8f5e9;padding:10px 18px;border-radius:10px;text-align:center;flex:1;min-width:80px">
+        <div style="font-size:1.3rem;font-weight:800;color:#2e7d32">${stats.valide}</div>
+        <div style="font-size:.7rem;color:#2e7d32">Valides</div>
+      </div>
+      <div style="background:#f3e5f5;padding:10px 18px;border-radius:10px;text-align:center;flex:1;min-width:80px">
+        <div style="font-size:1.3rem;font-weight:800;color:#6a1a75">${stats.deja}</div>
+        <div style="font-size:.7rem;color:#6a1a75">Doublons</div>
+      </div>
+      <div style="background:#fdecea;padding:10px 18px;border-radius:10px;text-align:center;flex:1;min-width:80px">
+        <div style="font-size:1.3rem;font-weight:800;color:#c62828">${stats.invalide}</div>
+        <div style="font-size:.7rem;color:#c62828">Refusés</div>
+      </div>
+      <div style="background:var(--off);padding:10px 18px;border-radius:10px;text-align:center;flex:1;min-width:80px">
+        <div style="font-size:1.3rem;font-weight:800">${stats.total}</div>
+        <div style="font-size:.7rem;color:var(--muted)">Total</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+      <input type="text" placeholder="🔍 Rechercher nom, code, détails..." value="${escHtml(search)}"
+        oninput="window._scanLogsFilter.search=this.value;_renderScanLogs()"
+        style="flex:1;min-width:180px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:.85rem"/>
+      <select onchange="window._scanLogsFilter.resultat=this.value;_renderScanLogs()" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:.85rem">
+        <option value="" ${!resultat?'selected':''}>Tous les résultats</option>
+        <option value="valide" ${resultat==='valide'?'selected':''}>✅ Valide</option>
+        <option value="deja_scanne" ${resultat==='deja_scanne'?'selected':''}>🔄 Déjà scanné</option>
+        <option value="invalide" ${resultat==='invalide'?'selected':''}>⚠️ Invalide</option>
+        <option value="introuvable" ${resultat==='introuvable'?'selected':''}>❌ Introuvable</option>
+      </select>
+      ${search || resultat ? `<button onclick="window._scanLogsFilter={search:'',resultat:''};_renderScanLogs()" style="padding:6px 12px;border:1px solid #c62828;color:#c62828;background:#fff;border-radius:8px;cursor:pointer;font-size:.8rem">✕ Réinitialiser</button>` : ''}
+    </div>
+
+    <div style="font-size:.78rem;color:var(--muted);margin-bottom:8px">${filtered.length} résultat(s) sur ${logs.length} · Cliquez sur une colonne pour trier</div>
+
+    <div style="overflow-x:auto">
+      <table class="data-table">
+        <thead><tr>
+          ${thSort('Date/Heure', 'date_scan')}
+          ${thSort('Scanner', 'scanner_nom')}
+          ${thSort('Code scanné', 'code_scanne')}
+          ${thSort('Résultat', 'resultat')}
+          ${thSort('Détails', 'details')}
+        </tr></thead>
+        <tbody>${rows || '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--muted)">Aucun scan</td></tr>'}</tbody>
+      </table>
+    </div>`;
 }
