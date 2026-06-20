@@ -681,7 +681,8 @@ app.get('/api/activities', authMiddleware, (req, res) => {
     SELECT a.*, u.prenom || ' ' || u.nom AS createur,
     (SELECT COUNT(*) FROM activity_registrations WHERE activity_id = a.id) +
     (SELECT COUNT(*) FROM tickets WHERE activity_id = a.id AND payment_status = 'paid') AS nb_inscrits,
-    (SELECT COUNT(*) FROM activity_registrations WHERE activity_id = a.id AND user_id = ?) AS user_registered
+    (SELECT COUNT(*) FROM activity_registrations WHERE activity_id = a.id AND user_id = ?) AS user_registered,
+    COALESCE(a.image_path, (SELECT photo_path FROM activity_photos WHERE activity_id = a.id ORDER BY ordre ASC, id ASC LIMIT 1)) AS flyer
     FROM activities a LEFT JOIN users u ON u.id = a.cree_par ORDER BY a.date_debut DESC
   `).all(req.user.id);
   res.json(rows);

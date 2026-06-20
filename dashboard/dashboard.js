@@ -1624,7 +1624,7 @@ async function _uploadActivityImage(actId, file) {
     toast('Image ajoutée');
     const acts = window._activitiesData || [];
     const a = acts.find(x => x.id === actId);
-    if (a) a.image_path = data.image_path;
+    if (a) { a.image_path = data.image_path; a.flyer = data.image_path; }
     openActivityDetail(actId);
   } catch(e) { toast('Erreur : ' + e.message, true); }
 }
@@ -1653,8 +1653,8 @@ async function openActivityDetail(actId) {
           <div style="display:flex;gap:36px;align-items:flex-start;flex-wrap:wrap">
             <!-- Image -->
             <div style="flex:0 0 380px;max-width:100%">
-              ${a.image_path
-                ? `<img src="${a.image_path}" alt="${escHtml(a.titre)}" style="width:100%;border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.3)" onerror="this.outerHTML='<div style=\\'background:rgba(255,255,255,.1);border-radius:16px;padding:60px;text-align:center;color:rgba(255,255,255,.4);font-size:3rem\\'>📅</div>'"/>`
+              ${a.flyer || a.image_path
+                ? `<img src="${a.flyer || a.image_path}" alt="${escHtml(a.titre)}" style="width:100%;border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.3)" onerror="this.outerHTML='<div style=\\'background:rgba(255,255,255,.1);border-radius:16px;padding:60px;text-align:center;color:rgba(255,255,255,.4);font-size:3rem\\'>📅</div>'"/>`
                 : `<div style="background:rgba(255,255,255,.1);border-radius:16px;padding:40px;text-align:center">
                     <div style="font-size:4rem;margin-bottom:16px">📅</div>
                     ${canCreateActivity() ? `<label style="cursor:pointer;background:rgba(255,255,255,.2);color:#fff;padding:10px 20px;border-radius:8px;font-size:.85rem;font-weight:600">
