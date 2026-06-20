@@ -277,7 +277,7 @@ function setContent(html) {
 }
 
 // ── SIDEBAR ─────────────────────────────────────────────────────────────────
-function buildSidebar() {
+async function buildSidebar() {
   const nav = document.getElementById('sidebarNav');
 
   // ── Sidebar restructurée par catégories logiques ─────────────────
@@ -403,6 +403,23 @@ function buildSidebar() {
       { id:'mes-badges', icon:'🏅', label:'Mes badges' },
       { id:'profile',    icon:'◎', label:'Mon profil' },
     ].filter(Boolean);
+
+    // Charger les délégations de scan et ajouter les scanners correspondants
+    try {
+      const delegations = await api('/scan-delegations/my').catch(() => []);
+      if (delegations.length) {
+        const types = new Set(delegations.map(d => d.type));
+        const showBillets = types.has('billets') || types.has('tous');
+        const showCartes  = types.has('cartes')  || types.has('tous');
+        const scanItems = [];
+        if (showBillets) scanItems.push({ id:'scanner',       icon:'📷', label:'Scanner billets', _section: scanItems.length === 0 ? '📱 Scanners' : undefined });
+        if (showCartes)  scanItems.push({ id:'carte-scanner', icon:'📷', label:'Scanner cartes',  _section: !showBillets ? '📱 Scanners' : undefined });
+        // Insert before mes-badges
+        const badgeIdx = memberItems.findIndex(i => i.id === 'mes-badges');
+        memberItems.splice(badgeIdx >= 0 ? badgeIdx : memberItems.length, 0, ...scanItems);
+      }
+      window._memberDelegations = delegations;
+    } catch(e) {}
 
     nav.innerHTML = memberItems.map((i, idx) => {
       const sectionHeader = i._section ? `<div class="nav-section">${i._section}</div>` : '';
@@ -738,6 +755,20 @@ async function pollBadges() {
       setSidebarBadge('mon_paiement',       stats.cotisation_due);
       setSidebarBadge('mes-badges',         stats.badges_nouveaux);
       setSidebarBadge('notif-prefs',        newAlerts);
+    }
+
+    // Rafraîchir les délégations de scan pour les membres
+    if (USER.role === 'member') {
+      try {
+        const delegations = await api('/scan-delegations/my').catch(() => []);
+        const prev = window._memberDelegations || [];
+        const changed = JSON.stringify(delegations.map(d=>d.id).sort()) !== JSON.stringify(prev.map(d=>d.id).sort());
+        if (changed) {
+          window._memberDelegations = delegations;
+          buildSidebar();
+          setActiveNav(window._currentViewId);
+        }
+      } catch {}
     }
   } catch {}
   setTimeout(pollBadges, 30000);
