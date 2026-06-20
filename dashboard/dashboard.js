@@ -9171,7 +9171,6 @@ async function viewActivityQR(id, titre, qrToken) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 async function showActivityReport(actId) {
-  closeModal();
   const r = await api('/reports/activity/' + actId);
   const { activite: act, inscrits, billets = [], parType = {}, checkin = {}, totalRevenu, billetsVendus = 0 } = r;
   const arrivés        = checkin.arrives     || 0;
