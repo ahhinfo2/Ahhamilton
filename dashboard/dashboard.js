@@ -308,6 +308,8 @@ function buildSidebar() {
     { label: 'Finance', items: [
       { id:'paiements',         icon:'◆', label:'Paiements',        roles:['admin','tresoriere','secretaire'] },
       { id:'finance',           icon:'◇', label:'Budget',            roles:['admin','tresoriere','secretaire'] },
+      { id:'invoices',          icon:'◈', label:'Factures',          roles:['admin','tresoriere','secretaire'] },
+      { id:'recus',             icon:'◉', label:'Reçus fiscaux',    roles:['admin','tresoriere','secretaire'] },
       { id:'rapports_finance',  icon:'📊', label:'Rapports finance', roles:['admin','tresoriere','secretaire'] },
     ]},
 
