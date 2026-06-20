@@ -7035,6 +7035,101 @@ app.get('/api/reports/annual', authMiddleware, requireRole('admin'), (req, res) 
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 404 HANDLER — doit être après toutes les routes
+// ── Simulation test scan (temporaire — à supprimer après test) ──────────
+app.post('/api/test/create-scan-simulation', authMiddleware, requireRole('admin','secretaire'), async (req, res) => {
+  try {
+    const crypto2 = require('crypto');
+    function _bc() { const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s='AHH-'; for(let i=0;i<6;i++) s+=c[Math.floor(Math.random()*c.length)]; return s; }
+    const siteBase = process.env.SITE_URL || 'https://ahhamilton.ca';
+    const qrDir = path.join(__dirname, 'uploads', 'qr');
+    if (!fs.existsSync(qrDir)) fs.mkdirSync(qrDir, { recursive: true });
+
+    // Créer l'activité
+    const qrToken = crypto2.randomBytes(16).toString('hex');
+    const actR = db.prepare(`INSERT INTO activities (titre,description,type,date_debut,date_fin,lieu,max_participants,statut,cree_par,prix,paiement_requis,qr_token)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      'TEST SCAN — Simulation billets', 'Activité de test : 10 billets (6 valides, 3 refusés, 1 déjà scanné)',
+      'general','2026-06-20T14:00:00','2026-06-20T20:00:00','Salle communautaire AHH — Hamilton',
+      50,'planifiee',req.user.id,5.00,1,qrToken);
+    const actId = actR.lastInsertRowid;
+
+    const tickets = [];
+    async function mkTicket(nom, status, payStatus, checkedIn) {
+      const token = crypto2.randomUUID();
+      let barcode = _bc();
+      while(db.prepare('SELECT id FROM tickets WHERE barcode_data=?').get(barcode)) barcode = _bc();
+      db.prepare(`INSERT INTO tickets (activity_id,acheteur_nom,acheteur_email,qr_data,barcode_data,prix,methode_paiement,payment_status,statut,checked_in,date_checkin,vendu_par)
+        VALUES (?,?,?,?,?,?,?,?,?,?,${checkedIn?'CURRENT_TIMESTAMP':'NULL'},?)`).run(
+        actId, nom, 'secretaire@ahhamilton.ca', 'TICKET:'+token, barcode, 5.00,
+        nom.includes('Stripe')?'stripe':nom.includes('Cash')?'cash':'interac', payStatus, status, checkedIn?1:0, req.user.id);
+      try {
+        const scanUrl = siteBase+'/scan.html?t='+token;
+        const qrBuf = await QRCode.toBuffer(scanUrl,{type:'png',width:400,margin:2,errorCorrectionLevel:'H',color:{dark:'#1b5e20',light:'#ffffff'}});
+        fs.writeFileSync(path.join(qrDir,token+'.png'), qrBuf);
+      } catch(e){}
+      return { nom, barcode, token, status, payStatus, checkedIn };
+    }
+
+    // 6 valides
+    tickets.push(await mkTicket('Stripe Client 1','actif','paid',false));
+    tickets.push(await mkTicket('Stripe Client 2','actif','paid',false));
+    tickets.push(await mkTicket('Membre Actif 1','actif','paid',false));
+    tickets.push(await mkTicket('Membre Actif 2','actif','paid',false));
+    tickets.push(await mkTicket('Cash Imprimé 1','actif','paid',false));
+    tickets.push(await mkTicket('Cash Imprimé 2','actif','paid',false));
+    // 3 refusés
+    tickets.push(await mkTicket('Refusé 1','annule','paid',false));
+    tickets.push(await mkTicket('Refusé 2','annule','paid',false));
+    tickets.push(await mkTicket('Refusé 3','genere','pending',false));
+    // 1 déjà scanné
+    tickets.push(await mkTicket('Déjà Scanné 1','actif','paid',true));
+
+    // Envoyer courriel au secrétaire avec les QR
+    const secEmail = req.user.email || 'secretaire@ahhamilton.ca';
+    const types = ['✅ Stripe','✅ Stripe','✅ Membre actif','✅ Membre actif','✅ Cash imprimé','✅ Cash imprimé','❌ Annulé','❌ Annulé','❌ Non payé','🔄 Déjà scanné'];
+    const ticketRows = tickets.map((t,i) => `
+      <tr style="border-bottom:1px solid #e0e0e0">
+        <td style="padding:10px;text-align:center;font-weight:700">${i+1}</td>
+        <td style="padding:10px">${types[i]}</td>
+        <td style="padding:10px;font-weight:700">${t.nom}</td>
+        <td style="padding:10px;font-family:monospace;font-size:1.1rem;font-weight:700;color:#1b5e20">${t.barcode}</td>
+        <td style="padding:10px;text-align:center">
+          <img src="${siteBase}/uploads/qr/${t.token}.png" width="120" height="120" alt="QR"/>
+        </td>
+      </tr>`).join('');
+
+    await mailer.sendMail({
+      to: secEmail,
+      subject: '🧪 TEST SCAN — 10 billets de simulation | AHH',
+      html: `<div style="font-family:Arial,sans-serif;max-width:800px;margin:0 auto">
+        <div style="background:#1b5e20;color:#fff;padding:20px 24px;border-radius:12px 12px 0 0">
+          <h2 style="margin:0">🧪 Simulation Scanner — 10 billets test</h2>
+          <p style="margin:8px 0 0;opacity:.8">Activité : TEST SCAN — Simulation billets</p>
+        </div>
+        <div style="padding:20px;border:1px solid #e0e0e0;border-top:none;border-radius:0 0 12px 12px">
+          <p><strong>6 valides</strong> (2 Stripe, 2 membres, 2 cash) · <strong>3 refusés</strong> (2 annulés, 1 non payé) · <strong>1 déjà scanné</strong></p>
+          <p style="font-size:.85rem;color:#666">Scannez les QR codes ci-dessous avec le scanner de billets pour tester.</p>
+          <table style="width:100%;border-collapse:collapse;margin-top:16px">
+            <thead><tr style="background:#f5f5f5">
+              <th style="padding:10px;text-align:center">#</th>
+              <th style="padding:10px;text-align:left">Statut</th>
+              <th style="padding:10px;text-align:left">Nom</th>
+              <th style="padding:10px;text-align:left">Code</th>
+              <th style="padding:10px;text-align:center">QR</th>
+            </tr></thead>
+            <tbody>${ticketRows}</tbody>
+          </table>
+        </div>
+      </div>`
+    });
+
+    res.json({ ok:true, actId, tickets: tickets.map((t,i) => ({ ...t, type: types[i] })) });
+  } catch(e) {
+    console.error('[TEST SCAN]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ══════════════════════════════════════════════════════════════════════════════
 
 app.use((req, res) => {
