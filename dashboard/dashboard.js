@@ -13627,31 +13627,9 @@ function _renderScanLogs() {
   const container = document.querySelector('.print-content');
   if (!container) return;
   const logs = window._scanLogs || [];
-  const { col, dir } = window._scanLogsSort;
-  const { search, resultat } = window._scanLogsFilter;
 
   const badgeColors = { valide:'#2e7d32', deja_scanne:'#6a1a75', introuvable:'#c62828', invalide:'#e65100' };
   const badgeLabels = { valide:'Valide', deja_scanne:'Déjà scanné', introuvable:'Introuvable', invalide:'Invalide' };
-
-  let filtered = logs.filter(l => {
-    if (resultat && l.resultat !== resultat) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      const nom = ((l.scanner_prenom||'') + ' ' + (l.scanner_nom||'')).toLowerCase();
-      const code = (l.code_scanne||'').toLowerCase();
-      const det = (l.details||'').toLowerCase();
-      if (!nom.includes(q) && !code.includes(q) && !det.includes(q)) return false;
-    }
-    return true;
-  });
-
-  filtered.sort((a, b) => {
-    let va = a[col] || '', vb = b[col] || '';
-    if (col === 'date_scan') { va = new Date(va); vb = new Date(vb); }
-    else { va = String(va).toLowerCase(); vb = String(vb).toLowerCase(); }
-    return dir === 'asc' ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
-  });
-
   const stats = {
     total: logs.length,
     valide: logs.filter(l => l.resultat === 'valide').length,
@@ -13659,25 +13637,30 @@ function _renderScanLogs() {
     invalide: logs.filter(l => l.resultat === 'invalide' || l.resultat === 'introuvable').length
   };
 
-  const thSort = (label, colId) => {
-    const active = col === colId;
-    const arrow = active ? (dir === 'asc' ? ' ▲' : ' ▼') : '';
-    return '<th onclick="window._scanLogsSort={col:\'' + colId + '\',dir:\'' + (active && dir === 'desc' ? 'asc' : 'desc') + '\'};_renderScanLogs()" style="cursor:pointer;user-select:none;white-space:nowrap;' + (active ? 'color:#1565c0;background:#e8f0fe' : '') + '">' + label + arrow + '</th>';
-  };
-
-  const rows = filtered.map(l => {
+  const mkRow = l => {
     const d = new Date(l.date_scan);
     const dateStr = d.toLocaleDateString('fr-CA') + ' ' + d.toLocaleTimeString('fr-CA', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
     const bg = badgeColors[l.resultat] || '#666';
     const label = badgeLabels[l.resultat] || l.resultat;
-    return `<tr>
+    const scannerNom = (l.scanner_prenom||'') + ' ' + (l.scanner_nom||'');
+    const acheteur = l.acheteur_nom || '';
+    const vendeur = l.vendu_par_nom || '';
+    const codeAff = l.barcode_data || (l.code_scanne||'').substring(0, 30);
+    const detailParts = [l.details||''];
+    if (acheteur) detailParts.unshift('🎫 ' + acheteur);
+    if (vendeur) detailParts.push('👤 vendu par ' + vendeur);
+    const detailStr = detailParts.filter(Boolean).join(' · ');
+    const allText = (scannerNom + ' ' + codeAff + ' ' + acheteur + ' ' + vendeur + ' ' + (l.details||'') + ' ' + (l.resultat||'')).toLowerCase();
+    return `<tr class="sl-row" data-search="${escHtml(allText)}" data-resultat="${l.resultat}" data-date="${l.date_scan||''}" data-scanner="${escHtml(scannerNom.toLowerCase())}">
       <td style="white-space:nowrap;font-size:.78rem">${dateStr}</td>
-      <td style="font-weight:600">${escHtml((l.scanner_prenom||'') + ' ' + (l.scanner_nom||''))}</td>
-      <td style="font-size:.76rem;font-family:monospace;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(l.code_scanne||'')}">${escHtml((l.code_scanne||'').substring(0, 35))}</td>
+      <td style="font-weight:600">${escHtml(scannerNom)}</td>
+      <td style="font-size:.76rem;font-family:monospace" title="${escHtml(l.code_scanne||'')}">${escHtml(codeAff)}</td>
       <td><span style="display:inline-block;padding:3px 12px;border-radius:12px;font-size:.72rem;font-weight:700;color:#fff;background:${bg}">${label}</span></td>
-      <td style="font-size:.78rem;color:var(--muted)">${escHtml(l.details || '–')}</td>
+      <td style="font-size:.78rem;color:var(--muted)">${escHtml(detailStr)}</td>
     </tr>`;
-  }).join('');
+  };
+
+  const sorted = [...logs].sort((a, b) => new Date(b.date_scan) - new Date(a.date_scan));
 
   container.innerHTML = `
     <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
@@ -13700,31 +13683,61 @@ function _renderScanLogs() {
     </div>
 
     <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
-      <input type="text" placeholder="🔍 Rechercher nom, code, détails..." value="${escHtml(search)}"
-        oninput="window._scanLogsFilter.search=this.value;_renderScanLogs()"
+      <input type="text" id="slSearch" placeholder="🔍 Rechercher nom, code, détails..."
+        oninput="_filterScanRows()"
         style="flex:1;min-width:180px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:.85rem"/>
-      <select onchange="window._scanLogsFilter.resultat=this.value;_renderScanLogs()" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:.85rem">
-        <option value="" ${!resultat?'selected':''}>Tous les résultats</option>
-        <option value="valide" ${resultat==='valide'?'selected':''}>✅ Valide</option>
-        <option value="deja_scanne" ${resultat==='deja_scanne'?'selected':''}>🔄 Déjà scanné</option>
-        <option value="invalide" ${resultat==='invalide'?'selected':''}>⚠️ Invalide</option>
-        <option value="introuvable" ${resultat==='introuvable'?'selected':''}>❌ Introuvable</option>
+      <select id="slFilter" onchange="_filterScanRows()" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:.85rem">
+        <option value="">Tous les résultats</option>
+        <option value="valide">✅ Valide</option>
+        <option value="deja_scanne">🔄 Déjà scanné</option>
+        <option value="invalide">⚠️ Invalide</option>
+        <option value="introuvable">❌ Introuvable</option>
       </select>
-      ${search || resultat ? `<button onclick="window._scanLogsFilter={search:'',resultat:''};_renderScanLogs()" style="padding:6px 12px;border:1px solid #c62828;color:#c62828;background:#fff;border-radius:8px;cursor:pointer;font-size:.8rem">✕ Réinitialiser</button>` : ''}
+      <select id="slSort" onchange="_sortScanRows()" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:.85rem">
+        <option value="desc">Plus récent d'abord</option>
+        <option value="asc">Plus ancien d'abord</option>
+      </select>
     </div>
 
-    <div style="font-size:.78rem;color:var(--muted);margin-bottom:8px">${filtered.length} résultat(s) sur ${logs.length} · Cliquez sur une colonne pour trier</div>
+    <div id="slCount" style="font-size:.78rem;color:var(--muted);margin-bottom:8px">${logs.length} résultat(s)</div>
 
     <div style="overflow-x:auto">
       <table class="data-table">
         <thead><tr>
-          ${thSort('Date/Heure', 'date_scan')}
-          ${thSort('Scanner', 'scanner_nom')}
-          ${thSort('Code scanné', 'code_scanne')}
-          ${thSort('Résultat', 'resultat')}
-          ${thSort('Détails', 'details')}
+          <th>Date/Heure</th>
+          <th>Scanner</th>
+          <th>Code scanné</th>
+          <th>Résultat</th>
+          <th>Détails / Acheteur</th>
         </tr></thead>
-        <tbody>${rows || '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--muted)">Aucun scan</td></tr>'}</tbody>
+        <tbody id="slBody">${sorted.map(mkRow).join('') || '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--muted)">Aucun scan</td></tr>'}</tbody>
       </table>
     </div>`;
+}
+
+function _filterScanRows() {
+  const q = (document.getElementById('slSearch')?.value || '').toLowerCase();
+  const r = document.getElementById('slFilter')?.value || '';
+  let shown = 0;
+  document.querySelectorAll('.sl-row').forEach(row => {
+    const matchQ = !q || row.dataset.search.includes(q);
+    const matchR = !r || row.dataset.resultat === r;
+    const visible = matchQ && matchR;
+    row.style.display = visible ? '' : 'none';
+    if (visible) shown++;
+  });
+  const cnt = document.getElementById('slCount');
+  if (cnt) cnt.textContent = shown + ' résultat(s) sur ' + (window._scanLogs||[]).length;
+}
+
+function _sortScanRows() {
+  const dir = document.getElementById('slSort')?.value || 'desc';
+  const tbody = document.getElementById('slBody');
+  if (!tbody) return;
+  const rows = [...tbody.querySelectorAll('.sl-row')];
+  rows.sort((a, b) => {
+    const da = a.dataset.date, db = b.dataset.date;
+    return dir === 'asc' ? da.localeCompare(db) : db.localeCompare(da);
+  });
+  rows.forEach(r => tbody.appendChild(r));
 }

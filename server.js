@@ -6497,9 +6497,13 @@ app.get('/api/scan-logs', authMiddleware, (req, res) => {
     const hasDel = db.prepare("SELECT id FROM scan_delegations WHERE user_id = ? AND actif = 1 AND (activity_id IS NULL OR activity_id = ?) AND (date_expiration IS NULL OR date_expiration > datetime('now'))").get(req.user.id, actId || 0);
     if (!hasDel) return res.status(403).json({ error: 'Accès refusé' });
   }
-  const rows = db.prepare(`SELECT sl.*, u.prenom AS scanner_prenom, u.nom AS scanner_nom
+  const rows = db.prepare(`SELECT sl.*, u.prenom AS scanner_prenom, u.nom AS scanner_nom,
+    t.acheteur_nom, t.acheteur_email, t.barcode_data,
+    COALESCE(v.prenom || ' ' || v.nom, '') AS vendu_par_nom
     FROM scan_logs sl
     JOIN users u ON u.id = sl.scanner_id
+    LEFT JOIN tickets t ON t.id = sl.ticket_id
+    LEFT JOIN users v ON v.id = t.vendu_par
     WHERE (? IS NULL OR sl.activity_id = ?)
     ORDER BY sl.date_scan DESC
     LIMIT 500`).all(actId || null, actId || null);
