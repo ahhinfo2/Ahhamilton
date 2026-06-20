@@ -3938,9 +3938,17 @@ app.get('/api/activities/:id/live', authMiddleware, requireRole('admin','delegue
 });
 
 // Check-in : scanner un QR billet et marquer l'entrée
-app.post('/api/tickets/checkin', authMiddleware, requireRole('admin','delegue','secretaire','tresoriere'), (req, res) => {
+app.post('/api/tickets/checkin', authMiddleware, (req, res) => {
   const { qr_data, activity_id } = req.body;
   console.log(`[CHECKIN] user=${req.user.id} qr="${qr_data}" act=${activity_id||'all'}`);
+
+  // Vérifier autorisation : EXEC ou délégation active
+  const isExec = ['admin','tresoriere','secretaire','delegue'].includes(req.user.role);
+  const hasDelegation = !isExec ? db.prepare("SELECT id FROM scan_delegations WHERE user_id=? AND actif=1 AND (activity_id IS NULL OR activity_id=?) AND (date_expiration IS NULL OR date_expiration > datetime('now'))").get(req.user.id, activity_id || 0) : true;
+  if (!isExec && !hasDelegation) {
+    return res.status(403).json({ error: 'Accès refusé — vous n\'avez pas la délégation de scan pour cette activité' });
+  }
+
   if (!qr_data) return res.status(400).json({ error: 'QR data manquant' });
 
   // Chercher d'abord sans filtre statut (pour diagnostiquer)
@@ -3958,14 +3966,25 @@ app.post('/api/tickets/checkin', authMiddleware, requireRole('admin','delegue','
   `).get(qr_data, qr_data);
 
   console.log(`[CHECKIN] ticket trouvé: ${ticket ? `id=${ticket.id} statut=${ticket.statut} payment=${ticket.payment_status}` : 'AUCUN'}`);
-  if (!ticket) return res.status(404).json({ error: 'Billet introuvable — QR non reconnu' });
+  if (!ticket) {
+    // Log: introuvable
+    db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details) VALUES (?,?,?,?,?)")
+      .run(activity_id || null, req.user.id, qr_data, 'introuvable', 'QR non reconnu');
+    return res.status(404).json({ error: 'Billet introuvable — QR non reconnu' });
+  }
 
   // Vérifier statut : accepter actif OU payment_status=paid
   const isValid = ticket.statut === 'actif' || ticket.payment_status === 'paid';
   if (!isValid) {
+    // Log: invalide
+    db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details, ticket_id) VALUES (?,?,?,?,?,?)")
+      .run(ticket.act_id || null, req.user.id, qr_data, 'invalide', 'Statut: ' + ticket.statut, ticket.id);
     return res.status(403).json({ error: `Billet ${ticket.statut === 'annule' ? 'annulé' : 'non activé'} (statut: ${ticket.statut})` });
   }
   if (activity_id && ticket.act_id !== parseInt(activity_id)) {
+    // Log: mauvaise activité (invalide)
+    db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details, ticket_id) VALUES (?,?,?,?,?,?)")
+      .run(ticket.act_id || null, req.user.id, qr_data, 'invalide', 'Mauvaise activité: ' + ticket.activite, ticket.id);
     return res.status(409).json({ error: `Ce billet est pour l'activité : ${ticket.activite}` });
   }
 
@@ -3974,10 +3993,16 @@ app.post('/api/tickets/checkin', authMiddleware, requireRole('admin','delegue','
     db.prepare('UPDATE tickets SET checked_in=1, date_checkin=CURRENT_TIMESTAMP WHERE id=?').run(ticket.id);
   }
 
+  const nomBillet = ticket.acheteur_nom || ((ticket.buyer_prenom||'') + ' ' + (ticket.buyer_nom||'')).trim();
+
+  // Log: valide ou deja_scanne
+  db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details, ticket_id) VALUES (?,?,?,?,?,?)")
+    .run(ticket.act_id || null, req.user.id, qr_data, alreadyIn ? 'deja_scanne' : 'valide', nomBillet + (ticket.table_numero ? ' | Table ' + ticket.table_numero : ''), ticket.id);
+
   res.json({
     ok: true,
     already_checked_in: alreadyIn,
-    nom: ticket.acheteur_nom || ((ticket.buyer_prenom||'') + ' ' + (ticket.buyer_nom||'')).trim(),
+    nom: nomBillet,
     table_numero: ticket.table_numero,
     activite: ticket.activite,
     vendeur_nom: ticket.vendeur_nom,
@@ -6383,6 +6408,93 @@ app.get('/api/guide.pdf', (req, res) => {
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', 'attachment; filename="Guide-Accueil-AHH.pdf"');
   res.send(Buffer.from(content, 'latin1'));
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DÉLÉGATION DE SCAN
+// ══════════════════════════════════════════════════════════════════════════════
+
+const SCAN_EXEC_ROLES = ['admin','tresoriere','secretaire','delegue'];
+
+// Créer une délégation de scan
+app.post('/api/scan-delegations', authMiddleware, requireRole(...SCAN_EXEC_ROLES), (req, res) => {
+  const { activity_id, user_id, type, date_expiration } = req.body;
+  if (!user_id) return res.status(400).json({ error: 'user_id requis' });
+  const user = db.prepare('SELECT id, prenom, nom FROM users WHERE id = ? AND actif = 1').get(user_id);
+  if (!user) return res.status(404).json({ error: 'Membre introuvable' });
+  // Vérifier doublon actif
+  const existing = db.prepare('SELECT id FROM scan_delegations WHERE user_id = ? AND actif = 1 AND (activity_id = ? OR (activity_id IS NULL AND ? IS NULL))').get(user_id, activity_id || null, activity_id || null);
+  if (existing) return res.status(409).json({ error: 'Ce membre a déjà une délégation active pour cette activité' });
+  const result = db.prepare('INSERT INTO scan_delegations (activity_id, user_id, delegue_par, type, date_expiration) VALUES (?,?,?,?,?)')
+    .run(activity_id || null, user_id, req.user.id, type || 'billets', date_expiration || null);
+  res.json({ ok: true, id: result.lastInsertRowid });
+});
+
+// Lister les délégations actives (pour EXEC)
+app.get('/api/scan-delegations', authMiddleware, requireRole(...SCAN_EXEC_ROLES), (req, res) => {
+  const actId = req.query.activity_id;
+  let rows;
+  if (actId) {
+    rows = db.prepare(`SELECT sd.*, u.prenom, u.nom, u.email,
+      dp.prenom AS delegue_par_prenom, dp.nom AS delegue_par_nom,
+      a.titre AS activite_titre
+      FROM scan_delegations sd
+      JOIN users u ON u.id = sd.user_id
+      JOIN users dp ON dp.id = sd.delegue_par
+      LEFT JOIN activities a ON a.id = sd.activity_id
+      WHERE sd.actif = 1 AND sd.activity_id = ?
+      ORDER BY sd.date_creation DESC`).all(actId);
+  } else {
+    rows = db.prepare(`SELECT sd.*, u.prenom, u.nom, u.email,
+      dp.prenom AS delegue_par_prenom, dp.nom AS delegue_par_nom,
+      a.titre AS activite_titre
+      FROM scan_delegations sd
+      JOIN users u ON u.id = sd.user_id
+      JOIN users dp ON dp.id = sd.delegue_par
+      LEFT JOIN activities a ON a.id = sd.activity_id
+      WHERE sd.actif = 1
+      ORDER BY sd.date_creation DESC`).all();
+  }
+  res.json(rows);
+});
+
+// Mes délégations (pour tout utilisateur authentifié)
+app.get('/api/scan-delegations/my', authMiddleware, (req, res) => {
+  const rows = db.prepare(`SELECT sd.*, a.titre AS activite_titre, a.date_debut, a.statut AS activite_statut,
+    dp.prenom AS delegue_par_prenom, dp.nom AS delegue_par_nom
+    FROM scan_delegations sd
+    LEFT JOIN activities a ON a.id = sd.activity_id
+    JOIN users dp ON dp.id = sd.delegue_par
+    WHERE sd.user_id = ? AND sd.actif = 1
+      AND (sd.date_expiration IS NULL OR sd.date_expiration > datetime('now'))
+    ORDER BY sd.date_creation DESC`).all(req.user.id);
+  res.json(rows);
+});
+
+// Révoquer une délégation
+app.delete('/api/scan-delegations/:id', authMiddleware, requireRole(...SCAN_EXEC_ROLES), (req, res) => {
+  const d = db.prepare('SELECT id FROM scan_delegations WHERE id = ?').get(req.params.id);
+  if (!d) return res.status(404).json({ error: 'Délégation introuvable' });
+  db.prepare('UPDATE scan_delegations SET actif = 0 WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// Journal des scans
+app.get('/api/scan-logs', authMiddleware, (req, res) => {
+  const actId = req.query.activity_id;
+  const isExec = SCAN_EXEC_ROLES.includes(req.user.role);
+  if (!isExec) {
+    // Vérifier que l'utilisateur a une délégation active pour cette activité
+    const hasDel = db.prepare("SELECT id FROM scan_delegations WHERE user_id = ? AND actif = 1 AND (activity_id IS NULL OR activity_id = ?) AND (date_expiration IS NULL OR date_expiration > datetime('now'))").get(req.user.id, actId || 0);
+    if (!hasDel) return res.status(403).json({ error: 'Accès refusé' });
+  }
+  const rows = db.prepare(`SELECT sl.*, u.prenom AS scanner_prenom, u.nom AS scanner_nom
+    FROM scan_logs sl
+    JOIN users u ON u.id = sl.scanner_id
+    WHERE (? IS NULL OR sl.activity_id = ?)
+    ORDER BY sl.date_scan DESC
+    LIMIT 500`).all(actId || null, actId || null);
+  res.json(rows);
 });
 
 // ══════════════════════════════════════════════════════════════════════════════

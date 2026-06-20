@@ -1038,6 +1038,30 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS sponsors (
   date_creation TEXT DEFAULT CURRENT_TIMESTAMP
 )`); } catch {}
 
+// ── Délégation de scan (billets/cartes) ─────────────────────────────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS scan_delegations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  activity_id INTEGER REFERENCES activities(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  delegue_par INTEGER NOT NULL REFERENCES users(id),
+  type TEXT DEFAULT 'billets',
+  actif INTEGER DEFAULT 1,
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+  date_expiration TEXT
+)`); } catch {}
+
+// ── Journal des scans ───────────────────────────────────────────────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS scan_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  activity_id INTEGER REFERENCES activities(id),
+  scanner_id INTEGER NOT NULL REFERENCES users(id),
+  code_scanne TEXT,
+  resultat TEXT NOT NULL,
+  details TEXT,
+  ticket_id INTEGER,
+  date_scan TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
 init();
 
 module.exports = db;

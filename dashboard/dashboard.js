@@ -1532,6 +1532,9 @@ function renderActivitiesTable(data) {
               <div class="act-menu-item" onclick="closeActMenus();managerTables(${a.id},'${a.titre.replace(/'/g,"\\'")}')">🪑 Tables</div>
               <div class="act-menu-item" onclick="closeActMenus();manageActivityPhotos(${a.id},'${a.titre.replace(/'/g,"\\'")}')">🖼 Photos</div>
               <div style="border-top:1px solid var(--border);margin:4px 0"></div>
+              <div class="act-menu-item" onclick="closeActMenus();openScanDelegation(${a.id},'${a.titre.replace(/'/g,"\\'")}')">📱 Déléguer un scanner</div>
+              <div class="act-menu-item" onclick="closeActMenus();viewScanLogs(${a.id},'${a.titre.replace(/'/g,"\\'")}')">📋 Journal des scans</div>
+              <div style="border-top:1px solid var(--border);margin:4px 0"></div>
               <div class="act-menu-item"><a href="${API}/activities/${a.id}/ical" download style="color:inherit;text-decoration:none;display:block">📅 Exporter iCal</a></div>
               <div class="act-menu-item"><a href="${API}/activities/${a.id}/qr?format=png&size=1000" download="QR-${a.id}.png" style="color:inherit;text-decoration:none;display:block">📲 Télécharger QR PNG</a></div>
               <div class="act-menu-item" onclick="closeActMenus();duplicateActivity(${a.id},'${a.titre.replace(/'/g,"\\'")}')">📋 Copier l'activité</div>
@@ -13357,5 +13360,158 @@ async function annualReportLoad() {
   } catch(e) {
     const container = document.getElementById('annualReportContent');
     if (container) container.innerHTML = '<p style="text-align:center;color:#c62828;padding:20px">Erreur de chargement du rapport</p>';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DELEGATION DE SCAN
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function openScanDelegation(actId, titre) {
+  let delegations = [];
+  try { delegations = await api('/scan-delegations?activity_id=' + actId); } catch {}
+
+  const delegList = delegations.length
+    ? delegations.map(d => `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--off);border-radius:8px;margin-bottom:6px">
+        <div>
+          <div style="font-weight:600;font-size:.88rem">${escHtml(d.prenom)} ${escHtml(d.nom)}</div>
+          <div style="font-size:.72rem;color:var(--muted)">${escHtml(d.email)} | Type: ${escHtml(d.type)} | Par: ${escHtml(d.delegue_par_prenom)} ${escHtml(d.delegue_par_nom)}</div>
+          ${d.date_expiration ? '<div style="font-size:.68rem;color:#e65100">Expire: ' + new Date(d.date_expiration).toLocaleString('fr-CA') + '</div>' : ''}
+        </div>
+        <button class="btn btn-sm" style="background:#c62828;color:#fff;border:none" onclick="revokeScanDelegation(${d.id},${actId},'${titre.replace(/'/g,"\\'")}')">Revoquer</button>
+      </div>`).join('')
+    : '<p style="color:var(--muted);text-align:center;padding:12px">Aucune delegation active</p>';
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  openModal('Deleguer un scanner — ' + titre, `
+    <div style="max-width:600px;margin:0 auto">
+      <h3 style="margin-bottom:16px">Delegations actives</h3>
+      <div id="scanDelegList">${delegList}</div>
+
+      <div style="border-top:2px solid var(--border);margin:24px 0;padding-top:20px">
+        <h3 style="margin-bottom:16px">Nouvelle delegation</h3>
+        <div style="margin-bottom:12px">
+          <label style="font-size:.82rem;font-weight:600;display:block;margin-bottom:4px">Rechercher un membre</label>
+          <input type="text" id="sdSearchInput" placeholder="Nom ou courriel..." style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:.88rem" oninput="searchScanDelegate(this.value)"/>
+          <div id="sdSearchResults" style="margin-top:4px"></div>
+          <input type="hidden" id="sdUserId"/>
+          <div id="sdSelectedUser" style="margin-top:6px;font-weight:600;color:var(--g2)"></div>
+        </div>
+        <div style="display:flex;gap:12px;margin-bottom:12px">
+          <div style="flex:1">
+            <label style="font-size:.82rem;font-weight:600;display:block;margin-bottom:4px">Type</label>
+            <select id="sdType" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:.88rem">
+              <option value="billets">Billets</option>
+              <option value="cartes">Cartes membres</option>
+              <option value="tous">Tous</option>
+            </select>
+          </div>
+          <div style="flex:1">
+            <label style="font-size:.82rem;font-weight:600;display:block;margin-bottom:4px">Expiration (optionnel)</label>
+            <input type="datetime-local" id="sdExpiration" value="${today}T23:59" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:.88rem"/>
+          </div>
+        </div>
+        <button class="btn btn-primary" style="width:100%" onclick="createScanDelegation(${actId},'${titre.replace(/'/g,"\\'")}')">Creer la delegation</button>
+      </div>
+    </div>
+  `);
+}
+
+let _sdSearchTimer = null;
+async function searchScanDelegate(q) {
+  clearTimeout(_sdSearchTimer);
+  if (q.length < 2) { document.getElementById('sdSearchResults').innerHTML = ''; return; }
+  _sdSearchTimer = setTimeout(async () => {
+    try {
+      const members = await api('/members/search?q=' + encodeURIComponent(q));
+      const box = document.getElementById('sdSearchResults');
+      box.innerHTML = members.map(m =>
+        `<div style="padding:6px 10px;cursor:pointer;border-radius:6px;font-size:.84rem;background:var(--off);margin-bottom:2px" onmouseover="this.style.background='var(--border)'" onmouseout="this.style.background='var(--off)'" onclick="selectScanDelegate(${m.id},'${escHtml(m.prenom)} ${escHtml(m.nom)}','${escHtml(m.email)}')">
+          ${escHtml(m.prenom)} ${escHtml(m.nom)} <span style="color:var(--muted);font-size:.75rem">(${escHtml(m.email)})</span>
+        </div>`
+      ).join('');
+    } catch {}
+  }, 300);
+}
+
+function selectScanDelegate(id, nom, email) {
+  document.getElementById('sdUserId').value = id;
+  document.getElementById('sdSelectedUser').textContent = nom + ' (' + email + ')';
+  document.getElementById('sdSearchResults').innerHTML = '';
+  document.getElementById('sdSearchInput').value = nom;
+}
+
+async function createScanDelegation(actId, titre) {
+  const userId = document.getElementById('sdUserId').value;
+  if (!userId) { alert('Veuillez selectionner un membre'); return; }
+  const type = document.getElementById('sdType').value;
+  const exp = document.getElementById('sdExpiration').value;
+  try {
+    await api('/scan-delegations', {
+      method: 'POST',
+      body: JSON.stringify({ activity_id: actId, user_id: parseInt(userId), type: type, date_expiration: exp || null })
+    });
+    openScanDelegation(actId, titre);
+  } catch(e) {
+    alert(e.message || 'Erreur lors de la creation');
+  }
+}
+
+async function revokeScanDelegation(delegId, actId, titre) {
+  if (!confirm('Revoquer cette delegation ?')) return;
+  try {
+    await api('/scan-delegations/' + delegId, { method: 'DELETE' });
+    openScanDelegation(actId, titre);
+  } catch(e) {
+    alert(e.message || 'Erreur');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// JOURNAL DES SCANS
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function viewScanLogs(actId, titre) {
+  openModal('Journal des scans — ' + titre, '<div style="text-align:center;padding:30px;color:var(--muted)">Chargement...</div>');
+  try {
+    const logs = await api('/scan-logs?activity_id=' + actId);
+    if (!logs || logs.length === 0) {
+      document.querySelector('.print-content').innerHTML = '<p style="text-align:center;padding:30px;color:var(--muted)">Aucun scan enregistre pour cette activite.</p>';
+      return;
+    }
+    const badgeColors = { valide: '#2e7d32', deja_scanne: '#6a1a75', introuvable: '#c62828', invalide: '#e65100' };
+    const badgeLabels = { valide: 'Valide', deja_scanne: 'Deja scanne', introuvable: 'Introuvable', invalide: 'Invalide' };
+
+    const rows = logs.map(l => {
+      const d = new Date(l.date_scan);
+      const dateStr = d.toLocaleDateString('fr-CA') + ' ' + d.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const bg = badgeColors[l.resultat] || '#666';
+      const label = badgeLabels[l.resultat] || l.resultat;
+      return `<tr>
+        <td style="white-space:nowrap;font-size:.78rem">${dateStr}</td>
+        <td>${escHtml(l.scanner_prenom)} ${escHtml(l.scanner_nom)}</td>
+        <td style="font-size:.78rem;font-family:monospace;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(l.code_scanne || '')}">${escHtml((l.code_scanne || '').substring(0, 30))}</td>
+        <td><span style="display:inline-block;padding:2px 10px;border-radius:12px;font-size:.72rem;font-weight:600;color:#fff;background:${bg}">${label}</span></td>
+        <td style="font-size:.78rem;color:var(--muted)">${escHtml(l.details || '—')}</td>
+      </tr>`;
+    }).join('');
+
+    document.querySelector('.print-content').innerHTML = `
+      <div style="margin-bottom:12px;color:var(--muted);font-size:.82rem">${logs.length} scan(s) enregistre(s)</div>
+      <div style="overflow-x:auto">
+        <table class="data-table">
+          <thead><tr>
+            <th>Date/Heure</th>
+            <th>Scanner</th>
+            <th>Code scanne</th>
+            <th>Resultat</th>
+            <th>Details</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  } catch(e) {
+    document.querySelector('.print-content').innerHTML = '<p style="text-align:center;color:#c62828;padding:20px">' + (e.message || 'Erreur de chargement') + '</p>';
   }
 }

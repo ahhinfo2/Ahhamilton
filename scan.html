@@ -297,17 +297,29 @@ let history = [];
 // ── Auth ────────────────────────────────────────────────────────────────────
 if (!TOKEN) { location.href = 'dashboard/login.html'; }
 
+let myDelegations = [];
+
 (async function init() {
   try {
     const r = await fetch(API + '/auth/me', { headers: { Authorization: 'Bearer ' + TOKEN } });
     if (!r.ok) { location.href = 'dashboard/login.html'; return; }
     USER = await r.json();
-    const allowed = ['admin','delegue','secretaire','tresoriere'];
-    if (!allowed.includes(USER.role)) {
-      document.body.innerHTML = '<div style="color:#fff;text-align:center;padding:40px"><h2>Accès refusé</h2><p>Cette page est réservée aux membres du comité.</p></div>';
-      return;
+    const execRoles = ['admin','delegue','secretaire','tresoriere'];
+    const isExec = execRoles.includes(USER.role);
+
+    if (!isExec) {
+      // Membre normal : vérifier les délégations
+      try {
+        const dr = await fetch(API + '/scan-delegations/my', { headers: { Authorization: 'Bearer ' + TOKEN } });
+        if (dr.ok) myDelegations = await dr.json();
+      } catch {}
+      if (!myDelegations || myDelegations.length === 0) {
+        document.body.innerHTML = '<div style="color:#fff;text-align:center;padding:40px"><h2>Accès refusé</h2><p>Vous n\'avez pas l\'autorisation de scanner.<br>Demandez à un membre du comité de vous déléguer l\'accès.</p></div>';
+        return;
+      }
     }
-    document.getElementById('hdUser').textContent = USER.prenom + ' ' + USER.nom + ' · ' + USER.role;
+
+    document.getElementById('hdUser').textContent = USER.prenom + ' ' + USER.nom + ' · ' + (isExec ? USER.role : 'délégué(e)');
     await loadActivities();
     startScanner();
   } catch(e) {
@@ -328,13 +340,31 @@ async function loadActivities() {
     const r = await fetch(API + '/activities', { headers: { Authorization: 'Bearer ' + TOKEN } });
     const acts = await r.json();
     const sel = document.getElementById('actSelect');
-    acts.filter(a => a.statut !== 'terminee').forEach(a => {
+    const execRoles = ['admin','delegue','secretaire','tresoriere'];
+    const isExec = execRoles.includes(USER.role);
+
+    // Pour les membres délégués : filtrer les activités selon les délégations
+    const delegatedActIds = myDelegations.map(d => d.activity_id).filter(Boolean);
+    const hasGlobalDelegation = myDelegations.some(d => !d.activity_id);
+
+    let filteredActs = acts.filter(a => a.statut !== 'terminee');
+    if (!isExec && !hasGlobalDelegation) {
+      filteredActs = filteredActs.filter(a => delegatedActIds.includes(a.id));
+      // Pas d'option "Toutes les activités" pour les délégués limités
+      if (filteredActs.length > 0) sel.innerHTML = '';
+    }
+
+    filteredActs.forEach(a => {
       const opt = document.createElement('option');
       opt.value = a.id;
       opt.textContent = a.titre + (a.date_debut ? ' · ' + new Date(a.date_debut).toLocaleDateString('fr-CA') : '');
       sel.appendChild(opt);
     });
-    // Auto-select activity from URL param
+
+    // Auto-sélection si un seul choix ou via URL
+    if (!isExec && !hasGlobalDelegation && filteredActs.length === 1) {
+      sel.value = filteredActs[0].id;
+    }
     const urlActId = new URLSearchParams(window.location.search).get('activity_id');
     if (urlActId) sel.value = urlActId;
   } catch(e) {}
