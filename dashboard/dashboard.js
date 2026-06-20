@@ -1739,7 +1739,7 @@ async function openActivityDetail(actId) {
                 ${a.lieu ? `<br>📍 ${escHtml(a.lieu)}` : ''}
                 ${a.prix > 0 ? `<br>${prixLabel}` : ''}
               </div>
-              ${a.description ? `<div style="font-size:.9rem;opacity:.8;margin-bottom:28px;line-height:1.7;max-width:480px">${escHtml(a.description)}</div>` : ''}
+              ${a.description ? `<div style="font-size:.9rem;opacity:.8;margin-bottom:28px;line-height:1.7;max-width:480px">${a.description}</div>` : ''}
 
               ${a.statut === 'planifiee' ? `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px">
                 ${a.user_registered > 0
@@ -1808,7 +1808,23 @@ function openActivityForm(a = null) {
             <option value="social" ${a?.type==='social'?'selected':''}>Social</option>
           </select></div>
       </div>
-      <div class="form-group"><label>Description</label><textarea id="a_desc">${a?.description||''}</textarea></div>
+      <div class="form-group">
+        <label>Description</label>
+        <div style="border:1.5px solid var(--border);border-radius:10px;overflow:hidden">
+          <div style="display:flex;gap:2px;padding:6px 8px;background:var(--off);border-bottom:1px solid var(--border);flex-wrap:wrap">
+            <button type="button" onclick="document.execCommand('bold')" style="border:none;background:none;cursor:pointer;padding:4px 8px;border-radius:4px;font-weight:900;font-size:.9rem" title="Gras">G</button>
+            <button type="button" onclick="document.execCommand('italic')" style="border:none;background:none;cursor:pointer;padding:4px 8px;border-radius:4px;font-style:italic;font-size:.9rem" title="Italique"><em>I</em></button>
+            <button type="button" onclick="document.execCommand('underline')" style="border:none;background:none;cursor:pointer;padding:4px 8px;border-radius:4px;text-decoration:underline;font-size:.9rem" title="Souligné">S</button>
+            <span style="width:1px;background:var(--border);margin:2px 6px"></span>
+            <button type="button" onclick="document.execCommand('fontSize','false','5')" style="border:none;background:none;cursor:pointer;padding:4px 8px;border-radius:4px;font-size:1.1rem;font-weight:700" title="Grand texte">A+</button>
+            <button type="button" onclick="document.execCommand('fontSize','false','3')" style="border:none;background:none;cursor:pointer;padding:4px 8px;border-radius:4px;font-size:.75rem" title="Texte normal">A−</button>
+            <span style="width:1px;background:var(--border);margin:2px 6px"></span>
+            <button type="button" onclick="document.execCommand('insertUnorderedList')" style="border:none;background:none;cursor:pointer;padding:4px 8px;border-radius:4px;font-size:.85rem" title="Liste à puces">• Liste</button>
+            <button type="button" onclick="document.execCommand('insertOrderedList')" style="border:none;background:none;cursor:pointer;padding:4px 8px;border-radius:4px;font-size:.85rem" title="Liste numérotée">1. Liste</button>
+          </div>
+          <div id="a_desc" contenteditable="true" style="min-height:120px;padding:12px 14px;font-size:.9rem;line-height:1.6;outline:none;color:var(--text)">${a?.description||''}</div>
+        </div>
+      </div>
       <div class="form-row">
         <div class="form-group"><label>Date début</label><input type="datetime-local" id="a_debut" value="${a?.date_debut||''}"/></div>
         <div class="form-group"><label>Date fin</label><input type="datetime-local" id="a_fin" value="${a?.date_fin||''}"/></div>
@@ -1872,8 +1888,10 @@ function openActivityForm(a = null) {
       if (biefVal > 0) rabaisJson.bienfaiteur = { type: document.getElementById('r_bief_type').value, val: biefVal };
       if (partVal > 0) rabaisJson.partenaire  = { type: document.getElementById('r_part_type').value, val: partVal };
     }
+    const descEl = document.getElementById('a_desc');
+    const descVal = descEl?.contentEditable === 'true' ? descEl.innerHTML : (descEl?.value || '');
     const body = { titre:document.getElementById('a_titre').value, type:document.getElementById('a_type').value,
-      description:document.getElementById('a_desc').value, date_debut:document.getElementById('a_debut').value,
+      description:descVal, date_debut:document.getElementById('a_debut').value,
       date_fin:document.getElementById('a_fin').value, lieu:document.getElementById('a_lieu').value,
       budget_prevu:parseFloat(document.getElementById('a_budget').value)||0,
       max_participants:parseInt(document.getElementById('a_max').value)||null,
