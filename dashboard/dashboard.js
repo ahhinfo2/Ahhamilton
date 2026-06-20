@@ -1640,51 +1640,71 @@ async function openActivityDetail(actId) {
     const waUrl = `https://wa.me/?text=${encodeURIComponent(shareText + '\n' + shareUrl)}`;
     const fbUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}&quote=${encodeURIComponent(shareText)}`;
 
-    openModal(`📅 ${escHtml(a.titre)}`, `
-      <div style="display:flex;flex-direction:column;gap:16px">
-        ${a.image_path ? `<img src="${a.image_path}" alt="${escHtml(a.titre)}" style="width:100%;max-height:300px;object-fit:cover;border-radius:12px" onerror="this.style.display='none'"/>` : ''}
-        ${!a.image_path && canCreateActivity() ? `<div style="text-align:center;padding:16px;background:var(--off);border-radius:10px;border:2px dashed #ccc">
-          <label style="cursor:pointer;color:var(--muted);font-size:.85rem">
-            📷 Ajouter une image à cette activité
-            <input type="file" accept="image/*" style="display:none" onchange="_uploadActivityImage(${a.id},this.files[0])"/>
-          </label>
-        </div>` : ''}
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div style="background:var(--off);padding:12px;border-radius:10px">
-            <div style="font-size:.75rem;color:var(--muted);text-transform:uppercase;font-weight:600;margin-bottom:4px">Date</div>
-            <div style="font-weight:700">${fmt(a.date_debut)}${a.date_fin && a.date_fin !== a.date_debut ? ' — ' + fmt(a.date_fin) : ''}</div>
-          </div>
-          <div style="background:var(--off);padding:12px;border-radius:10px">
-            <div style="font-size:.75rem;color:var(--muted);text-transform:uppercase;font-weight:600;margin-bottom:4px">Lieu</div>
-            <div style="font-weight:700">${escHtml(a.lieu || '–')}</div>
-          </div>
-          <div style="background:var(--off);padding:12px;border-radius:10px">
-            <div style="font-size:.75rem;color:var(--muted);text-transform:uppercase;font-weight:600;margin-bottom:4px">Type</div>
-            <div style="font-weight:700">${escHtml(a.type || '–')}</div>
-          </div>
-          <div style="background:var(--off);padding:12px;border-radius:10px">
-            <div style="font-size:.75rem;color:var(--muted);text-transform:uppercase;font-weight:600;margin-bottom:4px">Participants</div>
-            <div style="font-weight:700">${a.nb_inscrits || 0}${a.max_participants ? ' / ' + a.max_participants : ''}</div>
-          </div>
-        </div>
-        ${a.description ? `<div style="background:#fafafa;padding:14px;border-radius:10px;font-size:.9rem;line-height:1.6">${escHtml(a.description)}</div>` : ''}
-        ${a.prix > 0 ? `<div style="font-size:.9rem"><strong>Prix :</strong> $${a.prix}</div>` : ''}
-        <div style="display:flex;align-items:center;gap:8px">${statusPill(a.statut)}</div>
+    const dateFr = a.date_debut ? new Date(a.date_debut).toLocaleDateString('fr-CA', {weekday:'long', year:'numeric', month:'long', day:'numeric'}) : '';
+    const prixLabel = a.prix > 0 ? `💳 ${a.prix.toFixed(2)} $` : '🎁 Gratuit';
 
-        <hr style="border:none;border-top:1px solid var(--border);margin:4px 0"/>
-        <div style="font-size:.8rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:1px">Partager</div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <a href="${waUrl}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:#25D366;color:#fff;border-radius:10px;text-decoration:none;font-weight:700;font-size:.88rem">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.611.611l4.458-1.495A11.943 11.943 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.336 0-4.508-.76-6.262-2.047l-.438-.33-3.216 1.078 1.078-3.216-.33-.438A9.956 9.956 0 012 12C2 6.486 6.486 2 12 2s10 4.486 10 10-4.486 10-10 10z"/></svg>
-            WhatsApp
-          </a>
-          <a href="${fbUrl}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:#1877F2;color:#fff;border-radius:10px;text-decoration:none;font-weight:700;font-size:.88rem">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-            Facebook
-          </a>
-          <button onclick="navigator.clipboard.writeText('${shareText.replace(/'/g,"\\'")} ${shareUrl}');toast('Lien copié !')" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:var(--off);color:var(--text);border:1px solid var(--border);border-radius:10px;font-weight:700;font-size:.88rem;cursor:pointer">
-            📋 Copier le lien
-          </button>
+    window._modalReturnViewId = window._currentViewId;
+    setContent(`
+      <div style="margin:-20px -20px 0;background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:32px 0 40px;min-height:100vh">
+        <div style="max-width:1000px;margin:0 auto;padding:0 20px">
+
+          <button onclick="showView('${window._currentViewId || 'activities'}')" style="background:rgba(255,255,255,.15);border:none;color:#fff;padding:8px 18px;border-radius:8px;cursor:pointer;font-size:.85rem;margin-bottom:20px">← Retour</button>
+
+          <div style="display:flex;gap:36px;align-items:flex-start;flex-wrap:wrap">
+            <!-- Image -->
+            <div style="flex:0 0 380px;max-width:100%">
+              ${a.image_path
+                ? `<img src="${a.image_path}" alt="${escHtml(a.titre)}" style="width:100%;border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.3)" onerror="this.outerHTML='<div style=\\'background:rgba(255,255,255,.1);border-radius:16px;padding:60px;text-align:center;color:rgba(255,255,255,.4);font-size:3rem\\'>📅</div>'"/>`
+                : `<div style="background:rgba(255,255,255,.1);border-radius:16px;padding:40px;text-align:center">
+                    <div style="font-size:4rem;margin-bottom:16px">📅</div>
+                    ${canCreateActivity() ? `<label style="cursor:pointer;background:rgba(255,255,255,.2);color:#fff;padding:10px 20px;border-radius:8px;font-size:.85rem;font-weight:600">
+                      📷 Ajouter une image
+                      <input type="file" accept="image/*" style="display:none" onchange="_uploadActivityImage(${a.id},this.files[0])"/>
+                    </label>` : ''}
+                  </div>`
+              }
+            </div>
+
+            <!-- Infos -->
+            <div style="flex:1;min-width:280px;color:#fff">
+              <h2 style="font-size:2rem;font-weight:800;margin:0 0 16px;line-height:1.2">${escHtml(a.titre)}</h2>
+              <div style="font-size:.95rem;opacity:.85;margin-bottom:20px;line-height:1.8">
+                📅 ${dateFr}${a.date_fin && a.date_fin !== a.date_debut ? ' — ' + fmt(a.date_fin) : ''}
+                ${a.lieu ? `<br>📍 ${escHtml(a.lieu)}` : ''}
+                ${a.prix > 0 ? `<br>${prixLabel}` : ''}
+              </div>
+              ${a.description ? `<div style="font-size:.9rem;opacity:.8;margin-bottom:28px;line-height:1.7;max-width:480px">${escHtml(a.description)}</div>` : ''}
+
+              <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:28px">
+                <div style="background:rgba(255,255,255,.15);padding:12px 20px;border-radius:12px;text-align:center">
+                  <div style="font-size:1.5rem;font-weight:800">${a.nb_inscrits || 0}</div>
+                  <div style="font-size:.75rem;opacity:.7">Participants</div>
+                </div>
+                <div style="background:rgba(255,255,255,.15);padding:12px 20px;border-radius:12px;text-align:center">
+                  <div style="font-size:1.5rem;font-weight:800">${escHtml(a.type || '–')}</div>
+                  <div style="font-size:.75rem;opacity:.7">Type</div>
+                </div>
+                <div style="background:rgba(255,255,255,.15);padding:12px 20px;border-radius:12px;text-align:center">
+                  <div style="font-size:1.5rem;font-weight:800">${statusPill(a.statut)}</div>
+                  <div style="font-size:.75rem;opacity:.7">Statut</div>
+                </div>
+              </div>
+
+              <!-- Boutons partage -->
+              <div style="font-size:.75rem;text-transform:uppercase;letter-spacing:1.5px;opacity:.5;font-weight:700;margin-bottom:10px">Partager</div>
+              <div style="display:flex;gap:10px;flex-wrap:wrap">
+                <a href="${waUrl}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;padding:12px 22px;background:#25D366;color:#fff;border-radius:12px;text-decoration:none;font-weight:700;font-size:.88rem;box-shadow:0 2px 10px rgba(0,0,0,.2)">
+                  WhatsApp
+                </a>
+                <a href="${fbUrl}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;padding:12px 22px;background:#1877F2;color:#fff;border-radius:12px;text-decoration:none;font-weight:700;font-size:.88rem;box-shadow:0 2px 10px rgba(0,0,0,.2)">
+                  Facebook
+                </a>
+                <button onclick="navigator.clipboard.writeText('${shareText.replace(/'/g,"\\'")} ${shareUrl}');toast('Lien copié !')" style="display:inline-flex;align-items:center;gap:8px;padding:12px 22px;background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:12px;font-weight:700;font-size:.88rem;cursor:pointer">
+                  📋 Copier
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     `);
