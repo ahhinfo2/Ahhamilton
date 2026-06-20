@@ -74,6 +74,10 @@ try { db.exec('ALTER TABLE activities ADD COLUMN rabais_json TEXT DEFAULT \'{}\'
 try { db.exec('ALTER TABLE activities ADD COLUMN qr_token TEXT'); } catch {}
 try { db.exec('ALTER TABLE activities ADD COLUMN featured INTEGER DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE activities ADD COLUMN image_path TEXT'); } catch {}
+try { db.exec(`CREATE TABLE IF NOT EXISTS site_config (
+  key TEXT PRIMARY KEY,
+  value TEXT
+)`); } catch {}
 try { db.exec('ALTER TABLE tax_receipts ADD COLUMN print_token TEXT'); } catch {}
 // Push notifications subscriptions
 try { db.exec(`CREATE TABLE IF NOT EXISTS push_subscriptions (

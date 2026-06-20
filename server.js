@@ -2316,6 +2316,31 @@ app.post('/api/auth/reset-password', (req, res) => {
 // PUBLIC ACTIVITIES (no auth required)
 // ══════════════════════════════════════════════════════════════════════════════
 
+// GET/PUT — configuration countdown (public GET, EXEC PUT)
+app.get('/api/countdown', (req, res) => {
+  const cfg = {};
+  try {
+    const rows = db.prepare("SELECT key, value FROM site_config WHERE key LIKE 'countdown_%'").all();
+    rows.forEach(r => { cfg[r.key.replace('countdown_', '')] = r.value; });
+  } catch {}
+  res.json({
+    actif: cfg.actif === '1',
+    texte: cfg.texte || '',
+    date: cfg.date || '',
+    auto: cfg.auto !== '0'
+  });
+});
+
+app.put('/api/countdown', authMiddleware, requireRole('admin','secretaire','tresoriere','delegue'), (req, res) => {
+  const { actif, texte, date, auto } = req.body;
+  const upsert = db.prepare("INSERT INTO site_config (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value");
+  if (actif !== undefined) upsert.run('countdown_actif', actif ? '1' : '0');
+  if (texte !== undefined) upsert.run('countdown_texte', texte);
+  if (date !== undefined) upsert.run('countdown_date', date);
+  if (auto !== undefined) upsert.run('countdown_auto', auto ? '1' : '0');
+  res.json({ ok: true });
+});
+
 // GET — activité à la une (public)
 app.get('/api/activities/featured', (req, res) => {
   const act = db.prepare(`

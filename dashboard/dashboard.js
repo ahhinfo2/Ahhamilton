@@ -776,6 +776,46 @@ async function pollBadges() {
   setTimeout(pollBadges, 30000);
 }
 
+// ── Countdown control ───────────────────────────────────────────────────────
+async function _loadCountdownControl() {
+  try {
+    const cfg = await api('/countdown');
+    const cb = document.getElementById('cdActif');
+    const fields = document.getElementById('cdFields');
+    const auto = document.getElementById('cdAuto');
+    const manual = document.getElementById('cdManual');
+    const texte = document.getElementById('cdTexte');
+    const date = document.getElementById('cdDate');
+    if (!cb) return;
+    cb.checked = cfg.actif !== false;
+    fields.style.display = cb.checked ? '' : 'none';
+    if (auto) auto.checked = cfg.auto !== false;
+    if (manual) manual.style.display = cfg.auto === false ? '' : 'none';
+    if (texte) texte.value = cfg.texte || '';
+    if (date) date.value = cfg.date || '';
+  } catch {}
+}
+
+function _toggleCdMode() {
+  const auto = document.getElementById('cdAuto')?.checked;
+  const manual = document.getElementById('cdManual');
+  if (manual) manual.style.display = auto ? 'none' : '';
+  if (auto) _saveCountdown();
+}
+
+async function _saveCountdown() {
+  const actif = document.getElementById('cdActif')?.checked;
+  const fields = document.getElementById('cdFields');
+  if (fields) fields.style.display = actif ? '' : 'none';
+  const auto = document.getElementById('cdAuto')?.checked;
+  const texte = document.getElementById('cdTexte')?.value || '';
+  const date = document.getElementById('cdDate')?.value || '';
+  try {
+    await api('/countdown', { method: 'PUT', body: JSON.stringify({ actif, auto, texte, date }) });
+    toast(actif ? '⏱ Countdown activé' : '⏱ Countdown désactivé');
+  } catch(e) { toast(e.message, true); }
+}
+
 // ── FAB Scanner (mobile) ────────────────────────────────────────────────────
 function initFAB() {
   const canScan = ['admin','tresoriere','secretaire','delegue'].includes(USER.role);
@@ -990,6 +1030,25 @@ async function home() {
         </div>
         <!-- Widget météo -->
         <div id="weatherWidget" style="border-top:1px solid var(--border);padding:12px 16px"></div>
+        <!-- Countdown control -->
+        ${can.executive() ? `<div style="border-top:1px solid var(--border);padding:12px 16px" id="countdownControl">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <span style="font-size:.78rem;font-weight:700;color:var(--muted)">⏱ COUNTDOWN SITE</span>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.78rem">
+              <input type="checkbox" id="cdActif" style="width:auto" onchange="_saveCountdown()"/> Actif
+            </label>
+          </div>
+          <div id="cdFields" style="display:none">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.78rem;margin-bottom:8px">
+              <input type="checkbox" id="cdAuto" style="width:auto" checked onchange="_toggleCdMode()"/> Mode auto (prochaine activité)
+            </label>
+            <div id="cdManual" style="display:none">
+              <input id="cdTexte" placeholder="Texte affiché (ex: Gala AHH 2026)" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;margin-bottom:6px"/>
+              <input id="cdDate" type="datetime-local" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;margin-bottom:6px"/>
+              <button class="btn btn-primary btn-sm" onclick="_saveCountdown()" style="width:100%">Enregistrer</button>
+            </div>
+          </div>
+        </div>` : ''}
       </div>
 
       <!-- Prochaines activités -->
@@ -1083,6 +1142,7 @@ async function home() {
 
   // Charger météo Hamilton en arrière-plan
   fetchWeather();
+  if (can.executive()) _loadCountdownControl();
 }
 
 async function fetchWeather() {

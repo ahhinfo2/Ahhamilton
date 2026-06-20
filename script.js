@@ -506,28 +506,40 @@ if (contactForm) {
     }
   }
 
-  // Priorité : activité featured (À LA UNE), sinon la prochaine activité
+  // Charger la config countdown du comité
   Promise.all([
-    fetch(API + '/activities/featured').then(r => r.ok ? r.json() : null).catch(() => null),
-    fetch(API + '/activities/public').then(r => r.ok ? r.json() : []).catch(() => [])
+    fetch(API + '/countdown').then(function(r) { return r.ok ? r.json() : {}; }).catch(function() { return {}; }),
+    fetch(API + '/activities/featured').then(function(r) { return r.ok ? r.json() : null; }).catch(function() { return null; }),
+    fetch(API + '/activities/public').then(function(r) { return r.ok ? r.json() : []; }).catch(function() { return []; })
   ]).then(function(results) {
-    var featured = results[0];
-    var acts = results[1];
+    var cfg = results[0] || {};
+    var featured = results[1];
+    var acts = results[2];
     var now = Date.now();
 
-    var chosen = null;
-    if (featured && featured.date_debut && new Date(featured.date_debut) > now) {
-      chosen = featured;
-    }
-    if (!chosen) {
-      chosen = acts
-        .filter(function(a) { return a.date_debut && new Date(a.date_debut) > now; })
-        .sort(function(a, b) { return new Date(a.date_debut) - new Date(b.date_debut); })[0];
-    }
-    if (!chosen) { bar.style.display = 'none'; return; }
+    // Si le comité a désactivé le countdown
+    if (cfg.actif === false) { bar.style.display = 'none'; return; }
 
-    targetDate = new Date(chosen.date_debut).getTime();
-    eventName  = chosen.titre;
+    // Mode manuel : texte et date définis par le comité
+    if (!cfg.auto && cfg.texte && cfg.date) {
+      targetDate = new Date(cfg.date).getTime();
+      eventName = cfg.texte;
+    } else {
+      // Mode auto : featured en priorité, sinon prochaine activité
+      var chosen = null;
+      if (featured && featured.date_debut && new Date(featured.date_debut) > now) {
+        chosen = featured;
+      }
+      if (!chosen) {
+        chosen = acts
+          .filter(function(a) { return a.date_debut && new Date(a.date_debut) > now; })
+          .sort(function(a, b) { return new Date(a.date_debut) - new Date(b.date_debut); })[0];
+      }
+      if (!chosen) { bar.style.display = 'none'; return; }
+      targetDate = new Date(chosen.date_debut).getTime();
+      eventName = chosen.titre;
+    }
+
     var nameEl = bar.querySelector('.countdown-event');
     if (nameEl) nameEl.textContent = eventName;
     bar.style.display = '';
