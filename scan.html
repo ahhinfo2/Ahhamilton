@@ -138,48 +138,46 @@
   .idle-icon{font-size:3rem;margin-bottom:12px}
   .idle p{font-size:.88rem}
 
-  /* ── MOBILE : caméra 55% + résultat 45%, tout visible sans scroller ── */
+  /* ── MOBILE ── */
   @media(max-width:640px){
-    /* Header ultra-compact */
-    .hdr{padding:5px 10px}
-    .hdr-logo img{width:26px;height:26px}
-    .hdr-title{font-size:.78rem}
-    .hdr-sub,.hdr-user{display:none}
-    .btn-logout{padding:3px 8px;font-size:.62rem;margin-top:0}
+    .hdr{padding:5px 10px;gap:4px}
+    .hdr-logo img{width:24px;height:24px}
+    .hdr-title{font-size:.72rem}
+    .hdr-sub{display:none}
+    .hdr-user{font-size:.62rem}
+    .btn-logout{padding:3px 8px;font-size:.6rem;margin-top:0}
 
-    /* Layout colonne, hauteur fixe, 0 scroll */
     .main{
       display:flex;flex-direction:column;
-      height:calc(100vh - 40px);overflow:hidden;
+      height:calc(100vh - 44px);overflow-y:auto;
     }
 
-    /* Caméra : 55% de l'espace */
-    .cam-side{flex:0 0 55%;min-height:0}
+    .cam-side{flex:0 0 auto;min-height:200px;max-height:45vh}
     .cam-tip{display:none}
     .act-filter{padding:4px 8px}
     .act-filter label{font-size:.65rem}
     .act-filter select{font-size:.72rem;padding:3px 6px}
-    .viewfinder{width:160px;height:160px}
+    .viewfinder{width:140px;height:140px}
 
-    /* Résultat : 45% restants, compact */
     .result-side{
       display:flex;flex-direction:column;
-      flex:0 0 45%;width:100%;min-height:0;
+      flex:1;width:100%;min-height:0;
       border-left:none;border-top:2px solid #333;
+      overflow-y:auto;
     }
-    .result-header{padding:6px 12px;font-size:.65rem}
-    .result-main{padding:10px 14px}
-    .result-icon{font-size:2.4rem;margin-bottom:4px}
-    .result-status{font-size:.8rem;margin-bottom:8px}
-    .result-name{font-size:1.4rem;margin-bottom:4px}
-    .result-table{font-size:1.1rem;margin-bottom:6px}
-    .result-badge{font-size:.72rem;padding:4px 10px}
-    .result-activity{font-size:.68rem;margin-top:4px}
-    .idle-icon{font-size:1.8rem;margin-bottom:6px}
-    .idle p{font-size:.75rem}
+    .result-header{padding:4px 12px;font-size:.62rem}
+    .result-main{padding:8px 12px}
+    .result-icon{font-size:1.8rem;margin-bottom:2px}
+    .result-status{font-size:.72rem;margin-bottom:4px}
+    .result-name{font-size:1.1rem;margin-bottom:2px}
+    .result-table{font-size:.9rem;margin-bottom:4px}
+    .result-badge{font-size:.68rem;padding:3px 8px}
+    .result-activity{font-size:.65rem;margin-top:2px}
+    .idle-icon{font-size:1.5rem;margin-bottom:4px}
+    .idle p{font-size:.72rem}
 
-    /* Historique : caché sur mobile */
-    .history{display:none}
+    .history{display:block;max-height:30vh;overflow-y:auto}
+    .hist-item{padding:6px 8px;cursor:pointer}
   }
 
   /* ── Overlay résultat plein écran (mobile + desktop) ── */
@@ -441,15 +439,15 @@ async function onQRDetected(rawText) {
       if (res.status === 409) showResult('warn', '⚠️', 'MAUVAISE ACTIVITÉ', data.error, null, null, null, false, {});
       else showResult('err', '❌', 'INTROUVABLE', data.error || 'QR non reconnu', null, null, null, false, {});
       playBeep(false);
-      addHistory('err', qrText.split('\n')[0] || 'Inconnu', data.error || 'Invalide');
+      addHistory('err', qrText.split('\n')[0] || 'Inconnu', data.error || 'Invalide', data);
     } else if (data.already_checked_in) {
       showResult('dup', '🔄', 'DÉJÀ SCANNÉ', data.nom, data.table_numero, data.vendeur_nom, data.activite, true, data);
       playBeep(false);
-      addHistory('dup', data.nom, 'Répétition — ' + (data.barcode || ''));
+      addHistory('dup', data.nom, 'Répétition — ' + (data.barcode || ''), data);
     } else {
       showResult('ok', '✅', 'VALIDE', data.nom, data.table_numero, data.vendeur_nom, data.activite, false, data);
       playBeep(true);
-      addHistory('ok', data.nom, (data.barcode || '') + (data.table_numero ? ' · Table ' + data.table_numero : ''));
+      addHistory('ok', data.nom, (data.barcode || '') + (data.table_numero ? ' · Table ' + data.table_numero : ''), data);
     }
   } catch(e) {
     showResult('err', '⚠️', 'ERREUR RÉSEAU', 'Vérifiez la connexion', null, null, null);
@@ -514,22 +512,49 @@ function showResult(cls, icon, status, nom, table, vendeur, activite, isdup, ext
 }
 
 // ── Historique ────────────────────────────────────────────────────────────────
-function addHistory(type, nom, meta) {
-  history.unshift({ type, nom, meta, time: new Date().toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'}) });
-  if (history.length > 10) history.pop();
+function addHistory(type, nom, meta, extra) {
+  const now = new Date();
+  const time = now.toLocaleTimeString('fr-CA', {hour:'2-digit', minute:'2-digit', second:'2-digit', timeZone:'America/Toronto'});
+  history.unshift({ type, nom, meta, time, extra: extra || {} });
+  if (history.length > 20) history.pop();
 
   const box = document.getElementById('historyBox');
   const list = document.getElementById('histList');
   box.style.display = 'block';
-  list.innerHTML = history.map(h =>
-    '<div class="hist-item">' +
+  list.innerHTML = history.map((h, i) =>
+    '<div class="hist-item" onclick="_showHistDetail(' + i + ')" style="cursor:pointer">' +
       '<div class="hist-dot ' + h.type + '"></div>' +
       '<div class="hist-info">' +
         '<div class="hist-name">' + h.nom + '</div>' +
         '<div class="hist-meta">' + h.time + ' · ' + h.meta + '</div>' +
       '</div>' +
+      '<div style="color:rgba(255,255,255,.3);font-size:.7rem">›</div>' +
     '</div>'
   ).join('');
+}
+
+function _showHistDetail(idx) {
+  const h = history[idx];
+  if (!h) return;
+  const e = h.extra || {};
+  const o = document.getElementById('scanOverlay');
+  const cls = h.type;
+  o.className = 'visible ' + cls;
+  document.getElementById('ovIcon').textContent = cls === 'ok' ? '✅' : cls === 'dup' ? '🔄' : '❌';
+  document.getElementById('ovStatus').textContent = cls === 'ok' ? 'VALIDE' : cls === 'dup' ? 'DÉJÀ SCANNÉ' : 'REFUSÉ';
+  document.getElementById('ovName').textContent = h.nom || '';
+  var rows = [];
+  if (e.activite) rows.push('<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.15)"><span style="opacity:.7">Activité</span><strong>' + e.activite + '</strong></div>');
+  if (e.barcode) rows.push('<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.15)"><span style="opacity:.7">Billet</span><strong style="font-family:monospace">' + e.barcode + '</strong></div>');
+  if (e.table_numero) rows.push('<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.15)"><span style="opacity:.7">Table</span><strong>' + e.table_numero + '</strong></div>');
+  if (e.prix) rows.push('<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.15)"><span style="opacity:.7">Prix</span><strong>' + e.prix.toFixed(2) + ' $</strong></div>');
+  if (e.vendeur_nom) rows.push('<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.15)"><span style="opacity:.7">Vendu par</span><strong>' + e.vendeur_nom + '</strong></div>');
+  else if (cls === 'ok' || cls === 'dup') rows.push('<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.15)"><span style="opacity:.7">Achat</span><strong>En ligne</strong></div>');
+  if (e.lieu) rows.push('<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.15)"><span style="opacity:.7">Lieu</span><strong>' + e.lieu + '</strong></div>');
+  if (e.date_evenement) rows.push('<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.15)"><span style="opacity:.7">Date</span><strong>' + new Date(e.date_evenement).toLocaleDateString('fr-CA',{day:'numeric',month:'short',year:'numeric'}) + '</strong></div>');
+  document.getElementById('ovDetails').innerHTML = rows.length ? '<div style="background:rgba(0,0,0,.2);border-radius:14px;padding:8px 14px;margin:8px 0;font-size:.85rem;text-align:left">' + rows.join('') + '</div>' : '';
+  document.getElementById('ovSub').textContent = h.time;
+  clearTimeout(_overlayTimer);
 }
 
 // ── Son ───────────────────────────────────────────────────────────────────────

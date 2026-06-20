@@ -13639,7 +13639,7 @@ function _renderScanLogs() {
 
   const mkRow = l => {
     const d = new Date(l.date_scan);
-    const dateStr = d.toLocaleDateString('fr-CA') + ' ' + d.toLocaleTimeString('fr-CA', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    const dateStr = d.toLocaleDateString('fr-CA', {timeZone:'America/Toronto'}) + ' ' + d.toLocaleTimeString('fr-CA', {hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'America/Toronto'});
     const bg = badgeColors[l.resultat] || '#666';
     const label = badgeLabels[l.resultat] || l.resultat;
     const scannerNom = (l.scanner_prenom||'') + ' ' + (l.scanner_nom||'');
