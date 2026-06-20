@@ -1675,6 +1675,36 @@ const canCreateActivity = () => ['admin','tresoriere','secretaire','delegue'].in
 // Seuls VP (admin) et Présidente (admin) peuvent définir les rabais
 const canSetDiscount = () => USER.role === 'admin';
 
+function _actTicketQty(delta, actId) {
+  const el = document.getElementById('_ticketQty_' + actId);
+  const totalEl = document.getElementById('_ticketTotal_' + actId);
+  if (!el) return;
+  let qty = parseInt(el.textContent) + delta;
+  if (qty < 1) qty = 1;
+  if (qty > 20) qty = 20;
+  el.textContent = qty;
+  const prix = parseFloat(totalEl?.dataset?.prix || el.closest('[data-prix]')?.dataset?.prix) || 0;
+  if (totalEl) {
+    const act = (window._activitiesData || []).find(a => a.id === actId);
+    const p = act?.prix || 0;
+    totalEl.textContent = (qty * p).toFixed(2) + ' $';
+  }
+}
+
+async function _actBuyTickets(actId, prix) {
+  const qtyEl = document.getElementById('_ticketQty_' + actId);
+  const qty = parseInt(qtyEl?.textContent) || 1;
+  try {
+    toast('Achat en cours...');
+    const r = await api('/activities/' + actId + '/acheter-billets', {
+      method: 'POST',
+      body: JSON.stringify({ nb_billets: qty, email: USER.email })
+    });
+    toast('✅ ' + qty + ' billet(s) acheté(s) ! Vérifiez votre courriel.');
+    openActivityDetail(actId);
+  } catch(e) { toast('Erreur : ' + e.message, true); }
+}
+
 async function _uploadActivityImage(actId, file) {
   if (!file) return;
   const fd = new FormData();
@@ -1741,12 +1771,32 @@ async function openActivityDetail(actId) {
               </div>
               ${a.description ? `<div style="font-size:.9rem;opacity:.8;margin-bottom:28px;line-height:1.7;max-width:480px">${escHtml(a.description)}</div>` : ''}
 
-              ${a.statut === 'planifiee' ? `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px">
+              ${a.statut === 'planifiee' && !canCreateActivity() ? `<div style="margin-bottom:24px">
                 ${a.user_registered > 0
-                  ? `<div style="background:rgba(255,255,255,.2);padding:14px 28px;border-radius:12px;font-weight:700;font-size:1rem">✅ Vous êtes inscrit(e)</div>`
-                  : a.paiement_requis && a.prix > 0
-                    ? `<a href="billets.html?id=${a.id}" style="display:inline-block;background:#fff;color:#1b5e20;padding:14px 28px;border-radius:12px;font-weight:700;font-size:1rem;text-decoration:none;box-shadow:0 2px 10px rgba(0,0,0,.2)">🎟️ Acheter un billet : ${a.prix.toFixed(2)} $</a>`
-                    : `<button onclick="registerActivity(${a.id})" style="background:#fff;color:#1b5e20;border:none;padding:14px 28px;border-radius:12px;font-weight:700;font-size:1rem;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.2)">✅ S'inscrire à cette activité</button>`
+                  ? `<div style="background:rgba(255,255,255,.2);padding:14px 28px;border-radius:12px;font-weight:700;font-size:1rem;display:inline-block;margin-bottom:12px">✅ Vous êtes inscrit(e)</div>`
+                  : `<button onclick="registerActivity(${a.id})" style="background:#fff;color:#1b5e20;border:none;padding:14px 28px;border-radius:12px;font-weight:700;font-size:1rem;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.2);margin-bottom:12px">✅ S'inscrire gratuitement</button>`
+                }
+                ${a.paiement_requis && a.prix > 0 ? `
+                <div style="background:rgba(255,255,255,.12);border-radius:14px;padding:20px;margin-top:8px">
+                  <div style="font-weight:700;font-size:1rem;margin-bottom:12px">🎟 Acheter des billets</div>
+                  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                    <div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.15);border-radius:10px;padding:6px 4px">
+                      <button onclick="_actTicketQty(-1,${a.id})" style="background:none;border:none;color:#fff;font-size:1.2rem;cursor:pointer;padding:4px 10px">−</button>
+                      <span id="_ticketQty_${a.id}" style="font-size:1.3rem;font-weight:800;min-width:30px;text-align:center">1</span>
+                      <button onclick="_actTicketQty(1,${a.id})" style="background:none;border:none;color:#fff;font-size:1.2rem;cursor:pointer;padding:4px 10px">+</button>
+                    </div>
+                    <div style="font-size:.9rem;opacity:.8">× ${a.prix.toFixed(2)} $ = <strong id="_ticketTotal_${a.id}">${a.prix.toFixed(2)} $</strong></div>
+                    <button onclick="_actBuyTickets(${a.id},${a.prix})" style="background:#fff;color:#1b5e20;border:none;padding:12px 24px;border-radius:10px;font-weight:700;font-size:.95rem;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.2)">
+                      🎟 Acheter
+                    </button>
+                  </div>
+                  <div style="font-size:.78rem;opacity:.6;margin-top:10px">Les billets avec QR seront envoyés à votre courriel</div>
+                </div>` : ''}
+              </div>` : ''}
+              ${a.statut === 'planifiee' && canCreateActivity() ? `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px">
+                ${a.paiement_requis && a.prix > 0
+                  ? `<a href="billets.html?id=${a.id}" style="display:inline-block;background:#fff;color:#1b5e20;padding:14px 28px;border-radius:12px;font-weight:700;font-size:1rem;text-decoration:none;box-shadow:0 2px 10px rgba(0,0,0,.2)">🎟️ Billets : ${a.prix.toFixed(2)} $</a>`
+                  : ''
                 }
               </div>` : ''}
 

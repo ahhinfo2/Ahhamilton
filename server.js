@@ -4743,6 +4743,75 @@ app.post('/api/activities/:id/vendre', authMiddleware, requireRole('admin','tres
   res.json({ ok: true, mode, tickets });
 });
 
+// POST — achat de billets par un membre (depuis le détail d'activité)
+app.post('/api/activities/:id/acheter-billets', authMiddleware, async (req, res) => {
+  const { nb_billets = 1 } = req.body;
+  const actId = parseInt(req.params.id);
+  const act = db.prepare('SELECT * FROM activities WHERE id=?').get(actId);
+  if (!act) return res.status(404).json({ error: 'Activité introuvable' });
+  const qty = Math.min(Math.max(parseInt(nb_billets) || 1, 1), 20);
+  const prix = act.prix || 0;
+  const user = req.user;
+  const fullUser = db.prepare('SELECT * FROM users WHERE id=?').get(user.id);
+  const siteBase = process.env.SITE_URL || 'https://ahhamilton.ca';
+  const qrDir = path.join(__dirname, 'uploads', 'qr');
+  if (!fs.existsSync(qrDir)) fs.mkdirSync(qrDir, { recursive: true });
+
+  const tickets = [];
+  for (let i = 0; i < qty; i++) {
+    const ticketToken = require('crypto').randomUUID();
+    let barcode = newBarcodeData();
+    while (db.prepare('SELECT id FROM tickets WHERE barcode_data=?').get(barcode)) barcode = newBarcodeData();
+
+    const r = db.prepare(`INSERT INTO tickets
+      (activity_id, user_id, acheteur_nom, acheteur_email, qr_data, barcode_data, prix, methode_paiement, payment_status, statut)
+      VALUES (?,?,?,?,?,?,?,'en_ligne','paid','actif')`)
+      .run(actId, user.id, `${user.prenom} ${user.nom}`, fullUser?.email || '', `TICKET:${ticketToken}`, barcode, prix);
+
+    try {
+      const scanUrl = `${siteBase}/scan.html?t=${ticketToken}`;
+      const qrBuf = await QRCode.toBuffer(scanUrl, { type:'png', width:400, margin:2, errorCorrectionLevel:'H', color:{ dark:'#1b5e20', light:'#ffffff' } });
+      fs.writeFileSync(path.join(qrDir, `${ticketToken}.png`), qrBuf);
+    } catch(e) {}
+
+    tickets.push({ id: r.lastInsertRowid, token: ticketToken, barcode, prix });
+  }
+
+  // Envoyer les billets par courriel
+  if (fullUser?.email && tickets.length) {
+    const ticketListHtml = tickets.map((t, i) => `
+      <div style="background:#f9f9f9;border-radius:10px;padding:16px;margin-bottom:12px;border:1px solid #e0e0e0">
+        <div style="font-weight:700;margin-bottom:6px">Billet ${i+1} — ${(act.titre||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</div>
+        <div style="font-size:.85rem;color:#555;margin-bottom:8px">📅 ${act.date_debut || ''} · 📍 ${act.lieu || ''}</div>
+        <div style="font-size:.8rem;font-family:monospace;color:#888;margin-bottom:8px">Code : ${t.barcode}</div>
+        <img src="${siteBase}/uploads/qr/${t.token}.png" alt="QR" style="width:200px;height:200px"/>
+        <div style="margin-top:6px"><a href="${siteBase}/ticket.html?id=${t.id}" style="color:#1b5e20;font-weight:600">Voir mon billet →</a></div>
+      </div>`).join('');
+
+    mailer.sendMail({
+      to: fullUser.email,
+      subject: `🎟 Vos ${qty} billet(s) — ${act.titre} | AHH`,
+      html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+        <div style="background:#1b5e20;color:#fff;padding:20px 24px;border-radius:12px 12px 0 0">
+          <h2 style="margin:0;font-size:1.1rem">🎟 Vos billets — ${(act.titre||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</h2>
+        </div>
+        <div style="padding:24px;border:1px solid #e0e0e0;border-top:none;border-radius:0 0 12px 12px">
+          <p>Bonjour <strong>${user.prenom}</strong>,</p>
+          <p>Voici vos <strong>${qty} billet(s)</strong> pour l'activité <strong>${(act.titre||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</strong>.</p>
+          <p style="font-size:.9rem;color:#555">Présentez le code QR à l'entrée de l'événement.</p>
+          ${ticketListHtml}
+          <p style="font-size:.8rem;color:#999;margin-top:20px">Association Haïtienne de Hamilton — ${siteBase}</p>
+        </div>
+      </div>`
+    }).catch(e => console.error('[BILLET EMAIL]', e.message));
+  }
+
+  // Alerte in-app
+  createAlert(user.id, 'billet', `🎟 ${qty} billet(s) acheté(s) — ${act.titre}`, `Vérifiez votre courriel pour les codes QR.`);
+
+  res.json({ ok: true, qty, tickets });
+});
+
 // POST — marquer un billet généré comme vendu (enregistre le revenu)
 app.post('/api/tickets/:id/marquer-vendu', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const t = db.prepare('SELECT * FROM tickets WHERE id=?').get(req.params.id);
