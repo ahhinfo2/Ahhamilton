@@ -1676,9 +1676,18 @@ async function openActivityDetail(actId) {
               </div>
               ${a.description ? `<div style="font-size:.9rem;opacity:.8;margin-bottom:28px;line-height:1.7;max-width:480px">${escHtml(a.description)}</div>` : ''}
 
+              ${a.statut === 'planifiee' ? `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px">
+                ${a.user_registered > 0
+                  ? `<div style="background:rgba(255,255,255,.2);padding:14px 28px;border-radius:12px;font-weight:700;font-size:1rem">✅ Vous êtes inscrit(e)</div>`
+                  : a.paiement_requis && a.prix > 0
+                    ? `<a href="billets.html?id=${a.id}" style="display:inline-block;background:#fff;color:#1b5e20;padding:14px 28px;border-radius:12px;font-weight:700;font-size:1rem;text-decoration:none;box-shadow:0 2px 10px rgba(0,0,0,.2)">🎟️ Acheter un billet : ${a.prix.toFixed(2)} $</a>`
+                    : `<button onclick="registerActivity(${a.id})" style="background:#fff;color:#1b5e20;border:none;padding:14px 28px;border-radius:12px;font-weight:700;font-size:1rem;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.2)">✅ S'inscrire à cette activité</button>`
+                }
+              </div>` : ''}
+
               <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:28px">
                 <div style="background:rgba(255,255,255,.15);padding:12px 20px;border-radius:12px;text-align:center">
-                  <div style="font-size:1.5rem;font-weight:800">${a.nb_inscrits || 0}</div>
+                  <div style="font-size:1.5rem;font-weight:800">${a.nb_inscrits || 0}${a.max_participants ? '<span style="font-size:.9rem;opacity:.6"> / ' + a.max_participants + '</span>' : ''}</div>
                   <div style="font-size:.75rem;opacity:.7">Participants</div>
                 </div>
                 <div style="background:rgba(255,255,255,.15);padding:12px 20px;border-radius:12px;text-align:center">
