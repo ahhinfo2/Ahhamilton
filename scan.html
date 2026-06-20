@@ -351,7 +351,7 @@ async function loadActivities() {
     const delegatedActIds = myDelegations.map(d => d.activity_id).filter(Boolean);
     const hasGlobalDelegation = myDelegations.some(d => !d.activity_id);
 
-    let filteredActs = acts.filter(a => a.statut !== 'terminee');
+    let filteredActs = acts.filter(a => a.statut !== 'terminee' && a.statut !== 'archivee');
     if (!isExec && !hasGlobalDelegation) {
       filteredActs = filteredActs.filter(a => delegatedActIds.includes(a.id));
       // Pas d'option "Toutes les activités" pour les délégués limités
