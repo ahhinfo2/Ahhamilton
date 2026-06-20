@@ -3944,9 +3944,14 @@ app.post('/api/tickets/checkin', authMiddleware, (req, res) => {
 
   // Vérifier autorisation : EXEC ou délégation active
   const isExec = ['admin','tresoriere','secretaire','delegue'].includes(req.user.role);
-  const hasDelegation = !isExec ? db.prepare("SELECT id FROM scan_delegations WHERE user_id=? AND actif=1 AND (activity_id IS NULL OR activity_id=?) AND (date_expiration IS NULL OR date_expiration > datetime('now'))").get(req.user.id, activity_id || 0) : true;
-  if (!isExec && !hasDelegation) {
-    return res.status(403).json({ error: 'Accès refusé — vous n\'avez pas la délégation de scan pour cette activité' });
+  if (!isExec) {
+    const deleg = activity_id
+      ? db.prepare("SELECT id FROM scan_delegations WHERE user_id=? AND actif=1 AND (activity_id IS NULL OR activity_id=?) AND (date_expiration IS NULL OR date_expiration > datetime('now'))").get(req.user.id, activity_id)
+      : db.prepare("SELECT id FROM scan_delegations WHERE user_id=? AND actif=1 AND (date_expiration IS NULL OR date_expiration > datetime('now'))").get(req.user.id);
+    if (!deleg) {
+      db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details) VALUES (?,?,?,?,?)").run(activity_id||null, req.user.id, qr_data, 'invalide', 'Accès refusé');
+      return res.status(403).json({ error: 'Accès refusé — vous n\'avez pas la délégation de scan pour cette activité' });
+    }
   }
 
   if (!qr_data) return res.status(400).json({ error: 'QR data manquant' });
