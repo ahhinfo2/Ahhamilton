@@ -13288,8 +13288,8 @@ async function scanDelegationsListView() {
           <thead><tr><th>Membre</th><th>Activité</th><th>Type</th><th>Expiration</th><th>Actions</th></tr></thead>
           <tbody>
             ${delegations.length ? delegations.map(d => `<tr>
-              <td><strong>${escHtml(d.user_nom || '–')}</strong></td>
-              <td>${escHtml(d.activity_titre || 'Toutes')}</td>
+              <td><strong>${escHtml((d.prenom||'') + ' ' + (d.nom||'') || '–')}</strong><br><span style="font-size:.75rem;color:var(--muted)">${escHtml(d.email||'')}</span></td>
+              <td>${escHtml(d.activite_titre || d.activity_titre || 'Toutes')}</td>
               <td>${pill(d.type === 'tous' ? 'Tous' : d.type === 'cartes' ? 'Cartes' : 'Billets', d.type === 'tous' ? 'bp-green' : 'bp-blue')}</td>
               <td>${d.date_expiration ? fmt(d.date_expiration) : 'Illimitée'}</td>
               <td><button class="btn btn-ghost btn-sm" style="color:#c62828" onclick="_sdRevoke(${d.id})">Révoquer</button></td>
