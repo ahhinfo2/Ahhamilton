@@ -1229,7 +1229,7 @@ function renderProchActivites() {
         ${jour}<br>${moisStr}
       </div>
       <div style="flex:1;min-width:0">
-        <strong style="font-size:.88rem">${a.titre}</strong>
+        <strong style="font-size:.88rem"><a href="javascript:void(0)" onclick="openActivityDetail(${a.id})" style="color:inherit;text-decoration:none;border-bottom:1px dashed #ccc;cursor:pointer">${escHtml(a.titre)}</a></strong>
         ${a.lieu?`<div style="font-size:.76rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📍 ${a.lieu}</div>`:''}
       </div>
       <button class="btn btn-sm" style="color:#d32f2f;border:1px solid #d32f2f;background:transparent;white-space:nowrap;padding:3px 8px;font-size:.75rem;flex-shrink:0"
@@ -1434,7 +1434,7 @@ function renderActivitiesTable(data) {
     }
     const isArchived = a.statut === 'archivee';
     return `<tr>
-      <td><strong>${a.titre}</strong></td>
+      <td><strong><a href="javascript:void(0)" onclick="openActivityDetail(${a.id})" style="color:inherit;text-decoration:none;border-bottom:1px dashed #ccc;cursor:pointer">${escHtml(a.titre)}</a></strong></td>
       <td>${a.type}</td>
       <td>${fmt(a.date_debut)}</td>
       <td>${a.lieu||'–'}</td>
@@ -1608,6 +1608,61 @@ async function deleteActivity(id) {
 const canCreateActivity = () => ['admin','tresoriere','secretaire','delegue'].includes(USER.role);
 // Seuls VP (admin) et Présidente (admin) peuvent définir les rabais
 const canSetDiscount = () => USER.role === 'admin';
+
+async function openActivityDetail(actId) {
+  try {
+    const a = (window._activitiesData || []).find(x => x.id === actId);
+    if (!a) { toast('Activité introuvable', true); return; }
+
+    const siteUrl = window.location.origin;
+    const shareUrl = `${siteUrl}/actualites.html`;
+    const shareText = `${a.titre} — ${fmt(a.date_debut)}${a.lieu ? ' à ' + a.lieu : ''} | Association Haïtienne de Hamilton`;
+    const waUrl = `https://wa.me/?text=${encodeURIComponent(shareText + '\n' + shareUrl)}`;
+    const fbUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}&quote=${encodeURIComponent(shareText)}`;
+
+    openModal(`📅 ${escHtml(a.titre)}`, `
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div style="background:var(--off);padding:12px;border-radius:10px">
+            <div style="font-size:.75rem;color:var(--muted);text-transform:uppercase;font-weight:600;margin-bottom:4px">Date</div>
+            <div style="font-weight:700">${fmt(a.date_debut)}${a.date_fin && a.date_fin !== a.date_debut ? ' — ' + fmt(a.date_fin) : ''}</div>
+          </div>
+          <div style="background:var(--off);padding:12px;border-radius:10px">
+            <div style="font-size:.75rem;color:var(--muted);text-transform:uppercase;font-weight:600;margin-bottom:4px">Lieu</div>
+            <div style="font-weight:700">${escHtml(a.lieu || '–')}</div>
+          </div>
+          <div style="background:var(--off);padding:12px;border-radius:10px">
+            <div style="font-size:.75rem;color:var(--muted);text-transform:uppercase;font-weight:600;margin-bottom:4px">Type</div>
+            <div style="font-weight:700">${escHtml(a.type || '–')}</div>
+          </div>
+          <div style="background:var(--off);padding:12px;border-radius:10px">
+            <div style="font-size:.75rem;color:var(--muted);text-transform:uppercase;font-weight:600;margin-bottom:4px">Participants</div>
+            <div style="font-weight:700">${a.nb_inscrits || 0}${a.max_participants ? ' / ' + a.max_participants : ''}</div>
+          </div>
+        </div>
+        ${a.description ? `<div style="background:#fafafa;padding:14px;border-radius:10px;font-size:.9rem;line-height:1.6">${escHtml(a.description)}</div>` : ''}
+        ${a.prix > 0 ? `<div style="font-size:.9rem"><strong>Prix :</strong> $${a.prix}</div>` : ''}
+        <div style="display:flex;align-items:center;gap:8px">${statusPill(a.statut)}</div>
+
+        <hr style="border:none;border-top:1px solid var(--border);margin:4px 0"/>
+        <div style="font-size:.8rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:1px">Partager</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <a href="${waUrl}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:#25D366;color:#fff;border-radius:10px;text-decoration:none;font-weight:700;font-size:.88rem">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.611.611l4.458-1.495A11.943 11.943 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.336 0-4.508-.76-6.262-2.047l-.438-.33-3.216 1.078 1.078-3.216-.33-.438A9.956 9.956 0 012 12C2 6.486 6.486 2 12 2s10 4.486 10 10-4.486 10-10 10z"/></svg>
+            WhatsApp
+          </a>
+          <a href="${fbUrl}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:#1877F2;color:#fff;border-radius:10px;text-decoration:none;font-weight:700;font-size:.88rem">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+            Facebook
+          </a>
+          <button onclick="navigator.clipboard.writeText('${shareText.replace(/'/g,"\\'")} ${shareUrl}');toast('Lien copié !')" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:var(--off);color:var(--text);border:1px solid var(--border);border-radius:10px;font-weight:700;font-size:.88rem;cursor:pointer">
+            📋 Copier le lien
+          </button>
+        </div>
+      </div>
+    `);
+  } catch(e) { toast(e.message, true); }
+}
 
 function openActivityForm(a = null) {
   const isEdit = !!(a && a.id);  // seulement "edit" si l'objet a un id existant
