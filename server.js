@@ -5884,25 +5884,54 @@ app.get('/api/carte-scan/:qr', authMiddleware, (req, res) => {
   res.json({ member: { ...member, expiration, expired }, activities });
 });
 
-// Marquer présence via scanner carte (présence uniquement, pas de paiement)
+// Marquer présence via scanner carte
 app.post('/api/carte-scan/presencer', authMiddleware, (req, res) => {
-  const isExec = CARTE_ROLES.includes(req.user.role);
-  if (!isExec) {
+  const scannerIsExec = CARTE_ROLES.includes(req.user.role);
+  if (!scannerIsExec) {
     const deleg = db.prepare("SELECT id FROM scan_delegations WHERE user_id=? AND actif=1 AND type IN ('cartes','tous') AND (date_expiration IS NULL OR date_expiration > datetime('now'))").get(req.user.id);
     if (!deleg) return res.status(403).json({ error: 'Accès refusé' });
   }
   const { user_id, activity_id } = req.body;
   if (!user_id || !activity_id) return res.status(400).json({ error: 'Paramètres manquants' });
 
+  const act = db.prepare('SELECT * FROM activities WHERE id=?').get(activity_id);
+  if (!act) return res.status(404).json({ error: 'Activité introuvable' });
+
+  const scannedUser = db.prepare('SELECT id, role, prenom, nom FROM users WHERE id=?').get(user_id);
+  if (!scannedUser) return res.status(404).json({ error: 'Membre introuvable' });
+
+  const scannedIsExec = CARTE_ROLES.includes(scannedUser.role);
+
+  // Activité payante : vérifier si le membre a un billet ou est du comité
+  if (act.paiement_requis && act.prix > 0 && !scannedIsExec) {
+    const hasBillet = db.prepare("SELECT id FROM tickets WHERE activity_id=? AND (user_id=? OR acheteur_email=(SELECT email FROM users WHERE id=?)) AND payment_status='paid' AND statut='actif'").get(activity_id, user_id, user_id);
+    if (!hasBillet) {
+      return res.status(403).json({
+        error: 'Pas de billet — activité payante',
+        detail: `${scannedUser.prenom} ${scannedUser.nom} n'a pas de billet pour cette activité (${act.prix.toFixed(2)} $). Achat requis.`
+      });
+    }
+  }
+
+  // Comité : entrée gratuite à toutes les activités
+  const statut = scannedIsExec ? 'present' : 'confirme';
+
   const existing = db.prepare('SELECT * FROM activity_registrations WHERE user_id=? AND activity_id=?').get(user_id, activity_id);
   if (existing) {
-    db.prepare("UPDATE activity_registrations SET statut='confirme' WHERE user_id=? AND activity_id=?")
-      .run(user_id, activity_id);
+    db.prepare('UPDATE activity_registrations SET statut=?, checked_in=1, date_checkin=CURRENT_TIMESTAMP WHERE user_id=? AND activity_id=?')
+      .run(statut, user_id, activity_id);
   } else {
-    db.prepare("INSERT INTO activity_registrations (user_id, activity_id, statut) VALUES (?,?,'confirme')")
-      .run(user_id, activity_id);
+    db.prepare("INSERT INTO activity_registrations (user_id, activity_id, statut, checked_in, date_checkin) VALUES (?,?,?,1,CURRENT_TIMESTAMP)")
+      .run(user_id, activity_id, statut);
   }
-  res.json({ ok: true });
+
+  res.json({
+    ok: true,
+    vip: scannedIsExec,
+    message: scannedIsExec
+      ? `✅ ${scannedUser.prenom} ${scannedUser.nom} — Comité (entrée VIP)`
+      : `✅ ${scannedUser.prenom} ${scannedUser.nom} — Présence confirmée`
+  });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
