@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Documentation — Billets & Cartes Membres | AHH</title>
+<style>
+  @page { size: letter; margin: 2cm; }
+  @media print {
+    .no-print { display: none !important; }
+    body { background: #fff; }
+    .page-break { page-break-before: always; }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #1a1a1a; background: #f5f5f5; line-height: 1.6; }
+  .doc { max-width: 800px; margin: 0 auto; background: #fff; padding: 48px; border: 1px solid #e0e0e0; }
+  .doc-header { text-align: center; border-bottom: 3px solid #1b5e20; padding-bottom: 20px; margin-bottom: 30px; }
+  .doc-header img { height: 60px; margin-bottom: 10px; }
+  .doc-header h1 { color: #1b5e20; font-size: 1.6rem; margin-bottom: 4px; }
+  .doc-header p { color: #666; font-size: .85rem; }
+  h2 { color: #1b5e20; font-size: 1.15rem; margin: 28px 0 12px; padding-bottom: 6px; border-bottom: 2px solid #e8f5e9; }
+  h3 { color: #333; font-size: .95rem; margin: 18px 0 8px; }
+  p, li { font-size: .88rem; margin-bottom: 6px; }
+  ul, ol { margin-left: 20px; margin-bottom: 12px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: .82rem; }
+  th { background: #1b5e20; color: #fff; padding: 10px 12px; text-align: left; font-weight: 700; }
+  td { padding: 8px 12px; border-bottom: 1px solid #e0e0e0; vertical-align: top; }
+  tr:nth-child(even) { background: #f9f9f9; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: .72rem; font-weight: 700; }
+  .badge-ok { background: #e8f5e9; color: #2e7d32; }
+  .badge-err { background: #fdecea; color: #c62828; }
+  .badge-warn { background: #fff3e0; color: #e65100; }
+  .badge-info { background: #e3f2fd; color: #1565c0; }
+  .badge-vip { background: #f3e5f5; color: #6a1b9a; }
+  .scenario { background: #f5f5f5; border-left: 4px solid #1b5e20; padding: 12px 16px; margin: 12px 0; border-radius: 0 8px 8px 0; }
+  .scenario-title { font-weight: 700; font-size: .88rem; margin-bottom: 4px; }
+  .print-btn { position: fixed; top: 20px; right: 20px; background: #1b5e20; color: #fff; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: .9rem; font-weight: 700; box-shadow: 0 2px 8px rgba(0,0,0,.2); z-index: 100; }
+  .print-btn:hover { background: #2e7d32; }
+  .flow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 8px 0; font-size: .82rem; }
+  .flow-step { background: #e8f5e9; padding: 6px 12px; border-radius: 8px; font-weight: 600; }
+  .flow-arrow { color: #1b5e20; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<button class="print-btn no-print" onclick="window.print()">🖨 Imprimer / PDF</button>
+
+<div class="doc">
+
+<div class="doc-header">
+  <img src="/Public/logo1.png" alt="AHH" onerror="this.style.display='none'"/>
+  <h1>Système de Billetterie & Cartes Membres</h1>
+  <p>Association Haïtienne de Hamilton — Documentation technique et opérationnelle</p>
+  <p style="font-size:.75rem;color:#999;margin-top:8px">Version 2.0 — Juin 2026</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>1. Système de Billetterie — Activités</h2>
+
+<h3>1.1 Types de billets</h3>
+<table>
+  <thead><tr><th>Type</th><th>Description</th><th>Méthode</th><th>QR Code</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Stripe (en ligne)</strong></td><td>Achat par carte de crédit via le site</td><td>Paiement Stripe sécurisé</td><td>Envoyé par courriel automatiquement</td></tr>
+    <tr><td><strong>Interac</strong></td><td>Virement bancaire — activation après confirmation</td><td>Virement + confirmation manuelle</td><td>Envoyé après activation</td></tr>
+    <tr><td><strong>Cash (en personne)</strong></td><td>Vendu par un membre du comité sur place</td><td>Espèces / comptant</td><td>Imprimé sur place ou envoyé</td></tr>
+    <tr><td><strong>Pré-imprimé</strong></td><td>Billet généré avant l'événement (talon)</td><td>Marqué « vendu » à l'encaissement</td><td>Pré-généré, activé à la vente</td></tr>
+  </tbody>
+</table>
+
+<h3>1.2 Cycle de vie d'un billet</h3>
+<div class="flow">
+  <span class="flow-step">Création</span><span class="flow-arrow">→</span>
+  <span class="flow-step">Paiement</span><span class="flow-arrow">→</span>
+  <span class="flow-step">Activation</span><span class="flow-arrow">→</span>
+  <span class="flow-step">QR envoyé</span><span class="flow-arrow">→</span>
+  <span class="flow-step">Scan à l'entrée</span><span class="flow-arrow">→</span>
+  <span class="flow-step">✅ Check-in</span>
+</div>
+
+<table>
+  <thead><tr><th>Statut</th><th>Description</th><th>Scan possible</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge badge-info">genere</span></td><td>Pré-imprimé, pas encore vendu</td><td>❌ Refusé</td></tr>
+    <tr><td><span class="badge badge-ok">actif / paid</span></td><td>Payé et activé</td><td>✅ Valide</td></tr>
+    <tr><td><span class="badge badge-err">annule</span></td><td>Annulé par le comité</td><td>❌ Refusé</td></tr>
+    <tr><td><span class="badge badge-warn">checked_in</span></td><td>Déjà scanné à l'entrée</td><td>🔄 Déjà scanné</td></tr>
+  </tbody>
+</table>
+
+<h3>1.3 Billets multiples (famille / amis)</h3>
+<p>Un membre peut acheter plusieurs billets. Quand sa <strong>carte membre</strong> est scannée :</p>
+<ul>
+  <li>Le système trouve <strong>tous</strong> ses billets pour l'activité</li>
+  <li>Affiche « 3/5 billets restants » (3 non utilisés sur 5 achetés)</li>
+  <li>Chaque scan utilise un billet supplémentaire</li>
+  <li>Quand tous sont utilisés → « Déjà entré, aucun billet restant »</li>
+</ul>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 class="page-break">2. Cartes Membres</h2>
+
+<h3>2.1 Validité d'une carte</h3>
+<table>
+  <thead><tr><th>Condition</th><th>Statut</th><th>Entrée activité</th></tr></thead>
+  <tbody>
+    <tr><td>Photo approuvée + non expirée</td><td><span class="badge badge-ok">✅ Valide</span></td><td>Autorisée</td></tr>
+    <tr><td>Pas de photo</td><td><span class="badge badge-err">⚠️ Invalide</span></td><td>Bloquée</td></tr>
+    <tr><td>Photo en attente d'approbation</td><td><span class="badge badge-info">🕐 En attente</span></td><td>Bloquée</td></tr>
+    <tr><td>Carte expirée (> 2 ans)</td><td><span class="badge badge-err">⛔ Expirée</span></td><td>Bloquée</td></tr>
+    <tr><td>Membre du comité (EXEC)</td><td><span class="badge badge-vip">👔 VIP</span></td><td>Toujours autorisée</td></tr>
+  </tbody>
+</table>
+
+<h3>2.2 Ajouter une photo (rendre la carte valide)</h3>
+<ol>
+  <li>Scanner la carte du membre</li>
+  <li>Si pas de photo → bouton <strong>« 📷 Prendre / Ajouter photo »</strong> apparaît</li>
+  <li>La caméra du téléphone s'ouvre pour prendre la photo</li>
+  <li>La photo est uploadée ET approuvée automatiquement</li>
+  <li>La carte est immédiatement <strong>valide</strong></li>
+</ol>
+
+<h3>2.3 Renouvellement</h3>
+<p>Les cartes expirent <strong>2 ans</strong> après la date d'inscription. Le comité peut renouveler via :</p>
+<p><em>Cartes membres → sélectionner le membre → Renouveler</em></p>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 class="page-break">3. Check-in croisé — Carte ↔ Billet</h2>
+
+<h3>3.1 Principe</h3>
+<p>Un membre qui a payé peut entrer avec <strong>n'importe lequel</strong> de ses deux QR codes. Le système synchronise :</p>
+
+<table>
+  <thead><tr><th>QR scanné en 1er</th><th>Résultat</th><th>QR scanné en 2e</th><th>Résultat</th></tr></thead>
+  <tbody>
+    <tr><td>Billet QR</td><td><span class="badge badge-ok">✅ Valide</span></td><td>Carte membre</td><td><span class="badge badge-warn">🔄 Déjà entré</span></td></tr>
+    <tr><td>Carte membre</td><td><span class="badge badge-ok">✅ Présence confirmée</span></td><td>Billet QR</td><td><span class="badge badge-warn">🔄 Déjà scanné</span></td></tr>
+  </tbody>
+</table>
+
+<h3>3.2 Scénarios détaillés</h3>
+
+<div class="scenario">
+  <div class="scenario-title">Scénario 1 : Membre avec billet — scan carte</div>
+  <p>Marie a acheté 3 billets (elle + 2 enfants). Son QR carte est scanné → le système trouve ses 3 billets, en valide 1, affiche « 2 billets restants ». Les enfants entrent en rescannant la carte.</p>
+</div>
+
+<div class="scenario">
+  <div class="scenario-title">Scénario 2 : Membre du comité — activité payante</div>
+  <p>Pierre (secrétaire) scanne sa carte → entrée VIP gratuite, compté comme présent. Aucun billet requis.</p>
+</div>
+
+<div class="scenario">
+  <div class="scenario-title">Scénario 3 : Membre sans billet — activité payante</div>
+  <p>Jean scanne sa carte → « ❌ Pas de billet — activité payante (5.00 $). Achat requis. » Entrée refusée.</p>
+</div>
+
+<div class="scenario">
+  <div class="scenario-title">Scénario 4 : Carte expirée</div>
+  <p>Lesly scanne sa carte → « ⛔ Carte EXPIRÉE depuis le 2025-03-15. Renouvellement requis. » Entrée bloquée.</p>
+</div>
+
+<div class="scenario">
+  <div class="scenario-title">Scénario 5 : Carte sans photo</div>
+  <p>Nouveau membre scanne sa carte → « ⚠️ CARTE INVALIDE — aucune photo ». Le comité peut prendre la photo sur place.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 class="page-break">4. Délégation de scan</h2>
+
+<h3>4.1 Principe</h3>
+<p>Le comité peut donner temporairement à un membre régulier le droit de scanner des billets et/ou des cartes lors d'un événement.</p>
+
+<table>
+  <thead><tr><th>Type</th><th>Le membre peut scanner</th><th>Visible dans son sidebar</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Billets</strong></td><td>QR billets d'activité uniquement</td><td>Scanner billets</td></tr>
+    <tr><td><strong>Cartes</strong></td><td>QR cartes membres uniquement</td><td>Scanner cartes</td></tr>
+    <tr><td><strong>Tous</strong></td><td>Billets + Cartes</td><td>Les deux scanners</td></tr>
+  </tbody>
+</table>
+
+<h3>4.2 Créer une délégation</h3>
+<ol>
+  <li>Sidebar → <strong>Scanners → Déléguer un scanner</strong></li>
+  <li>Rechercher le membre par nom</li>
+  <li>Choisir l'activité (ou toutes)</li>
+  <li>Choisir le type (Billets / Cartes / Tous)</li>
+  <li>Définir la date d'expiration</li>
+  <li>Le membre voit le scanner dans son sidebar <strong>automatiquement</strong> (refresh 30s)</li>
+</ol>
+
+<h3>4.3 Révoquer</h3>
+<p>Sidebar → Scanners → Déléguer un scanner → bouton <strong>Révoquer</strong> sur la délégation. Le scanner disparaît du sidebar du membre au prochain refresh.</p>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 class="page-break">5. Résultats du scan — Codes couleur</h2>
+
+<table>
+  <thead><tr><th>Couleur</th><th>Statut</th><th>Signification</th><th>Action</th></tr></thead>
+  <tbody>
+    <tr><td style="background:#1b5e20;color:#fff;font-weight:700;text-align:center">VERT</td><td>Valide</td><td>Billet/carte reconnu et payé</td><td>Laisser entrer</td></tr>
+    <tr><td style="background:#4a0072;color:#fff;font-weight:700;text-align:center">VIOLET</td><td>Déjà scanné</td><td>Ce QR a déjà été utilisé</td><td>Vérifier identité</td></tr>
+    <tr><td style="background:#b71c1c;color:#fff;font-weight:700;text-align:center">ROUGE</td><td>Introuvable</td><td>QR non reconnu dans le système</td><td>Refuser</td></tr>
+    <tr><td style="background:#bf360c;color:#fff;font-weight:700;text-align:center">ORANGE</td><td>Invalide / Mauvaise activité</td><td>Billet annulé, non payé, ou mauvais événement</td><td>Refuser ou rediriger</td></tr>
+  </tbody>
+</table>
+
+<h3>5.1 Informations affichées après chaque scan</h3>
+<ul>
+  <li><strong>Nom</strong> du porteur du billet / membre</li>
+  <li><strong>Activité</strong> associée</li>
+  <li><strong>N° billet</strong> (code-barres AHH-XXXXXX)</li>
+  <li><strong>Table</strong> assignée (si applicable)</li>
+  <li><strong>Prix</strong> payé</li>
+  <li><strong>Vendu par</strong> (nom du vendeur ou « En ligne »)</li>
+  <li><strong>Lieu</strong> et <strong>date</strong> de l'événement</li>
+  <li><strong>Heure</strong> du scan (timezone Toronto)</li>
+</ul>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>6. Journal des scans</h2>
+<p>Accessible via le menu <strong>⋮ → Journal des scans</strong> sur chaque activité.</p>
+<ul>
+  <li>Statistiques en haut : Valides, Doublons, Refusés, Total</li>
+  <li>Recherche par nom, code, détails</li>
+  <li>Filtre par résultat (Valide, Déjà scanné, Invalide, Introuvable)</li>
+  <li>Tri par date (récent ou ancien d'abord)</li>
+  <li>Détails : nom acheteur, vendu par qui</li>
+</ul>
+
+<div style="margin-top:40px;padding-top:16px;border-top:2px solid #1b5e20;text-align:center;font-size:.78rem;color:#888">
+  <p>Association Haïtienne de Hamilton — Hamilton, Ontario, Canada</p>
+  <p>Document généré le <script>document.write(new Date().toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'}))</script></p>
+</div>
+
+</div>
+</body>
+</html>
