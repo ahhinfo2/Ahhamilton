@@ -3788,7 +3788,7 @@ async function deleteNote(id) {
 }
 
 // ══ REPORTS ════════════════════════════════════════════════════════════════
-async function reports() {
+async function reportsVolunteerFinance() {
   const allUsers = await api('/users');
   setContent(`
     <div class="page-header"><div><h2>Rapports</h2><p>Générez des rapports de bénévolat et financiers</p></div>
