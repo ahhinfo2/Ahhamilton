@@ -295,7 +295,6 @@ function buildSidebar() {
     { label: 'Membres', items: [
       { id:'members',       icon:'◎', label:'Annuaire',         roles:['admin','secretaire','delegue'] },
       { id:'inscriptions',  icon:'◈', label:'Inscriptions',     roles:EXEC },
-      { id:'volunteer',     icon:'◇', label:'Bénévolat',        roles:['admin','secretaire'] },
       { id:'carte-gestion', icon:'🪪', label:'Cartes membres',  roles:EXEC },
     ]},
 
@@ -303,15 +302,12 @@ function buildSidebar() {
     { label: 'Activités', items: [
       { id:'activities',    icon:'◉', label:'Calendrier',   roles: ALL },
       { id:'subcommittees', icon:'◐', label:'Sous-comités', roles: ALL },
-      { id:'projects',      icon:'◑', label:'Projets',      roles:['admin','delegue'] },
     ]},
 
     // ── Finance ───────────────────────────────────────────────────
     { label: 'Finance', items: [
-      { id:'paiements',         icon:'◆', label:'Paiements',      roles:['admin','tresoriere','secretaire'] },
-      { id:'finance',           icon:'◇', label:'Budget',          roles:['admin','tresoriere','secretaire'] },
-      { id:'invoices',          icon:'◈', label:'Factures',        roles:['admin','tresoriere','secretaire'] },
-      { id:'recus',             icon:'◉', label:'Reçus fiscaux',  roles:['admin','tresoriere','secretaire'] },
+      { id:'paiements',         icon:'◆', label:'Paiements',        roles:['admin','tresoriere','secretaire'] },
+      { id:'finance',           icon:'◇', label:'Budget',            roles:['admin','tresoriere','secretaire'] },
       { id:'rapports_finance',  icon:'📊', label:'Rapports finance', roles:['admin','tresoriere','secretaire'] },
     ]},
 
@@ -321,23 +317,19 @@ function buildSidebar() {
       { id:'forum',    icon:'◫', label:'Forum',    roles: ALL },
     ]},
 
-    // ── Rapports & Admin ──────────────────────────────────────────
-    { label: 'Rapports', items: [
-      { id:'reports',      icon:'◆', label:'Rapports',         roles:EXEC },
-      { id:'stats-growth', icon:'📈', label:'Statistiques',    roles:EXEC },
-      { id:'alerts',       icon:'◇', label:'Alertes',          roles:EXEC },
-      { id:'audit-log',    icon:'📋', label:'Journal d\'audit', roles:EXEC },
-    ]},
-
-    // ── Outils ────────────────────────────────────────────────────
+    // ── Outils & Rapports ─────────────────────────────────────────
     { label: '🔧 Outils', items: [
       { id:'tasks',             icon:'✓', label:'Tâches',              roles:EXEC },
       { id:'meeting-calendar',  icon:'📅', label:'Calendrier réunions', roles:EXEC },
       { id:'meeting-agendas',   icon:'📝', label:'Ordres du jour',      roles:EXEC },
       { id:'notes',             icon:'◇', label:'Notes réunion',       roles:EXEC },
-      { id:'policies',          icon:'📜', label:'Politiques',          roles:EXEC },
-      { id:'export-data',       icon:'📦', label:'Export / Backup',     roles:['admin','secretaire','tresoriere'] },
-      { id:'annual-report',     icon:'📊', label:'Rapport annuel',      roles:['admin'] },
+      { id:'reports',           icon:'◆', label:'Rapports',            roles:EXEC },
+      { id:'stats-growth',      icon:'📈', label:'Statistiques',       roles:EXEC },
+      { id:'alerts',            icon:'◇', label:'Alertes',             roles:EXEC },
+      { id:'audit-log',         icon:'📋', label:'Journal d\'audit',   roles:EXEC },
+      { id:'votes',             icon:'🗳️', label:'Votes & Élections', roles:EXEC },
+      { id:'parrainage',        icon:'🤝', label:'Parrainage',         roles: ALL },
+      { id:'export-data',       icon:'📦', label:'Export / Backup',    roles:['admin','secretaire','tresoriere'] },
     ]},
 
     // ── Contenu ───────────────────────────────────────────────────
@@ -345,8 +337,6 @@ function buildSidebar() {
       { id:'gallery_mgmt',      icon:'◎', label:'Galerie',          roles:['admin','secretaire'] },
       { id:'talents_mgmt',      icon:'◈', label:'Talents',           roles:['admin','secretaire'] },
       { id:'annonces_mgmt',     icon:'◉', label:'Annonces',          roles:['admin','secretaire'] },
-      { id:'testimonials_mgmt', icon:'❝', label:'Témoignages',       roles:['admin','secretaire'] },
-      { id:'videos_mgmt',       icon:'▶', label:'Vidéos',            roles:['admin','secretaire'] },
       { id:'documents_mgmt',    icon:'📁', label:'Documents',         roles:['admin','secretaire'] },
       { id:'sponsors_mgmt',     icon:'🤝', label:'Commanditaires',    roles:['admin','secretaire'] },
     ]},
@@ -356,18 +346,9 @@ function buildSidebar() {
       label: '🌟 Espace Jeunes',
       items: [
         { id:'young-home',      icon:'🌟', label:'Tableau jeunes',   roles: ALL },
-        { id:'young-jobs',      icon:'💼', label:'Stages & emplois',  roles: ALL },
-        { id:'young-trainings', icon:'📚', label:'Formations',        roles: ALL },
         { id:'young-polls',     icon:'📊', label:'Sondages',          roles: ALL },
-        { id:'young-stories',   icon:'🏆', label:'Success Stories',   roles: ALL },
       ]
     },
-
-    // ── Gouvernance ───────────────────────────────────────────────
-    { label: 'Gouvernance', items: [
-      { id:'votes',         icon:'🗳️', label:'Votes & Élections',  roles:EXEC },
-      { id:'parrainage',    icon:'🤝', label:'Parrainage',           roles: ALL },
-    ]},
 
     // ── Scanners ──────────────────────────────────────────────────
     { label: 'Scanners', items: [
