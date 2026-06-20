@@ -506,24 +506,34 @@ if (contactForm) {
     }
   }
 
-  fetch(API + '/activities/public')
-    .then(r => r.ok ? r.json() : [])
-    .then(acts => {
-      const now  = Date.now();
-      const next = acts
-        .filter(a => a.date_debut && new Date(a.date_debut) > now)
-        .sort((a, b) => new Date(a.date_debut) - new Date(b.date_debut))[0];
-      if (!next) { bar.style.display = 'none'; return; }
+  // Priorité : activité featured (À LA UNE), sinon la prochaine activité
+  Promise.all([
+    fetch(API + '/activities/featured').then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch(API + '/activities/public').then(r => r.ok ? r.json() : []).catch(() => [])
+  ]).then(function(results) {
+    var featured = results[0];
+    var acts = results[1];
+    var now = Date.now();
 
-      targetDate = new Date(next.date_debut).getTime();
-      eventName  = next.titre;
-      const nameEl = bar.querySelector('.countdown-event');
-      if (nameEl) nameEl.textContent = eventName;
-      bar.style.display = '';
-      tick();
-      cdTimer = setInterval(tick, 1000);
-    })
-    .catch(() => { bar.style.display = 'none'; });
+    var chosen = null;
+    if (featured && featured.date_debut && new Date(featured.date_debut) > now) {
+      chosen = featured;
+    }
+    if (!chosen) {
+      chosen = acts
+        .filter(function(a) { return a.date_debut && new Date(a.date_debut) > now; })
+        .sort(function(a, b) { return new Date(a.date_debut) - new Date(b.date_debut); })[0];
+    }
+    if (!chosen) { bar.style.display = 'none'; return; }
+
+    targetDate = new Date(chosen.date_debut).getTime();
+    eventName  = chosen.titre;
+    var nameEl = bar.querySelector('.countdown-event');
+    if (nameEl) nameEl.textContent = eventName;
+    bar.style.display = '';
+    tick();
+    cdTimer = setInterval(tick, 1000);
+  }).catch(function() { bar.style.display = 'none'; });
 })();
 
 // ══════════════════════════════════════════════════════════
