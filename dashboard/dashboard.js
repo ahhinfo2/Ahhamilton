@@ -2324,6 +2324,10 @@ async function subcommittees() {
   const [data, allUsers, allActs] = await Promise.all([
     api('/subcommittees'), api('/users'), api('/activities')
   ]);
+  window._scAllUsers = allUsers;
+  window._scAllActs = allActs;
+  window._scData = {};
+  data.forEach(sc => { window._scData[sc.id] = sc; });
 
   // Members only see their own subcommittees
   const visible = can.admin()
@@ -2337,7 +2341,7 @@ async function subcommittees() {
     '<div class="page-header">' +
       '<div><h2>🗂️ Sous-comités</h2><p>Mini-comités créés par l\'admin pour regrouper des membres autour d\'une mission</p></div>' +
       '<div class="page-actions">' +
-        (can.admin() ? '<button class="btn btn-primary" onclick=\'openSubForm(null,' + JSON.stringify(allUsers).replace(/'/g,"&#39;") + ',' + JSON.stringify(allActs).replace(/'/g,"&#39;") + ')\'>+ Nouveau sous-comité</button>' : '') +
+        (can.admin() ? '<button class="btn btn-primary" onclick="openSubForm(null,window._scAllUsers,window._scAllActs)">+ Nouveau sous-comité</button>' : '') +
       '</div>' +
     '</div>' +
 
@@ -2379,7 +2383,7 @@ async function subcommittees() {
             '<div class="sc-card-badge">' + sc.membres.length + ' membre' + (sc.membres.length>1?'s':'') + '</div>' +
             (isMine && !can.admin() ? '<div class="sc-card-mine">👤 Vous en faites partie</div>' : '') +
             (can.admin() ? '<div class="sc-card-actions">' +
-              '<button class="sc-hdr-btn" onclick=\'openSubForm(' + JSON.stringify(sc).replace(/'/g,"&#39;") + ',' + JSON.stringify(allUsers).replace(/'/g,"&#39;") + ',' + JSON.stringify(allActs).replace(/'/g,"&#39;") + ')\' title="Modifier">✏️</button>' +
+              '<button class="sc-hdr-btn" onclick="openSubForm(window._scData[' + sc.id + '],window._scAllUsers,window._scAllActs)" title="Modifier">✏️</button>' +
               '<button class="sc-hdr-btn sc-hdr-btn--del" onclick="deleteSubcommittee(' + sc.id + ',\'' + sc.nom.replace(/'/g,"\\'") + '\')" title="Supprimer">🗑️</button>' +
             '</div>' : '') +
           '</div>' +
@@ -2967,11 +2971,12 @@ async function deleteInvoice(id) {
 async function messages() {
   const { inbox, sent } = await api('/messages');
   const allUsers = can.adminOrSec() ? await api('/users') : [];
+  window._msgAllUsers = allUsers;
   setContent(`
     <div class="page-header">
       <div><h2>Messages</h2><p>Boîte de réception et messages envoyés</p></div>
       <div class="page-actions">
-        ${can.adminOrSec() ? `<button class="btn btn-primary" onclick='openMessageForm(${JSON.stringify(allUsers)})'>✉️ Nouveau message</button>` : ''}
+        ${can.adminOrSec() ? `<button class="btn btn-primary" onclick="openMessageForm(window._msgAllUsers)">✉️ Nouveau message</button>` : ''}
       </div>
     </div>
     <div class="table-card">
@@ -3041,13 +3046,15 @@ async function volunteer() {
     can.adminOrSec() ? api('/users') : Promise.resolve([]),
     api('/activities')
   ]);
+  window._volAllUsers = allUsers;
+  window._volAllActs = allActs;
   const totalApp = data.filter(v=>v.statut==='approuve').reduce((s,v)=>s+v.heures,0);
 
   setContent(`
     <div class="page-header">
       <div><h2>Heures de bénévolat</h2><p>Total approuvé : <strong>${totalApp}h</strong></p></div>
       <div class="page-actions">
-        ${can.adminOrSec() ? `<button class="btn btn-primary" onclick='openVolForm(${JSON.stringify(allUsers)},${JSON.stringify(allActs)})'>+ Ajouter des heures</button>` : ''}
+        ${can.adminOrSec() ? `<button class="btn btn-primary" onclick="openVolForm(window._volAllUsers,window._volAllActs)">+ Ajouter des heures</button>` : ''}
       </div>
     </div>
     <div class="table-card"><div class="table-wrapper"><table>
@@ -3947,12 +3954,13 @@ function printAHHReport(title, tableHtml) {
 // ══ LETTERS ════════════════════════════════════════════════════════════════
 async function letters() {
   const [data, allUsers] = await Promise.all([api('/ai/recommendations'), api('/users')]);
+  window._letAllUsers = allUsers;
   const isExec = can.adminOrSec();
   setContent(`
     <div class="page-header">
       <div><h2>Lettres de recommandation</h2><p>Lettres officielles pour les membres de la communauté</p></div>
       <div class="page-actions">
-        ${isExec ? `<button class="btn btn-primary" onclick='openLetterForm(${JSON.stringify(allUsers)})'>+ Générer une lettre</button>` : ''}
+        ${isExec ? `<button class="btn btn-primary" onclick="openLetterForm(window._letAllUsers)">+ Générer une lettre</button>` : ''}
         ${USER.role === 'member' ? `<button class="btn btn-primary" onclick="requestLetter()">📄 Demander une lettre</button>` : ''}
       </div>
     </div>
@@ -5608,11 +5616,14 @@ document.addEventListener('click', e => {
 // ══ PROJECTS ═══════════════════════════════════════════════════════════════
 async function projects() {
   const [data, allUsers, allLines] = await Promise.all([api('/projects'), api('/users'), api('/finance/lines')]);
+  window._projAllUsers = allUsers;
+  window._projData = {};
+  data.forEach(p => { window._projData[p.id] = p; });
   setContent(`
     <div class="page-header">
       <div><h2>Projets</h2><p>Suivi de l'avancement des projets</p></div>
       <div class="page-actions">
-        ${can.admin() ? `<button class="btn btn-primary" onclick='openProjectForm(null,${JSON.stringify(allUsers)})'>+ Nouveau projet</button>` : ''}
+        ${can.admin() ? `<button class="btn btn-primary" onclick="openProjectForm(null,window._projAllUsers)">+ Nouveau projet</button>` : ''}
       </div>
     </div>
     ${data.map(p=>{
@@ -5629,7 +5640,7 @@ async function projects() {
             <small style="color:var(--muted)">${p.responsable_nom ? 'Responsable: '+p.responsable_nom+' · ' : ''}${p.date_debut?fmt(p.date_debut):'–'} → ${p.date_fin?fmt(p.date_fin):'–'}</small>
           </div>
           <div class="tc-actions">
-            ${can.admin() ? `<button class="btn btn-sm btn-outline" onclick='openProjectForm(${JSON.stringify(p)},${JSON.stringify(allUsers)})'>✏️</button>
+            ${can.admin() ? `<button class="btn btn-sm btn-outline" onclick="openProjectForm(window._projData[${p.id}],window._projAllUsers)">✏️</button>
             <button class="btn btn-sm btn-danger" onclick='deleteProject(${p.id},"${p.nom.replace(/"/g,'&quot;')}")'>🗑</button>` : ''}
           </div>
         </div>
