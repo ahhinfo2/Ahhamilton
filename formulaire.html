@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Formulaire | AHH</title>
+  <meta name="description" content="Formulaire de l'Association Ha&iuml;tienne de Hamilton"/>
+  <meta property="og:title" content="Formulaire AHH"/>
+  <meta property="og:image" content="https://ahhamilton.ca/Public/logo1.png"/>
+  <link rel="icon" type="image/jpeg" href="Public/logo1.png"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: #f0f4f0;
+      color: #222;
+      min-height: 100vh;
+    }
+    .ahh-header {
+      background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%);
+      color: #fff;
+      padding: 18px 24px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.15);
+    }
+    .ahh-header img { height: 48px; width: 48px; border-radius: 50%; object-fit: cover; background: #fff; }
+    .ahh-header h1 { font-size: 1.1rem; font-weight: 600; }
+    .form-banner {
+      width: 100%;
+      max-height: 260px;
+      object-fit: cover;
+      border-radius: 0 0 12px 12px;
+    }
+    .form-container {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 24px 16px 60px;
+    }
+    .form-card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.08);
+      padding: 32px 28px;
+      margin-bottom: 20px;
+      border-top: 4px solid #2e7d32;
+    }
+    .form-card h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #1b5e20;
+      margin-bottom: 8px;
+    }
+    .form-card .form-desc {
+      color: #555;
+      font-size: .92rem;
+      line-height: 1.5;
+      margin-bottom: 4px;
+    }
+    .field-card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 1px 6px rgba(0,0,0,.06);
+      padding: 24px 28px;
+      margin-bottom: 14px;
+      border-left: 3px solid transparent;
+      transition: border-color .2s;
+    }
+    .field-card:focus-within { border-left-color: #2e7d32; }
+    .field-card label {
+      display: block;
+      font-weight: 600;
+      font-size: .95rem;
+      margin-bottom: 4px;
+      color: #333;
+    }
+    .field-card .field-desc {
+      font-size: .82rem;
+      color: #777;
+      margin-bottom: 10px;
+    }
+    .field-card .required-star { color: #d32f2f; margin-left: 2px; }
+    .field-card input[type="text"],
+    .field-card input[type="email"],
+    .field-card input[type="tel"],
+    .field-card input[type="number"],
+    .field-card input[type="date"],
+    .field-card textarea,
+    .field-card select {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1.5px solid #ddd;
+      border-radius: 8px;
+      font-family: 'Poppins', sans-serif;
+      font-size: .9rem;
+      outline: none;
+      transition: border-color .2s;
+      background: #fafafa;
+    }
+    .field-card input:focus,
+    .field-card textarea:focus,
+    .field-card select:focus { border-color: #2e7d32; background: #fff; }
+    .field-card textarea { min-height: 80px; resize: vertical; }
+    .radio-group, .checkbox-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .radio-group label, .checkbox-group label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 400;
+      font-size: .9rem;
+      cursor: pointer;
+    }
+    .radio-group input, .checkbox-group input {
+      accent-color: #2e7d32;
+      width: 18px;
+      height: 18px;
+    }
+    .contact-section h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: #1b5e20;
+      margin-bottom: 16px;
+    }
+    .submit-btn {
+      background: linear-gradient(135deg, #1b5e20, #2e7d32);
+      color: #fff;
+      border: none;
+      padding: 14px 40px;
+      border-radius: 8px;
+      font-family: 'Poppins', sans-serif;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .2s, transform .15s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .submit-btn:hover { opacity: .9; transform: translateY(-1px); }
+    .submit-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+    .success-card {
+      text-align: center;
+      padding: 48px 28px;
+    }
+    .success-card .check-icon {
+      width: 80px; height: 80px; border-radius: 50%;
+      background: #e8f5e9; display: flex; align-items: center;
+      justify-content: center; margin: 0 auto 20px; font-size: 2.5rem;
+    }
+    .success-card h2 { color: #1b5e20; margin-bottom: 12px; }
+    .success-card p { color: #555; font-size: 1rem; line-height: 1.6; }
+    .adhesion-link {
+      display: inline-block;
+      margin-top: 20px;
+      background: #fff;
+      border: 2px solid #2e7d32;
+      color: #1b5e20;
+      padding: 12px 28px;
+      border-radius: 8px;
+      font-family: 'Poppins', sans-serif;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background .2s, color .2s;
+    }
+    .adhesion-link:hover { background: #2e7d32; color: #fff; }
+    .error-card { text-align: center; padding: 48px 28px; }
+    .error-card .error-icon { font-size: 3rem; margin-bottom: 16px; }
+    .error-card h2 { color: #d32f2f; margin-bottom: 8px; }
+    .error-card p { color: #777; }
+    .loading-state {
+      text-align: center; padding: 60px 20px;
+    }
+    .loading-state .spinner {
+      width: 40px; height: 40px; border: 4px solid #e0e0e0;
+      border-top-color: #2e7d32; border-radius: 50%;
+      animation: spin .8s linear infinite; margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .form-footer {
+      text-align: center;
+      padding: 24px;
+      color: #999;
+      font-size: .78rem;
+    }
+    .form-footer a { color: #2e7d32; text-decoration: none; }
+    @media (max-width: 600px) {
+      .form-container { padding: 12px 8px 40px; }
+      .form-card, .field-card { padding: 20px 16px; }
+      .ahh-header h1 { font-size: .95rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="ahh-header">
+    <img src="Public/logo1.png" alt="AHH Logo"/>
+    <h1>Association Ha&iuml;tienne de Hamilton</h1>
+  </div>
+
+  <div id="bannerArea"></div>
+
+  <div class="form-container" id="formContent">
+    <div class="loading-state">
+      <div class="spinner"></div>
+      <p>Chargement du formulaire...</p>
+    </div>
+  </div>
+
+  <div class="form-footer">
+    Propuls&eacute; par <a href="/">AHH</a> &mdash; Association Ha&iuml;tienne de Hamilton
+  </div>
+
+<script>
+(function() {
+  const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:3001' : '';
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('t');
+  const container = document.getElementById('formContent');
+  const bannerArea = document.getElementById('bannerArea');
+
+  if (!token) {
+    showError('Lien invalide', 'Aucun formulaire trouvé. Vérifiez le lien reçu.');
+    return;
+  }
+
+  let formData = null;
+
+  async function loadForm() {
+    try {
+      const res = await fetch(API_BASE + '/api/forms/public/' + token);
+      if (!res.ok) throw new Error('not found');
+      formData = await res.json();
+      document.title = formData.titre + ' | AHH';
+      renderForm();
+    } catch(e) {
+      showError('Formulaire introuvable', 'Ce formulaire n\'existe pas ou a été fermé.');
+    }
+  }
+
+  function esc(s) {
+    if (!s) return '';
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function renderForm() {
+    // Banner image
+    if (formData.image_path) {
+      bannerArea.innerHTML = '<img class="form-banner" src="' + API_BASE + esc(formData.image_path) + '" alt=""/>';
+    }
+
+    let html = '';
+
+    // Title card
+    html += '<div class="form-card">';
+    html += '<h2>' + esc(formData.titre) + '</h2>';
+    if (formData.description) {
+      html += '<p class="form-desc">' + esc(formData.description).replace(/\n/g, '<br>') + '</p>';
+    }
+    html += '</div>';
+
+    html += '<form id="formReponse" onsubmit="return false;">';
+
+    // Dynamic fields
+    formData.fields.forEach(function(f) {
+      html += '<div class="field-card">';
+      html += '<label>' + esc(f.label);
+      if (f.obligatoire) html += '<span class="required-star">*</span>';
+      html += '</label>';
+      if (f.description) html += '<p class="field-desc">' + esc(f.description) + '</p>';
+
+      var opts = [];
+      if (f.options_json) {
+        try { opts = JSON.parse(f.options_json); } catch(e) { opts = []; }
+      }
+      var fieldName = 'field_' + f.id;
+      var req = f.obligatoire ? ' required' : '';
+
+      switch(f.type) {
+        case 'text':
+          html += '<input type="text" name="' + fieldName + '" data-fid="' + f.id + '"' + req + '/>';
+          break;
+        case 'email':
+          html += '<input type="email" name="' + fieldName + '" data-fid="' + f.id + '"' + req + '/>';
+          break;
+        case 'telephone':
+          html += '<input type="tel" name="' + fieldName + '" data-fid="' + f.id + '"' + req + '/>';
+          break;
+        case 'textarea':
+          html += '<textarea name="' + fieldName + '" data-fid="' + f.id + '"' + req + '></textarea>';
+          break;
+        case 'number':
+          html += '<input type="number" name="' + fieldName + '" data-fid="' + f.id + '"' + req + '/>';
+          break;
+        case 'date':
+          html += '<input type="date" name="' + fieldName + '" data-fid="' + f.id + '"' + req + '/>';
+          break;
+        case 'select':
+          html += '<select name="' + fieldName + '" data-fid="' + f.id + '"' + req + '>';
+          html += '<option value="">-- Choisir --</option>';
+          opts.forEach(function(o) { html += '<option value="' + esc(o) + '">' + esc(o) + '</option>'; });
+          html += '</select>';
+          break;
+        case 'radio':
+          html += '<div class="radio-group">';
+          opts.forEach(function(o, i) {
+            html += '<label><input type="radio" name="' + fieldName + '" value="' + esc(o) + '" data-fid="' + f.id + '"' + (i === 0 && f.obligatoire ? ' required' : '') + '/> ' + esc(o) + '</label>';
+          });
+          html += '</div>';
+          break;
+        case 'checkbox':
+          html += '<div class="checkbox-group">';
+          opts.forEach(function(o) {
+            html += '<label><input type="checkbox" name="' + fieldName + '" value="' + esc(o) + '" data-fid="' + f.id + '"/> ' + esc(o) + '</label>';
+          });
+          html += '</div>';
+          break;
+        default:
+          html += '<input type="text" name="' + fieldName + '" data-fid="' + f.id + '"' + req + '/>';
+      }
+
+      html += '</div>';
+    });
+
+    // Contact info
+    html += '<div class="field-card contact-section">';
+    html += '<h3>Vos coordonnées</h3>';
+    html += '<label>Nom</label>';
+    html += '<input type="text" id="resp_nom" style="margin-bottom:12px"/>';
+    html += '<label>Courriel</label>';
+    html += '<input type="email" id="resp_email" style="margin-bottom:12px"/>';
+    html += '<label>Téléphone</label>';
+    html += '<input type="tel" id="resp_telephone"/>';
+    html += '</div>';
+
+    // Submit
+    html += '<div style="text-align:right;margin-top:8px">';
+    html += '<button type="submit" class="submit-btn" id="submitBtn" onclick="window._submitForm()">Envoyer</button>';
+    html += '</div>';
+
+    html += '</form>';
+    container.innerHTML = html;
+  }
+
+  window._submitForm = async function() {
+    var btn = document.getElementById('submitBtn');
+    if (btn.disabled) return;
+
+    // Validate required fields
+    var formEl = document.getElementById('formReponse');
+    if (!formEl.checkValidity()) {
+      formEl.reportValidity();
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Envoi en cours...';
+
+    // Collect answers
+    var answers = [];
+    formData.fields.forEach(function(f) {
+      var fieldName = 'field_' + f.id;
+      var val = '';
+      if (f.type === 'checkbox') {
+        var checked = [];
+        document.querySelectorAll('input[name="' + fieldName + '"]:checked').forEach(function(cb) {
+          checked.push(cb.value);
+        });
+        val = checked.join(', ');
+      } else if (f.type === 'radio') {
+        var sel = document.querySelector('input[name="' + fieldName + '"]:checked');
+        val = sel ? sel.value : '';
+      } else {
+        var el = document.querySelector('[name="' + fieldName + '"]');
+        val = el ? el.value : '';
+      }
+      if (val) answers.push({ field_id: f.id, valeur: val });
+    });
+
+    var body = {
+      nom: document.getElementById('resp_nom').value.trim(),
+      email: document.getElementById('resp_email').value.trim(),
+      telephone: document.getElementById('resp_telephone').value.trim(),
+      answers: answers
+    };
+
+    try {
+      var res = await fetch(API_BASE + '/api/forms/public/' + token + '/respond', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      var data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erreur');
+      showSuccess(data.message, data.redirect_adhesion);
+    } catch(e) {
+      btn.disabled = false;
+      btn.textContent = 'Envoyer';
+      alert('Erreur : ' + e.message);
+    }
+  };
+
+  function showSuccess(message, redirectAdhesion) {
+    var html = '<div class="form-card success-card">';
+    html += '<div class="check-icon">✔️</div>';
+    html += '<h2>Réponse enregistrée !</h2>';
+    html += '<p>' + esc(message || 'Merci pour votre réponse !') + '</p>';
+    if (redirectAdhesion) {
+      html += '<a href="adhesion.html" class="adhesion-link">Pas encore membre ? Rejoignez l\'AHH !</a>';
+    }
+    html += '</div>';
+    container.innerHTML = html;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function showError(title, desc) {
+    container.innerHTML = '<div class="form-card error-card">' +
+      '<div class="error-icon">⚠️</div>' +
+      '<h2>' + esc(title) + '</h2>' +
+      '<p>' + esc(desc) + '</p></div>';
+  }
+
+  loadForm();
+})();
+</script>
+</body>
+</html>

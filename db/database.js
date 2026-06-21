@@ -1066,6 +1066,51 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS scan_logs (
   date_scan TEXT DEFAULT CURRENT_TIMESTAMP
 )`); } catch {}
 
+// ── Formulaires (Google Forms-like) ────────────────────────────────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS forms (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  titre TEXT NOT NULL,
+  description TEXT,
+  image_path TEXT,
+  share_token TEXT NOT NULL UNIQUE,
+  activity_id INTEGER REFERENCES activities(id),
+  statut TEXT DEFAULT 'actif',
+  allow_anonymous INTEGER DEFAULT 1,
+  message_fin TEXT DEFAULT 'Merci pour votre réponse !',
+  redirect_adhesion INTEGER DEFAULT 1,
+  cree_par INTEGER REFERENCES users(id),
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+  date_fermeture TEXT
+)`); } catch {}
+
+try { db.exec(`CREATE TABLE IF NOT EXISTS form_fields (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  form_id INTEGER NOT NULL REFERENCES forms(id) ON DELETE CASCADE,
+  type TEXT NOT NULL DEFAULT 'text',
+  label TEXT NOT NULL,
+  description TEXT,
+  obligatoire INTEGER DEFAULT 0,
+  options_json TEXT,
+  ordre INTEGER DEFAULT 0
+)`); } catch {}
+
+try { db.exec(`CREATE TABLE IF NOT EXISTS form_responses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  form_id INTEGER NOT NULL REFERENCES forms(id) ON DELETE CASCADE,
+  user_id INTEGER REFERENCES users(id),
+  nom TEXT,
+  email TEXT,
+  telephone TEXT,
+  date_reponse TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
+try { db.exec(`CREATE TABLE IF NOT EXISTS form_answers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  response_id INTEGER NOT NULL REFERENCES form_responses(id) ON DELETE CASCADE,
+  field_id INTEGER NOT NULL REFERENCES form_fields(id) ON DELETE CASCADE,
+  valeur TEXT
+)`); } catch {}
+
 init();
 
 module.exports = db;

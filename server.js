@@ -21,7 +21,7 @@ const Stripe   = require('stripe');
 
 // Créer les dossiers uploads au démarrage
 ['uploads','uploads/gallery','uploads/profiles','uploads/invoices',
- 'uploads/payments','uploads/talents','uploads/annonces','uploads/attachments','uploads/activities','uploads/qr']
+ 'uploads/payments','uploads/talents','uploads/annonces','uploads/attachments','uploads/activities','uploads/qr','uploads/forms']
   .forEach(d => { const p = path.join(__dirname, d); if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true }); });
 
 const db = require('./db/database');
@@ -6650,6 +6650,189 @@ app.get('/api/scan-logs', authMiddleware, (req, res) => {
     ORDER BY sl.date_scan DESC
     LIMIT 500`).all(actId || null, actId || null);
   res.json(rows);
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FORMULAIRES (Google Forms-like)
+// ══════════════════════════════════════════════════════════════════════════════
+
+const FORM_EXEC = ['admin','tresoriere','secretaire','delegue'];
+
+// Multer pour images de formulaires
+const formImageStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, 'uploads', 'forms', String(req.params.id || 'tmp'));
+    fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
+});
+const uploadFormImage = multer({ storage: formImageStorage, limits: { fileSize: 15 * 1024 * 1024 } });
+
+// ── Liste tous les formulaires ──────────────────────────────────────────────
+app.get('/api/forms', authMiddleware, requireRole(...FORM_EXEC), (req, res) => {
+  const rows = db.prepare(`SELECT f.*,
+    (SELECT COUNT(*) FROM form_responses fr WHERE fr.form_id = f.id) AS nb_reponses,
+    u.prenom AS createur_prenom, u.nom AS createur_nom
+    FROM forms f LEFT JOIN users u ON u.id = f.cree_par
+    ORDER BY f.date_creation DESC`).all();
+  res.json(rows);
+});
+
+// ── Détail d'un formulaire avec champs et réponses ──────────────────────────
+app.get('/api/forms/:id', authMiddleware, requireRole(...FORM_EXEC), (req, res) => {
+  const form = db.prepare('SELECT * FROM forms WHERE id = ?').get(req.params.id);
+  if (!form) return res.status(404).json({ error: 'Formulaire introuvable' });
+  form.fields = db.prepare('SELECT * FROM form_fields WHERE form_id = ? ORDER BY ordre, id').all(form.id);
+  form.responses = db.prepare(`SELECT fr.*,
+    (SELECT json_group_array(json_object('field_id', fa.field_id, 'valeur', fa.valeur))
+     FROM form_answers fa WHERE fa.response_id = fr.id) AS answers_json
+    FROM form_responses fr WHERE fr.form_id = ? ORDER BY fr.date_reponse DESC`).all(form.id);
+  // Parse answers_json
+  form.responses.forEach(r => {
+    try { r.answers = JSON.parse(r.answers_json || '[]'); } catch { r.answers = []; }
+    delete r.answers_json;
+  });
+  res.json(form);
+});
+
+// ── Créer un formulaire ─────────────────────────────────────────────────────
+app.post('/api/forms', authMiddleware, requireRole(...FORM_EXEC), (req, res) => {
+  const { titre, description, activity_id, allow_anonymous, message_fin, redirect_adhesion } = req.body;
+  if (!titre) return res.status(400).json({ error: 'Titre requis' });
+  const crypto = require('crypto');
+  const share_token = crypto.randomBytes(12).toString('hex');
+  const r = db.prepare(`INSERT INTO forms (titre, description, share_token, activity_id, allow_anonymous, message_fin, redirect_adhesion, cree_par)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
+    titre, description || null, share_token, activity_id || null,
+    allow_anonymous === undefined ? 1 : (allow_anonymous ? 1 : 0),
+    message_fin || 'Merci pour votre réponse !',
+    redirect_adhesion === undefined ? 1 : (redirect_adhesion ? 1 : 0),
+    req.user.id
+  );
+  res.status(201).json({ id: r.lastInsertRowid, share_token });
+});
+
+// ── Modifier un formulaire ──────────────────────────────────────────────────
+app.put('/api/forms/:id', authMiddleware, requireRole(...FORM_EXEC), (req, res) => {
+  const form = db.prepare('SELECT id FROM forms WHERE id = ?').get(req.params.id);
+  if (!form) return res.status(404).json({ error: 'Formulaire introuvable' });
+  const { titre, description, activity_id, statut, allow_anonymous, message_fin, redirect_adhesion, date_fermeture } = req.body;
+  db.prepare(`UPDATE forms SET titre=?, description=?, activity_id=?, statut=?, allow_anonymous=?, message_fin=?, redirect_adhesion=?, date_fermeture=? WHERE id=?`).run(
+    titre, description || null, activity_id || null, statut || 'actif',
+    allow_anonymous ? 1 : 0, message_fin || 'Merci pour votre réponse !',
+    redirect_adhesion ? 1 : 0, date_fermeture || null, req.params.id
+  );
+  res.json({ message: 'Formulaire mis à jour' });
+});
+
+// ── Supprimer un formulaire ─────────────────────────────────────────────────
+app.delete('/api/forms/:id', authMiddleware, requireRole(...FORM_EXEC), (req, res) => {
+  const form = db.prepare('SELECT id FROM forms WHERE id = ?').get(req.params.id);
+  if (!form) return res.status(404).json({ error: 'Formulaire introuvable' });
+  db.prepare('DELETE FROM forms WHERE id = ?').run(req.params.id);
+  res.json({ message: 'Formulaire supprimé' });
+});
+
+// ── Upload image pour un formulaire ─────────────────────────────────────────
+app.post('/api/forms/:id/image', authMiddleware, requireRole(...FORM_EXEC), uploadFormImage.single('image'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Image requise' });
+  const imagePath = `/uploads/forms/${req.params.id}/${req.file.filename}`;
+  db.prepare('UPDATE forms SET image_path=? WHERE id=?').run(imagePath, req.params.id);
+  res.json({ image_path: imagePath });
+});
+app.use('/uploads/forms', express.static(path.join(__dirname, 'uploads', 'forms')));
+
+// ── Ajouter un champ ────────────────────────────────────────────────────────
+app.post('/api/forms/:id/fields', authMiddleware, requireRole(...FORM_EXEC), (req, res) => {
+  const form = db.prepare('SELECT id FROM forms WHERE id = ?').get(req.params.id);
+  if (!form) return res.status(404).json({ error: 'Formulaire introuvable' });
+  const { type, label, description, obligatoire, options_json, ordre } = req.body;
+  if (!label) return res.status(400).json({ error: 'Label requis' });
+  const r = db.prepare(`INSERT INTO form_fields (form_id, type, label, description, obligatoire, options_json, ordre)
+    VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
+    req.params.id, type || 'text', label, description || null,
+    obligatoire ? 1 : 0, options_json || null,
+    ordre !== undefined ? ordre : 0
+  );
+  res.status(201).json({ id: r.lastInsertRowid });
+});
+
+// ── Modifier un champ ───────────────────────────────────────────────────────
+app.put('/api/forms/:formId/fields/:fieldId', authMiddleware, requireRole(...FORM_EXEC), (req, res) => {
+  const field = db.prepare('SELECT id FROM form_fields WHERE id = ? AND form_id = ?').get(req.params.fieldId, req.params.formId);
+  if (!field) return res.status(404).json({ error: 'Champ introuvable' });
+  const { type, label, description, obligatoire, options_json, ordre } = req.body;
+  db.prepare(`UPDATE form_fields SET type=?, label=?, description=?, obligatoire=?, options_json=?, ordre=? WHERE id=?`).run(
+    type || 'text', label, description || null, obligatoire ? 1 : 0,
+    options_json || null, ordre !== undefined ? ordre : 0, req.params.fieldId
+  );
+  res.json({ message: 'Champ mis à jour' });
+});
+
+// ── Supprimer un champ ──────────────────────────────────────────────────────
+app.delete('/api/forms/:formId/fields/:fieldId', authMiddleware, requireRole(...FORM_EXEC), (req, res) => {
+  const field = db.prepare('SELECT id FROM form_fields WHERE id = ? AND form_id = ?').get(req.params.fieldId, req.params.formId);
+  if (!field) return res.status(404).json({ error: 'Champ introuvable' });
+  db.prepare('DELETE FROM form_fields WHERE id = ?').run(req.params.fieldId);
+  res.json({ message: 'Champ supprimé' });
+});
+
+// ── Export CSV des réponses ─────────────────────────────────────────────────
+app.get('/api/forms/:id/export', authMiddleware, requireRole(...FORM_EXEC), (req, res) => {
+  const form = db.prepare('SELECT * FROM forms WHERE id = ?').get(req.params.id);
+  if (!form) return res.status(404).json({ error: 'Formulaire introuvable' });
+  const fields = db.prepare('SELECT * FROM form_fields WHERE form_id = ? ORDER BY ordre, id').all(form.id);
+  const responses = db.prepare('SELECT * FROM form_responses WHERE form_id = ? ORDER BY date_reponse DESC').all(form.id);
+
+  // Build CSV
+  const cols = ['Date', 'Nom', 'Email', 'Téléphone'];
+  fields.forEach(f => cols.push(f.label));
+
+  const escCsv = v => `"${String(v || '').replace(/"/g, '""')}"`;
+  const header = cols.map(escCsv).join(',');
+
+  const lines = responses.map(r => {
+    const answers = db.prepare('SELECT field_id, valeur FROM form_answers WHERE response_id = ?').all(r.id);
+    const answerMap = {};
+    answers.forEach(a => { answerMap[a.field_id] = a.valeur; });
+    const row = [r.date_reponse, r.nom, r.email, r.telephone];
+    fields.forEach(f => row.push(answerMap[f.id] || ''));
+    return row.map(escCsv).join(',');
+  });
+
+  const csv = '﻿' + [header, ...lines].join('\n');
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="formulaire-${form.id}-reponses.csv"`);
+  res.send(csv);
+});
+
+// ── PUBLIC : récupérer un formulaire par token ──────────────────────────────
+app.get('/api/forms/public/:token', (req, res) => {
+  const form = db.prepare('SELECT id, titre, description, image_path, share_token, activity_id, allow_anonymous, message_fin, redirect_adhesion FROM forms WHERE share_token = ? AND statut = ?').get(req.params.token, 'actif');
+  if (!form) return res.status(404).json({ error: 'Formulaire introuvable ou fermé' });
+  form.fields = db.prepare('SELECT id, type, label, description, obligatoire, options_json, ordre FROM form_fields WHERE form_id = ? ORDER BY ordre, id').all(form.id);
+  res.json(form);
+});
+
+// ── PUBLIC : soumettre une réponse ──────────────────────────────────────────
+app.post('/api/forms/public/:token/respond', (req, res) => {
+  const form = db.prepare('SELECT * FROM forms WHERE share_token = ? AND statut = ?').get(req.params.token, 'actif');
+  if (!form) return res.status(404).json({ error: 'Formulaire introuvable ou fermé' });
+  const { nom, email, telephone, answers } = req.body;
+  const r = db.prepare('INSERT INTO form_responses (form_id, nom, email, telephone) VALUES (?, ?, ?, ?)').run(
+    form.id, nom || null, email || null, telephone || null
+  );
+  const responseId = r.lastInsertRowid;
+  if (answers && Array.isArray(answers)) {
+    const insertAnswer = db.prepare('INSERT INTO form_answers (response_id, field_id, valeur) VALUES (?, ?, ?)');
+    answers.forEach(a => {
+      if (a.field_id && a.valeur !== undefined) {
+        insertAnswer.run(responseId, a.field_id, String(a.valeur));
+      }
+    });
+  }
+  res.json({ ok: true, message: form.message_fin, redirect_adhesion: form.redirect_adhesion ? true : false });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════

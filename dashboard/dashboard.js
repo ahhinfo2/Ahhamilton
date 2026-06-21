@@ -332,6 +332,7 @@ async function buildSidebar() {
       { id:'votes',             icon:'🗳️', label:'Votes & Élections', roles:EXEC },
       { id:'parrainage',        icon:'🤝', label:'Parrainage',         roles: ALL },
       { id:'export-data',       icon:'📦', label:'Export / Backup',    roles:['admin','secretaire','tresoriere'] },
+      { id:'forms-mgmt',        icon:'📋', label:'Formulaires',        roles:EXEC },
     ]},
 
     // ── Contenu ───────────────────────────────────────────────────
@@ -490,7 +491,8 @@ function setActiveNav(viewId) {
     'email-templates':'Modèles de courriels',
     'export-data':'Export données',
     'annual-report':'Rapport annuel',
-    'scan-delegations':'Déléguer un scanner'
+    'scan-delegations':'Déléguer un scanner',
+    'forms-mgmt':'Formulaires'
   };
   const raw = labels[viewId] || 'Dashboard';
   document.getElementById('topbarTitle').textContent = window.AHH_LANG ? AHH_LANG.get(raw) : raw;
@@ -924,6 +926,7 @@ async function showView(viewId) {
     'export-data': exportDataView,
     'annual-report': annualReportView,
     'scan-delegations': scanDelegationsListView,
+    'forms-mgmt': formsMgmtView,
   };
   if (extViews[viewId]) {
     try { await extViews[viewId](); } catch(e) { setContent(`<div class="empty-state"><div class="es-icon">⚠️</div><p>${e.message}</p></div>`); }
@@ -13840,4 +13843,495 @@ function _sortScanRows() {
     return dir === 'asc' ? da.localeCompare(db) : db.localeCompare(da);
   });
   rows.forEach(r => tbody.appendChild(r));
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FORMULAIRES — Google Forms-like
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function formsMgmtView() {
+  let forms = [];
+  try { forms = await api('/forms'); } catch(e) { setContent('<div class="empty-state"><p>Erreur : '+escHtml(e.message)+'</p></div>'); return; }
+  window._formsList = forms;
+
+  const rows = forms.map(f => {
+    const statutPill = f.statut === 'actif'
+      ? '<span style="background:#e8f5e9;color:#2e7d32;padding:3px 10px;border-radius:12px;font-size:.78rem;font-weight:600">Actif</span>'
+      : '<span style="background:#fce4ec;color:#c62828;padding:3px 10px;border-radius:12px;font-size:.78rem;font-weight:600">Fermé</span>';
+    return `<tr>
+      <td style="font-weight:600">${escHtml(f.titre)}</td>
+      <td style="text-align:center"><span style="background:var(--off);padding:4px 12px;border-radius:8px;font-weight:600">${f.nb_reponses || 0}</span></td>
+      <td style="text-align:center">${statutPill}</td>
+      <td>${fmt(f.date_creation)}</td>
+      <td>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button onclick="viewFormResults(${f.id})" style="background:#e3f2fd;color:#1565c0;border:none;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:.78rem">Résultats</button>
+          <button onclick="openFormBuilder(${f.id})" style="background:#fff3e0;color:#e65100;border:none;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:.78rem">Modifier</button>
+          <button onclick="_copyFormLink(${f.id})" style="background:#e8f5e9;color:#2e7d32;border:none;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:.78rem">Copier lien</button>
+          <button onclick="_deleteForm(${f.id})" style="background:#fce4ec;color:#c62828;border:none;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:.78rem">Supprimer</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  setContent(`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+      <h2 style="margin:0;font-size:1.3rem">Formulaires</h2>
+      <button onclick="openFormBuilder(0)" style="background:var(--g2);color:#fff;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-weight:600;font-size:.9rem">+ Nouveau formulaire</button>
+    </div>
+    ${forms.length === 0 ? '<div class="empty-state"><div class="es-icon">📋</div><p>Aucun formulaire créé</p><p style="color:var(--muted);font-size:.85rem">Créez votre premier formulaire pour collecter des réponses</p></div>' : `
+    <div style="overflow-x:auto">
+      <table class="data-table">
+        <thead><tr>
+          <th>Titre</th>
+          <th style="text-align:center">Réponses</th>
+          <th style="text-align:center">Statut</th>
+          <th>Date création</th>
+          <th>Actions</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`}
+  `);
+}
+
+function _copyFormLink(formId) {
+  const f = (window._formsList || []).find(x => x.id === formId);
+  if (!f) return;
+  const url = window.location.origin + '/formulaire.html?t=' + f.share_token;
+  navigator.clipboard.writeText(url).then(() => toast('Lien copié !')).catch(() => {
+    prompt('Copiez ce lien :', url);
+  });
+}
+
+async function _deleteForm(formId) {
+  if (!confirm('Supprimer ce formulaire et toutes ses réponses ?')) return;
+  try {
+    await api('/forms/' + formId, { method: 'DELETE' });
+    toast('Formulaire supprimé');
+    formsMgmtView();
+  } catch(e) { toast('Erreur : ' + e.message, 'error'); }
+}
+
+async function openFormBuilder(formId) {
+  window._modalReturnViewId = 'forms-mgmt';
+  let form = null;
+  let activities = [];
+  try { activities = await api('/activities'); } catch {}
+
+  if (formId) {
+    try { form = await api('/forms/' + formId); } catch(e) {
+      toast('Erreur : ' + e.message, 'error'); return;
+    }
+  }
+
+  window._formBuilderData = form;
+  window._formBuilderFields = form ? (form.fields || []) : [];
+
+  const isNew = !formId;
+  const title = isNew ? 'Nouveau formulaire' : 'Modifier : ' + escHtml(form.titre);
+
+  const actOptions = activities.map(a =>
+    `<option value="${a.id}" ${form && form.activity_id === a.id ? 'selected' : ''}>${escHtml(a.titre)}</option>`
+  ).join('');
+
+  const shareUrl = form ? (window.location.origin + '/formulaire.html?t=' + form.share_token) : '';
+
+  setContent(`
+    <div style="padding-bottom:40px">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid var(--border)">
+        <button onclick="showView('forms-mgmt')" style="display:flex;align-items:center;gap:6px;background:var(--off);border:1px solid var(--border);border-radius:8px;padding:7px 14px;cursor:pointer;font-size:.84rem;color:var(--text)">← Retour</button>
+        <h2 style="margin:0;font-size:1.18rem;font-weight:700">${title}</h2>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px">
+        <div style="grid-column:1/-1">
+          <label style="font-weight:600;font-size:.85rem;display:block;margin-bottom:4px">Titre *</label>
+          <input id="fb_titre" type="text" value="${form ? escHtml(form.titre) : ''}" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:.9rem" required/>
+        </div>
+        <div style="grid-column:1/-1">
+          <label style="font-weight:600;font-size:.85rem;display:block;margin-bottom:4px">Description</label>
+          <textarea id="fb_description" rows="3" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:.9rem;resize:vertical">${form ? escHtml(form.description || '') : ''}</textarea>
+        </div>
+        <div>
+          <label style="font-weight:600;font-size:.85rem;display:block;margin-bottom:4px">Activité liée (optionnel)</label>
+          <select id="fb_activity" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:.9rem">
+            <option value="">Aucune</option>
+            ${actOptions}
+          </select>
+        </div>
+        <div>
+          <label style="font-weight:600;font-size:.85rem;display:block;margin-bottom:4px">Statut</label>
+          <select id="fb_statut" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:.9rem">
+            <option value="actif" ${!form || form.statut === 'actif' ? 'selected' : ''}>Actif</option>
+            <option value="ferme" ${form && form.statut === 'ferme' ? 'selected' : ''}>Fermé</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-weight:600;font-size:.85rem;display:block;margin-bottom:4px">Message de fin</label>
+          <input id="fb_message_fin" type="text" value="${form ? escHtml(form.message_fin || '') : 'Merci pour votre réponse !'}" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:.9rem"/>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;justify-content:center">
+          <label style="display:flex;align-items:center;gap:8px;font-size:.85rem;cursor:pointer">
+            <input type="checkbox" id="fb_anonymous" ${!form || form.allow_anonymous ? 'checked' : ''}/> Réponses anonymes autorisées
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:.85rem;cursor:pointer">
+            <input type="checkbox" id="fb_redirect" ${!form || form.redirect_adhesion ? 'checked' : ''}/> Proposer l'adhésion après soumission
+          </label>
+        </div>
+      </div>
+
+      ${form ? `<div style="margin-bottom:24px">
+        <label style="font-weight:600;font-size:.85rem;display:block;margin-bottom:8px">Image du formulaire</label>
+        ${form.image_path ? '<img src="'+BASE+escHtml(form.image_path)+'" style="max-width:300px;max-height:150px;border-radius:8px;margin-bottom:8px;display:block" />' : ''}
+        <input type="file" id="fb_image" accept="image/*" onchange="_uploadFormImage(${form.id})" style="font-size:.85rem"/>
+      </div>` : ''}
+
+      <div style="margin-bottom:24px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h3 style="margin:0;font-size:1.05rem;font-weight:700">Champs du formulaire</h3>
+          <button onclick="_addFieldInline()" style="background:var(--g2);color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-weight:600;font-size:.82rem">+ Ajouter un champ</button>
+        </div>
+        <div id="fb_fieldsList">${_renderFieldsList()}</div>
+        <div id="fb_newFieldForm" style="display:none"></div>
+      </div>
+
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <button onclick="_saveFormBuilder(${formId || 0})" style="background:var(--g2);color:#fff;border:none;padding:12px 28px;border-radius:8px;cursor:pointer;font-weight:600;font-size:.9rem">${isNew ? 'Créer le formulaire' : 'Enregistrer'}</button>
+        ${form ? `<button onclick="_exportFormCSV(${form.id})" style="background:#e3f2fd;color:#1565c0;border:none;padding:12px 20px;border-radius:8px;cursor:pointer;font-weight:600;font-size:.85rem">Export CSV</button>` : ''}
+      </div>
+
+      ${form ? `<div style="margin-top:28px;padding:20px;background:var(--off);border-radius:12px;border:1px solid var(--border)">
+        <h3 style="margin:0 0 12px;font-size:1rem;font-weight:700">Partager ce formulaire</h3>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+          <input id="fb_shareUrl" type="text" readonly value="${escHtml(shareUrl)}" style="flex:1;min-width:200px;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:.82rem;background:#fff"/>
+          <button onclick="navigator.clipboard.writeText(document.getElementById('fb_shareUrl').value);toast('Lien copié !')" style="background:var(--g2);color:#fff;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;font-size:.82rem;font-weight:600">Copier</button>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <a href="https://wa.me/?text=${encodeURIComponent(form.titre + '\n' + shareUrl)}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#25d366;color:#fff;padding:8px 16px;border-radius:8px;text-decoration:none;font-size:.82rem;font-weight:600">WhatsApp</a>
+          <a href="https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#1877f2;color:#fff;padding:8px 16px;border-radius:8px;text-decoration:none;font-size:.82rem;font-weight:600">Facebook</a>
+        </div>
+      </div>` : ''}
+    </div>
+  `);
+}
+
+function _renderFieldsList() {
+  const fields = window._formBuilderFields || [];
+  if (fields.length === 0) return '<p style="color:var(--muted);font-size:.85rem;padding:12px">Aucun champ ajouté</p>';
+  return fields.map((f, idx) => {
+    const typeLabels = {text:'Texte',email:'Email',telephone:'Téléphone',textarea:'Zone de texte',select:'Liste déroulante',radio:'Choix unique',checkbox:'Cases à cocher',number:'Nombre',date:'Date'};
+    const typePill = '<span style="background:#e3f2fd;color:#1565c0;padding:2px 8px;border-radius:6px;font-size:.72rem;font-weight:600">' + (typeLabels[f.type] || f.type) + '</span>';
+    const reqBadge = f.obligatoire ? ' <span style="color:#d32f2f;font-size:.72rem;font-weight:600">obligatoire</span>' : '';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:#fff;border:1px solid var(--border);border-radius:8px;margin-bottom:6px" data-field-idx="${idx}">
+      <span style="cursor:grab;color:var(--muted);font-size:1.1rem">⠿</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:.88rem">${escHtml(f.label)} ${typePill}${reqBadge}</div>
+        ${f.description ? '<div style="font-size:.78rem;color:var(--muted)">'+escHtml(f.description)+'</div>' : ''}
+      </div>
+      <button onclick="_editFieldInline(${idx})" style="background:var(--off);border:1px solid var(--border);border-radius:6px;padding:5px 10px;cursor:pointer;font-size:.78rem">Modifier</button>
+      <button onclick="_removeField(${idx})" style="background:#fce4ec;color:#c62828;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:.78rem">Supprimer</button>
+    </div>`;
+  }).join('');
+}
+
+function _addFieldInline() {
+  const container = document.getElementById('fb_newFieldForm');
+  container.style.display = 'block';
+  container.innerHTML = _fieldFormHtml(null, '_saveNewField');
+}
+
+function _editFieldInline(idx) {
+  const field = window._formBuilderFields[idx];
+  if (!field) return;
+  const container = document.getElementById('fb_newFieldForm');
+  container.style.display = 'block';
+  window._editingFieldIdx = idx;
+  container.innerHTML = _fieldFormHtml(field, '_saveEditField');
+}
+
+function _fieldFormHtml(field, saveFn) {
+  const types = [
+    {v:'text',l:'Texte'},{v:'email',l:'Email'},{v:'telephone',l:'Téléphone'},{v:'textarea',l:'Zone de texte'},
+    {v:'select',l:'Liste déroulante'},{v:'radio',l:'Choix unique'},{v:'checkbox',l:'Cases à cocher'},
+    {v:'number',l:'Nombre'},{v:'date',l:'Date'}
+  ];
+  const typeOpts = types.map(t => `<option value="${t.v}" ${field && field.type === t.v ? 'selected' : ''}>${t.l}</option>`).join('');
+  let existingOpts = '';
+  if (field && field.options_json) {
+    try { existingOpts = JSON.parse(field.options_json).join('\n'); } catch {}
+  }
+  return `<div style="padding:16px;background:#f5f5f5;border-radius:10px;border:1px solid var(--border);margin-top:12px">
+    <h4 style="margin:0 0 12px;font-size:.92rem">${field ? 'Modifier le champ' : 'Nouveau champ'}</h4>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div>
+        <label style="font-size:.8rem;font-weight:600;display:block;margin-bottom:3px">Type</label>
+        <select id="nf_type" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:.85rem" onchange="_toggleFieldOptions()">
+          ${typeOpts}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:.8rem;font-weight:600;display:block;margin-bottom:3px">Libellé *</label>
+        <input id="nf_label" type="text" value="${field ? escHtml(field.label) : ''}" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:.85rem"/>
+      </div>
+    </div>
+    <div style="margin-bottom:10px">
+      <label style="font-size:.8rem;font-weight:600;display:block;margin-bottom:3px">Description (optionnel)</label>
+      <input id="nf_desc" type="text" value="${field && field.description ? escHtml(field.description) : ''}" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:.85rem"/>
+    </div>
+    <div id="nf_optionsWrap" style="margin-bottom:10px;display:${field && ['select','radio','checkbox'].includes(field.type) ? 'block' : 'none'}">
+      <label style="font-size:.8rem;font-weight:600;display:block;margin-bottom:3px">Options (une par ligne)</label>
+      <textarea id="nf_options" rows="3" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:.85rem">${existingOpts}</textarea>
+    </div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:.82rem;margin-bottom:14px;cursor:pointer">
+      <input type="checkbox" id="nf_required" ${field && field.obligatoire ? 'checked' : ''}/> Obligatoire
+    </label>
+    <div style="display:flex;gap:8px">
+      <button onclick="${saveFn}()" style="background:var(--g2);color:#fff;border:none;padding:8px 18px;border-radius:6px;cursor:pointer;font-size:.82rem;font-weight:600">Enregistrer</button>
+      <button onclick="document.getElementById('fb_newFieldForm').style.display='none'" style="background:var(--off);border:1px solid var(--border);padding:8px 18px;border-radius:6px;cursor:pointer;font-size:.82rem">Annuler</button>
+    </div>
+  </div>`;
+}
+
+function _toggleFieldOptions() {
+  const type = document.getElementById('nf_type').value;
+  const wrap = document.getElementById('nf_optionsWrap');
+  if (wrap) wrap.style.display = ['select','radio','checkbox'].includes(type) ? 'block' : 'none';
+}
+
+function _collectFieldData() {
+  const label = document.getElementById('nf_label').value.trim();
+  if (!label) { toast('Libellé requis', 'error'); return null; }
+  const type = document.getElementById('nf_type').value;
+  const description = document.getElementById('nf_desc').value.trim();
+  const obligatoire = document.getElementById('nf_required').checked ? 1 : 0;
+  let options_json = null;
+  if (['select','radio','checkbox'].includes(type)) {
+    const raw = document.getElementById('nf_options').value.trim();
+    const opts = raw.split('\n').map(s => s.trim()).filter(Boolean);
+    if (opts.length === 0) { toast('Ajoutez au moins une option', 'error'); return null; }
+    options_json = JSON.stringify(opts);
+  }
+  return { type, label, description: description || null, obligatoire, options_json, ordre: 0 };
+}
+
+async function _saveNewField() {
+  const data = _collectFieldData();
+  if (!data) return;
+  const formData = window._formBuilderData;
+  if (formData && formData.id) {
+    try {
+      const r = await api('/forms/' + formData.id + '/fields', { method: 'POST', body: JSON.stringify(data) });
+      data.id = r.id;
+    } catch(e) { toast('Erreur : ' + e.message, 'error'); return; }
+  }
+  window._formBuilderFields.push(data);
+  document.getElementById('fb_fieldsList').innerHTML = _renderFieldsList();
+  document.getElementById('fb_newFieldForm').style.display = 'none';
+  toast('Champ ajouté');
+}
+
+async function _saveEditField() {
+  const data = _collectFieldData();
+  if (!data) return;
+  const idx = window._editingFieldIdx;
+  const existing = window._formBuilderFields[idx];
+  if (existing && existing.id && window._formBuilderData && window._formBuilderData.id) {
+    try {
+      await api('/forms/' + window._formBuilderData.id + '/fields/' + existing.id, { method: 'PUT', body: JSON.stringify(data) });
+    } catch(e) { toast('Erreur : ' + e.message, 'error'); return; }
+  }
+  data.id = existing ? existing.id : undefined;
+  window._formBuilderFields[idx] = data;
+  document.getElementById('fb_fieldsList').innerHTML = _renderFieldsList();
+  document.getElementById('fb_newFieldForm').style.display = 'none';
+  toast('Champ modifié');
+}
+
+async function _removeField(idx) {
+  if (!confirm('Supprimer ce champ ?')) return;
+  const field = window._formBuilderFields[idx];
+  if (field && field.id && window._formBuilderData && window._formBuilderData.id) {
+    try {
+      await api('/forms/' + window._formBuilderData.id + '/fields/' + field.id, { method: 'DELETE' });
+    } catch(e) { toast('Erreur : ' + e.message, 'error'); return; }
+  }
+  window._formBuilderFields.splice(idx, 1);
+  document.getElementById('fb_fieldsList').innerHTML = _renderFieldsList();
+  toast('Champ supprimé');
+}
+
+async function _uploadFormImage(formId) {
+  const fileInput = document.getElementById('fb_image');
+  if (!fileInput || !fileInput.files[0]) return;
+  const fd = new FormData();
+  fd.append('image', fileInput.files[0]);
+  try {
+    const res = await fetch(BASE+'/api/forms/'+formId+'/image', {method:'POST', headers:{Authorization:'Bearer '+TOKEN}, body:fd});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erreur');
+    toast('Image mise à jour');
+    openFormBuilder(formId);
+  } catch(e) { toast('Erreur : ' + e.message, 'error'); }
+}
+
+async function _saveFormBuilder(formId) {
+  const titre = document.getElementById('fb_titre').value.trim();
+  if (!titre) { toast('Titre requis', 'error'); return; }
+  const payload = {
+    titre,
+    description: document.getElementById('fb_description').value.trim() || null,
+    activity_id: document.getElementById('fb_activity').value || null,
+    statut: document.getElementById('fb_statut').value,
+    allow_anonymous: document.getElementById('fb_anonymous').checked ? 1 : 0,
+    message_fin: document.getElementById('fb_message_fin').value.trim() || 'Merci pour votre réponse !',
+    redirect_adhesion: document.getElementById('fb_redirect').checked ? 1 : 0
+  };
+
+  try {
+    if (formId) {
+      await api('/forms/' + formId, { method: 'PUT', body: JSON.stringify(payload) });
+      toast('Formulaire enregistré');
+      openFormBuilder(formId);
+    } else {
+      const r = await api('/forms', { method: 'POST', body: JSON.stringify(payload) });
+      toast('Formulaire créé');
+      // Save fields for new form
+      for (const f of window._formBuilderFields) {
+        await api('/forms/' + r.id + '/fields', { method: 'POST', body: JSON.stringify(f) });
+      }
+      openFormBuilder(r.id);
+    }
+  } catch(e) { toast('Erreur : ' + e.message, 'error'); }
+}
+
+function _exportFormCSV(formId) {
+  window.open(BASE + '/api/forms/' + formId + '/export?token=' + TOKEN, '_blank');
+}
+
+async function viewFormResults(formId) {
+  window._modalReturnViewId = 'forms-mgmt';
+  let form = null;
+  try { form = await api('/forms/' + formId); } catch(e) {
+    toast('Erreur : ' + e.message, 'error'); return;
+  }
+  window._formResultsData = form;
+
+  const fields = form.fields || [];
+  const responses = form.responses || [];
+  const total = responses.length;
+
+  // Date range filter
+  const dates = responses.map(r => r.date_reponse ? r.date_reponse.slice(0, 10) : '').filter(Boolean).sort();
+  const minDate = dates.length ? dates[0] : '';
+  const maxDate = dates.length ? dates[dates.length - 1] : '';
+
+  // Chart data for select/radio/checkbox fields
+  let chartsHtml = '';
+  fields.forEach(f => {
+    if (!['select', 'radio', 'checkbox'].includes(f.type)) return;
+    const counts = {};
+    let opts = [];
+    try { opts = JSON.parse(f.options_json || '[]'); } catch {}
+    opts.forEach(o => { counts[o] = 0; });
+    responses.forEach(r => {
+      const ans = (r.answers || []).find(a => a.field_id === f.id);
+      if (ans && ans.valeur) {
+        const vals = ans.valeur.split(', ');
+        vals.forEach(v => { counts[v] = (counts[v] || 0) + 1; });
+      }
+    });
+    const maxCount = Math.max(...Object.values(counts), 1);
+    const barsHtml = Object.entries(counts).map(([label, count]) => {
+      const pct = Math.round((count / maxCount) * 100);
+      return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <div style="width:120px;font-size:.82rem;text-align:right;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(label)}">${escHtml(label)}</div>
+        <div style="flex:1;background:#e8f5e9;border-radius:4px;height:24px;position:relative;overflow:hidden">
+          <div style="width:${pct}%;background:#2e7d32;height:100%;border-radius:4px;transition:width .5s"></div>
+        </div>
+        <div style="font-size:.82rem;font-weight:600;width:40px;text-align:right">${count}</div>
+      </div>`;
+    }).join('');
+    chartsHtml += `<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:14px">
+      <h4 style="margin:0 0 12px;font-size:.9rem;font-weight:700">${escHtml(f.label)}</h4>
+      ${barsHtml}
+    </div>`;
+  });
+
+  // Data table
+  const thFields = fields.map(f => `<th style="font-size:.78rem">${escHtml(f.label)}</th>`).join('');
+  const tbodyRows = responses.map(r => {
+    const answerCells = fields.map(f => {
+      const ans = (r.answers || []).find(a => a.field_id === f.id);
+      return `<td style="font-size:.82rem">${escHtml(ans ? ans.valeur : '')}</td>`;
+    }).join('');
+    return `<tr class="fr-row" data-date="${r.date_reponse || ''}">
+      <td style="font-size:.82rem;white-space:nowrap">${fmt(r.date_reponse)}</td>
+      <td style="font-size:.82rem">${escHtml(r.nom || '')}</td>
+      <td style="font-size:.82rem">${escHtml(r.email || '')}</td>
+      <td style="font-size:.82rem">${escHtml(r.telephone || '')}</td>
+      ${answerCells}
+    </tr>`;
+  }).join('');
+
+  setContent(`
+    <div style="padding-bottom:40px">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid var(--border)">
+        <button onclick="showView('forms-mgmt')" style="display:flex;align-items:center;gap:6px;background:var(--off);border:1px solid var(--border);border-radius:8px;padding:7px 14px;cursor:pointer;font-size:.84rem;color:var(--text)">← Retour</button>
+        <h2 style="margin:0;font-size:1.18rem;font-weight:700">Résultats : ${escHtml(form.titre)}</h2>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px">
+        <div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:16px 20px;text-align:center">
+          <div style="font-size:2rem;font-weight:700;color:#1b5e20">${total}</div>
+          <div style="font-size:.82rem;color:var(--muted)">Réponses totales</div>
+        </div>
+        <div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:16px 20px;text-align:center">
+          <div style="font-size:2rem;font-weight:700;color:#1565c0">${fields.length}</div>
+          <div style="font-size:.82rem;color:var(--muted)">Champs</div>
+        </div>
+        <div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:16px 20px;text-align:center">
+          <div style="font-size:2rem;font-weight:700;color:#e65100">${form.statut === 'actif' ? 'Actif' : 'Fermé'}</div>
+          <div style="font-size:.82rem;color:var(--muted)">Statut</div>
+        </div>
+      </div>
+
+      ${chartsHtml ? '<h3 style="font-size:1.05rem;font-weight:700;margin-bottom:14px">Graphiques</h3>' + chartsHtml : ''}
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px">
+        <h3 style="margin:0;font-size:1.05rem;font-weight:700">Données</h3>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <label style="font-size:.8rem;color:var(--muted)">Du</label>
+          <input type="date" id="fr_dateFrom" value="${minDate}" onchange="_filterFormResults()" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:.82rem"/>
+          <label style="font-size:.8rem;color:var(--muted)">au</label>
+          <input type="date" id="fr_dateTo" value="${maxDate}" onchange="_filterFormResults()" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:.82rem"/>
+          <button onclick="_exportFormCSV(${form.id})" style="background:#e3f2fd;color:#1565c0;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:.82rem;font-weight:600">Export CSV</button>
+        </div>
+      </div>
+
+      ${total === 0 ? '<div class="empty-state" style="padding:40px"><div class="es-icon">📊</div><p>Aucune réponse pour le moment</p></div>' : `
+      <div style="overflow-x:auto">
+        <table class="data-table">
+          <thead><tr>
+            <th style="font-size:.78rem">Date</th>
+            <th style="font-size:.78rem">Nom</th>
+            <th style="font-size:.78rem">Email</th>
+            <th style="font-size:.78rem">Téléphone</th>
+            ${thFields}
+          </tr></thead>
+          <tbody id="fr_tbody">${tbodyRows}</tbody>
+        </table>
+      </div>`}
+    </div>
+  `);
+}
+
+function _filterFormResults() {
+  const from = document.getElementById('fr_dateFrom').value;
+  const to = document.getElementById('fr_dateTo').value;
+  document.querySelectorAll('.fr-row').forEach(row => {
+    const d = (row.dataset.date || '').slice(0, 10);
+    const show = (!from || d >= from) && (!to || d <= to);
+    row.style.display = show ? '' : 'none';
+  });
 }
