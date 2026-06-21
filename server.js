@@ -1258,6 +1258,10 @@ app.put('/api/notes/:id', authMiddleware, (req, res) => {
   const note = db.prepare('SELECT verrouille FROM meeting_notes WHERE id=?').get(req.params.id);
   if (note?.verrouille) return res.status(403).json({ error: 'Note verrouillée — impossible de modifier après 2 signatures' });
   const { titre, contenu, contenu_corrige, langue, date_reunion, activity_id } = req.body;
+  // Bloquer la sauvegarde de JSON brut dans le contenu
+  if (contenu && /[{[,]"(qr_token|budget_prevu|paiement_requis|rabais_json|payment_status)"/.test(contenu)) {
+    return res.status(400).json({ error: 'Contenu invalide — données JSON détectées' });
+  }
   db.prepare(`UPDATE meeting_notes SET titre=?, contenu=?, contenu_corrige=?, langue=?,
     date_reunion=COALESCE(?,date_reunion), activity_id=?,
     date_modification=CURRENT_TIMESTAMP, last_editor_id=?, editing_by=NULL, editing_since=NULL

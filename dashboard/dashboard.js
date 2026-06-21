@@ -3127,7 +3127,7 @@ function notePreview(html) {
   d.innerHTML = html;
   let txt = (d.textContent || d.innerText || '').trim();
   // Détecter contenu corrompu (JSON brut)
-  if (/[{[,]"(langue|date_debut|contenu_corrige|activity_id|editing_by|date_creation)"/.test(txt)) {
+  if (/[{[,]"(langue|date_debut|contenu_corrige|activity_id|editing_by|date_creation|qr_token|budget_prevu|max_participants|paiement_requis|rabais_json|image_path|statut)"/.test(txt)) {
     return '<span style="color:#c62828;font-size:.8rem">⚠️ Contenu corrompu — ouvrez la note pour effacer et recommencer</span>';
   }
   txt = txt.substring(0, 250);
@@ -3354,7 +3354,7 @@ function _openNoteEditor(n, allActs, forceReadOnly) {
     const ed = document.getElementById('n_editor');
     if (!ed) return;
     const txt = (ed.textContent || '').trim();
-    if (/[{[,]"(langue|date_debut|contenu_corrige|activity_id|editing_by|date_creation)"/.test(txt)) {
+    if (/[{[,]"(langue|date_debut|contenu_corrige|activity_id|editing_by|date_creation|qr_token|budget_prevu|max_participants|paiement_requis|rabais_json|image_path|statut)"/.test(txt)) {
       ed.innerHTML = '<p><br></p>';
       toast('⚠️ Contenu corrompu détecté et effacé automatiquement.', true);
     }
