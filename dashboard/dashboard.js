@@ -3136,6 +3136,7 @@ function notePreview(html) {
 
 async function notes() {
   const [data, allActs] = await Promise.all([api('/notes'), api('/activities')]);
+  window._noteAllActs = allActs;
   setContent(`
     <div class="page-header">
       <div>
@@ -3143,7 +3144,7 @@ async function notes() {
         <p style="font-size:.82rem;color:var(--muted)">Toutes les notes sont visibles et éditables par tous les membres du comité</p>
       </div>
       <div class="page-actions">
-        <button class="btn btn-primary" onclick='openNoteForm(null,${JSON.stringify(allActs)})'>+ Nouvelle note</button>
+        <button class="btn btn-primary" onclick="openNoteForm(null,window._noteAllActs)">+ Nouvelle note</button>
       </div>
     </div>
     <div id="notesList">
@@ -3170,19 +3171,21 @@ async function notes() {
             ${sigBadge||countBadge ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:5px">${sigBadge}${countBadge}</div>` : ''}
           </div>
           <div class="tc-actions" style="flex-wrap:wrap;gap:6px">
-            <button class="btn btn-sm btn-primary" onclick='openNoteForm(${JSON.stringify(n)},${JSON.stringify(allActs)})'>${locked?'👁 Voir':'✏️ Ouvrir'}</button>
+            <button class="btn btn-sm btn-primary" onclick="openNoteForm(window._noteData[${n.id}],window._noteAllActs)">${locked?'👁 Voir':'✏️ Ouvrir'}</button>
             <a href="/api/notes/${n.id}/download?token=${TOKEN}" target="_blank" class="btn btn-sm btn-outline">⬇ Télécharger</a>
             ${n.nb_signatures > 0 ? `<a href="/api/notes/${n.id}/attestation?token=${TOKEN}" target="_blank" class="btn btn-sm btn-outline" style="color:#1b5e20;border-color:#1b5e20">🔏 Attestation</a>` : ''}
             ${!locked ? `<button class="btn btn-sm btn-ghost" style="color:#6a1b9a;border:1px solid #6a1b9a" onclick="openNoteSignatureModal(${n.id},'${escHtml(n.titre).replace(/'/g,"\\'")}')">✍️ ${signed?'Re-signer':'Signer'}</button>` : ''}
             ${(n.auteur_id===USER.id||can.admin()) && !locked ? `<button class="btn btn-sm btn-danger" onclick="deleteNote(${n.id})">🗑️</button>` : ''}
           </div>
         </div>
-        <div data-note-preview="${n.id}" style="padding:10px 20px;font-size:.83rem;color:var(--muted);cursor:pointer;border-top:1px solid var(--border)" onclick='openNoteForm(${JSON.stringify(n)},${JSON.stringify(allActs)})'>
+        <div data-note-preview="${n.id}" style="padding:10px 20px;font-size:.83rem;color:var(--muted);cursor:pointer;border-top:1px solid var(--border)" onclick="openNoteForm(window._noteData[${n.id}],window._noteAllActs)">
           ${notePreview(n.contenu_corrige || n.contenu || '')}
         </div>
       </div>`}).join('') || '<div class="empty-state"><div class="es-icon">📝</div><p>Aucune note — créez la première !</p></div>'}
     </div>
   `);
+  window._noteData = {};
+  data.forEach(n => { window._noteData[n.id] = n; });
 
   // Refresh temps réel toutes les 5 secondes : indicateurs d'édition + preview du contenu
   clearInterval(_notesRefreshInterval);
