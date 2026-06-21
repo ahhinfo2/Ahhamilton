@@ -14039,6 +14039,13 @@ function _addFieldInline() {
   const container = document.getElementById('fb_newFieldForm');
   container.style.display = 'block';
   container.innerHTML = _fieldFormHtml(null, '_saveNewField');
+  // Reset tous les champs du formulaire inline
+  var el = document.getElementById('nf_label'); if(el) el.value = '';
+  var el2 = document.getElementById('nf_desc'); if(el2) el2.value = '';
+  var el3 = document.getElementById('nf_type'); if(el3) el3.value = 'text';
+  var el4 = document.getElementById('nf_required'); if(el4) el4.checked = false;
+  var el5 = document.getElementById('nf_options'); if(el5) el5.value = '';
+  _toggleFieldOptions();
 }
 
 function _editFieldInline(idx) {
@@ -14265,9 +14272,9 @@ async function viewFormResults(formId) {
       const ans = (r.answers || []).find(a => a.field_id === f.id);
       return `<td style="font-size:.82rem">${escHtml(ans ? ans.valeur : '')}</td>`;
     }).join('');
-    return `<tr class="fr-row" data-date="${r.date_reponse || ''}">
+    return `<tr class="fr-row" data-date="${r.date_reponse || ''}" data-nom="${escHtml((r.nom||'').toLowerCase())}">
       <td style="font-size:.82rem;white-space:nowrap">${fmt(r.date_reponse)}</td>
-      <td style="font-size:.82rem">${escHtml(r.nom || '')}</td>
+      <td style="font-size:.82rem;font-weight:600">${escHtml(r.nom || '')}</td>
       <td style="font-size:.82rem">${escHtml(r.email || '')}</td>
       <td style="font-size:.82rem">${escHtml(r.telephone || '')}</td>
       ${answerCells}
@@ -14298,25 +14305,23 @@ async function viewFormResults(formId) {
 
       ${chartsHtml ? '<h3 style="font-size:1.05rem;font-weight:700;margin-bottom:14px">Graphiques</h3>' + chartsHtml : ''}
 
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px">
-        <h3 style="margin:0;font-size:1.05rem;font-weight:700">Données</h3>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <label style="font-size:.8rem;color:var(--muted)">Du</label>
-          <input type="date" id="fr_dateFrom" value="${minDate}" onchange="_filterFormResults()" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:.82rem"/>
-          <label style="font-size:.8rem;color:var(--muted)">au</label>
-          <input type="date" id="fr_dateTo" value="${maxDate}" onchange="_filterFormResults()" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:.82rem"/>
-          <button onclick="_exportFormCSV(${form.id})" style="background:#e3f2fd;color:#1565c0;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:.82rem;font-weight:600">Export CSV</button>
-        </div>
+      <h3 style="font-size:1.05rem;font-weight:700;margin-bottom:12px">Données</h3>
+      <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+        <input type="text" id="fr_search" placeholder="🔍 Rechercher nom, email, réponse..." oninput="_filterFormResults()" style="flex:1;min-width:200px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:.84rem"/>
+        <input type="date" id="fr_dateFrom" value="${minDate}" onchange="_filterFormResults()" style="padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:.82rem"/>
+        <input type="date" id="fr_dateTo" value="${maxDate}" onchange="_filterFormResults()" style="padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:.82rem"/>
+        <button onclick="_exportFormCSV(${form.id})" style="background:#1565c0;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:.82rem;font-weight:600">Export CSV</button>
       </div>
+      <div id="fr_count" style="font-size:.78rem;color:var(--muted);margin-bottom:8px">${total} réponse(s)</div>
 
       ${total === 0 ? '<div class="empty-state" style="padding:40px"><div class="es-icon">📊</div><p>Aucune réponse pour le moment</p></div>' : `
       <div style="overflow-x:auto">
         <table class="data-table">
           <thead><tr>
-            <th style="font-size:.78rem">Date</th>
-            <th style="font-size:.78rem">Nom</th>
-            <th style="font-size:.78rem">Email</th>
-            <th style="font-size:.78rem">Téléphone</th>
+            <th style="font-size:.78rem;cursor:pointer" onclick="_sortFormResults('date')">Date ▼</th>
+            <th style="font-size:.78rem;cursor:pointer" onclick="_sortFormResults('nom')">Nom</th>
+            <th style="font-size:.78rem;cursor:pointer" onclick="_sortFormResults('email')">Email</th>
+            <th style="font-size:.78rem;cursor:pointer" onclick="_sortFormResults('tel')">Téléphone</th>
             ${thFields}
           </tr></thead>
           <tbody id="fr_tbody">${tbodyRows}</tbody>
@@ -14327,11 +14332,38 @@ async function viewFormResults(formId) {
 }
 
 function _filterFormResults() {
-  const from = document.getElementById('fr_dateFrom').value;
-  const to = document.getElementById('fr_dateTo').value;
-  document.querySelectorAll('.fr-row').forEach(row => {
-    const d = (row.dataset.date || '').slice(0, 10);
-    const show = (!from || d >= from) && (!to || d <= to);
-    row.style.display = show ? '' : 'none';
+  var q = (document.getElementById('fr_search')?.value || '').toLowerCase();
+  var from = document.getElementById('fr_dateFrom')?.value || '';
+  var to = document.getElementById('fr_dateTo')?.value || '';
+  var shown = 0;
+  document.querySelectorAll('.fr-row').forEach(function(row) {
+    var d = (row.dataset.date || '').slice(0, 10);
+    var text = row.textContent.toLowerCase();
+    var matchDate = (!from || d >= from) && (!to || d <= to);
+    var matchSearch = !q || text.includes(q);
+    var visible = matchDate && matchSearch;
+    row.style.display = visible ? '' : 'none';
+    if (visible) shown++;
   });
+  var cnt = document.getElementById('fr_count');
+  if (cnt) cnt.textContent = shown + ' réponse(s) affichée(s)';
+}
+
+var _frSortDir = 'desc';
+function _sortFormResults(col) {
+  _frSortDir = _frSortDir === 'desc' ? 'asc' : 'desc';
+  var tbody = document.getElementById('fr_tbody');
+  if (!tbody) return;
+  var rows = Array.from(tbody.querySelectorAll('.fr-row'));
+  rows.sort(function(a, b) {
+    var va, vb;
+    if (col === 'date') { va = a.dataset.date || ''; vb = b.dataset.date || ''; }
+    else if (col === 'nom') { va = a.cells[1]?.textContent || ''; vb = b.cells[1]?.textContent || ''; }
+    else if (col === 'email') { va = a.cells[2]?.textContent || ''; vb = b.cells[2]?.textContent || ''; }
+    else if (col === 'tel') { va = a.cells[3]?.textContent || ''; vb = b.cells[3]?.textContent || ''; }
+    else { va = ''; vb = ''; }
+    va = va.toLowerCase(); vb = vb.toLowerCase();
+    return _frSortDir === 'asc' ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
+  });
+  rows.forEach(function(r) { tbody.appendChild(r); });
 }
