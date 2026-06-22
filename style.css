@@ -1786,3 +1786,135 @@ img   { display: block; max-width: 100%; }
   0%,100% { opacity: .1; transform: scale(1); }
   50%      { opacity: .9; transform: scale(1.5); }
 }
+
+/* ═══════════════════════════════════════════════
+   2026 VISUAL IMPROVEMENTS
+═══════════════════════════════════════════════ */
+
+/* #1 Hero text mobile fix */
+.hero-intro { white-space: normal !important; }
+.hero-sub { white-space: normal !important; }
+
+/* #2 Animated gradient on hero values */
+.hero-values {
+  background: linear-gradient(90deg, #f9a825, #fdd835, #ffab00, #f9a825) !important;
+  background-size: 300% 100% !important;
+  -webkit-background-clip: text !important; -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+  animation: ahh-gradient-shift 4s ease infinite !important;
+}
+@keyframes ahh-gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* #4 3D hover on pillar cards */
+.pillar-card {
+  transition: transform .4s cubic-bezier(.22,1,.36,1), box-shadow .4s ease !important;
+}
+.pillar-card:hover {
+  transform: translateY(-10px) rotateX(2deg) rotateY(-2deg) !important;
+  box-shadow: 0 20px 50px rgba(27,94,32,.18) !important;
+}
+
+/* #6 Team photo hover */
+.team-card-full {
+  transition: transform .35s ease, box-shadow .35s ease !important;
+}
+.team-card-full:hover {
+  transform: translateY(-8px) !important;
+  box-shadow: 0 16px 40px rgba(0,0,0,.15) !important;
+}
+.team-avatar-full {
+  transition: transform .4s ease, box-shadow .4s ease !important;
+}
+.team-card-full:hover .team-avatar-full {
+  transform: scale(1.06) !important;
+  box-shadow: 0 0 24px rgba(27,94,32,.35) !important;
+}
+
+/* #7 Donation card pulse */
+.donation-card.featured {
+  animation: ahh-donation-pulse 2.5s ease-in-out infinite;
+}
+@keyframes ahh-donation-pulse {
+  0%, 100% { box-shadow: 0 8px 30px rgba(255,255,255,.15); }
+  50% { box-shadow: 0 8px 30px rgba(255,255,255,.35), 0 0 0 6px rgba(255,255,255,.1); }
+}
+
+/* #8 Thicker scroll progress */
+#scrollProgress {
+  height: 4px !important;
+  box-shadow: 0 0 8px rgba(27,94,32,.4);
+}
+
+/* #9 Scroll offset for anchors */
+:target { scroll-margin-top: 100px; }
+section[id] { scroll-margin-top: 100px; }
+
+/* #11 Gallery hover */
+.gallery-item img, .gallery-preview-grid img {
+  transition: transform .5s cubic-bezier(.22,1,.36,1), filter .3s ease !important;
+}
+.gallery-item:hover img, .gallery-preview-grid div:hover img {
+  transform: scale(1.08) !important;
+  filter: brightness(1.1) !important;
+}
+
+/* #12 Bigger section titles */
+.section-header h2 {
+  font-size: clamp(1.8rem, 3.5vw, 2.6rem) !important;
+}
+
+/* #13 More padding between sections */
+.pillars-section, .testimonials-section, .gallery-preview-section,
+.timeline-section, .infographie-section {
+  padding: 90px 0 !important;
+}
+
+/* #14 Alternating section backgrounds */
+.gallery-preview-section { background: #f7faf7 !important; }
+
+/* #15 Stronger card shadows */
+.event-card { transition: transform .35s ease, box-shadow .35s ease !important; }
+.event-card:hover { transform: translateY(-6px) !important; box-shadow: 0 16px 48px rgba(27,94,32,.16) !important; }
+
+/* #16 Bigger WhatsApp button */
+#whatsappBtn { width: 60px !important; height: 60px !important; }
+
+/* #17 Mobile menu blur */
+@media (max-width: 900px) {
+  .nav-links { backdrop-filter: blur(12px) !important; -webkit-backdrop-filter: blur(12px) !important; }
+}
+
+/* #18 Countdown mobile fix */
+@media (max-width: 640px) {
+  .countdown-bar-inner { flex-wrap: wrap !important; justify-content: center !important; gap: 6px !important; }
+  .countdown-event { font-size: .82rem !important; width: 100% !important; text-align: center !important; }
+  .countdown-label { font-size: .72rem !important; }
+}
+
+/* #19 Why join cards hover */
+.ahh-why-card {
+  transition: transform .3s ease, box-shadow .3s ease;
+}
+.ahh-why-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 12px 36px rgba(27,94,32,.12);
+}
+
+/* Timeline hover */
+.timeline-item { transition: transform .3s ease !important; }
+.timeline-item:hover { transform: translateX(6px) !important; }
+.timeline-dot { transition: transform .3s ease, box-shadow .3s ease !important; }
+.timeline-item:hover .timeline-dot { transform: scale(1.2) !important; box-shadow: 0 0 16px rgba(27,94,32,.3) !important; }
+
+/* #20 Footer map column */
+.footer-inner { grid-template-columns: 1.5fr repeat(3, 1fr) 1.2fr !important; }
+@media (max-width: 900px) {
+  .footer-inner { grid-template-columns: 1fr 1fr !important; }
+}
+@media (max-width: 600px) {
+  .footer-inner { grid-template-columns: 1fr !important; }
+}

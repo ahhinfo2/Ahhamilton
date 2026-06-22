@@ -110,6 +110,21 @@ document.querySelectorAll(revealSelectors.join(',')).forEach((el, i) => {
 });
 
 // ══════════════════════════════════════════════════════════
+// WHATSAPP TOOLTIP (first visit)
+// ══════════════════════════════════════════════════════════
+(function() {
+  if (sessionStorage.getItem('ahh_wa_shown')) return;
+  sessionStorage.setItem('ahh_wa_shown', '1');
+  var tip = document.createElement('div');
+  tip.style.cssText = 'position:fixed;bottom:90px;right:24px;background:#1b5e20;color:#fff;padding:10px 18px;border-radius:12px;font-size:.82rem;font-weight:600;z-index:999;box-shadow:0 4px 16px rgba(0,0,0,.2);opacity:0;transition:opacity .4s;pointer-events:none';
+  tip.textContent = 'Rejoignez notre groupe WhatsApp !';
+  document.body.appendChild(tip);
+  setTimeout(function() { tip.style.opacity = '1'; }, 2000);
+  setTimeout(function() { tip.style.opacity = '0'; }, 7000);
+  setTimeout(function() { if (tip.parentNode) tip.parentNode.removeChild(tip); }, 8000);
+})();
+
+// ══════════════════════════════════════════════════════════
 // CARROUSEL DE TÉMOIGNAGES
 // ══════════════════════════════════════════════════════════
 function initCarousel() {
