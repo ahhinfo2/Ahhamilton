@@ -186,6 +186,9 @@
         <div class="footer-flags">
           <img class="footer-flag-photo" src="${pre}Public/Galerie/drapeau.jpg" alt="Drapeaux d'Haïti et du Canada flottant au vent" loading="lazy"/>
         </div>
+        <div style="margin-top:14px;border-radius:10px;overflow:hidden">
+          <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d92687.3!2d-79.8711!3d43.2557!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x882c986c27de778f%3A0x2cc4e1495392832f!2sHamilton%2C%20ON!5e0!3m2!1sfr!2sca!4v1" width="100%" height="120" style="border:0;display:block" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+        </div>
       </div>
       <div class="footer-links">
         <h5 data-i18n="Association">Association</h5>
@@ -213,13 +216,6 @@
         <p><a href="tel:9058188269">905-818-8269</a></p>
         <p><a href="tel:9055197967">905-519-7967</a></p>
         <p><a href="mailto:info@ahhamilton.ca">info@ahhamilton.ca</a></p>
-      </div>
-      <div class="footer-col">
-        <h4>Nous trouver</h4>
-        <div style="border-radius:12px;overflow:hidden;margin-bottom:12px">
-          <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d92687.3!2d-79.8711!3d43.2557!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x882c986c27de778f%3A0x2cc4e1495392832f!2sHamilton%2C%20ON!5e0!3m2!1sfr!2sca!4v1" width="100%" height="140" style="border:0" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
-        </div>
-        <p style="font-size:.78rem;color:rgba(255,255,255,.5)">Hamilton, Ontario, Canada</p>
       </div>
     </div>
     <div class="footer-bottom">

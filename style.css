@@ -1910,11 +1910,4 @@ section[id] { scroll-margin-top: 100px; }
 .timeline-dot { transition: transform .3s ease, box-shadow .3s ease !important; }
 .timeline-item:hover .timeline-dot { transform: scale(1.2) !important; box-shadow: 0 0 16px rgba(27,94,32,.3) !important; }
 
-/* #20 Footer map column */
-.footer-inner { grid-template-columns: 1.5fr repeat(3, 1fr) 1.2fr !important; }
-@media (max-width: 900px) {
-  .footer-inner { grid-template-columns: 1fr 1fr !important; }
-}
-@media (max-width: 600px) {
-  .footer-inner { grid-template-columns: 1fr !important; }
-}
+/* #20 Footer — carte dans la colonne logo */
