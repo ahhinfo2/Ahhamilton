@@ -398,30 +398,20 @@ if (contactForm) {
 // #3  MODE SOMBRE — toggle + localStorage
 // ══════════════════════════════════════════════════════════
 (function() {
-  const root = document.documentElement;
-  const stored = localStorage.getItem('ahh_dark');
-  if (stored === '1') root.classList.add('dark');
-
-  function applyDark(on) {
-    root.classList.toggle('dark', on);
-    localStorage.setItem('ahh_dark', on ? '1' : '0');
-    const btn = document.getElementById('darkToggle');
-    if (btn) btn.textContent = on ? '☀️' : '🌙';
+  var btn = document.createElement('button');
+  btn.id = 'darkToggle';
+  btn.title = 'Mode sombre';
+  btn.textContent = '🌙';
+  btn.onclick = function() {
+    var isDark = document.documentElement.classList.toggle('dark');
+    localStorage.setItem('ahh_dark', isDark ? '1' : '0');
+    btn.textContent = isDark ? '☀️' : '🌙';
+  };
+  document.body.appendChild(btn);
+  if (localStorage.getItem('ahh_dark') === '1') {
+    document.documentElement.classList.add('dark');
+    btn.textContent = '☀️';
   }
-
-  window.toggleDark = function() { applyDark(!root.classList.contains('dark')); };
-
-  // Injecter le bouton dans la navbar une fois le DOM prêt
-  document.addEventListener('DOMContentLoaded', () => {
-    const navInner = document.querySelector('.nav-inner');
-    if (!navInner) return;
-    const btn = document.createElement('button');
-    btn.id = 'darkToggle';
-    btn.title = 'Mode sombre / clair';
-    btn.textContent = root.classList.contains('dark') ? '☀️' : '🌙';
-    btn.onclick = () => toggleDark();
-    navInner.appendChild(btn);
-  });
 })();
 
 // ══════════════════════════════════════════════════════════
@@ -775,3 +765,51 @@ document.addEventListener('DOMContentLoaded', () => {
   const feedGrid = document.getElementById('feedGrid');
   if (feedGrid) feedGrid.classList.add('hscroll-mobile');
 });
+
+// ══════════════════════════════════════════════════════════
+// CHATBOT WIDGET
+// ══════════════════════════════════════════════════════════
+(function() {
+  var BASE_API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001/api' : '/api';
+  var chatOpen = false;
+  var wrap = document.createElement('div');
+  wrap.id = 'ahhChat';
+  wrap.innerHTML = '<button id="chatBtn" style="position:fixed;bottom:80px;right:22px;z-index:997;width:52px;height:52px;border-radius:50%;border:none;background:#1b5e20;color:#fff;font-size:1.4rem;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.3);transition:.3s" onclick="toggleChat()">💬</button>' +
+    '<div id="chatBox" style="display:none;position:fixed;bottom:140px;right:22px;width:340px;max-width:calc(100vw - 40px);height:420px;background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.2);z-index:997;flex-direction:column;overflow:hidden">' +
+      '<div style="background:#1b5e20;color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center"><div><strong>Assistant AHH</strong><br><span style=font-size:.75rem;opacity:.7>Posez-moi une question !</span></div><button onclick="toggleChat()" style="background:none;border:none;color:#fff;font-size:1.2rem;cursor:pointer">✕</button></div>' +
+      '<div id="chatMessages" style="flex:1;overflow-y:auto;padding:14px;font-size:.85rem"></div>' +
+      '<div style="padding:10px;border-top:1px solid #eee;display:flex;gap:6px"><input id="chatInput" placeholder="Votre question..." style="flex:1;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:.85rem" onkeydown="if(event.key===\'Enter\')sendChat()"/><button onclick="sendChat()" style="background:#1b5e20;color:#fff;border:none;padding:8px 14px;border-radius:8px;cursor:pointer;font-weight:600">→</button></div>' +
+    '</div>';
+  document.body.appendChild(wrap);
+
+  window.toggleChat = function() {
+    var box = document.getElementById('chatBox');
+    chatOpen = !chatOpen;
+    box.style.display = chatOpen ? 'flex' : 'none';
+    if (chatOpen && !box.dataset.init) {
+      box.dataset.init = '1';
+      addMsg('bot', 'Bonjour ! 👋 Je suis l\'assistant de l\'AHH. Comment puis-je vous aider ?');
+    }
+  };
+
+  function addMsg(who, text) {
+    var div = document.getElementById('chatMessages');
+    var m = document.createElement('div');
+    m.style.cssText = 'margin-bottom:10px;padding:8px 12px;border-radius:12px;max-width:85%;font-size:.84rem;line-height:1.5;' + (who === 'bot' ? 'background:#e8f5e9;color:#1a2e1a;margin-right:auto' : 'background:#1b5e20;color:#fff;margin-left:auto');
+    m.innerHTML = text;
+    div.appendChild(m);
+    div.scrollTop = div.scrollHeight;
+  }
+
+  window.sendChat = function() {
+    var input = document.getElementById('chatInput');
+    var msg = input.value.trim();
+    if (!msg) return;
+    input.value = '';
+    addMsg('user', msg);
+    fetch(BASE_API + '/chatbot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: msg }) })
+      .then(function(r) { return r.json(); })
+      .then(function(d) { addMsg('bot', d.reply || 'Désolé, une erreur est survenue.'); })
+      .catch(function() { addMsg('bot', 'Erreur de connexion. Réessayez plus tard.'); });
+  };
+})();

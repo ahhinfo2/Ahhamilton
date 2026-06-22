@@ -1910,4 +1910,20 @@ section[id] { scroll-margin-top: 100px; }
 .timeline-dot { transition: transform .3s ease, box-shadow .3s ease !important; }
 .timeline-item:hover .timeline-dot { transform: scale(1.2) !important; box-shadow: 0 0 16px rgba(27,94,32,.3) !important; }
 
+/* ═══ DARK MODE (floating toggle) ═══ */
+.dark { --text:#e0e0e0; --off:#1a1a1a; --border:#333; --muted:#999; }
+.dark body, .dark { background:#111 !important; color:#e0e0e0; }
+.dark .navbar { background:#1a1a1a !important; }
+.dark .navbar.scrolled { background:#1a1a1a !important; box-shadow:0 2px 10px rgba(0,0,0,.5) !important; }
+.dark .navbar.scrolled .nav-link { color:#e0e0e0 !important; }
+.dark .stats-grid, .dark .table-card, .dark .pillar-card, .dark .team-card-full, .dark .event-card { background:#1e1e1e !important; border-color:#333 !important; }
+.dark .section-header h2 { color:#e0e0e0 !important; }
+.dark .footer { background:#0a0a0a !important; }
+.dark .donation { background:linear-gradient(135deg,#0a2e0a,#1b4a1b) !important; }
+.dark a { color:#81c784; }
+.dark .btn-primary { background:var(--g2); }
+.dark input, .dark select, .dark textarea { background:#222; color:#e0e0e0; border-color:#444; }
+#darkToggle { position:fixed; bottom:140px; right:22px; z-index:998; width:44px; height:44px; border-radius:50%; border:none; cursor:pointer; font-size:1.2rem; box-shadow:0 2px 10px rgba(0,0,0,.3); transition:.3s; background:#222; color:#fdd835; }
+.dark #darkToggle { background:#fdd835; color:#222; }
+
 /* #20 Footer — carte dans la colonne logo */

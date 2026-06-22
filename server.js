@@ -233,7 +233,9 @@ app.use('/Public', (req, res, next) => {
 // Images publiques : cache 7 jours (doit être avant le handler racine)
 app.use('/Public', express.static(path.join(__dirname, 'Public'), { maxAge: 604800000 }));
 
-app.use('/', express.static(path.join(__dirname)));
+app.use('/', express.static(path.join(__dirname), { maxAge: 86400000, setHeaders: (res, filePath) => {
+  if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
+} }));
 
 // ── Multer : invoice photos ─────────────────────────────────────────────────
 const invoiceStorage = multer.diskStorage({
@@ -603,10 +605,11 @@ const ambassadorPhotoStorage = multer.diskStorage({
 });
 const uploadAmbassador = multer({ storage: ambassadorPhotoStorage, limits: { fileSize: 5 * 1024 * 1024 } });
 
-app.post('/api/users/:id/photo', authMiddleware, uploadProfile.single('photo'), (req, res) => {
+app.post('/api/users/:id/photo', authMiddleware, uploadProfile.single('photo'), async (req, res) => {
   if (req.user.id !== parseInt(req.params.id) && req.user.role !== 'admin')
     return res.status(403).json({ error: 'Accès refusé' });
   if (!req.file) return res.status(400).json({ error: 'Photo requise' });
+  await compressImage(req.file.path, 1200);
   const photo_url = `/uploads/profiles/${req.file.filename}`;
   db.prepare('UPDATE users SET photo_url = ? WHERE id = ?').run(photo_url, req.params.id);
   res.json({ photo_url });
@@ -695,6 +698,17 @@ const crypto2 = require('crypto');
 const QRCode  = require('qrcode');
 const jimp    = require('jimp');
 const bwipjs  = require('bwip-js');
+
+// ── Image compression helper ─────────────────────────────────────────────
+async function compressImage(filePath, maxWidth) {
+  try {
+    const img = await jimp.Jimp.read(filePath);
+    if (img.width > (maxWidth || 1200)) {
+      img.resize({ w: maxWidth || 1200 });
+    }
+    await img.write(filePath);
+  } catch(e) { console.error('[COMPRESS]', e.message); }
+}
 
 // Génère un code-barres Code128 PNG en buffer
 async function generateBarcode(data, opts = {}) {
@@ -831,8 +845,9 @@ app.put('/api/activities/:id', authMiddleware, requireRole(...ACTIVITY_ROLES), (
   res.json({ message: 'Activité mise à jour' });
 });
 
-app.post('/api/activities/:id/image', authMiddleware, requireRole(...ACTIVITY_ROLES), uploadActivityPhoto.single('image'), (req, res) => {
+app.post('/api/activities/:id/image', authMiddleware, requireRole(...ACTIVITY_ROLES), uploadActivityPhoto.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Image requise' });
+  await compressImage(req.file.path, 1200);
   const imagePath = `/uploads/activities/${req.params.id}/${req.file.filename}`;
   db.prepare('UPDATE activities SET image_path=? WHERE id=?').run(imagePath, req.params.id);
   res.json({ image_path: imagePath });
@@ -2061,8 +2076,9 @@ app.get('/api/gallery', (req, res) => {
 });
 
 app.post('/api/gallery', authMiddleware, requireRole('admin', 'secretaire'),
-  uploadGallery.single('photo'), (req, res) => {
+  uploadGallery.single('photo'), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'Photo requise' });
+    await compressImage(req.file.path, 1200);
     const { titre, categorie } = req.body;
     const photo_path = `/uploads/gallery/${req.file.filename}`;
     const r = db.prepare(`INSERT INTO gallery_photos (titre, categorie, photo_path, cree_par)
@@ -3228,7 +3244,7 @@ app.get('/api/talents/all', authMiddleware, requireRole('admin','secretaire'), (
 });
 
 // POST — créer une fiche talent (admin = approuvé direct, membre = en_attente)
-app.post('/api/talents', authMiddleware, uploadTalent.single('photo'), (req, res) => {
+app.post('/api/talents', authMiddleware, uploadTalent.single('photo'), async (req, res) => {
   const { nom, categorie, specialite, description, telephone, adresse, site_web, user_id } = req.body;
   const targetUserId = parseInt(user_id) || req.user.id;
 
@@ -3240,6 +3256,7 @@ app.post('/api/talents', authMiddleware, uploadTalent.single('photo'), (req, res
   }
   if (!nom || !categorie) return res.status(400).json({ error: 'Nom et catégorie requis' });
 
+  if (req.file) await compressImage(req.file.path, 1200);
   const statut = can_admin(req) ? 'approuve' : 'en_attente';
   const photo_path = req.file ? `/uploads/talents/${req.file.filename}` : null;
   const r = db.prepare(`INSERT INTO talents (user_id, nom, categorie, specialite, description, telephone, adresse, site_web, photo_path, statut)
@@ -3280,13 +3297,14 @@ app.patch('/api/talents/:id/statut', authMiddleware, requireRole('admin','secret
 });
 
 // PUT — modifier une fiche talent
-app.put('/api/talents/:id', authMiddleware, uploadTalent.single('photo'), (req, res) => {
+app.put('/api/talents/:id', authMiddleware, uploadTalent.single('photo'), async (req, res) => {
   const { nom, categorie, specialite, description, telephone, adresse, site_web, actif } = req.body;
   const talent = db.prepare('SELECT * FROM talents WHERE id = ?').get(req.params.id);
   if (!talent) return res.status(404).json({ error: 'Fiche introuvable' });
   if (!can_admin(req) && talent.user_id !== req.user.id)
     return res.status(403).json({ error: 'Accès refusé' });
 
+  if (req.file) await compressImage(req.file.path, 1200);
   const photo_path = req.file ? `/uploads/talents/${req.file.filename}` : talent.photo_path;
   db.prepare(`UPDATE talents SET nom=?, categorie=?, specialite=?, description=?, telephone=?, adresse=?, site_web=?, photo_path=?, actif=? WHERE id=?`)
     .run(nom||talent.nom, categorie||talent.categorie, specialite||talent.specialite, description||talent.description,
@@ -3333,13 +3351,14 @@ app.patch('/api/talents/:id/retirer', authMiddleware, (req, res) => {
 });
 
 // ── MODIFICATION talent (retour en_attente) ───────────────────────────────
-app.put('/api/talents/:id/modifier', authMiddleware, uploadTalent.single('photo'), (req, res) => {
+app.put('/api/talents/:id/modifier', authMiddleware, uploadTalent.single('photo'), async (req, res) => {
   const { nom, categorie, specialite, description, telephone, adresse, site_web } = req.body;
   const t = db.prepare('SELECT * FROM talents WHERE id = ?').get(req.params.id);
   if (!t) return res.status(404).json({ error: 'Fiche introuvable' });
   if (!can_admin(req) && t.user_id !== req.user.id)
     return res.status(403).json({ error: 'Accès refusé' });
 
+  if (req.file) await compressImage(req.file.path, 1200);
   const photo_path = req.file ? `/uploads/talents/${req.file.filename}` : t.photo_path;
   // Remet notif_renouv à 0 pour futurs renouvellements
   db.prepare(`UPDATE talents SET nom=?,categorie=?,specialite=?,description=?,telephone=?,adresse=?,site_web=?,photo_path=?,statut='en_attente',actif=0,notif_renouv=0 WHERE id=?`)
@@ -3442,7 +3461,7 @@ app.get('/api/annonces/all', authMiddleware, requireRole('admin','secretaire'), 
 });
 
 // POST — créer une annonce (admin = approuvé, membre = en_attente)
-app.post('/api/annonces', authMiddleware, uploadAnnonce.array('photos', 5), (req, res) => {
+app.post('/api/annonces', authMiddleware, uploadAnnonce.array('photos', 5), async (req, res) => {
   const { titre, description, prix, gratuit, type, categorie, telephone } = req.body;
   if (!titre) return res.status(400).json({ error: 'Titre requis' });
   if (!can_admin(req) && !isPlanOk(req.user.id))
@@ -3450,6 +3469,10 @@ app.post('/api/annonces', authMiddleware, uploadAnnonce.array('photos', 5), (req
   if (!can_admin(req)) {
     const lim = checkLimit(req.user.id, 'annonces', 'annonces');
     if (!lim.ok) return res.status(403).json({ error: lim.msg });
+  }
+
+  if (req.files && req.files.length) {
+    for (const f of req.files) await compressImage(f.path, 1200);
   }
 
   const statut = can_admin(req) ? 'approuve' : 'en_attente';
@@ -5562,6 +5585,37 @@ cron.schedule('0 2 * * *', () => {
   } catch(e) { console.error('[BACKUP ERROR]', e.message); }
 });
 
+// Rapport mensuel automatique (1er du mois à 8h)
+cron.schedule('0 8 1 * *', async () => {
+  try {
+    const now = new Date();
+    const mois = now.toLocaleDateString('fr-CA', { month: 'long', year: 'numeric' });
+    const moisPrec = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const debut = moisPrec.toISOString().slice(0, 7) + '-01';
+    const fin = now.toISOString().slice(0, 10);
+
+    const stats = {
+      nouveaux_membres: db.prepare("SELECT COUNT(*) AS c FROM users WHERE actif=1 AND date_inscription BETWEEN ? AND ?").get(debut, fin).c,
+      total_membres: db.prepare("SELECT COUNT(*) AS c FROM users WHERE actif=1 AND (phantom IS NULL OR phantom=0)").get().c,
+      activites: db.prepare("SELECT COUNT(*) AS c FROM activities WHERE date_creation BETWEEN ? AND ?").get(debut, fin).c,
+      paiements: db.prepare("SELECT COALESCE(SUM(montant),0) AS t FROM payments WHERE statut='approuve' AND date_soumission BETWEEN ? AND ?").get(debut, fin).t,
+      benevoles: db.prepare("SELECT COALESCE(SUM(heures),0) AS t FROM volunteer_hours WHERE statut='approuve' AND date_service BETWEEN ? AND ?").get(debut, fin).t,
+    };
+
+    const admins = db.prepare("SELECT email FROM users WHERE role IN ('admin','tresoriere','secretaire') AND actif=1").all();
+    const siteUrl = process.env.SITE_URL || 'https://ahhamilton.ca';
+
+    for (const a of admins) {
+      await mailer.sendMail({
+        to: a.email,
+        subject: '📊 Rapport mensuel AHH — ' + mois,
+        html: '<div style="font-family:Arial;max-width:600px;margin:0 auto"><div style="background:#1b5e20;color:#fff;padding:20px 24px;border-radius:12px 12px 0 0"><h2 style="margin:0">📊 Rapport mensuel — ' + mois + '</h2></div><div style="padding:20px;border:1px solid #e0e0e0;border-top:none;border-radius:0 0 12px 12px"><table style="width:100%;border-collapse:collapse"><tr><td style="padding:12px;border-bottom:1px solid #eee;font-weight:700">Nouveaux membres</td><td style="padding:12px;border-bottom:1px solid #eee;text-align:right;font-size:1.2rem;color:#1b5e20">' + stats.nouveaux_membres + '</td></tr><tr><td style="padding:12px;border-bottom:1px solid #eee;font-weight:700">Total membres actifs</td><td style="padding:12px;border-bottom:1px solid #eee;text-align:right;font-size:1.2rem">' + stats.total_membres + '</td></tr><tr><td style="padding:12px;border-bottom:1px solid #eee;font-weight:700">Activités créées</td><td style="padding:12px;border-bottom:1px solid #eee;text-align:right;font-size:1.2rem">' + stats.activites + '</td></tr><tr><td style="padding:12px;border-bottom:1px solid #eee;font-weight:700">Revenus (paiements)</td><td style="padding:12px;border-bottom:1px solid #eee;text-align:right;font-size:1.2rem;color:#1b5e20">$' + stats.paiements.toFixed(2) + '</td></tr><tr><td style="padding:12px;font-weight:700">Heures bénévolat</td><td style="padding:12px;text-align:right;font-size:1.2rem">' + stats.benevoles + 'h</td></tr></table><div style="margin-top:20px;text-align:center"><a href="' + siteUrl + '/dashboard/app.html" style="display:inline-block;background:#1b5e20;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700">Voir le tableau de bord →</a></div></div></div>'
+      }).catch(function(e) { console.error('[RAPPORT]', e.message); });
+    }
+    console.log('[RAPPORT MENSUEL] Envoyé à ' + admins.length + ' admin(s)');
+  } catch(e) { console.error('[RAPPORT MENSUEL]', e.message); }
+}, { timezone: 'America/Toronto' });
+
 // Notification de nouvelle activité publiée (appelé depuis POST /api/activities)
 async function notifyNewActivity(act) {
   try {
@@ -5882,8 +5936,9 @@ app.post('/api/admin/cartes/:id/rejeter-photo', authMiddleware, requireRole(...C
 });
 
 // Upload photo membre depuis le scanner (comité prend la photo)
-app.post('/api/admin/cartes/:id/photo', authMiddleware, requireRole(...CARTE_ROLES), uploadProfile.single('photo'), (req, res) => {
+app.post('/api/admin/cartes/:id/photo', authMiddleware, requireRole(...CARTE_ROLES), uploadProfile.single('photo'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Photo requise' });
+  await compressImage(req.file.path, 1200);
   const photoUrl = `/uploads/profiles/${req.file.filename}`;
   db.prepare('UPDATE users SET photo_url=?, carte_photo_approuvee=1 WHERE id=?').run(photoUrl, req.params.id);
   res.json({ ok: true, photo_url: photoUrl });
@@ -6516,8 +6571,9 @@ app.get('/api/ambassador', (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/ambassador/photo', authMiddleware, requireRole('admin'), uploadAmbassador.single('photo'), (req, res) => {
+app.post('/api/ambassador/photo', authMiddleware, requireRole('admin'), uploadAmbassador.single('photo'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Photo requise' });
+  await compressImage(req.file.path, 1200);
   const photo_url = `/uploads/ambassador/${req.file.filename}`;
   res.json({ photo_url });
 });
@@ -6735,8 +6791,9 @@ app.delete('/api/forms/:id', authMiddleware, requireRole(...FORM_EXEC), (req, re
 });
 
 // ── Upload image pour un formulaire ─────────────────────────────────────────
-app.post('/api/forms/:id/image', authMiddleware, requireRole(...FORM_EXEC), uploadFormImage.single('image'), (req, res) => {
+app.post('/api/forms/:id/image', authMiddleware, requireRole(...FORM_EXEC), uploadFormImage.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Image requise' });
+  await compressImage(req.file.path, 1200);
   const imagePath = `/uploads/forms/${req.params.id}/${req.file.filename}`;
   db.prepare('UPDATE forms SET image_path=? WHERE id=?').run(imagePath, req.params.id);
   res.json({ image_path: imagePath });
@@ -7362,6 +7419,15 @@ app.get('/api/reports/annual', authMiddleware, requireRole('admin'), (req, res) 
   });
 });
 
+// ── Sitemap SEO ──────────────────────────────────────────────────────────────
+app.get('/sitemap.xml', (req, res) => {
+  const pages = ['', 'index.html', 'equipe.html', 'adhesion.html', 'actualites.html', 'galerie.html', 'talents.html', 'annonces.html', 'about.html', 'privacy.html'];
+  const base = process.env.SITE_URL || 'https://ahhamilton.ca';
+  const xml = `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${pages.map(p => `<url><loc>${base}/${p}</loc><changefreq>weekly</changefreq></url>`).join('')}</urlset>`;
+  res.setHeader('Content-Type', 'application/xml');
+  res.send(xml);
+});
+
 // ══════════════════════════════════════════════════════════════════════════════
 // 404 HANDLER — doit être après toutes les routes
 // ── Simulation test scan 50 billets (temporaire) ──────────
@@ -7482,6 +7548,121 @@ app.post('/api/test/create-scan-simulation', authMiddleware, requireRole('admin'
     console.error('[TEST SCAN V2]', e.message);
     res.status(500).json({ error: e.message });
   }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// LIKES / RÉACTIONS
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.post('/api/likes', authMiddleware, (req, res) => {
+  const { target_type, target_id, reaction } = req.body;
+  if (!target_type || !target_id) return res.status(400).json({ error: 'target_type et target_id requis' });
+  const existing = db.prepare('SELECT id FROM likes WHERE user_id=? AND target_type=? AND target_id=?').get(req.user.id, target_type, target_id);
+  if (existing) {
+    db.prepare('DELETE FROM likes WHERE id=?').run(existing.id);
+    res.json({ liked: false });
+  } else {
+    db.prepare('INSERT INTO likes (user_id, target_type, target_id, reaction) VALUES (?,?,?,?)').run(req.user.id, target_type, target_id, reaction || 'like');
+    res.json({ liked: true });
+  }
+});
+
+app.get('/api/likes', authMiddleware, (req, res) => {
+  const { target_type, target_id } = req.query;
+  if (!target_type || !target_id) return res.status(400).json({ error: 'target_type et target_id requis' });
+  const count = db.prepare('SELECT COUNT(*) AS c FROM likes WHERE target_type=? AND target_id=?').get(target_type, target_id).c;
+  const liked = !!db.prepare('SELECT id FROM likes WHERE user_id=? AND target_type=? AND target_id=?').get(req.user.id, target_type, target_id);
+  res.json({ count, liked });
+});
+
+app.get('/api/likes/counts', (req, res) => {
+  const { target_type, ids } = req.query;
+  if (!target_type || !ids) return res.status(400).json({ error: 'target_type et ids requis' });
+  const idList = ids.split(',').map(Number).filter(n => n > 0);
+  if (!idList.length) return res.json({});
+  const result = {};
+  idList.forEach(id => {
+    result[id] = db.prepare('SELECT COUNT(*) AS c FROM likes WHERE target_type=? AND target_id=?').get(target_type, id).c;
+  });
+  res.json(result);
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// COMMENTAIRES
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.get('/api/comments', (req, res) => {
+  const { target_type, target_id } = req.query;
+  if (!target_type || !target_id) return res.status(400).json({ error: 'target_type et target_id requis' });
+  const rows = db.prepare(`SELECT c.*, u.prenom, u.nom, u.photo_url FROM comments c
+    LEFT JOIN users u ON u.id = c.user_id
+    WHERE c.target_type=? AND c.target_id=? ORDER BY c.date_creation ASC`).all(target_type, target_id);
+  res.json(rows);
+});
+
+app.post('/api/comments', authMiddleware, (req, res) => {
+  const { target_type, target_id, contenu } = req.body;
+  if (!target_type || !target_id || !contenu || !contenu.trim()) return res.status(400).json({ error: 'Données manquantes' });
+  const result = db.prepare('INSERT INTO comments (user_id, target_type, target_id, contenu) VALUES (?,?,?,?)').run(req.user.id, target_type, target_id, contenu.trim());
+  const comment = db.prepare(`SELECT c.*, u.prenom, u.nom, u.photo_url FROM comments c
+    LEFT JOIN users u ON u.id = c.user_id WHERE c.id=?`).get(result.lastInsertRowid);
+  res.json(comment);
+});
+
+app.delete('/api/comments/:id', authMiddleware, (req, res) => {
+  const comment = db.prepare('SELECT * FROM comments WHERE id=?').get(req.params.id);
+  if (!comment) return res.status(404).json({ error: 'Commentaire introuvable' });
+  if (comment.user_id !== req.user.id && !['admin','secretaire'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Non autorisé' });
+  }
+  db.prepare('DELETE FROM comments WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CHATBOT FAQ
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.post('/api/chatbot', (req, res) => {
+  const msg = (req.body.message || '').toLowerCase().trim();
+  if (!msg) return res.json({ reply: 'Comment puis-je vous aider ?' });
+
+  const faqs = [
+    { keys: ['inscription','inscrire','membre','adhésion','rejoindre','join'], reply: 'Pour devenir membre, visitez notre page d\'adhésion : <a href="/adhesion.html">Devenir membre</a>. L\'inscription est simple et rapide !' },
+    { keys: ['activité','événement','activite','evenement','bbq','gala'], reply: 'Consultez nos prochains événements sur la page <a href="/actualites.html">Activités</a>. Vous pouvez vous inscrire directement en ligne !' },
+    { keys: ['contact','joindre','téléphone','telephone','email','courriel'], reply: 'Contactez-nous :<br>📞 905-818-8269<br>📧 info@ahhamilton.ca<br>📍 231 Fernwood Crescent, Hamilton, ON' },
+    { keys: ['don','donner','donation','soutenir','supporter'], reply: 'Merci pour votre générosité ! Vous pouvez faire un don via <a href="https://donate.stripe.com/fZe9CTg1Oh0qehacMM" target="_blank">Stripe</a> ou par virement Interac.' },
+    { keys: ['bénévol','benevol','volontaire','aider'], reply: 'Le bénévolat est au cœur de notre mission ! Connectez-vous à votre espace membre pour soumettre vos heures.' },
+    { keys: ['horaire','heure','ouvert','quand'], reply: 'Nos événements ont lieu principalement les week-ends. Consultez le calendrier des <a href="/actualites.html">activités</a> pour les dates exactes.' },
+    { keys: ['talent','annonce','service'], reply: 'Découvrez les talents de notre communauté sur <a href="/talents.html">Nos talents</a> et publiez vos annonces sur <a href="/annonces.html">Petites annonces</a>.' },
+    { keys: ['galerie','photo','image'], reply: 'Revivez nos meilleurs moments sur notre <a href="/galerie.html">Galerie photos</a> !' },
+    { keys: ['hamilton','ontario','canada','adresse','lieu','où','ou'], reply: 'L\'AHH est basée à Hamilton, Ontario, Canada.<br>📍 231 Fernwood Crescent, Hamilton, ON L8T 3L7' },
+    { keys: ['merci','thank','mèsi'], reply: 'Avec plaisir ! N\'hésitez pas si vous avez d\'autres questions. 😊' },
+    { keys: ['bonjour','salut','hello','hi','bonsoir','allo'], reply: 'Bonjour ! 👋 Comment puis-je vous aider ? Je peux répondre à vos questions sur l\'AHH, les activités, l\'inscription, et plus encore.' },
+  ];
+
+  for (const faq of faqs) {
+    if (faq.keys.some(k => msg.includes(k))) return res.json({ reply: faq.reply });
+  }
+  res.json({ reply: 'Je ne suis pas sûr de comprendre. Essayez de me poser une question sur : les activités, l\'inscription, les contacts, les dons, ou le bénévolat. Ou contactez-nous à info@ahhamilton.ca' });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CALENDAR FEED (all activities)
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.get('/api/calendar/feed.ics', (req, res) => {
+  const acts = db.prepare("SELECT * FROM activities WHERE statut IN ('planifiee','en_cours') ORDER BY date_debut").all();
+  var ical = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//AHH//Activities//FR\r\nX-WR-CALNAME:AHH Activités\r\n';
+  acts.forEach(function(a) {
+    var start = (a.date_debut||'').replace(/[-:]/g,'').split('.')[0];
+    var end = (a.date_fin||a.date_debut||'').replace(/[-:]/g,'').split('.')[0];
+    ical += 'BEGIN:VEVENT\r\nDTSTART:' + start + '\r\nDTEND:' + end + '\r\nSUMMARY:' + (a.titre||'').replace(/[,;\\]/g,' ') + '\r\nLOCATION:' + (a.lieu||'').replace(/[,;\\]/g,' ') + '\r\nDESCRIPTION:' + (a.description||'').replace(/[,;\\]/g,' ').substring(0,200) + '\r\nEND:VEVENT\r\n';
+  });
+  ical += 'END:VCALENDAR';
+  res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+  res.setHeader('Content-Disposition', 'inline; filename="ahh-activites.ics"');
+  res.send(ical);
 });
 
 // ══════════════════════════════════════════════════════════════════════════════

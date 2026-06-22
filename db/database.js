@@ -1111,6 +1111,27 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS form_answers (
   valeur TEXT
 )`); } catch {}
 
+// ── Likes / Réactions ────────────────────────────────────────────────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS likes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  target_type TEXT NOT NULL,
+  target_id INTEGER NOT NULL,
+  reaction TEXT DEFAULT 'like',
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, target_type, target_id)
+)`); } catch {}
+
+// ── Commentaires ─────────────────────────────────────────────────────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS comments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  target_type TEXT NOT NULL,
+  target_id INTEGER NOT NULL,
+  contenu TEXT NOT NULL,
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
 init();
 
 module.exports = db;
