@@ -3,499 +3,536 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Manuel d'utilisation — AHH</title>
+<title>Manuel d'utilisation — Plateforme AHH</title>
 <style>
-  @page { size: letter; margin: 2cm; }
+  @page { size: letter; margin: 2cm 2.2cm; }
   @media print {
     .no-print { display: none !important; }
-    body { background: #fff; }
+    body { background: #fff; font-size: 11pt; }
+    .doc { border: none; box-shadow: none; padding: 0; }
     .page-break { page-break-before: always; }
     h2 { page-break-after: avoid; }
+    h3 { page-break-after: avoid; }
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; color: #1a1a1a; background: #f5f5f5; line-height: 1.65; }
-  .doc { max-width: 850px; margin: 0 auto; background: #fff; padding: 48px 52px; border: 1px solid #e0e0e0; }
-  .cover { text-align: center; padding: 80px 40px; border-bottom: 4px solid #1b5e20; margin-bottom: 40px; }
-  .cover img { height: 80px; margin-bottom: 20px; }
-  .cover h1 { color: #1b5e20; font-size: 2rem; margin-bottom: 8px; }
-  .cover .subtitle { font-size: 1.1rem; color: #666; margin-bottom: 24px; }
-  .cover .version { font-size: .82rem; color: #999; }
-  .toc { margin-bottom: 40px; }
-  .toc h2 { color: #1b5e20; font-size: 1.3rem; margin-bottom: 16px; border-bottom: 2px solid #e8f5e9; padding-bottom: 6px; }
+  body { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; color: #222; background: #eee; line-height: 1.7; }
+  .doc { max-width: 820px; margin: 0 auto; background: #fff; padding: 50px 56px; box-shadow: 0 0 20px rgba(0,0,0,.08); }
+
+  /* Couverture */
+  .cover { text-align: center; padding: 100px 40px 80px; margin-bottom: 50px; border-bottom: 4px solid #1b5e20; }
+  .cover img { height: 90px; margin-bottom: 24px; }
+  .cover h1 { color: #1b5e20; font-size: 2.2rem; font-weight: 800; margin-bottom: 6px; letter-spacing: -.02em; }
+  .cover .subtitle { font-size: 1.15rem; color: #555; margin-bottom: 30px; }
+  .cover .meta { font-size: .85rem; color: #999; line-height: 2; }
+
+  /* Table des matières */
+  .toc { margin-bottom: 50px; }
+  .toc h2 { color: #1b5e20; font-size: 1.4rem; margin-bottom: 20px; border-bottom: 3px solid #e8f5e9; padding-bottom: 8px; }
   .toc ul { list-style: none; }
-  .toc li { padding: 6px 0; border-bottom: 1px dotted #ddd; }
-  .toc a { color: #1b5e20; text-decoration: none; font-weight: 600; }
+  .toc li { padding: 5px 0; font-size: .92rem; }
+  .toc li.main { font-weight: 700; margin-top: 10px; border-bottom: 1px solid #eee; }
+  .toc li.sub { padding-left: 28px; color: #444; }
+  .toc a { color: #1b5e20; text-decoration: none; }
   .toc a:hover { text-decoration: underline; }
-  .toc .sub { padding-left: 24px; font-weight: 400; font-size: .9rem; }
-  h2 { color: #1b5e20; font-size: 1.3rem; margin: 36px 0 14px; padding-bottom: 6px; border-bottom: 3px solid #e8f5e9; }
-  h3 { color: #333; font-size: 1.05rem; margin: 22px 0 8px; }
-  h4 { color: #555; font-size: .95rem; margin: 16px 0 6px; }
-  p, li { font-size: .88rem; margin-bottom: 6px; }
-  ul, ol { margin-left: 22px; margin-bottom: 14px; }
-  table { width: 100%; border-collapse: collapse; margin: 14px 0 20px; font-size: .82rem; }
-  th { background: #1b5e20; color: #fff; padding: 10px 12px; text-align: left; font-weight: 700; }
-  td { padding: 8px 12px; border-bottom: 1px solid #e0e0e0; vertical-align: top; }
-  tr:nth-child(even) { background: #f9f9f9; }
-  .badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: .72rem; font-weight: 700; }
-  .badge-green { background: #e8f5e9; color: #2e7d32; }
-  .badge-blue { background: #e3f2fd; color: #1565c0; }
-  .badge-orange { background: #fff3e0; color: #e65100; }
-  .badge-red { background: #fdecea; color: #c62828; }
-  .tip { background: #e8f5e9; border-left: 4px solid #1b5e20; padding: 12px 16px; margin: 14px 0; border-radius: 0 8px 8px 0; font-size: .85rem; }
-  .warn { background: #fff3e0; border-left: 4px solid #e65100; padding: 12px 16px; margin: 14px 0; border-radius: 0 8px 8px 0; font-size: .85rem; }
-  .step { counter-increment: step; padding: 12px 16px 12px 50px; margin: 8px 0; background: #f9f9f9; border-radius: 8px; position: relative; font-size: .88rem; }
-  .step::before { content: counter(step); position: absolute; left: 14px; top: 12px; width: 28px; height: 28px; background: #1b5e20; color: #fff; border-radius: 50%; text-align: center; line-height: 28px; font-weight: 700; font-size: .85rem; }
-  .steps { counter-reset: step; }
-  .screenshot { background: #f0f0f0; border: 1px solid #ddd; border-radius: 8px; padding: 16px; text-align: center; margin: 12px 0; font-size: .82rem; color: #888; font-style: italic; }
-  .print-btn { position: fixed; top: 20px; right: 20px; background: #1b5e20; color: #fff; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: .9rem; font-weight: 700; box-shadow: 0 2px 8px rgba(0,0,0,.2); z-index: 100; }
-  .section-divider { height: 2px; background: linear-gradient(90deg, #1b5e20, #e8f5e9, transparent); margin: 40px 0; }
-  code { background: #f0f0f0; padding: 2px 6px; border-radius: 4px; font-size: .84rem; }
+
+  /* Titres */
+  h2 { color: #1b5e20; font-size: 1.35rem; margin: 44px 0 16px; padding: 10px 0 8px; border-bottom: 3px solid #1b5e20; letter-spacing: -.01em; }
+  h3 { color: #2e7d32; font-size: 1.1rem; margin: 30px 0 12px; padding-left: 12px; border-left: 4px solid #43a047; }
+  h4 { color: #444; font-size: .98rem; margin: 20px 0 8px; font-weight: 700; }
+
+  /* Texte */
+  p { font-size: .92rem; margin-bottom: 12px; text-align: justify; }
+  ul, ol { margin: 8px 0 16px 24px; }
+  li { font-size: .9rem; margin-bottom: 5px; }
+
+  /* Tableaux */
+  table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: .86rem; }
+  th { background: #1b5e20; color: #fff; padding: 10px 14px; text-align: left; font-weight: 700; font-size: .84rem; }
+  td { padding: 9px 14px; border-bottom: 1px solid #e0e0e0; }
+  tr:nth-child(even) { background: #fafafa; }
+
+  /* Encadrés */
+  .tip { background: #e8f5e9; border-left: 4px solid #2e7d32; padding: 14px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; font-size: .88rem; }
+  .warn { background: #fff3e0; border-left: 4px solid #e65100; padding: 14px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; font-size: .88rem; }
+  .important { background: #e3f2fd; border-left: 4px solid #1565c0; padding: 14px 18px; margin: 16px 0; border-radius: 0 8px 8px 0; font-size: .88rem; }
+
+  /* Étapes numérotées */
+  .steps { counter-reset: step; margin: 12px 0 20px; }
+  .step { counter-increment: step; padding: 10px 16px 10px 54px; margin: 6px 0; background: #f7faf7; border-radius: 8px; position: relative; font-size: .9rem; border: 1px solid #e8f5e9; }
+  .step::before { content: counter(step); position: absolute; left: 14px; top: 10px; width: 30px; height: 30px; background: #1b5e20; color: #fff; border-radius: 50%; text-align: center; line-height: 30px; font-weight: 700; font-size: .88rem; }
+
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: .76rem; font-weight: 700; }
+  .bg { background: #e8f5e9; color: #2e7d32; }
+  .bb { background: #e3f2fd; color: #1565c0; }
+  .bo { background: #fff3e0; color: #e65100; }
+  .br { background: #fdecea; color: #c62828; }
+  .bv { background: #f3e5f5; color: #6a1b9a; }
+
+  .divider { height: 2px; background: linear-gradient(90deg, #1b5e20, #e8f5e9, transparent); margin: 50px 0; }
+  .print-btn { position: fixed; top: 20px; right: 20px; background: #1b5e20; color: #fff; border: none; padding: 14px 28px; border-radius: 10px; cursor: pointer; font-size: .95rem; font-weight: 700; box-shadow: 0 4px 16px rgba(0,0,0,.2); z-index: 100; }
+  .print-btn:hover { background: #2e7d32; }
+  code { background: #f0f0f0; padding: 2px 8px; border-radius: 4px; font-size: .86rem; color: #1b5e20; }
 </style>
 </head>
 <body>
 
-<button class="print-btn no-print" onclick="window.print()">🖨 Imprimer / PDF</button>
+<button class="print-btn no-print" onclick="window.print()">🖨 Imprimer / Sauvegarder en PDF</button>
 
 <div class="doc">
 
-<!-- ═══════════ COUVERTURE ═══════════ -->
+<!-- ═══════════════════════════════════════════════ -->
+<!-- COUVERTURE -->
+<!-- ═══════════════════════════════════════════════ -->
 <div class="cover">
   <img src="/Public/logo1.png" alt="AHH" onerror="this.style.display='none'"/>
   <h1>Manuel d'utilisation</h1>
-  <div class="subtitle">Plateforme numérique AHH</div>
-  <p style="font-size:.95rem;color:#444;margin-bottom:24px">Association Haïtienne de Hamilton</p>
-  <div class="version">Version 3.0 — Juin 2026</div>
-  <div style="margin-top:20px;font-size:.82rem;color:#888">
-    Comptes Comité exécutif & Comptes Membres
+  <div class="subtitle">Guide complet de la plateforme numérique</div>
+  <p style="font-size:1rem;color:#333;margin-bottom:30px;text-align:center">Association Haïtienne de Hamilton</p>
+  <div class="meta">
+    Version 3.0 — Juin 2026<br/>
+    Comptes Comité exécutif & Comptes Membres<br/>
+    Hamilton, Ontario, Canada
   </div>
 </div>
 
-<!-- ═══════════ TABLE DES MATIÈRES ═══════════ -->
+<!-- ═══════════════════════════════════════════════ -->
+<!-- TABLE DES MATIÈRES -->
+<!-- ═══════════════════════════════════════════════ -->
 <div class="toc">
   <h2>Table des matières</h2>
   <ul>
-    <li><a href="#part1">PARTIE 1 — COMPTE MEMBRE</a></li>
-    <li class="sub"><a href="#m-connexion">1.1 Connexion et inscription</a></li>
-    <li class="sub"><a href="#m-dashboard">1.2 Tableau de bord</a></li>
-    <li class="sub"><a href="#m-activites">1.3 Activités et inscription</a></li>
-    <li class="sub"><a href="#m-billets">1.4 Billets et paiement</a></li>
-    <li class="sub"><a href="#m-carte">1.5 Carte de membre</a></li>
-    <li class="sub"><a href="#m-cotisation">1.6 Cotisations et paiements</a></li>
-    <li class="sub"><a href="#m-courriel">1.7 Messagerie interne</a></li>
-    <li class="sub"><a href="#m-forum">1.8 Forum</a></li>
-    <li class="sub"><a href="#m-profil">1.9 Profil et paramètres</a></li>
-    <li>&nbsp;</li>
-    <li><a href="#part2">PARTIE 2 — COMPTE COMITÉ EXÉCUTIF</a></li>
-    <li class="sub"><a href="#c-roles">2.1 Rôles et permissions</a></li>
-    <li class="sub"><a href="#c-membres">2.2 Gestion des membres</a></li>
-    <li class="sub"><a href="#c-activites">2.3 Gestion des activités</a></li>
-    <li class="sub"><a href="#c-finance">2.4 Finance et paiements</a></li>
-    <li class="sub"><a href="#c-billetterie">2.5 Billetterie et scanners</a></li>
-    <li class="sub"><a href="#c-notes">2.6 Notes de réunion</a></li>
-    <li class="sub"><a href="#c-formulaires">2.7 Formulaires (sondages)</a></li>
-    <li class="sub"><a href="#c-contenu">2.8 Gestion du contenu</a></li>
-    <li class="sub"><a href="#c-outils">2.9 Outils et rapports</a></li>
-    <li class="sub"><a href="#c-delegation">2.10 Délégation de scan</a></li>
+    <li class="main"><a href="#intro">Introduction</a></li>
+    <li class="main"><a href="#part1">PARTIE 1 — Guide du Membre</a></li>
+    <li class="sub"><a href="#m1">1.1 Créer son compte et se connecter</a></li>
+    <li class="sub"><a href="#m2">1.2 Comprendre son tableau de bord</a></li>
+    <li class="sub"><a href="#m3">1.3 S'inscrire aux activités et événements</a></li>
+    <li class="sub"><a href="#m4">1.4 Acheter des billets</a></li>
+    <li class="sub"><a href="#m5">1.5 Utiliser sa carte de membre</a></li>
+    <li class="sub"><a href="#m6">1.6 Gérer ses cotisations</a></li>
+    <li class="sub"><a href="#m7">1.7 Communiquer avec les autres membres</a></li>
+    <li class="sub"><a href="#m8">1.8 Gérer son profil</a></li>
+    <li class="main"><a href="#part2">PARTIE 2 — Guide du Comité exécutif</a></li>
+    <li class="sub"><a href="#c1">2.1 Les rôles et leurs responsabilités</a></li>
+    <li class="sub"><a href="#c2">2.2 Gérer les membres et les inscriptions</a></li>
+    <li class="sub"><a href="#c3">2.3 Créer et gérer les activités</a></li>
+    <li class="sub"><a href="#c4">2.4 La billetterie complète</a></li>
+    <li class="sub"><a href="#c5">2.5 Scanner les billets et cartes</a></li>
+    <li class="sub"><a href="#c6">2.6 Gérer les finances</a></li>
+    <li class="sub"><a href="#c7">2.7 Prendre des notes de réunion</a></li>
+    <li class="sub"><a href="#c8">2.8 Créer des formulaires et sondages</a></li>
+    <li class="sub"><a href="#c9">2.9 Gérer le contenu du site</a></li>
+    <li class="sub"><a href="#c10">2.10 Les outils du comité</a></li>
+    <li class="sub"><a href="#c11">2.11 Déléguer l'accès au scanner</a></li>
+    <li class="main"><a href="#annexes">Annexes</a></li>
   </ul>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════ -->
-<!-- PARTIE 1 : COMPTE MEMBRE -->
-<!-- ═══════════════════════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════════════ -->
+<!-- INTRODUCTION -->
+<!-- ═══════════════════════════════════════════════ -->
+<h2 id="intro" class="page-break">Introduction</h2>
 
-<h2 id="part1" class="page-break">PARTIE 1 — COMPTE MEMBRE</h2>
-<p>Cette section couvre toutes les fonctionnalités accessibles aux membres réguliers de l'AHH.</p>
+<p>La plateforme numérique de l'Association Haïtienne de Hamilton (AHH) est un outil en ligne complet qui permet à la communauté haïtienne de Hamilton de se connecter, de participer aux activités, de gérer ses cotisations et de rester informée. Ce manuel vous guidera pas à pas dans l'utilisation de toutes les fonctionnalités disponibles.</p>
+
+<p>La plateforme est divisée en deux niveaux d'accès. Le premier est le <strong>compte membre</strong>, destiné à tous les membres de l'association. Il permet de consulter les activités, s'inscrire aux événements, acheter des billets, utiliser sa carte de membre numérique et communiquer avec les autres membres. Le second est le <strong>compte comité exécutif</strong>, réservé aux membres du bureau (président, trésorière, secrétaire et délégués). Ce compte offre des outils avancés de gestion : membres, activités, finances, billetterie, notes de réunion, formulaires, rapports et bien plus.</p>
+
+<p>Pour accéder à la plateforme, rendez-vous sur <code>ahhamilton.ca</code> puis cliquez sur « Connexion » dans le menu de navigation. Si vous n'avez pas encore de compte, cliquez sur « Devenir membre » pour soumettre votre demande d'adhésion.</p>
+
+<div class="divider"></div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- PARTIE 1 : MEMBRE -->
+<!-- ═══════════════════════════════════════════════ -->
+<h2 id="part1" class="page-break">PARTIE 1 — Guide du Membre</h2>
+
+<p>Cette première partie s'adresse à tous les membres de l'AHH. Elle explique en détail chaque fonctionnalité à laquelle vous avez accès depuis votre espace personnel.</p>
 
 <!-- 1.1 -->
-<h3 id="m-connexion">1.1 Connexion et inscription</h3>
+<h3 id="m1">1.1 Créer son compte et se connecter</h3>
 
-<h4>Créer un compte</h4>
-<div class="steps">
-  <div class="step">Allez sur <strong>ahhamilton.ca</strong> et cliquez <strong>Devenir membre</strong></div>
-  <div class="step">Remplissez le formulaire : prénom, nom, courriel, téléphone, mot de passe</div>
-  <div class="step">Choisissez votre plan : <span class="badge badge-green">Gratuit</span>, <span class="badge badge-orange">Bienfaiteur (10$/mois)</span> ou <span class="badge badge-blue">Partenaire (20$/mois)</span></div>
-  <div class="step">Votre demande est envoyée au comité pour approbation</div>
-  <div class="step">Vous recevrez un courriel de confirmation une fois approuvé</div>
-</div>
+<h4>Demande d'adhésion</h4>
+<p>Pour devenir membre de l'AHH, vous devez d'abord soumettre une demande d'adhésion en ligne. Rendez-vous sur la page d'accueil du site (<code>ahhamilton.ca</code>) et cliquez sur le bouton « Devenir membre » ou « Nous rejoindre ». Vous serez redirigé vers un formulaire d'inscription où vous devrez fournir les informations suivantes :</p>
 
-<h4>Se connecter</h4>
-<div class="steps">
-  <div class="step">Allez sur <strong>ahhamilton.ca/dashboard/login.html</strong></div>
-  <div class="step">Entrez votre courriel et mot de passe</div>
-  <div class="step">Cliquez <strong>Se connecter</strong></div>
-</div>
+<ul>
+  <li>Votre <strong>prénom et nom complet</strong>, tels qu'ils apparaîtront sur votre carte de membre</li>
+  <li>Votre <strong>adresse courriel</strong>, qui servira d'identifiant pour vous connecter</li>
+  <li>Votre <strong>numéro de téléphone</strong>, pour que le comité puisse vous joindre</li>
+  <li>Un <strong>mot de passe sécurisé</strong> que vous choisirez vous-même</li>
+  <li>Le <strong>plan d'adhésion</strong> souhaité : Gratuit, Bienfaiteur (10 $ par mois) ou Partenaire (20 $ par mois)</li>
+</ul>
 
-<div class="tip">💡 Si vous avez oublié votre mot de passe, cliquez « Mot de passe oublié » sur la page de connexion. Un lien de réinitialisation sera envoyé à votre courriel.</div>
+<p>Une fois le formulaire soumis, votre demande est envoyée au comité exécutif pour approbation. Un membre du comité examinera votre demande et vous recevrez un courriel de confirmation lorsqu'elle sera acceptée. Ce processus prend généralement entre 24 et 48 heures.</p>
+
+<h4>Se connecter à son espace</h4>
+<p>Après avoir reçu la confirmation de votre adhésion, vous pouvez vous connecter à votre espace membre. Rendez-vous sur <code>ahhamilton.ca/dashboard/login.html</code> et entrez votre adresse courriel ainsi que votre mot de passe. Après une connexion réussie, vous serez dirigé vers votre tableau de bord personnel.</p>
+
+<div class="tip">💡 <strong>Mot de passe oublié ?</strong> Sur la page de connexion, cliquez sur le lien « Mot de passe oublié ». Un courriel contenant un lien de réinitialisation vous sera envoyé dans les minutes qui suivent. Ce lien est valide pendant une heure.</div>
 
 <!-- 1.2 -->
-<h3 id="m-dashboard">1.2 Tableau de bord</h3>
-<p>Votre page d'accueil affiche :</p>
-<ul>
-  <li><strong>Vos chiffres de l'année</strong> — activités, bénévolat, cotisations</li>
-  <li><strong>Mon abonnement</strong> — votre plan actuel</li>
-  <li><strong>Calendrier mensuel</strong> — avec vos activités inscrites (points verts) et disponibles (points bleus)</li>
-  <li><strong>Activités à venir</strong> — liste des prochains événements avec bouton d'inscription</li>
-  <li><strong>Mes prochaines activités</strong> — celles où vous êtes inscrit(e)</li>
-</ul>
+<h3 id="m2">1.2 Comprendre son tableau de bord</h3>
+
+<p>Le tableau de bord est la première page que vous voyez après votre connexion. Il a été conçu pour vous donner un aperçu rapide et complet de votre activité au sein de l'association. Voici les différentes sections que vous y trouverez :</p>
+
+<p><strong>Vos chiffres de l'année</strong> — Tout en haut de la page, une barre colorée affiche trois statistiques importantes : le nombre d'activités auxquelles vous avez participé cette année, le total de vos heures de bénévolat approuvées, et le montant total de vos cotisations payées. Ces chiffres se mettent à jour automatiquement.</p>
+
+<p><strong>Votre abonnement</strong> — Juste en dessous, une carte indique votre plan actuel (Gratuit, Bienfaiteur ou Partenaire) avec le statut de votre cotisation pour le mois en cours. Si votre cotisation est à jour, vous verrez un badge vert « À jour ». Si elle est due, un badge rouge apparaîtra.</p>
+
+<p><strong>Le calendrier mensuel</strong> — Un calendrier interactif affiche le mois en cours. Les jours où vous êtes inscrit à une activité sont marqués d'un point vert. Les jours où des activités sont disponibles mais auxquelles vous n'êtes pas encore inscrit sont marqués d'un point bleu. Vous pouvez naviguer entre les mois avec les flèches.</p>
+
+<p><strong>Activités et événements à venir</strong> — Cette section liste les prochaines activités planifiées par l'AHH. Pour chaque activité, vous voyez la date, le lieu, et un bouton pour vous inscrire directement. Si l'activité est payante, le bouton vous redirige vers la page d'achat de billets.</p>
+
+<p><strong>Mes prochaines activités</strong> — Cette liste affiche uniquement les activités auxquelles vous êtes déjà inscrit, avec un bouton pour vous désinscrire si nécessaire.</p>
 
 <!-- 1.3 -->
-<h3 id="m-activites">1.3 Activités et inscription</h3>
-<p>Le menu <strong>Activités</strong> dans le sidebar montre toutes les activités disponibles.</p>
+<h3 id="m3">1.3 S'inscrire aux activités et événements</h3>
 
-<h4>S'inscrire à une activité</h4>
-<div class="steps">
-  <div class="step">Cliquez sur le <strong>titre de l'activité</strong> pour voir les détails</div>
-  <div class="step">Pour une activité gratuite : cliquez <strong>S'inscrire gratuitement</strong></div>
-  <div class="step">Pour une activité payante : cliquez <strong>Acheter des billets</strong> — vous serez redirigé vers la page de paiement</div>
-  <div class="step">Après inscription, l'activité apparaît dans votre calendrier</div>
-</div>
+<p>L'un des principaux avantages d'être membre de l'AHH est de pouvoir participer aux activités communautaires. La plateforme rend le processus d'inscription simple et rapide.</p>
 
-<h4>Partager une activité</h4>
-<p>Sur la page de détail d'une activité, vous pouvez la partager via :</p>
-<ul>
-  <li><strong>WhatsApp</strong> — ouvre WhatsApp avec un message pré-rempli</li>
-  <li><strong>Facebook</strong> — partage sur votre mur</li>
-  <li><strong>Copier le lien</strong> — pour coller où vous voulez</li>
-</ul>
+<p>Pour voir toutes les activités disponibles, cliquez sur <strong>Activités</strong> dans le menu latéral gauche. Vous verrez une liste de toutes les activités planifiées, avec pour chacune le titre, le type (général, culturel, social, etc.), la date, le lieu et le nombre de participants inscrits.</p>
+
+<p>Pour obtenir plus de détails sur une activité, cliquez sur son <strong>titre</strong>. Une page complète s'ouvrira avec un fond vert, l'affiche de l'événement (si disponible), la description complète, la date en français, le lieu, le prix et le statut. Vous y trouverez également les boutons de partage pour envoyer l'événement à vos amis via WhatsApp, Facebook ou simplement copier le lien.</p>
+
+<h4>Inscription à une activité gratuite</h4>
+<p>Si l'activité est gratuite, un bouton blanc « S'inscrire gratuitement » apparaît sur la page de détail. Un simple clic suffit pour confirmer votre inscription. L'activité apparaîtra ensuite dans votre calendrier et dans la section « Mes prochaines activités » de votre tableau de bord.</p>
+
+<h4>Inscription à une activité payante</h4>
+<p>Si l'activité nécessite l'achat d'un billet, un bouton « Acheter des billets » s'affiche avec le prix. En cliquant dessus, vous êtes redirigé vers la page de billetterie où vous pourrez choisir le nombre de billets, sélectionner votre mode de paiement et finaliser votre achat. Les détails de cette procédure sont expliqués dans la section suivante.</p>
 
 <!-- 1.4 -->
-<h3 id="m-billets">1.4 Billets et paiement</h3>
-<p>Menu <strong>Mes billets</strong> — affiche tous vos billets achetés.</p>
+<h3 id="m4" class="page-break">1.4 Acheter des billets</h3>
 
-<table>
-  <thead><tr><th>Mode de paiement</th><th>Comment ça marche</th></tr></thead>
-  <tbody>
-    <tr><td><strong>Carte de crédit (Stripe)</strong></td><td>Paiement instantané, billet QR envoyé par courriel</td></tr>
-    <tr><td><strong>Virement Interac</strong></td><td>Envoyez le montant, le billet est activé après confirmation</td></tr>
-    <tr><td><strong>Comptant</strong></td><td>Payez sur place, billet remis en personne</td></tr>
-  </tbody>
-</table>
+<p>La page de billetterie vous permet d'acheter des billets pour les activités payantes. Elle est accessible en cliquant sur « Acheter des billets » depuis le détail d'une activité. Voici comment se déroule le processus d'achat :</p>
 
-<div class="tip">💡 Votre billet QR et votre carte de membre sont interchangeables. Scannez l'un ou l'autre à l'entrée.</div>
+<p><strong>Étape 1 : Choisir les billets.</strong> Si l'activité propose plusieurs types de billets (par exemple : adulte, enfant, VIP), vous verrez chaque type avec son prix et le nombre de places disponibles. Utilisez les boutons + et – pour sélectionner la quantité souhaitée pour chaque type. Le total se calcule automatiquement en bas de l'écran.</p>
+
+<p><strong>Étape 2 : Vos informations.</strong> Entrez votre prénom, nom, adresse courriel et numéro de téléphone. Ces informations seront utilisées pour vous envoyer vos billets et pour l'identification à l'entrée de l'événement.</p>
+
+<p><strong>Étape 3 : Mode de paiement.</strong> Deux options s'offrent à vous :</p>
+
+<ul>
+  <li><strong>Virement Interac</strong> — Vous recevrez les instructions pour envoyer le montant par virement bancaire. Vos billets seront activés une fois le paiement confirmé par la trésorière. Vous recevrez alors vos codes QR par courriel.</li>
+  <li><strong>Carte de crédit (Stripe)</strong> — Le paiement est traité instantanément de manière sécurisée. Vos billets QR sont générés et envoyés à votre courriel immédiatement après le paiement.</li>
+</ul>
+
+<p>Après l'achat, chaque billet possède un <strong>code QR unique</strong> qui sera scanné à l'entrée de l'événement. Vous pouvez consulter vos billets à tout moment dans le menu « Mes billets ».</p>
+
+<div class="important">📌 <strong>Billets pour la famille :</strong> Si vous achetez plusieurs billets (par exemple pour votre conjoint(e) et vos enfants), tous les billets sont liés à votre compte. À l'entrée, le scanner de votre carte de membre trouvera automatiquement tous vos billets et les validera un par un.</div>
 
 <!-- 1.5 -->
-<h3 id="m-carte">1.5 Carte de membre</h3>
-<p>Menu <strong>Ma carte membre</strong> — affiche votre carte numérique avec QR code.</p>
+<h3 id="m5">1.5 Utiliser sa carte de membre</h3>
 
-<h4>Validité de la carte</h4>
-<table>
-  <thead><tr><th>Condition</th><th>Statut</th></tr></thead>
-  <tbody>
-    <tr><td>Photo approuvée + non expirée</td><td><span class="badge badge-green">✅ Valide</span></td></tr>
-    <tr><td>Pas de photo</td><td><span class="badge badge-red">⚠️ Invalide</span></td></tr>
-    <tr><td>Expirée (> 2 ans)</td><td><span class="badge badge-red">⛔ Expirée</span></td></tr>
-  </tbody>
-</table>
+<p>Chaque membre de l'AHH dispose d'une carte de membre numérique accessible depuis le menu « Ma carte membre ». Cette carte contient votre photo, votre nom, votre numéro de membre, votre plan d'adhésion et un code QR unique.</p>
 
-<div class="warn">⚠️ Une carte sans photo ou expirée ne permet pas d'entrer aux activités. Contactez le comité pour ajouter votre photo ou renouveler.</div>
+<p>La carte de membre sert de pièce d'identité communautaire. Lors des événements, le comité peut scanner votre carte pour vérifier votre identité, confirmer votre présence et, si vous avez des billets achetés, vous laisser entrer sans avoir à présenter chaque billet individuellement.</p>
+
+<h4>Conditions de validité</h4>
+<p>Pour que votre carte soit considérée comme valide, trois conditions doivent être remplies simultanément. Premièrement, vous devez avoir une <strong>photo de profil approuvée</strong> par le comité. Deuxièmement, votre carte ne doit pas être <strong>expirée</strong> — les cartes sont valides pendant deux ans à partir de la date d'inscription. Troisièmement, votre compte doit être <strong>actif</strong>.</p>
+
+<p>Si votre carte est invalide (pas de photo ou expirée), vous ne pourrez pas l'utiliser pour entrer aux activités. Le comité peut prendre votre photo directement lors d'un événement si vous n'en avez pas encore, et renouveler votre carte si elle est expirée.</p>
+
+<div class="tip">💡 <strong>Astuce :</strong> Votre carte de membre et vos billets QR sont interchangeables. Si vous avez acheté un billet pour une activité, vous pouvez présenter soit votre billet QR, soit votre carte de membre à l'entrée — le système reconnaîtra automatiquement votre achat.</div>
 
 <!-- 1.6 -->
-<h3 id="m-cotisation">1.6 Cotisations et paiements</h3>
-<p>Menu <strong>Mes cotisations</strong> — gérez vos paiements mensuels.</p>
-<ul>
-  <li><strong>Soumettre un paiement</strong> — choisissez le nombre de mois, la méthode, ajoutez une preuve</li>
-  <li><strong>Payer en ligne</strong> — paiement par carte via Stripe (confirmation immédiate)</li>
-  <li><strong>Historique</strong> — tous vos paiements avec statut</li>
-</ul>
+<h3 id="m6">1.6 Gérer ses cotisations</h3>
+
+<p>Si vous avez choisi le plan Bienfaiteur ou Partenaire, une cotisation mensuelle est attendue. Le menu « Mes cotisations » vous permet de suivre vos paiements et d'en soumettre de nouveaux.</p>
+
+<p>La page affiche d'abord votre plan actuel et le statut de votre cotisation pour le mois en cours (à jour, en attente ou due). En dessous, vous trouverez un formulaire de paiement complet.</p>
+
+<p>Pour soumettre un paiement, commencez par choisir la période : vous pouvez payer pour un mois, deux mois, trois mois, six mois ou une année complète (avec deux mois offerts pour le paiement annuel). Le montant se calcule automatiquement selon votre plan. Sélectionnez ensuite votre méthode de paiement (virement Interac, comptant ou chèque), ajoutez une référence si applicable, et joignez une preuve de paiement si vous le souhaitez. La trésorière recevra une notification et validera votre paiement sous peu.</p>
+
+<p>Vous pouvez également payer directement en ligne par carte de crédit en cliquant sur le bouton « Payer en ligne par carte de crédit ». Le paiement est traité par Stripe de manière sécurisée, et votre cotisation est confirmée immédiatement.</p>
+
+<p>En bas de la page, un historique complet de tous vos paiements est affiché sous forme de tableau, avec le mois concerné, le montant, la méthode, le statut et la date.</p>
 
 <!-- 1.7 -->
-<h3 id="m-courriel">1.7 Messagerie interne</h3>
-<p>Menu <strong>Courriel</strong> — messagerie interne entre membres.</p>
-<ul>
-  <li><strong>Boîte de réception</strong> — messages reçus</li>
-  <li><strong>Envoyés</strong> — messages que vous avez envoyés</li>
-  <li><strong>Corbeille</strong> — messages supprimés (vidable définitivement)</li>
-</ul>
+<h3 id="m7" class="page-break">1.7 Communiquer avec les autres membres</h3>
+
+<h4>La messagerie interne</h4>
+<p>Le menu « Courriel » ouvre un système de messagerie interne similaire à Gmail. Vous y trouverez votre boîte de réception, vos messages envoyés, vos messages suivis et une corbeille. Pour écrire un nouveau message, cliquez sur « Nouveau message », sélectionnez un ou plusieurs destinataires parmi les membres de l'association, rédigez votre message et envoyez-le. Les destinataires recevront une notification.</p>
+
+<p>Vous pouvez organiser vos messages en les marquant comme lus, en les mettant en favoris ou en les supprimant. La corbeille peut être vidée définitivement en cliquant sur « Vider la corbeille ».</p>
+
+<h4>Le forum communautaire</h4>
+<p>Le menu « Forum » donne accès à un espace de discussion ouvert à tous les membres. Vous pouvez créer de nouveaux sujets de discussion, répondre aux sujets existants et participer aux échanges de la communauté. Le badge rouge sur le bouton Forum indique le nombre de nouvelles publications que vous n'avez pas encore lues.</p>
 
 <!-- 1.8 -->
-<h3 id="m-forum">1.8 Forum</h3>
-<p>Menu <strong>Forum</strong> — espace de discussion communautaire.</p>
-<ul>
-  <li>Créez des sujets de discussion</li>
-  <li>Répondez aux sujets existants</li>
-  <li>Le badge indique le nombre de nouvelles publications</li>
-</ul>
+<h3 id="m8">1.8 Gérer son profil</h3>
 
-<!-- 1.9 -->
-<h3 id="m-profil">1.9 Profil et paramètres</h3>
-<p>Menu <strong>Mon profil</strong> — modifiez vos informations personnelles.</p>
-<ul>
-  <li>Photo de profil</li>
-  <li>Informations de contact</li>
-  <li>Mot de passe</li>
-  <li>Préférences de notification</li>
-</ul>
+<p>Le menu « Mon profil » vous permet de mettre à jour vos informations personnelles : votre nom, votre adresse courriel, votre numéro de téléphone, votre photo de profil et votre mot de passe. Vous pouvez également configurer vos préférences de notification dans le menu « Notifications » pour choisir quels types d'alertes vous souhaitez recevoir (activités, paiements, messages, forum).</p>
 
-<div class="section-divider"></div>
+<div class="divider"></div>
 
-<!-- ═══════════════════════════════════════════════════════ -->
-<!-- PARTIE 2 : COMPTE COMITÉ -->
-<!-- ═══════════════════════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════════════ -->
+<!-- PARTIE 2 : COMITÉ -->
+<!-- ═══════════════════════════════════════════════ -->
+<h2 id="part2" class="page-break">PARTIE 2 — Guide du Comité exécutif</h2>
 
-<h2 id="part2" class="page-break">PARTIE 2 — COMPTE COMITÉ EXÉCUTIF</h2>
-<p>Cette section couvre les fonctionnalités réservées au comité exécutif (admin, secrétaire, trésorière, délégué).</p>
+<p>Cette seconde partie est destinée aux membres du comité exécutif de l'AHH. Elle couvre en détail les outils de gestion disponibles pour administrer l'association.</p>
 
 <!-- 2.1 -->
-<h3 id="c-roles">2.1 Rôles et permissions</h3>
+<h3 id="c1">2.1 Les rôles et leurs responsabilités</h3>
+
+<p>La plateforme reconnaît quatre rôles au sein du comité exécutif. Chaque rôle dispose de permissions spécifiques adaptées à ses responsabilités.</p>
+
+<p>Le rôle d'<strong>Administrateur (Président)</strong> a un accès complet à l'ensemble de la plateforme. Il peut créer, modifier et supprimer n'importe quel élément, gérer les rôles des autres membres, accéder au journal d'audit, générer des rapports annuels et effectuer des sauvegardes de la base de données. C'est le seul rôle qui peut supprimer définitivement des membres ou des activités.</p>
+
+<p>La <strong>Trésorière</strong> est responsable de tout ce qui touche aux finances. Elle a accès aux paiements en attente d'approbation, au budget et aux lignes budgétaires, aux factures, aux reçus fiscaux et aux rapports financiers. C'est elle qui approuve ou rejette les paiements soumis par les membres.</p>
+
+<p>Le ou la <strong>Secrétaire</strong> gère la communication et le contenu. Il ou elle a accès à l'annuaire des membres, aux inscriptions en attente, à la galerie photos, aux talents, aux annonces, aux documents officiels et aux notes de réunion. Le secrétaire est souvent la personne qui prend les notes pendant les réunions du comité.</p>
+
+<p>Les <strong>Délégués (Accompagnateurs)</strong> assistent les autres membres du comité. Ils ont accès aux activités, aux sous-comités, au bénévolat et aux outils de communication. Ils peuvent scanner les billets et les cartes lors des événements.</p>
+
 <table>
-  <thead><tr><th>Rôle</th><th>Accès</th></tr></thead>
+  <thead><tr><th>Fonctionnalité</th><th>Admin</th><th>Trésorière</th><th>Secrétaire</th><th>Délégué</th></tr></thead>
   <tbody>
-    <tr><td><strong>Admin (Président)</strong></td><td>Accès complet — tous les menus, suppression, export, audit, rapport annuel</td></tr>
-    <tr><td><strong>Trésorière</strong></td><td>Finance, paiements, reçus fiscaux, rapports financiers, budget</td></tr>
-    <tr><td><strong>Secrétaire</strong></td><td>Membres, inscriptions, contenu, notes, galerie, documents</td></tr>
-    <tr><td><strong>Délégué</strong></td><td>Activités, sous-comités, bénévolat, communication</td></tr>
+    <tr><td>Activités (créer/modifier)</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+    <tr><td>Membres (approuver/supprimer)</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+    <tr><td>Paiements (approuver)</td><td>✅</td><td>✅</td><td>✅</td><td>—</td></tr>
+    <tr><td>Budget et factures</td><td>✅</td><td>✅</td><td>✅</td><td>—</td></tr>
+    <tr><td>Contenu (galerie, talents, etc.)</td><td>✅</td><td>—</td><td>✅</td><td>—</td></tr>
+    <tr><td>Rapport annuel</td><td>✅</td><td>—</td><td>—</td><td>—</td></tr>
+    <tr><td>Journal d'audit</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+    <tr><td>Scanners (billets/cartes)</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
   </tbody>
 </table>
 
 <!-- 2.2 -->
-<h3 id="c-membres">2.2 Gestion des membres</h3>
+<h3 id="c2">2.2 Gérer les membres et les inscriptions</h3>
 
-<h4>Annuaire</h4>
-<p>Menu <strong>Annuaire</strong> — liste complète des membres avec recherche, filtres par rôle/plan.</p>
+<p>La gestion des membres est une responsabilité centrale du comité. Lorsqu'une personne soumet une demande d'adhésion sur le site, elle apparaît dans le menu « Inscriptions » avec le statut « En attente ». Le comité doit examiner chaque demande et décider de l'approuver ou de la refuser.</p>
 
-<h4>Inscriptions en attente</h4>
-<div class="steps">
-  <div class="step">Menu <strong>Inscriptions</strong> — voir les demandes en attente</div>
-  <div class="step">Cliquez <strong>Approuver</strong> ou <strong>Refuser</strong></div>
-  <div class="step">Le membre reçoit un courriel automatique</div>
-</div>
+<p>Pour approuver une inscription, ouvrez le menu « Inscriptions », consultez les informations du candidat (nom, courriel, plan souhaité, message éventuel), puis cliquez sur « Approuver ». Le système créera automatiquement le compte du nouveau membre, lui enverra un courriel de bienvenue avec ses identifiants de connexion, et l'ajoutera à l'annuaire.</p>
 
-<h4>Cartes membres</h4>
-<p>Menu <strong>Cartes membres</strong> — gérer les photos et le renouvellement.</p>
-<ul>
-  <li>Approuver/rejeter les photos</li>
-  <li>Renouveler une carte expirée</li>
-  <li>Prendre une photo directement depuis le scanner</li>
-</ul>
+<p>Pour refuser une inscription, cliquez sur « Refuser » et indiquez éventuellement la raison. Le candidat recevra un courriel l'informant du refus.</p>
+
+<p>Le menu « Annuaire » donne accès à la liste complète de tous les membres actifs. Vous pouvez rechercher un membre par nom, filtrer par rôle ou par plan, et cliquer sur un membre pour voir sa fiche détaillée (historique de paiements, activités participées, heures de bénévolat, badges obtenus).</p>
+
+<p>Le menu « Cartes membres » permet de gérer les cartes numériques : approuver les photos soumises par les membres, rejeter celles qui ne sont pas conformes, et renouveler les cartes expirées.</p>
 
 <!-- 2.3 -->
-<h3 id="c-activites" class="page-break">2.3 Gestion des activités</h3>
+<h3 id="c3" class="page-break">2.3 Créer et gérer les activités</h3>
 
-<h4>Créer une activité</h4>
-<div class="steps">
-  <div class="step">Menu <strong>Calendrier</strong> → <strong>+ Nouvelle</strong></div>
-  <div class="step">Remplissez : titre, description (éditeur riche), type, dates, lieu, budget</div>
-  <div class="step">Si payante : cochez <strong>Activité payante</strong> et fixez le prix</div>
-  <div class="step">Cliquez <strong>Créer</strong></div>
-</div>
+<p>Les activités sont au cœur de la vie de l'association. Pour créer une nouvelle activité, rendez-vous dans le menu « Calendrier » et cliquez sur le bouton « + Nouvelle ». Un formulaire complet s'ouvrira où vous pourrez saisir toutes les informations nécessaires.</p>
+
+<p>Le <strong>titre</strong> de l'activité est le seul champ obligatoire. La <strong>description</strong> dispose d'un éditeur riche qui vous permet de mettre du texte en gras, en italique, de créer des listes et d'ajuster la taille du texte. Choisissez ensuite le <strong>type</strong> (général, culturel, bénévolat, réunion ou social), les <strong>dates de début et de fin</strong>, le <strong>lieu</strong>, le <strong>budget prévu</strong> et le <strong>nombre maximum de participants</strong>.</p>
+
+<p>Si l'activité est payante, cochez la case « Activité payante » et indiquez le prix. Vous pouvez également définir des rabais pour les membres ayant un plan Bienfaiteur ou Partenaire (uniquement le président peut définir ces rabais).</p>
+
+<p>Après la création, l'activité apparaît dans le calendrier avec le statut « Planifiée ». Vous pouvez y ajouter une image (affiche de l'événement) en cliquant sur le titre puis sur « Ajouter une image ». Cette image sera visible sur la page publique du site et dans le détail de l'activité.</p>
 
 <h4>Mettre une activité à la une</h4>
-<p>Cliquez le bouton <strong>⭐</strong> sur l'activité → elle apparaît dans le hero du site public et dans le countdown.</p>
+<p>Pour mettre en avant une activité sur la page d'accueil du site public, cliquez sur le bouton étoile (⭐) à côté de l'activité dans le calendrier. L'activité apparaîtra alors dans la grande section « À la une » du site avec son image, sa description et un bouton d'inscription. Le compteur à rebours en haut du site affichera également cette activité.</p>
 
-<h4>Menu ⋮ (trois points)</h4>
-<p>Chaque activité a un menu avec :</p>
-<table>
-  <thead><tr><th>Action</th><th>Description</th></tr></thead>
-  <tbody>
-    <tr><td>🚀 Lancer</td><td>Passer l'activité en « en cours »</td></tr>
-    <tr><td>📱 QR Paiement</td><td>Afficher le QR pour paiement sur place</td></tr>
-    <tr><td>👥 Inscrits</td><td>Liste des participants</td></tr>
-    <tr><td>✅ Présences</td><td>Feuille de présences</td></tr>
-    <tr><td>🎟 Types de billets</td><td>Adulte, enfant, VIP, etc.</td></tr>
-    <tr><td>📱 Déléguer scanner</td><td>Donner le droit de scan à un membre</td></tr>
-    <tr><td>📋 Journal des scans</td><td>Historique de tous les scans</td></tr>
-    <tr><td>📦 Archiver</td><td>Archiver l'activité terminée</td></tr>
-  </tbody>
-</table>
+<h4>Le menu contextuel (⋮)</h4>
+<p>Chaque activité possède un menu contextuel (les trois petits points ⋮) qui donne accès à des actions avancées. Vous y trouverez la possibilité de lancer l'activité (passer son statut à « En cours »), d'afficher le QR de paiement pour les paiements sur place, de consulter la liste des inscrits, d'ouvrir la feuille de présences, de gérer les types de billets, de déléguer le scanner à un membre, de consulter le journal des scans, d'exporter en format iCal pour le calendrier, de copier l'activité ou de l'archiver.</p>
 
 <!-- 2.4 -->
-<h3 id="c-finance">2.4 Finance et paiements</h3>
+<h3 id="c4">2.4 La billetterie complète</h3>
 
-<h4>Paiements</h4>
-<p>Menu <strong>Paiements</strong> — voir et approuver les paiements des membres.</p>
-<div class="steps">
-  <div class="step">Un paiement en attente apparaît avec le badge orange</div>
-  <div class="step">Vérifiez la preuve de paiement (si fournie)</div>
-  <div class="step">Cliquez <strong>Approuver</strong> ou <strong>Rejeter</strong></div>
-  <div class="step">Le membre reçoit un courriel + un reçu fiscal automatique</div>
-</div>
+<p>Le système de billetterie de l'AHH permet de vendre des billets à la fois en ligne (via le site web) et en personne (lors des événements). Chaque billet possède un code QR unique et un code-barres qui peuvent être scannés à l'entrée.</p>
 
-<h4>Budget</h4>
-<p>Menu <strong>Budget</strong> — gestion des lignes budgétaires, transactions, solde du compte.</p>
+<h4>Vente en ligne</h4>
+<p>Les membres et le public peuvent acheter des billets directement sur le site en cliquant sur le bouton « Acheter des billets » sur la page de détail d'une activité. Le paiement peut se faire par carte de crédit (Stripe) ou par virement Interac. Après l'achat, les billets QR sont envoyés automatiquement par courriel.</p>
 
-<h4>Factures et Reçus fiscaux</h4>
-<p>Menus <strong>Factures</strong> et <strong>Reçus fiscaux</strong> — génération et envoi automatique.</p>
+<h4>Vente en personne (cash)</h4>
+<p>Le menu « Vendre (cash) » dans la section Billetterie permet au comité de vendre des billets en personne lors des événements. Sélectionnez l'activité, entrez le nom de l'acheteur et la quantité, puis choisissez entre « Pré-imprimer » (générer les billets sans enregistrer la vente, pour les vendre plus tard) ou « Vendre maintenant » (enregistrer la vente et le revenu immédiatement). Les billets générés peuvent être imprimés avec leur code QR et leur code-barres.</p>
+
+<h4>Types de billets</h4>
+<p>Pour chaque activité, vous pouvez créer différents types de billets (par exemple : Adulte à 10 $, Enfant à 5 $, VIP à 25 $, Gratuit 60 ans+). Chaque type peut avoir son propre prix, sa propre capacité maximale et sa propre description. Les acheteurs pourront choisir le type qui leur convient lors de l'achat.</p>
 
 <!-- 2.5 -->
-<h3 id="c-billetterie">2.5 Billetterie et scanners</h3>
+<h3 id="c5" class="page-break">2.5 Scanner les billets et cartes</h3>
 
-<h4>Vendre des billets (cash)</h4>
-<p>Menu <strong>Vendre (cash)</strong> — vente en personne lors des événements.</p>
-<div class="steps">
-  <div class="step">Sélectionnez l'activité</div>
-  <div class="step">Entrez le nom de l'acheteur et la quantité</div>
-  <div class="step">Choisissez : <strong>Pré-imprimer</strong> (sans vente) ou <strong>Vendre maintenant</strong></div>
-  <div class="step">Imprimez les billets avec QR</div>
-</div>
+<p>Le jour de l'événement, le comité utilise les scanners intégrés à la plateforme pour contrôler les entrées. Il existe deux scanners distincts : le scanner de billets et le scanner de cartes membres.</p>
 
 <h4>Scanner de billets</h4>
-<p>Menu <strong>Scanner billets</strong> — ou allez directement sur <code>ahhamilton.ca/scan.html</code></p>
-<ul>
-  <li>Sélectionnez l'activité dans le menu déroulant</li>
-  <li>Pointez la caméra vers le QR du billet</li>
-  <li><span class="badge badge-green">VALIDE</span> = laisser entrer</li>
-  <li><span class="badge badge-orange">DÉJÀ SCANNÉ</span> = vérifier l'identité</li>
-  <li><span class="badge badge-red">INTROUVABLE</span> = refuser</li>
-</ul>
+<p>Le scanner de billets est accessible via le menu « Scanner billets » ou directement à l'adresse <code>ahhamilton.ca/scan.html</code> depuis un téléphone. Pour l'utiliser, ouvrez la page, sélectionnez l'activité concernée dans le menu déroulant, puis pointez la caméra de votre téléphone vers le code QR du billet. Le résultat s'affiche instantanément en plein écran avec un code couleur :</p>
+
+<table>
+  <thead><tr><th>Couleur</th><th>Signification</th><th>Action à prendre</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge bg">VERT</span></td><td>Billet valide et payé</td><td>Laisser entrer la personne</td></tr>
+    <tr><td><span class="badge bv">VIOLET</span></td><td>Billet déjà scanné</td><td>Vérifier l'identité — possible doublon</td></tr>
+    <tr><td><span class="badge br">ROUGE</span></td><td>Billet introuvable ou invalide</td><td>Refuser l'entrée</td></tr>
+    <tr><td><span class="badge bo">ORANGE</span></td><td>Billet pour une autre activité</td><td>Rediriger la personne</td></tr>
+  </tbody>
+</table>
+
+<p>L'écran de résultat affiche le nom du porteur du billet, le numéro du billet, la table assignée (si applicable), le nom du vendeur et le prix payé. Touchez n'importe où sur l'écran pour fermer le résultat et scanner le billet suivant. Un champ de saisie manuelle est disponible sous la caméra pour entrer le code manuellement si la caméra ne fonctionne pas.</p>
 
 <h4>Scanner de cartes membres</h4>
-<p>Menu <strong>Scanner cartes</strong> — vérifie l'identité et la validité de la carte.</p>
-<ul>
-  <li>Scanne le QR de la carte → affiche le profil du membre</li>
-  <li>Permet de confirmer la présence à une activité</li>
-  <li>Membres du comité = entrée VIP gratuite partout</li>
-  <li>Membres réguliers = vérifie s'ils ont un billet (activité payante)</li>
-</ul>
+<p>Le scanner de cartes membres est accessible via le menu « Scanner cartes » dans le tableau de bord. Il fonctionne de manière similaire au scanner de billets, mais il lit le QR de la carte de membre. Après le scan, le profil complet du membre s'affiche : photo, nom, plan, statut de la carte (valide, expirée, sans photo). Vous pouvez ensuite confirmer la présence du membre à une activité spécifique.</p>
 
-<div class="tip">💡 <strong>Check-in croisé :</strong> si un membre a payé, il peut entrer avec son billet QR OU sa carte membre — les deux sont synchronisés.</div>
+<div class="important">📌 <strong>Check-in croisé :</strong> Le système synchronise automatiquement les billets et les cartes de membre. Si un membre a acheté un billet et que vous scannez sa carte de membre, le système trouvera son billet et le marquera comme utilisé. Inversement, si le billet QR est scanné, la carte de membre sera également marquée. Cela signifie qu'un membre avec un billet peut entrer en présentant l'un ou l'autre de ses QR codes — les deux fonctionnent.</div>
+
+<h4>Entrée VIP pour le comité</h4>
+<p>Les membres du comité exécutif (administrateur, trésorière, secrétaire, délégués) bénéficient d'une entrée gratuite à toutes les activités, y compris les activités payantes. Lorsque la carte d'un membre du comité est scannée, le système affiche « Comité (entrée VIP) » et le compte comme présent, sans exiger de billet.</p>
 
 <!-- 2.6 -->
-<h3 id="c-notes" class="page-break">2.6 Notes de réunion</h3>
-<p>Menu <strong>Notes réunion</strong> — prendre des notes en temps réel pendant les réunions.</p>
+<h3 id="c6" class="page-break">2.6 Gérer les finances</h3>
 
-<h4>Fonctionnalités</h4>
-<ul>
-  <li><strong>Éditeur format lettre</strong> — 8.5×11 avec en-tête AHH</li>
-  <li><strong>Auto-sauvegarde</strong> toutes les 1.5 secondes</li>
-  <li><strong>Images</strong> — coller, glisser ou uploader des images</li>
-  <li><strong>Pagination</strong> — indicateurs de page style Word en mode édition</li>
-  <li><strong>Lecture seule</strong> — les autres voient en temps réel (refresh 5s)</li>
-  <li><strong>Signature électronique</strong> — 2 signatures verrouillent la note</li>
-  <li><strong>Téléchargement PDF</strong> — avec en-tête et pied de page AHH</li>
-</ul>
+<p>La section Finance du tableau de bord regroupe tous les outils de gestion financière de l'association.</p>
+
+<h4>Paiements</h4>
+<p>Le menu « Paiements » affiche tous les paiements soumis par les membres (cotisations et dons). Les paiements en attente d'approbation apparaissent avec un badge orange. La trésorière peut consulter la preuve de paiement jointe (si fournie), puis approuver ou rejeter le paiement. Lorsqu'un paiement est approuvé, le membre reçoit un courriel de confirmation et un reçu fiscal est généré automatiquement.</p>
+
+<h4>Budget</h4>
+<p>Le menu « Budget » donne une vue d'ensemble des finances : le solde du compte, les revenus et dépenses par ligne budgétaire, et les transactions détaillées. Chaque activité crée automatiquement une ligne budgétaire dédiée lorsqu'elle est lancée.</p>
+
+<h4>Factures et reçus fiscaux</h4>
+<p>Les menus « Factures » et « Reçus fiscaux » permettent de générer et d'envoyer des documents officiels aux membres. Les reçus fiscaux peuvent être générés individuellement ou en lot pour tous les membres ayant effectué des paiements approuvés durant une année donnée.</p>
 
 <!-- 2.7 -->
-<h3 id="c-formulaires">2.7 Formulaires (sondages)</h3>
-<p>Menu <strong>Formulaires</strong> — créer des sondages comme Google Forms.</p>
+<h3 id="c7">2.7 Prendre des notes de réunion</h3>
 
-<h4>Créer un formulaire</h4>
-<div class="steps">
-  <div class="step">Cliquez <strong>+ Nouveau formulaire</strong></div>
-  <div class="step">Remplissez le titre, la description, uploadez une image</div>
-  <div class="step">Ajoutez des champs : texte, email, téléphone, liste déroulante, choix multiples, cases à cocher, nombre, date</div>
-  <div class="step">Cliquez <strong>Créer le formulaire</strong></div>
-</div>
+<p>Le menu « Notes réunion » est un outil collaboratif conçu pour les réunions du comité. Il permet de prendre des notes en temps réel dans un format professionnel reproduisant une feuille de papier 8,5 × 11 pouces avec l'en-tête et le pied de page officiels de l'AHH.</p>
 
-<h4>Partager le formulaire</h4>
-<p>Un lien public est généré automatiquement. Partagez-le via :</p>
-<ul>
-  <li>WhatsApp, Facebook, courriel, SMS</li>
-  <li>N'importe qui peut répondre — pas besoin d'un compte</li>
-</ul>
+<p>Pour créer une nouvelle note, cliquez sur « + Nouvelle note ». Un éditeur s'ouvre avec un titre auto-généré (« Note de [Votre nom] — [date] ») que vous pouvez modifier. L'éditeur fonctionne comme un traitement de texte : vous pouvez mettre du texte en gras, en italique, souligné, créer des listes, insérer des images par copier-coller ou glisser-déposer, et redimensionner les images insérées.</p>
 
-<h4>Voir les résultats</h4>
-<ul>
-  <li>Graphiques en barres pour les questions à choix</li>
-  <li>Tableau de données avec recherche et filtres</li>
-  <li>Export CSV pour Excel</li>
-</ul>
+<p>Les notes se sauvegardent automatiquement toutes les 1,5 secondes. Le statut de sauvegarde est affiché en bas de l'éditeur (« Modifications en cours... » en orange, puis « Sauvegardé automatiquement » en vert). Pendant que vous prenez des notes, les autres membres du comité peuvent voir la note en lecture seule avec un rafraîchissement toutes les 5 secondes.</p>
+
+<p>Un marqueur de session est automatiquement inséré au début de chaque session de prise de notes, indiquant le nom du rédacteur et la date. Si la note est reprise un autre jour, un nouveau marqueur est ajouté.</p>
+
+<p>Les notes peuvent être signées électroniquement par les membres du comité. Après deux signatures, la note est verrouillée et ne peut plus être modifiée, garantissant l'intégrité du procès-verbal. Chaque note peut être téléchargée en format PDF avec l'en-tête officiel de l'AHH.</p>
 
 <!-- 2.8 -->
-<h3 id="c-contenu">2.8 Gestion du contenu</h3>
-<table>
-  <thead><tr><th>Menu</th><th>Description</th></tr></thead>
-  <tbody>
-    <tr><td><strong>Galerie</strong></td><td>Uploader des photos par album/catégorie</td></tr>
-    <tr><td><strong>Talents</strong></td><td>Approuver/gérer les fiches de talents</td></tr>
-    <tr><td><strong>Annonces</strong></td><td>Approuver/gérer les petites annonces</td></tr>
-    <tr><td><strong>Documents</strong></td><td>Uploader des documents officiels avec signature</td></tr>
-    <tr><td><strong>Commanditaires</strong></td><td>Gérer les sponsors (logo, catégorie, lien)</td></tr>
-  </tbody>
-</table>
+<h3 id="c8" class="page-break">2.8 Créer des formulaires et sondages</h3>
+
+<p>Le menu « Formulaires » vous permet de créer des sondages et formulaires personnalisés, similaires à Google Forms, que vous pouvez partager avec n'importe qui — même les personnes qui ne sont pas membres de l'AHH.</p>
+
+<h4>Créer un formulaire</h4>
+<p>Cliquez sur « + Nouveau formulaire » et remplissez le titre et la description. Vous pouvez téléverser une image (par exemple l'affiche d'un événement) qui s'affichera en bannière sur le formulaire public. Ensuite, ajoutez des champs en cliquant sur « + Ajouter un champ ». Neuf types de champs sont disponibles :</p>
+
+<ul>
+  <li><strong>Texte</strong> — champ de saisie libre sur une ligne</li>
+  <li><strong>Zone de texte</strong> — champ de saisie multiligne</li>
+  <li><strong>Email</strong> — champ spécifique pour les adresses courriel</li>
+  <li><strong>Téléphone</strong> — champ spécifique pour les numéros de téléphone</li>
+  <li><strong>Nombre</strong> — champ numérique</li>
+  <li><strong>Date</strong> — sélecteur de date</li>
+  <li><strong>Liste déroulante</strong> — menu déroulant avec options prédéfinies</li>
+  <li><strong>Choix unique</strong> — boutons radio (une seule réponse possible)</li>
+  <li><strong>Cases à cocher</strong> — plusieurs réponses possibles</li>
+</ul>
+
+<p>Chaque champ peut être marqué comme obligatoire. Pour les listes déroulantes, choix uniques et cases à cocher, vous devez définir les options disponibles (une par ligne).</p>
+
+<h4>Partager le formulaire</h4>
+<p>Après la création, un lien public unique est généré automatiquement. Ce lien peut être partagé par WhatsApp, Facebook, courriel ou SMS. N'importe qui possédant le lien peut répondre au formulaire sans avoir besoin d'un compte sur la plateforme. Les coordonnées (nom et téléphone) sont obligatoires pour chaque répondant.</p>
+
+<p>Après la soumission, le répondant voit un message de remerciement personnalisable et, si l'option est activée, une invitation à devenir membre de l'AHH avec un lien vers la page d'inscription.</p>
+
+<h4>Consulter les résultats</h4>
+<p>Cliquez sur « Voir résultats » à côté du formulaire. La page de résultats affiche des cartes résumé (nombre total de réponses, nombre de champs, statut du formulaire), des graphiques en barres pour les questions à choix, et un tableau complet de toutes les réponses. Vous pouvez rechercher par nom ou par contenu, filtrer par date, trier les colonnes et exporter le tout en format CSV pour l'ouvrir dans Excel.</p>
 
 <!-- 2.9 -->
-<h3 id="c-outils" class="page-break">2.9 Outils et rapports</h3>
+<h3 id="c9" class="page-break">2.9 Gérer le contenu du site</h3>
 
-<h4>Tâches</h4>
-<p>Menu <strong>Tâches</strong> — Kanban avec 3 colonnes (À faire, En cours, Terminé).</p>
-<ul>
-  <li>Assigner une tâche à un membre (recherche par nom)</li>
-  <li>Le membre reçoit un courriel de notification</li>
-  <li>Filtres par assigné, priorité, catégorie</li>
-</ul>
+<p>La section « Contenu » du menu latéral donne accès aux différents types de contenu publiés sur le site public de l'AHH.</p>
 
-<h4>Calendrier réunions</h4>
-<p>Planifier les réunions avec date, lieu, lien virtuel, ordre du jour lié.</p>
+<p>La <strong>Galerie</strong> vous permet de téléverser des photos organisées par album et par catégorie. Chaque photo est automatiquement compressée lors de l'upload pour optimiser le temps de chargement du site. Les photos apparaissent sur la page publique « Galerie photos » du site.</p>
 
-<h4>Ordres du jour</h4>
-<p>Créer des ordres du jour avec points ordonnés, durée, responsable par item.</p>
+<p>Les <strong>Talents</strong> sont des fiches présentant les compétences et services offerts par les membres de la communauté (coiffure, mécanique, traduction, etc.). Le comité peut approuver, modifier ou retirer les fiches soumises par les membres.</p>
 
-<h4>Rapports et statistiques</h4>
-<ul>
-  <li><strong>Rapports</strong> — rapports détaillés par activité</li>
-  <li><strong>Statistiques</strong> — croissance, tendances</li>
-  <li><strong>Journal d'audit</strong> — connexions et actions de tous les membres</li>
-</ul>
+<p>Les <strong>Annonces</strong> sont les petites annonces publiées par les membres (vente d'objets, offres de services, recherche d'emploi). Comme pour les talents, le comité peut modérer les annonces.</p>
 
-<h4>Export et backup</h4>
-<ul>
-  <li><strong>Export CSV</strong> — membres, paiements, activités</li>
-  <li><strong>Backup</strong> — sauvegarde de la base de données (admin)</li>
-</ul>
+<p>Les <strong>Documents</strong> officiels peuvent être téléversés et signés électroniquement par les membres du comité. Chaque document peut nécessiter une ou plusieurs signatures avant d'être considéré comme officiel.</p>
 
-<h4>Countdown du site</h4>
-<p>Sur la page d'accueil du comité, section <strong>⏱ COUNTDOWN SITE</strong> :</p>
-<ul>
-  <li>Activer/désactiver le countdown sur le site public</li>
-  <li>Mode auto : affiche la prochaine activité</li>
-  <li>Mode manuel : texte et date personnalisés</li>
-</ul>
+<p>Les <strong>Commanditaires</strong> sont les sponsors et partenaires de l'association. Vous pouvez ajouter leur logo, leur nom, un lien vers leur site web et leur catégorie (Platine, Or, Argent, Bronze). Ils apparaissent dans la section « Commanditaires » du site public.</p>
 
 <!-- 2.10 -->
-<h3 id="c-delegation">2.10 Délégation de scan</h3>
-<p>Menu <strong>Déléguer un scanner</strong> — donner temporairement à un membre le droit de scanner.</p>
+<h3 id="c10">2.10 Les outils du comité</h3>
 
-<div class="steps">
-  <div class="step">Allez dans <strong>Scanners → Déléguer un scanner</strong></div>
-  <div class="step">Recherchez le membre par nom</div>
-  <div class="step">Choisissez le type : <strong>Billets</strong>, <strong>Cartes</strong>, ou <strong>Tous</strong></div>
-  <div class="step">Définissez la date d'expiration</div>
-  <div class="step">Le scanner apparaît automatiquement dans le sidebar du membre (refresh 30s)</div>
-</div>
+<p>La section « Outils » regroupe des fonctionnalités de productivité pour le comité.</p>
 
-<h4>Révoquer</h4>
-<p>Cliquez <strong>Révoquer</strong> sur la délégation — le scanner disparaît du sidebar du membre automatiquement.</p>
+<h4>Tâches</h4>
+<p>Le gestionnaire de tâches fonctionne comme un tableau Kanban avec trois colonnes : « À faire », « En cours » et « Terminé ». Vous pouvez créer une tâche, lui assigner un responsable (en tapant son nom dans la barre de recherche), définir une priorité (haute, moyenne, basse), une catégorie et une date d'échéance. Lorsqu'une tâche est assignée, le membre responsable reçoit un courriel de notification avec les détails de la tâche et un lien vers le tableau de bord.</p>
 
-<div class="section-divider"></div>
+<h4>Calendrier des réunions</h4>
+<p>Planifiez vos réunions avec une date, un lieu, un lien virtuel (pour les réunions en ligne) et un ordre du jour lié. Les réunions apparaissent dans le calendrier du comité.</p>
 
-<!-- ANNEXE -->
-<h2 class="page-break">Annexes</h2>
+<h4>Ordres du jour</h4>
+<p>Créez des ordres du jour structurés pour vos réunions avec des points numérotés, la durée prévue pour chaque point et le responsable de chaque sujet. L'ordre du jour peut être lié à une réunion et partagé avec les membres du comité.</p>
 
-<h3>A. Raccourcis utiles</h3>
+<h4>Rapports et statistiques</h4>
+<p>Le menu « Rapports » offre des rapports détaillés par activité (billets vendus, présences, revenus). Le menu « Statistiques » montre les tendances de croissance de l'association. Le menu « Journal d'audit » permet de voir toutes les connexions et actions des membres, avec recherche, filtres et tri.</p>
+
+<h4>Export et sauvegarde</h4>
+<p>Le menu « Export / Backup » permet de télécharger les données de l'association en format CSV (membres, paiements, activités) pour les analyser dans Excel. L'administrateur peut également créer des sauvegardes complètes de la base de données.</p>
+
+<h4>Contrôle du countdown</h4>
+<p>Sur la page d'accueil du comité, la section « Countdown site » permet de contrôler le compteur à rebours affiché sur le site public. Vous pouvez l'activer ou le désactiver, choisir le mode automatique (affiche la prochaine activité) ou le mode manuel (texte et date personnalisés).</p>
+
+<!-- 2.11 -->
+<h3 id="c11" class="page-break">2.11 Déléguer l'accès au scanner</h3>
+
+<p>Lors des événements importants, le comité peut avoir besoin de personnel supplémentaire pour scanner les billets et les cartes à l'entrée. La fonctionnalité de délégation de scan permet de donner temporairement ce droit à un membre régulier de l'association.</p>
+
+<p>Pour créer une délégation, rendez-vous dans le menu « Déléguer un scanner » de la section Scanners. Recherchez le membre par son nom, sélectionnez l'activité concernée (ou toutes les activités), choisissez le type de scan autorisé (billets uniquement, cartes uniquement, ou les deux) et définissez une date d'expiration. Le membre délégué verra automatiquement le ou les scanners apparaître dans son menu latéral dans les 30 secondes suivant la création de la délégation, sans avoir besoin de se déconnecter et reconnecter.</p>
+
+<p>Pour révoquer une délégation, retournez dans le menu « Déléguer un scanner » et cliquez sur « Révoquer » à côté de la délégation concernée. Le scanner disparaîtra automatiquement du menu du membre délégué au prochain rafraîchissement.</p>
+
+<p>Toutes les actions des scanners (qu'elles soient effectuées par le comité ou par un membre délégué) sont enregistrées dans le journal des scans, accessible via le menu ⋮ de chaque activité. Ce journal permet de savoir qui a scanné quel billet, à quelle heure, et avec quel résultat.</p>
+
+<div class="divider"></div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- ANNEXES -->
+<!-- ═══════════════════════════════════════════════ -->
+<h2 id="annexes" class="page-break">Annexes</h2>
+
+<h3>A. Adresses utiles de la plateforme</h3>
 <table>
-  <thead><tr><th>Action</th><th>URL</th></tr></thead>
+  <thead><tr><th>Page</th><th>Adresse</th><th>Accès</th></tr></thead>
   <tbody>
-    <tr><td>Site public</td><td>ahhamilton.ca</td></tr>
-    <tr><td>Connexion</td><td>ahhamilton.ca/dashboard/login.html</td></tr>
-    <tr><td>Scanner billets</td><td>ahhamilton.ca/scan.html</td></tr>
-    <tr><td>Carte membre</td><td>ahhamilton.ca/carte.html?id=VOTRE_ID</td></tr>
-    <tr><td>Calendrier iCal</td><td>ahhamilton.ca/api/calendar/feed.ics</td></tr>
-    <tr><td>Sitemap</td><td>ahhamilton.ca/sitemap.xml</td></tr>
+    <tr><td>Site public</td><td><code>ahhamilton.ca</code></td><td>Tout le monde</td></tr>
+    <tr><td>Page de connexion</td><td><code>ahhamilton.ca/dashboard/login.html</code></td><td>Tout le monde</td></tr>
+    <tr><td>Tableau de bord</td><td><code>ahhamilton.ca/dashboard/app.html</code></td><td>Membres connectés</td></tr>
+    <tr><td>Scanner de billets</td><td><code>ahhamilton.ca/scan.html</code></td><td>Comité + délégués</td></tr>
+    <tr><td>Carte de membre</td><td><code>ahhamilton.ca/carte.html?id=VOTRE_ID</code></td><td>Membre concerné</td></tr>
+    <tr><td>Calendrier iCal</td><td><code>ahhamilton.ca/api/calendar/feed.ics</code></td><td>Tout le monde</td></tr>
+    <tr><td>Page d'adhésion</td><td><code>ahhamilton.ca/adhesion.html</code></td><td>Tout le monde</td></tr>
+    <tr><td>Documentation billets</td><td><code>ahhamilton.ca/Public/doc-billets-cartes.html</code></td><td>Tout le monde</td></tr>
   </tbody>
 </table>
 
-<h3>B. Codes couleur des scans</h3>
+<h3>B. Plans d'adhésion</h3>
 <table>
-  <thead><tr><th>Couleur</th><th>Signification</th><th>Action</th></tr></thead>
+  <thead><tr><th>Plan</th><th>Mensuel</th><th>Annuel</th><th>Avantages</th></tr></thead>
   <tbody>
-    <tr><td><span class="badge badge-green">VERT</span></td><td>Billet valide</td><td>Laisser entrer</td></tr>
-    <tr><td><span style="background:#f3e5f5;color:#6a1b9a;padding:2px 10px;border-radius:10px;font-size:.72rem;font-weight:700">VIOLET</span></td><td>Déjà scanné</td><td>Vérifier identité</td></tr>
-    <tr><td><span class="badge badge-red">ROUGE</span></td><td>Introuvable / Invalide</td><td>Refuser</td></tr>
-    <tr><td><span class="badge badge-orange">ORANGE</span></td><td>Mauvaise activité</td><td>Rediriger</td></tr>
+    <tr><td><span class="badge bg">Gratuit</span></td><td>0 $</td><td>0 $</td><td>Accès aux activités gratuites, messagerie, forum</td></tr>
+    <tr><td><span class="badge bo">Bienfaiteur</span></td><td>10 $</td><td>100 $ (2 mois offerts)</td><td>Tout du Gratuit + talents, annonces, rabais événements</td></tr>
+    <tr><td><span class="badge bb">Partenaire</span></td><td>20 $</td><td>200 $ (2 mois offerts)</td><td>Tout du Bienfaiteur + priorité événements</td></tr>
   </tbody>
 </table>
 
-<h3>C. Contact support</h3>
-<ul>
-  <li><strong>Courriel :</strong> info@ahhamilton.ca</li>
-  <li><strong>Téléphone :</strong> 905-818-8269 / 905-519-7967</li>
-  <li><strong>Adresse :</strong> 231 Fernwood Crescent, Hamilton, ON L8T 3L7</li>
-</ul>
+<h3>C. Foire aux questions</h3>
 
-<div style="margin-top:40px;padding-top:16px;border-top:2px solid #1b5e20;text-align:center;font-size:.78rem;color:#888">
-  <p>Association Haïtienne de Hamilton — Hamilton, Ontario, Canada</p>
-  <p>Document généré le <script>document.write(new Date().toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'}))</script></p>
-  <p style="margin-top:8px;font-size:.72rem">© 2026 AHH — Tous droits réservés</p>
+<h4>Comment changer mon mot de passe ?</h4>
+<p>Rendez-vous dans votre profil (menu « Mon profil ») et utilisez la section « Modifier le mot de passe ». Si vous avez oublié votre mot de passe, utilisez le lien « Mot de passe oublié » sur la page de connexion.</p>
+
+<h4>Comment ajouter ma photo sur ma carte de membre ?</h4>
+<p>Allez dans « Mon profil » et uploadez une photo de profil. La photo doit être approuvée par le comité avant d'apparaître sur votre carte. Alternativement, un membre du comité peut prendre votre photo directement lors d'un événement à l'aide du scanner de cartes.</p>
+
+<h4>Comment savoir si ma cotisation est à jour ?</h4>
+<p>Le badge en haut de votre tableau de bord indique le statut de votre cotisation. Vert signifie « À jour », orange signifie « En attente de validation » et rouge signifie « Due ».</p>
+
+<h4>Comment contacter le comité ?</h4>
+<p>Vous pouvez envoyer un message via la messagerie interne (menu « Courriel »), ou contacter directement le comité par courriel à <code>info@ahhamilton.ca</code> ou par téléphone au 905-818-8269.</p>
+
+<h4>Comment ajouter les activités AHH à mon calendrier Google ?</h4>
+<p>Ouvrez Google Agenda, cliquez sur « Ajouter d'autres agendas » → « À partir d'une URL » et collez l'adresse suivante : <code>https://ahhamilton.ca/api/calendar/feed.ics</code>. Les activités planifiées de l'AHH apparaîtront automatiquement dans votre calendrier et se mettront à jour régulièrement.</p>
+
+<div class="divider"></div>
+
+<div style="text-align:center;padding:30px 0">
+  <img src="/Public/logo1.png" alt="AHH" style="height:60px;margin-bottom:14px" onerror="this.style.display='none'"/>
+  <p style="font-size:.95rem;font-weight:700;color:#1b5e20;margin-bottom:6px">Association Haïtienne de Hamilton</p>
+  <p style="font-size:.82rem;color:#888">231 Fernwood Crescent · Hamilton, ON L8T 3L7</p>
+  <p style="font-size:.82rem;color:#888">info@ahhamilton.ca · 905-818-8269</p>
+  <p style="font-size:.78rem;color:#aaa;margin-top:16px">Document généré le <script>document.write(new Date().toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'}))</script></p>
+  <p style="font-size:.72rem;color:#bbb;margin-top:4px">© 2026 AHH — Tous droits réservés</p>
 </div>
 
 </div>
