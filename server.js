@@ -8255,7 +8255,30 @@ app.post('/api/scan/unified', authMiddleware, (req, res) => {
     // Activity selected → mark presence
     const act = db.prepare('SELECT * FROM activities WHERE id=?').get(parseInt(activity_id));
     if (!act) {
-      return res.json({ ok: false, type: 'carte', status: 'invalide', nom: nomMembre, message: 'Activité introuvable' });
+      db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details) VALUES (?,?,?,?,?)")
+        .run(parseInt(activity_id), req.user.id, qr_data, 'invalide', nomMembre + ' | Activité introuvable');
+      return res.json({ ok: false, type: 'carte', status: 'invalide', nom: nomMembre, message: 'Activité introuvable ou supprimée', activite: 'Activité #' + activity_id, photo_url: member.photo_url || '' });
+    }
+    if (act.statut === 'annulee') {
+      db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details) VALUES (?,?,?,?,?)")
+        .run(parseInt(activity_id), req.user.id, qr_data, 'invalide', nomMembre + ' | Activité annulée: ' + act.titre);
+      return res.json({ ok: false, type: 'carte', status: 'invalide', nom: nomMembre, message: 'Activité « ' + act.titre + ' » annulée', activite: act.titre, photo_url: member.photo_url || '' });
+    }
+    // Vérifier date du jour pour carte + activité sélectionnée
+    if (act.date_debut) {
+      const nowToCard = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Toronto'}));
+      const actDateCard = new Date(act.date_debut);
+      const diffHCard = Math.abs(nowToCard.getTime() - actDateCard.getTime()) / (1000 * 60 * 60);
+      if (diffHCard > 26) {
+        const isPastCard = actDateCard < nowToCard;
+        db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details) VALUES (?,?,?,?,?)")
+          .run(parseInt(activity_id), req.user.id, qr_data, 'invalide', nomMembre + ' | Activité ' + (isPastCard ? 'passée' : 'future'));
+        return res.json({
+          ok: false, type: 'carte', status: 'invalide', nom: nomMembre,
+          message: isPastCard ? 'Activité « ' + act.titre + ' » terminée' : 'Activité « ' + act.titre + ' » pas encore commencée',
+          activite: act.titre, photo_url: member.photo_url || '', plan: member.plan || 'gratuit', carte_valide: carteValide, is_comite: isExecMember
+        });
+      }
     }
 
     // Check card validity — photo obligatoire pour TOUS (y compris comité)
