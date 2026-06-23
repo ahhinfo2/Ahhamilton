@@ -299,7 +299,17 @@
       <div class="history-title">Historique de la session</div>
       <div id="histList"></div>
     </div>
+    <button id="histFullBtn" style="display:none;width:100%;padding:10px;background:#222;color:#fff;border:none;border-top:1px solid #333;font-size:.78rem;cursor:pointer;font-weight:600" onclick="_showFullHistory()">📋 Voir tout l'historique</button>
   </div>
+</div>
+
+<!-- Page historique plein écran -->
+<div id="histFullPage" style="display:none;position:fixed;inset:0;z-index:600;background:#111;overflow-y:auto">
+  <div style="background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:1">
+    <div style="color:#fff;font-weight:700;font-size:.95rem">📋 Historique complet</div>
+    <button onclick="document.getElementById('histFullPage').style.display='none'" style="background:rgba(255,255,255,.2);border:none;color:#fff;padding:6px 14px;border-radius:8px;cursor:pointer;font-size:.82rem">← Retour au scanner</button>
+  </div>
+  <div id="histFullList" style="padding:12px"></div>
 </div>
 
 <!-- Sons -->
@@ -650,11 +660,13 @@ function addHistory(type, nom, meta, fullData) {
 function _renderHistory() {
   var box = document.getElementById('historyBox');
   var list = document.getElementById('histList');
+  var fullBtn = document.getElementById('histFullBtn');
   if (!box || !list) return;
   box.style.display = 'block';
+  if (fullBtn) fullBtn.style.display = history.length > 0 ? 'block' : 'none';
+  var preview = history.slice(0, 5);
   list.innerHTML = '<div style="font-size:.65rem;color:rgba(255,255,255,.3);margin-bottom:4px;text-align:right">' + history.length + ' scan(s)</div>' +
-    history.map(function(h, i) {
-      var icon = h.type === 'ok' ? '✅' : h.type === 'vip' ? '👑' : h.type === 'dup' ? '🔄' : '❌';
+    preview.map(function(h, i) {
       var isCarte = h.fullData && h.fullData.type === 'carte';
       var label = isCarte ? '🪪' : '🎟';
       return '<div class="hist-item" style="cursor:pointer" onclick="_replayHistory(' + i + ')">' +
@@ -666,6 +678,54 @@ function _renderHistory() {
         '<div style="color:rgba(255,255,255,.3);font-size:.7rem">›</div>' +
       '</div>';
     }).join('');
+}
+
+function _showFullHistory() {
+  var page = document.getElementById('histFullPage');
+  var list = document.getElementById('histFullList');
+  if (!page || !list) return;
+  page.style.display = 'block';
+
+  var stats = { ok:0, vip:0, dup:0, err:0 };
+  history.forEach(function(h) { stats[h.type] = (stats[h.type]||0) + 1; });
+
+  var html = '<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">' +
+    '<div style="background:rgba(46,125,50,.2);padding:8px 16px;border-radius:10px;text-align:center;flex:1;min-width:70px"><div style="font-size:1.2rem;font-weight:800;color:#66bb6a">' + (stats.ok + stats.vip) + '</div><div style="font-size:.65rem;color:rgba(255,255,255,.5)">Valides</div></div>' +
+    '<div style="background:rgba(206,147,216,.2);padding:8px 16px;border-radius:10px;text-align:center;flex:1;min-width:70px"><div style="font-size:1.2rem;font-weight:800;color:#ce93d8">' + stats.dup + '</div><div style="font-size:.65rem;color:rgba(255,255,255,.5)">Doublons</div></div>' +
+    '<div style="background:rgba(239,83,80,.2);padding:8px 16px;border-radius:10px;text-align:center;flex:1;min-width:70px"><div style="font-size:1.2rem;font-weight:800;color:#ef5350">' + stats.err + '</div><div style="font-size:.65rem;color:rgba(255,255,255,.5)">Refusés</div></div>' +
+    '<div style="background:rgba(255,255,255,.1);padding:8px 16px;border-radius:10px;text-align:center;flex:1;min-width:70px"><div style="font-size:1.2rem;font-weight:800;color:#fff">' + history.length + '</div><div style="font-size:.65rem;color:rgba(255,255,255,.5)">Total</div></div>' +
+  '</div>';
+
+  html += history.map(function(h, i) {
+    var isCarte = h.fullData && h.fullData.type === 'carte';
+    var label = isCarte ? '🪪 Carte' : '🎟 Billet';
+    var statusIcon = h.type === 'ok' ? '✅' : h.type === 'vip' ? '👑' : h.type === 'dup' ? '🔄' : '❌';
+    var bgColor = h.type === 'ok' ? 'rgba(46,125,50,.15)' : h.type === 'vip' ? 'rgba(26,35,126,.15)' : h.type === 'dup' ? 'rgba(106,26,117,.15)' : 'rgba(198,40,40,.15)';
+    var details = '';
+    if (h.fullData) {
+      var d = h.fullData;
+      if (d.activite) details += '🎉 ' + d.activite + '<br>';
+      if (d.barcode) details += '🔢 ' + d.barcode + '<br>';
+      if (d.plan) details += '🪪 ' + d.plan + '<br>';
+      if (d.total_billets > 0) details += '🎟 ' + (d.total_billets - (d.billets_restants||0)) + '/' + d.total_billets + ' billets<br>';
+      if (d.table_numero) details += '🪑 Table ' + d.table_numero + '<br>';
+      if (d.prix) details += '💵 ' + parseFloat(d.prix).toFixed(2) + ' $<br>';
+    }
+    return '<div style="background:' + bgColor + ';border-radius:10px;padding:12px 14px;margin-bottom:8px;cursor:pointer" onclick="_replayHistory(' + i + ');document.getElementById(\'histFullPage\').style.display=\'none\'">' +
+      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:' + (details ? '8' : '0') + 'px">' +
+        '<span style="font-size:1.4rem">' + statusIcon + '</span>' +
+        '<div style="flex:1">' +
+          '<div style="font-weight:700;color:#fff;font-size:.9rem">' + h.nom + '</div>' +
+          '<div style="font-size:.72rem;color:rgba(255,255,255,.5)">' + h.time + ' · ' + label + ' · ' + h.meta + '</div>' +
+        '</div>' +
+      '</div>' +
+      (details ? '<div style="font-size:.78rem;color:rgba(255,255,255,.6);padding-left:36px;line-height:1.6">' + details + '</div>' : '') +
+    '</div>';
+  }).join('');
+
+  if (history.length === 0) html = '<div style="text-align:center;color:rgba(255,255,255,.4);padding:60px 0"><div style="font-size:2.5rem;margin-bottom:12px">📋</div><div>Aucun scan dans cette session</div></div>';
+
+  list.innerHTML = html;
 }
 
 function _replayHistory(idx) {
