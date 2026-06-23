@@ -642,22 +642,30 @@ function showResultUnified(cls, icon, statusText, data) {
 
 // ── Historique ────────────────────────────────────────────────────────────────
 function addHistory(type, nom, meta, fullData) {
-  history.unshift({ type, nom, meta, fullData: fullData || {}, time: new Date().toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'}) });
-  if (history.length > 20) history.pop();
+  history.unshift({ type, nom, meta, fullData: fullData || {}, time: new Date().toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit',timeZone:'America/Toronto'}) });
+  if (history.length > 50) history.pop();
+  _renderHistory();
+}
 
+function _renderHistory() {
   var box = document.getElementById('historyBox');
   var list = document.getElementById('histList');
+  if (!box || !list) return;
   box.style.display = 'block';
-  list.innerHTML = history.map(function(h, i) {
-    return '<div class="hist-item" style="cursor:pointer" onclick="_replayHistory(' + i + ')">' +
-      '<div class="hist-dot ' + h.type + '"></div>' +
-      '<div class="hist-info">' +
-        '<div class="hist-name">' + h.nom + '</div>' +
-        '<div class="hist-meta">' + h.time + ' · ' + h.meta + '</div>' +
-      '</div>' +
-      '<div style="color:rgba(255,255,255,.3);font-size:.7rem">›</div>' +
-    '</div>';
-  }).join('');
+  list.innerHTML = '<div style="font-size:.65rem;color:rgba(255,255,255,.3);margin-bottom:4px;text-align:right">' + history.length + ' scan(s)</div>' +
+    history.map(function(h, i) {
+      var icon = h.type === 'ok' ? '✅' : h.type === 'vip' ? '👑' : h.type === 'dup' ? '🔄' : '❌';
+      var isCarte = h.fullData && h.fullData.type === 'carte';
+      var label = isCarte ? '🪪' : '🎟';
+      return '<div class="hist-item" style="cursor:pointer" onclick="_replayHistory(' + i + ')">' +
+        '<div class="hist-dot ' + h.type + '"></div>' +
+        '<div class="hist-info">' +
+          '<div class="hist-name">' + label + ' ' + h.nom + '</div>' +
+          '<div class="hist-meta">' + h.time + ' · ' + h.meta + '</div>' +
+        '</div>' +
+        '<div style="color:rgba(255,255,255,.3);font-size:.7rem">›</div>' +
+      '</div>';
+    }).join('');
 }
 
 function _replayHistory(idx) {

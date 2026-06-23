@@ -8171,14 +8171,22 @@ app.post('/api/scan/unified', authMiddleware, (req, res) => {
       else if (expired && !isExecMember) { cardStatus = 'invalide'; cardMessage = 'Carte expirée (depuis le ' + expiration + ')'; }
       if (cardStatus !== 'invalide' && isExecMember) { cardStatus = 'vip'; cardMessage = 'Membre du comité — ' + member.role; }
 
-      // Charger les activités du membre pour affichage
+      // Charger les activités du jour uniquement (±2h flexibilité pour minuit)
+      // Heure de Toronto
+      const nowToronto = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Toronto'}));
+      const todayStr = nowToronto.toISOString().slice(0, 10);
+      const yesterdayStr = new Date(nowToronto.getTime() - 2*60*60*1000).toISOString().slice(0, 10);
+      const tomorrowStr = new Date(nowToronto.getTime() + 2*60*60*1000).toISOString().slice(0, 10);
       const memberActivities = db.prepare(`
         SELECT a.id, a.titre, a.date_debut, a.lieu, a.prix, a.paiement_requis,
           (SELECT statut FROM activity_registrations WHERE activity_id=a.id AND user_id=? LIMIT 1) AS reg_statut,
           (SELECT checked_in FROM activity_registrations WHERE activity_id=a.id AND user_id=? LIMIT 1) AS reg_checked_in,
           (SELECT COUNT(*) FROM tickets WHERE activity_id=a.id AND (user_id=? OR acheteur_email=?) AND payment_status='paid' AND statut='actif') AS nb_billets
-        FROM activities a WHERE a.statut IN ('planifiee','en_cours') ORDER BY a.date_debut LIMIT 20
-      `).all(userId, userId, userId, member.email);
+        FROM activities a
+        WHERE a.statut IN ('planifiee','en_cours')
+          AND substr(a.date_debut, 1, 10) BETWEEN ? AND ?
+        ORDER BY a.date_debut LIMIT 20
+      `).all(userId, userId, userId, member.email, yesterdayStr, tomorrowStr);
 
       db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details) VALUES (?,?,?,?,?)")
         .run(null, req.user.id, qr_data, cardStatus === 'vip' ? 'valide' : cardStatus, nomMembre + ' | carte');
