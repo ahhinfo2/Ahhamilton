@@ -357,6 +357,12 @@ async function buildSidebar() {
       { id:'forms-mgmt',        icon:'📋', label:'Formulaires',        roles:EXEC },
     ]},
 
+    // ── Opportunités ─────────────────────────────────────────────
+    { label: '💼 Opportunités', items: [
+      { id:'young-jobs',      icon:'💼', label:'Stages & emplois',  roles: ALL },
+      { id:'young-trainings', icon:'📚', label:'Formations',        roles: ALL },
+    ]},
+
     // ── Contenu ───────────────────────────────────────────────────
     { label: 'Contenu', items: [
       { id:'gallery_mgmt',      icon:'◎', label:'Galerie',          roles:['admin','secretaire'] },
