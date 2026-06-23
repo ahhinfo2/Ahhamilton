@@ -117,6 +117,7 @@ try { db.exec('ALTER TABLE users ADD COLUMN notif_activites INTEGER DEFAULT 1');
 try { db.exec('ALTER TABLE users ADD COLUMN notif_paiements INTEGER DEFAULT 1'); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN notif_messages INTEGER DEFAULT 1'); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN notif_forum INTEGER DEFAULT 1'); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN notif_emplois INTEGER DEFAULT 1'); } catch {}
 // Carte de membre numérique
 try { db.exec('ALTER TABLE users ADD COLUMN carte_photo_approuvee INTEGER DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN carte_notif_renouv INTEGER DEFAULT 0'); } catch {}

@@ -6022,14 +6022,14 @@ app.post('/api/referral/use/:code', (req, res) => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 app.get('/api/member/notif-prefs', authMiddleware, (req, res) => {
-  const u = db.prepare('SELECT notif_activites, notif_paiements, notif_messages, notif_forum FROM users WHERE id=?').get(req.user.id);
-  res.json(u || { notif_activites:1, notif_paiements:1, notif_messages:1, notif_forum:1 });
+  const u = db.prepare('SELECT notif_activites, notif_paiements, notif_messages, notif_forum, notif_emplois FROM users WHERE id=?').get(req.user.id);
+  res.json(u || { notif_activites:1, notif_paiements:1, notif_messages:1, notif_forum:1, notif_emplois:1 });
 });
 
 app.put('/api/member/notif-prefs', authMiddleware, (req, res) => {
-  const { notif_activites, notif_paiements, notif_messages, notif_forum } = req.body;
-  db.prepare('UPDATE users SET notif_activites=?, notif_paiements=?, notif_messages=?, notif_forum=? WHERE id=?')
-    .run(notif_activites?1:0, notif_paiements?1:0, notif_messages?1:0, notif_forum?1:0, req.user.id);
+  const { notif_activites, notif_paiements, notif_messages, notif_forum, notif_emplois } = req.body;
+  db.prepare('UPDATE users SET notif_activites=?, notif_paiements=?, notif_messages=?, notif_forum=?, notif_emplois=? WHERE id=?')
+    .run(notif_activites?1:0, notif_paiements?1:0, notif_messages?1:0, notif_forum?1:0, notif_emplois?1:0, req.user.id);
   res.json({ ok: true });
 });
 

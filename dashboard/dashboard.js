@@ -11583,6 +11583,7 @@ async function notifPrefsView() {
     { key:'notif_paiements', icon:'💳', label:'Paiements & cotisations', desc:'Confirmations de paiement, rappels, reçus fiscaux' },
     { key:'notif_messages',  icon:'✉️', label:'Messages',               desc:'Messages reçus de l\'équipe ou d\'autres membres' },
     { key:'notif_forum',     icon:'💬', label:'Forum',                  desc:'Nouvelles réponses à vos sujets' },
+    { key:'notif_emplois',   icon:'💼', label:'Offres d\'emploi',       desc:'Nouvelles offres d\'emploi et stages à Hamilton' },
   ];
   setContent(`
     <div class="page-header"><div><h2>🔔 Préférences de notification</h2><p>Choisissez les communications que vous souhaitez recevoir</p></div></div>
@@ -11619,6 +11620,7 @@ async function notifPrefsSave() {
     notif_paiements: document.getElementById('notif_notif_paiements')?.checked ? 1 : 0,
     notif_messages:  document.getElementById('notif_notif_messages')?.checked  ? 1 : 0,
     notif_forum:     document.getElementById('notif_notif_forum')?.checked      ? 1 : 0,
+    notif_emplois:   document.getElementById('notif_notif_emplois')?.checked    ? 1 : 0,
   };
   try {
     await api('/member/notif-prefs', { method:'PUT', body: JSON.stringify(body) });
