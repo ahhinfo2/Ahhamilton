@@ -11018,87 +11018,187 @@ async function carteMembeSave() {
 // GESTION DES CARTES DE MEMBRE (comité)
 // ══════════════════════════════════════════════════════════════════════════════
 async function carteGestionView() {
-  const membres = await api('/admin/cartes').catch(() => []);
+  const [membres, connexions] = await Promise.all([
+    api('/admin/cartes').catch(() => []),
+    api('/stats/connexions').catch(() => [])
+  ]);
+  const connMap = {};
+  connexions.forEach(function(c) { connMap[c.id] = c; });
+  window._carteMembers = membres;
   const planLabel = { gratuit:'Gratuit', bienfaiteur:'Bienfaiteur', partenaire:'Partenaire' };
+  const roleLabel = { admin:'Admin', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Délégué', member:'Membre' };
 
   setContent(`
     <div class="page-header">
-      <div><h2>🪪 Gestion des cartes membres</h2><p>Approuver les photos · Gérer les expirations · Renouveler</p></div>
+      <div><h2>🪪 Gestion des cartes membres</h2><p>Photos · Expirations · Connexions · Profils</p></div>
       <div class="page-actions"><button class="btn btn-outline" onclick="carteGestionView()">↻ Actualiser</button></div>
     </div>
-    <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
-      <button class="btn btn-sm ${window._carteFilter==='all'||!window._carteFilter?'btn-primary':'btn-ghost'}" onclick="window._carteFilter='all';carteGestionView()">Tous (${membres.length})</button>
-      <button class="btn btn-sm ${window._carteFilter==='expire'?'btn-primary':'btn-ghost'}" onclick="window._carteFilter='expire';carteGestionView()" style="color:#c62828">Expirés / ≤30j (${membres.filter(m=>m.days_left!==null&&m.days_left<=30).length})</button>
-      <button class="btn btn-sm ${window._carteFilter==='photo'?'btn-primary':'btn-ghost'}" onclick="window._carteFilter='photo';carteGestionView()">Photo à approuver (${membres.filter(m=>m.photo_url&&!m.carte_photo_approuvee).length})</button>
+    <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+      <input type="text" id="cgSearch" placeholder="🔍 Rechercher nom, email, rôle..." oninput="_cgFilter()" style="flex:1;min-width:200px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:.84rem"/>
+      <select id="cgRole" onchange="_cgFilter()" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:.84rem">
+        <option value="">Tous les rôles</option>
+        <option value="admin">Admin</option>
+        <option value="tresoriere">Trésorière</option>
+        <option value="secretaire">Secrétaire</option>
+        <option value="delegue">Délégué</option>
+        <option value="member">Membre</option>
+      </select>
+      <select id="cgPhoto" onchange="_cgFilter()" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:.84rem">
+        <option value="">Toutes photos</option>
+        <option value="none">Sans photo</option>
+        <option value="pending">En attente</option>
+        <option value="approved">Approuvée</option>
+      </select>
+      <select id="cgPlan" onchange="_cgFilter()" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:.84rem">
+        <option value="">Tous plans</option>
+        <option value="gratuit">Gratuit</option>
+        <option value="bienfaiteur">Bienfaiteur</option>
+        <option value="partenaire">Partenaire</option>
+      </select>
     </div>
+    <div id="cgCount" style="font-size:.78rem;color:var(--muted);margin-bottom:8px">${membres.length} membre(s)</div>
     <div class="table-card">
-      <table class="data-table">
+      <div style="overflow-x:auto"><table class="data-table">
         <thead><tr>
-          <th>Membre</th><th>Plan</th><th>Photo</th><th>Expiration</th><th>Statut</th><th>Actions</th>
+          <th>Membre</th><th>Rôle</th><th>Plan</th><th>Photo</th><th>Expiration</th><th>Connexions</th><th>Dernière connexion</th><th>Actions</th>
         </tr></thead>
-        <tbody>
-          ${membres.filter(m => {
-            const f = window._carteFilter || 'all';
-            if (f === 'expire') return m.days_left !== null && m.days_left <= 30;
-            if (f === 'photo') return m.photo_url && !m.carte_photo_approuvee;
-            return true;
-          }).map(m => {
+        <tbody id="cgBody">
+          ${membres.map(function(m) {
+            const conn = connMap[m.id] || {};
             const dj = m.days_left;
-            const statusBadge = !m.expiration ? '<span style="color:var(--muted)">–</span>'
+            const initials = ((m.prenom||'?')[0] + ((m.nom||'')[0]||'')).toUpperCase();
+            const photoStatus = m.photo_url
+              ? (m.carte_photo_approuvee ? 'approved' : 'pending')
+              : 'none';
+            const photoLabel = photoStatus === 'approved' ? '<span style="color:#2e7d32;font-size:.78rem">✅ Approuvée</span>'
+              : photoStatus === 'pending' ? '<span style="color:#e65100;font-size:.78rem;font-weight:700">⏳ En attente</span>'
+              : '<span style="color:var(--muted);font-size:.78rem">Aucune</span>';
+            const statusBadge = !m.expiration ? '–'
               : dj < 0 ? '<span style="color:#c62828;font-weight:700">⛔ Expirée</span>'
-              : dj <= 30 ? `<span style="color:#e65100;font-weight:700">⚠️ ${dj}j restants</span>`
-              : `<span style="color:#2e7d32">✅ ${dj}j</span>`;
-            return `<tr>
-              <td>
-                <div style="display:flex;align-items:center;gap:8px">
-                  ${m.photo_url
-                    ? `<img src="${BASE}${m.photo_url}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid ${m.carte_photo_approuvee?'#2e7d32':'#e65100'}"/>`
-                    : `<div style="width:32px;height:32px;border-radius:50%;background:var(--g2);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700">${(m.prenom||'?')[0]}${(m.nom||'')[0]||''}</div>`}
-                  <div>
-                    <div style="font-weight:600;font-size:.85rem">${escHtml(m.prenom)} ${escHtml(m.nom)}${m.role!=='member'?` <span style="font-size:.65rem;background:#e8f0fe;color:#1565c0;border-radius:4px;padding:1px 5px;font-weight:700">${m.role}</span>`:''}</div>
-                    <div style="font-size:.72rem;color:var(--muted)">#${String(m.id).padStart(5,'0')}</div>
-                  </div>
-                </div>
-              </td>
-              <td>${planLabel[m.plan]||m.plan}</td>
-              <td>${m.photo_url
-                  ? (m.carte_photo_approuvee
-                    ? '<span style="color:#2e7d32;font-size:.8rem">✅ Approuvée</span>'
-                    : `<span style="color:#e65100;font-size:.8rem;font-weight:700">⏳ En attente</span>`)
-                  : '<span style="color:var(--muted);font-size:.8rem">Aucune</span>'}</td>
-              <td style="font-size:.82rem">${m.expiration ? fmt(m.expiration) : '–'}</td>
-              <td>${statusBadge}</td>
-              <td style="white-space:nowrap;display:flex;gap:6px;flex-wrap:wrap">
-                ${m.photo_url && !m.carte_photo_approuvee
-                  ? `<button class="btn btn-sm btn-primary" onclick="carteApprouverPhoto(${m.id})" title="Approuver photo">✅</button>
-                     <button class="btn btn-sm btn-ghost" style="color:#c62828" onclick="carteRejeterPhoto(${m.id})" title="Rejeter photo">✗</button>`
-                  : ''}
-                <button class="btn btn-sm btn-outline" onclick="carteRenouveler(${m.id},'${escHtml(m.prenom)} ${escHtml(m.nom)}')" title="Renouveler 2 ans">🔄</button>
-              </td>
-            </tr>`;
-          }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">Aucun résultat</td></tr>'}
+              : dj <= 30 ? '<span style="color:#e65100;font-weight:700">⚠️ ' + dj + 'j</span>'
+              : '<span style="color:#2e7d32">✅ ' + dj + 'j</span>';
+            const heat = (conn.nb_connexions||0) >= 20 ? '#1b5e20' : (conn.nb_connexions||0) >= 5 ? '#e65100' : '#555';
+            const lastConn = conn.derniere_connexion ? conn.derniere_connexion.substring(0,16).replace('T',' ') : 'Jamais';
+            const searchData = ((m.prenom||'')+' '+(m.nom||'')+' '+(m.email||'')+' '+(m.role||'')+' '+(m.plan||'')).toLowerCase();
+
+            return '<tr class="cg-row" data-search="' + escHtml(searchData) + '" data-role="' + (m.role||'') + '" data-photo="' + photoStatus + '" data-plan="' + (m.plan||'gratuit') + '">' +
+              '<td><div style="display:flex;align-items:center;gap:8px">' +
+                (m.photo_url
+                  ? '<img src="' + BASE + m.photo_url + '" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid ' + (m.carte_photo_approuvee?'#2e7d32':'#e65100') + '"/>'
+                  : '<div style="width:32px;height:32px;border-radius:50%;background:var(--g2);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700">' + initials + '</div>') +
+                '<div>' +
+                  '<a href="javascript:void(0)" onclick="_cgOpenProfile(' + m.id + ')" style="font-weight:700;font-size:.85rem;color:inherit;text-decoration:none;border-bottom:1px dashed #ccc;cursor:pointer">' + escHtml(m.prenom) + ' ' + escHtml(m.nom) + '</a>' +
+                  (m.role!=='member' ? ' <span style="font-size:.62rem;background:#e8f0fe;color:#1565c0;border-radius:4px;padding:1px 5px;font-weight:700">' + m.role + '</span>' : '') +
+                  '<div style="font-size:.7rem;color:var(--muted)">#' + String(m.id).padStart(5,'0') + ' · ' + escHtml(m.email||'') + '</div>' +
+                '</div>' +
+              '</div></td>' +
+              '<td style="font-size:.82rem">' + (roleLabel[m.role]||m.role) + '</td>' +
+              '<td style="font-size:.82rem">' + (planLabel[m.plan]||m.plan||'Gratuit') + '</td>' +
+              '<td>' + photoLabel + '</td>' +
+              '<td style="font-size:.82rem">' + statusBadge + '</td>' +
+              '<td style="text-align:center;font-size:1.05rem;font-weight:800;color:' + heat + '">' + (conn.nb_connexions||0) + '</td>' +
+              '<td style="font-size:.78rem;color:var(--muted)">' + lastConn + '</td>' +
+              '<td style="white-space:nowrap">' +
+                '<div style="display:flex;gap:4px;flex-wrap:wrap">' +
+                  (m.photo_url && !m.carte_photo_approuvee
+                    ? '<button class="btn btn-sm btn-primary" onclick="_cgApprovePhoto(' + m.id + ')" title="Approuver">✅</button>' +
+                      '<button class="btn btn-sm btn-ghost" style="color:#c62828" onclick="carteRejeterPhoto(' + m.id + ')" title="Rejeter">✗</button>'
+                    : '') +
+                  (!m.photo_url
+                    ? '<label style="cursor:pointer" title="Ajouter photo"><span class="btn btn-sm btn-outline">📷</span><input type="file" accept="image/*" style="display:none" onchange="_cgUploadPhoto(' + m.id + ',this.files[0])"/></label>'
+                    : '') +
+                  '<button class="btn btn-sm btn-ghost" onclick="carteRenouveler(' + m.id + ',\'' + escHtml(m.prenom + ' ' + m.nom).replace(/'/g,"\\'") + '\')" title="Renouveler">🔄</button>' +
+                '</div>' +
+              '</td>' +
+            '</tr>';
+          }).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:24px">Aucun membre</td></tr>'}
         </tbody>
-      </table>
+      </table></div>
     </div>
   `);
 }
 
-async function carteApprouverPhoto(id) {
+function _cgFilter() {
+  var q = (document.getElementById('cgSearch')?.value || '').toLowerCase();
+  var role = document.getElementById('cgRole')?.value || '';
+  var photo = document.getElementById('cgPhoto')?.value || '';
+  var plan = document.getElementById('cgPlan')?.value || '';
+  var shown = 0;
+  document.querySelectorAll('.cg-row').forEach(function(row) {
+    var ok = (!q || row.dataset.search.includes(q))
+      && (!role || row.dataset.role === role)
+      && (!photo || row.dataset.photo === photo)
+      && (!plan || row.dataset.plan === plan);
+    row.style.display = ok ? '' : 'none';
+    if (ok) shown++;
+  });
+  var cnt = document.getElementById('cgCount');
+  if (cnt) cnt.textContent = shown + ' membre(s) affiché(s) sur ' + (window._carteMembers||[]).length;
+}
+
+async function _cgOpenProfile(id) {
+  try {
+    const m = (window._carteMembers || []).find(function(x) { return x.id === id; });
+    if (!m) return;
+    openModal('🪪 ' + escHtml(m.prenom + ' ' + m.nom), '<div style="text-align:center;padding:20px">' +
+      (m.photo_url
+        ? '<img src="' + BASE + m.photo_url + '" style="width:100px;height:100px;border-radius:50%;object-fit:cover;border:4px solid ' + (m.carte_photo_approuvee ? '#2e7d32' : '#e65100') + ';margin-bottom:12px"/>'
+        : '<div style="width:100px;height:100px;border-radius:50%;background:var(--g2);color:#fff;font-size:2.4rem;font-weight:900;display:flex;align-items:center;justify-content:center;margin:0 auto 12px">' + ((m.prenom||'?')[0] + ((m.nom||'')[0]||'')) + '</div>') +
+      '<h3 style="margin:0">' + escHtml(m.prenom) + ' ' + escHtml(m.nom) + '</h3>' +
+      '<div style="font-size:.82rem;color:var(--muted);margin:4px 0">#' + String(m.id).padStart(5,'0') + ' · ' + escHtml(m.email||'') + '</div>' +
+      '<div style="display:flex;gap:8px;justify-content:center;margin:12px 0;flex-wrap:wrap">' +
+        pill(m.role === 'admin' ? 'Admin' : m.role === 'tresoriere' ? 'Trésorière' : m.role === 'secretaire' ? 'Secrétaire' : m.role === 'delegue' ? 'Délégué' : 'Membre', m.role === 'admin' ? 'bp-orange' : m.role === 'member' ? 'bp-blue' : 'bp-green') +
+        pill(m.plan ? m.plan.charAt(0).toUpperCase() + m.plan.slice(1) : 'Gratuit', m.plan === 'bienfaiteur' ? 'bp-orange' : m.plan === 'partenaire' ? 'bp-green' : 'bp-gray') +
+      '</div>' +
+      '<div style="margin:16px 0;padding:12px;background:var(--off);border-radius:10px;font-size:.85rem">' +
+        '<div>📅 Inscription : ' + fmt(m.date_inscription) + '</div>' +
+        '<div>📆 Expiration : ' + (m.expiration ? fmt(m.expiration) + (m.days_left < 0 ? ' <span style="color:#c62828">(expirée)</span>' : ' (' + m.days_left + 'j)') : '–') + '</div>' +
+        '<div>📷 Photo : ' + (m.photo_url ? (m.carte_photo_approuvee ? '✅ Approuvée' : '⏳ En attente') : '❌ Aucune') + '</div>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px">' +
+        (!m.photo_url ? '<label style="cursor:pointer"><span class="btn btn-primary btn-sm">📷 Ajouter photo</span><input type="file" accept="image/*" capture="environment" style="display:none" onchange="_cgUploadPhoto(' + m.id + ',this.files[0])"/></label>' : '') +
+        (m.photo_url && !m.carte_photo_approuvee ? '<button class="btn btn-primary btn-sm" onclick="_cgApprovePhoto(' + m.id + ')">✅ Approuver photo</button>' : '') +
+        '<button class="btn btn-outline btn-sm" onclick="carteRenouveler(' + m.id + ',\'' + escHtml(m.prenom + ' ' + m.nom).replace(/'/g,"\\'") + '\')">🔄 Renouveler</button>' +
+      '</div>' +
+    '</div>');
+  } catch(e) { toast(e.message, true); }
+}
+
+async function _cgUploadPhoto(userId, file) {
+  if (!file) return;
+  var fd = new FormData();
+  fd.append('photo', file);
+  try {
+    await fetch(BASE + '/api/admin/cartes/' + userId + '/photo', {
+      method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN }, body: fd
+    });
+    toast('📷 Photo uploadée — en attente d\'approbation par un AUTRE membre du comité');
+    carteGestionView();
+  } catch(e) { toast('Erreur : ' + e.message, true); }
+}
+
+async function _cgApprovePhoto(id) {
   if (id === USER.id) return toast('❌ Vous ne pouvez pas approuver votre propre photo', true);
-  await api(`/admin/cartes/${id}/approuver-photo`, { method:'POST' });
-  toast('✅ Photo approuvée');
-  carteGestionView();
+  try {
+    await api('/admin/cartes/' + id + '/approuver-photo', { method:'POST' });
+    toast('✅ Photo approuvée');
+    carteGestionView();
+  } catch(e) { toast(e.message, true); }
+}
+
+async function carteApprouverPhoto(id) {
+  return _cgApprovePhoto(id);
 }
 async function carteRejeterPhoto(id) {
-  if (!confirm('Rejeter et supprimer la photo de profil de ce membre ?')) return;
-  await api(`/admin/cartes/${id}/rejeter-photo`, { method:'POST' });
+  if (!confirm('Rejeter et supprimer la photo ?')) return;
+  await api('/admin/cartes/' + id + '/rejeter-photo', { method:'POST' });
   toast('Photo rejetée');
   carteGestionView();
 }
 async function carteRenouveler(id, nom) {
-  if (!confirm(`Renouveler la carte de ${nom} pour 2 ans à partir d'aujourd'hui ?`)) return;
-  const r = await api(`/admin/cartes/${id}/renouveler`, { method:'POST' });
-  toast(`✅ Carte renouvelée jusqu'au ${fmt(r.expiration)}`);
+  if (!confirm('Renouveler la carte de ' + nom + ' pour 2 ans ?')) return;
+  var r = await api('/admin/cartes/' + id + '/renouveler', { method:'POST' });
+  toast('✅ Carte renouvelée jusqu\'au ' + fmt(r.expiration));
   carteGestionView();
 }
 

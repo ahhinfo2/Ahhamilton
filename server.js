@@ -6003,13 +6003,14 @@ app.post('/api/admin/cartes/:id/rejeter-photo', authMiddleware, requireRole(...C
   res.json({ ok: true });
 });
 
-// Upload photo membre depuis le scanner (comité prend la photo)
+// Upload photo membre (comité prend la photo — NE PAS auto-approuver si même personne)
 app.post('/api/admin/cartes/:id/photo', authMiddleware, requireRole(...CARTE_ROLES), uploadProfile.single('photo'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Photo requise' });
   await compressImage(req.file.path, 1200);
   const photoUrl = `/uploads/profiles/${req.file.filename}`;
-  db.prepare('UPDATE users SET photo_url=?, carte_photo_approuvee=1 WHERE id=?').run(photoUrl, req.params.id);
-  res.json({ ok: true, photo_url: photoUrl });
+  const isSelf = parseInt(req.params.id) === req.user.id;
+  db.prepare('UPDATE users SET photo_url=?, carte_photo_approuvee=? WHERE id=?').run(photoUrl, isSelf ? 0 : 1, req.params.id);
+  res.json({ ok: true, photo_url: photoUrl, auto_approved: !isSelf });
 });
 
 app.post('/api/admin/cartes/:id/renouveler', authMiddleware, requireRole(...CARTE_ROLES), (req, res) => {
