@@ -5073,19 +5073,77 @@ app.get('/api/young/me', authMiddleware, (req, res) => {
 
 // ── Stages & emplois ────────────────────────────────────────────────────────
 app.get('/api/young/jobs', authMiddleware, (req, res) => {
-  const rows = db.prepare(`SELECT j.*, u.prenom||' '||u.nom AS createur FROM young_jobs j LEFT JOIN users u ON u.id=j.cree_par WHERE j.actif=1 ORDER BY j.date_creation DESC`).all();
-  res.json(rows);
+  const isExec = ['admin','tresoriere','secretaire','delegue'].includes(req.user.role);
+  const sql = isExec
+    ? `SELECT j.*, u.prenom||' '||u.nom AS createur FROM young_jobs j LEFT JOIN users u ON u.id=j.cree_par WHERE j.actif=1 ORDER BY j.date_creation DESC`
+    : `SELECT j.*, u.prenom||' '||u.nom AS createur FROM young_jobs j LEFT JOIN users u ON u.id=j.cree_par WHERE j.actif=1 AND (j.statut='approuve' OR j.statut IS NULL) ORDER BY j.date_creation DESC`;
+  res.json(db.prepare(sql).all());
 });
 app.post('/api/young/jobs', authMiddleware, requireRole('admin','secretaire','tresoriere','delegue'), (req, res) => {
-  const { type, titre, organisation, description, lieu, date_limite, lien_externe, contact } = req.body;
+  const { type, titre, organisation, description, lieu, date_limite, lien_externe, contact, salaire, categorie } = req.body;
   if (!titre) return res.status(400).json({ error: 'Titre requis' });
-  const r = db.prepare(`INSERT INTO young_jobs (type,titre,organisation,description,lieu,date_limite,lien_externe,contact,cree_par) VALUES (?,?,?,?,?,?,?,?,?)`)
-    .run(type||'stage', titre, organisation||'', description||'', lieu||'', date_limite||'', lien_externe||'', contact||'', req.user.id);
+  const r = db.prepare(`INSERT INTO young_jobs (type,titre,organisation,description,lieu,date_limite,lien_externe,contact,salaire,categorie,cree_par,source,statut) VALUES (?,?,?,?,?,?,?,?,?,?,?,'manual','approuve')`)
+    .run(type||'stage', titre, organisation||'', description||'', lieu||'', date_limite||'', lien_externe||'', contact||'', salaire||'', categorie||'', req.user.id);
   res.status(201).json({ id: r.lastInsertRowid });
+});
+app.post('/api/young/jobs/:id/approve', authMiddleware, requireRole('admin','secretaire','tresoriere','delegue'), (req, res) => {
+  db.prepare("UPDATE young_jobs SET statut='approuve' WHERE id=?").run(req.params.id);
+  res.json({ ok: true });
+});
+app.post('/api/young/jobs/:id/reject', authMiddleware, requireRole('admin','secretaire','tresoriere','delegue'), (req, res) => {
+  db.prepare("UPDATE young_jobs SET statut='rejete', actif=0 WHERE id=?").run(req.params.id);
+  res.json({ ok: true });
 });
 app.delete('/api/young/jobs/:id', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
   db.prepare('UPDATE young_jobs SET actif=0 WHERE id=?').run(req.params.id);
   res.json({ ok: true });
+});
+
+// ── Fetch emplois Adzuna (Hamilton) ─────────────────────────────────────────
+async function fetchAdzunaJobs() {
+  const ADZUNA_APP_ID = process.env.ADZUNA_APP_ID || '';
+  const ADZUNA_APP_KEY = process.env.ADZUNA_APP_KEY || '';
+  if (!ADZUNA_APP_ID || !ADZUNA_APP_KEY) { console.log('[ADZUNA] Clés manquantes — skip'); return { fetched: 0 }; }
+
+  try {
+    const url = `https://api.adzuna.com/v1/api/jobs/ca/search/1?app_id=${ADZUNA_APP_ID}&app_key=${ADZUNA_APP_KEY}&results_per_page=50&where=Hamilton&sort_by=date&max_days_old=3`;
+    const resp = await fetch(url);
+    if (!resp.ok) { console.error('[ADZUNA] HTTP', resp.status); return { fetched: 0, error: resp.status }; }
+    const data = await resp.json();
+    const results = data.results || [];
+    let inserted = 0;
+
+    for (const job of results) {
+      const sourceId = job.id ? String(job.id) : '';
+      const exists = sourceId ? db.prepare('SELECT id FROM young_jobs WHERE source_id=? AND source=?').get(sourceId, 'adzuna') : null;
+      if (exists) continue;
+
+      const titre = (job.title || '').replace(/<[^>]+>/g, '').trim();
+      if (!titre) continue;
+      const desc = (job.description || '').replace(/<[^>]+>/g, '').trim();
+      const org = job.company?.display_name || '';
+      const lieu = job.location?.display_name || 'Hamilton, ON';
+      const lien = job.redirect_url || '';
+      const salaire = job.salary_min && job.salary_max
+        ? '$' + Math.round(job.salary_min).toLocaleString() + ' - $' + Math.round(job.salary_max).toLocaleString()
+        : job.salary_min ? '$' + Math.round(job.salary_min).toLocaleString() + '+' : '';
+      const cat = job.category?.label || '';
+
+      db.prepare(`INSERT INTO young_jobs (type, titre, organisation, description, lieu, lien_externe, salaire, categorie, source, source_id, statut, date_creation) VALUES (?,?,?,?,?,?,?,?,'adzuna',?,'en_attente',CURRENT_TIMESTAMP)`)
+        .run('job_etudiant', titre, org, desc.substring(0, 2000), lieu, lien, salaire, cat, sourceId);
+      inserted++;
+    }
+    console.log(`[ADZUNA] ${inserted} nouvelles offres insérées (${results.length} récupérées)`);
+    return { fetched: results.length, inserted };
+  } catch(e) {
+    console.error('[ADZUNA] Erreur:', e.message);
+    return { fetched: 0, error: e.message };
+  }
+}
+
+app.post('/api/young/jobs/fetch-now', authMiddleware, requireRole('admin','secretaire'), async (req, res) => {
+  const result = await fetchAdzunaJobs();
+  res.json(result);
 });
 
 app.post('/api/young/jobs/:id/notify', authMiddleware, requireRole('admin','secretaire','tresoriere','delegue'), async (req, res) => {
@@ -5678,6 +5736,11 @@ cron.schedule('0 2 * * *', () => {
     console.log(`[BACKUP] ${dst}`);
   } catch(e) { console.error('[BACKUP ERROR]', e.message); }
 });
+
+// Fetch emplois Adzuna toutes les 6h (0h, 6h, 12h, 18h Toronto)
+cron.schedule('0 0,6,12,18 * * *', async () => {
+  try { await fetchAdzunaJobs(); } catch(e) { console.error('[CRON-ADZUNA]', e.message); }
+}, { timezone: 'America/Toronto' });
 
 // Rapport mensuel automatique (1er du mois à 8h)
 cron.schedule('0 8 1 * *', async () => {

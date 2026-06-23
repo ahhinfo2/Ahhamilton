@@ -140,6 +140,12 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS young_jobs (
   actif INTEGER DEFAULT 1,
   date_creation TEXT DEFAULT CURRENT_TIMESTAMP
 )`); } catch {}
+try { db.exec('ALTER TABLE young_jobs ADD COLUMN source TEXT DEFAULT \'manual\''); } catch {}
+try { db.exec('ALTER TABLE young_jobs ADD COLUMN source_id TEXT'); } catch {}
+try { db.exec('ALTER TABLE young_jobs ADD COLUMN statut TEXT DEFAULT \'approuve\''); } catch {}
+try { db.exec('ALTER TABLE young_jobs ADD COLUMN salaire TEXT'); } catch {}
+try { db.exec('ALTER TABLE young_jobs ADD COLUMN categorie TEXT'); } catch {}
+try { db.exec('ALTER TABLE young_jobs ADD COLUMN company_logo TEXT'); } catch {}
 
 try { db.exec(`CREATE TABLE IF NOT EXISTS young_trainings (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
