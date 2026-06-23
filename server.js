@@ -8024,17 +8024,22 @@ app.post('/api/scan/unified', authMiddleware, (req, res) => {
   }
 
   // ── Detect QR type ──
-  let qrType = null; // 'ticket' | 'carte'
+  let qrType = null; // 'ticket' | 'carte' | 'activite'
 
   // TICKET patterns: contains TICKET: or URL with ?t=, or barcode AHH-XXXXXX (exactly 6 alphanum)
   const ticketTokenMatch = qr_data.match(/TICKET:([^\s]+)/) || qr_data.match(/[?&]t=([^&\s]+)/);
   const barcodeMatch = qr_data.match(/^AHH-[A-Z0-9]{6}$/);
+
+  // ACTIVITY QR pattern: activity-checkout.html?actid=X&token=Y
+  const actQrMatch = qr_data.match(/[?&]actid=(\d+)/) || qr_data.match(/activity-checkout/);
 
   // CARD patterns: AHH-XXXXX- (5 digits), ?id=, carte.html
   const cardIdMatch = qr_data.match(/^AHH-(\d{5})-/) || qr_data.match(/[?&]id=(\d+)/) || qr_data.match(/carte\.html/);
 
   if (ticketTokenMatch || barcodeMatch) {
     qrType = 'ticket';
+  } else if (actQrMatch) {
+    qrType = 'activite';
   } else if (cardIdMatch) {
     qrType = 'carte';
   }
@@ -8358,6 +8363,51 @@ app.post('/api/scan/unified', authMiddleware, (req, res) => {
   }
 
   // ── Dispatch based on detected type ──
+
+  // ACTIVITY QR: activity-checkout.html?actid=X&token=Y
+  if (qrType === 'activite') {
+    const actIdMatch = qr_data.match(/[?&]actid=(\d+)/);
+    const actTokenMatch = qr_data.match(/[?&]token=([^&\s]+)/);
+    if (actIdMatch) {
+      const qrActId = parseInt(actIdMatch[1]);
+      const qrToken = actTokenMatch ? actTokenMatch[1] : null;
+      const act = db.prepare('SELECT * FROM activities WHERE id=?').get(qrActId);
+
+      if (!act) {
+        db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details) VALUES (?,?,?,?,?)")
+          .run(qrActId, req.user.id, qr_data, 'invalide', 'Activité supprimée');
+        return res.json({ ok: false, type: 'activite', status: 'supprimee', nom: '', message: 'Activité supprimée (ID #' + qrActId + ')', activite: 'Activité #' + qrActId });
+      }
+      if (act.statut === 'annulee') {
+        db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details) VALUES (?,?,?,?,?)")
+          .run(qrActId, req.user.id, qr_data, 'invalide', 'Activité annulée: ' + act.titre);
+        return res.json({ ok: false, type: 'activite', status: 'supprimee', nom: '', message: 'Activité « ' + act.titre + ' » annulée', activite: act.titre });
+      }
+
+      // Activité valide — retourner les infos pour affichage
+      const nowTo = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Toronto'}));
+      const isToday = act.date_debut ? Math.abs(nowTo.getTime() - new Date(act.date_debut).getTime()) / (1000*60*60) <= 26 : false;
+      const totalBillets = db.prepare('SELECT COUNT(*) AS c FROM tickets WHERE activity_id=? AND payment_status=? AND statut=?').get(qrActId, 'paid', 'actif').c;
+      const presences = db.prepare("SELECT COUNT(*) AS c FROM activity_registrations WHERE activity_id=? AND checked_in=1").get(qrActId).c;
+
+      db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details) VALUES (?,?,?,?,?)")
+        .run(qrActId, req.user.id, qr_data, 'valide', 'QR activité: ' + act.titre);
+      return res.json({
+        ok: true, type: 'activite', status: isToday ? 'aujourdhui' : 'info',
+        nom: act.titre,
+        message: isToday ? 'Activité du jour' : 'Activité le ' + (act.date_debut || '').substring(0, 10),
+        activite: act.titre,
+        date_evenement: act.date_debut || '',
+        lieu: act.lieu || '',
+        prix: act.prix || 0,
+        total_billets: totalBillets,
+        presences: presences,
+        paiement_requis: act.paiement_requis,
+        is_today: isToday
+      });
+    }
+  }
+
   if (qrType === 'ticket') {
     var result = tryTicket();
     if (result !== null) return; // already responded

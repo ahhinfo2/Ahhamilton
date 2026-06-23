@@ -491,7 +491,21 @@ async function onQRDetected(rawText) {
     });
     var data = await res.json();
 
-    if (data.type === 'ticket') {
+    if (data.type === 'activite') {
+      // ── QR d'activité (pas un billet, c'est le QR de l'activité elle-même) ──
+      if (data.status === 'supprimee') {
+        showResultUnified('err', '🗑️', 'ACTIVITÉ SUPPRIMÉE', data);
+        playBeep(false);
+        addHistory('err', data.activite || 'Supprimée', '🗑️ ' + (data.message || ''), data);
+      } else {
+        var actCls = data.is_today ? 'ok' : 'warn';
+        showResultUnified(actCls, data.is_today ? '🎉' : '📅', data.is_today ? 'ACTIVITÉ DU JOUR' : 'INFO ACTIVITÉ', data);
+        playBeep(data.is_today);
+        var actMeta = (data.lieu ? data.lieu + ' — ' : '') + (data.paiement_requis && data.prix > 0 ? data.prix.toFixed(2) + ' $' : 'Gratuit');
+        if (data.presences > 0) actMeta += ' — ' + data.presences + ' présent(s)';
+        addHistory(data.is_today ? 'ok' : 'warn', data.activite || 'Activité', actMeta, data);
+      }
+    } else if (data.type === 'ticket') {
       // ── Ticket result ──
       if (data.status === 'supprimee') {
         showResultUnified('err', '🗑️', 'ACTIVITÉ SUPPRIMÉE', data);
@@ -578,7 +592,14 @@ function showResultUnified(cls, icon, statusText, data) {
   document.getElementById('ovName').textContent = nom;
 
   var subParts = [];
-  if (type === 'ticket') {
+  if (type === 'activite') {
+    if (data.lieu) subParts.push('📍 ' + data.lieu);
+    if (data.paiement_requis && data.prix > 0) subParts.push('💵 ' + parseFloat(data.prix).toFixed(2) + ' $');
+    else subParts.push('🆓 Gratuit');
+    if (data.total_billets > 0) subParts.push('🎟 ' + data.total_billets + ' billets');
+    if (data.presences > 0) subParts.push('👥 ' + data.presences + ' présent(s)');
+    if (data.date_evenement) subParts.push('📅 ' + data.date_evenement.substring(0, 10));
+  } else if (type === 'ticket') {
     if (data.table_numero) subParts.push('🪑 Table ' + data.table_numero);
     if (data.vendeur_nom) subParts.push('👤 ' + data.vendeur_nom);
     else if (data.vendu_en_ligne) subParts.push('🌐 En ligne');
@@ -601,7 +622,18 @@ function showResultUnified(cls, icon, statusText, data) {
   var box = document.getElementById('resultMain');
   box.className = 'result-main ' + cls;
 
-  if (type === 'ticket') {
+  if (type === 'activite') {
+    box.innerHTML =
+      '<div class="result-icon">' + icon + '</div>' +
+      '<div class="result-status">' + statusText + '</div>' +
+      '<div class="result-name">' + nom + '</div>' +
+      (data.lieu ? '<div class="result-badge">📍 ' + data.lieu + '</div>' : '') +
+      '<div class="result-badge">' + (data.paiement_requis && data.prix > 0 ? '💵 ' + parseFloat(data.prix).toFixed(2) + ' $' : '🆓 Gratuit') + '</div>' +
+      (data.total_billets > 0 ? '<div class="result-badge">🎟 ' + data.total_billets + ' billets vendus</div>' : '') +
+      (data.presences > 0 ? '<div class="result-badge">👥 ' + data.presences + ' présent(s)</div>' : '') +
+      (data.date_evenement ? '<div class="result-activity">📅 ' + data.date_evenement.substring(0, 10) + '</div>' : '') +
+      (!data.is_today ? '<div class="result-badge" style="background:rgba(255,152,0,.2);margin-top:8px">⚠️ Ce n\'est pas une activité du jour</div>' : '');
+  } else if (type === 'ticket') {
     var achatInfo = data.vendeur_nom
       ? '<div class="result-badge">👤 Vendu par ' + data.vendeur_nom + '</div>'
       : '<div class="result-badge">🌐 Acheté en ligne</div>';
