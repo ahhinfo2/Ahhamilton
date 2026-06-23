@@ -965,7 +965,7 @@ async function home() {
   const _dateStr = `${_days[_now.getDay()]} ${_now.getDate()} ${_months[_now.getMonth()]} ${_now.getFullYear()}`;
 
   const quickActions = [
-    canCreateActivity ? { icon:'🎉', label:'Nouvelle activité',  action:"openActivityForm()",        cls:'qa-red'    } : null,
+    canCreateActivity() ? { icon:'🎉', label:'Nouvelle activité',  action:"openActivityForm()",        cls:'qa-red'    } : null,
     can.adminOrSec() ?  { icon:'✉️', label:'Envoyer un message', action:"showView('messages')",       cls:'qa-blue'   } : null,
     can.adminOrSec() ?  { icon:'🤝', label:'Heures bénévolat',   action:"showView('volunteer')",      cls:'qa-gold'   } : null,
     can.adminOrSec() ?  { icon:'🖼️', label:'Gérer la galerie',   action:"showView('gallery_mgmt')",   cls:'qa-purple' } : null,
@@ -1513,6 +1513,7 @@ async function calDayRegister(actId, day, month, year) {
 async function activities() {
   const data = await api('/activities');
   window._activitiesData = data;
+  window._actById = {}; data.forEach(a => window._actById[a.id] = a);
 
   setContent(`
     <div style="display:flex;flex-direction:column;flex:1;gap:0;height:100%">
@@ -1616,7 +1617,7 @@ function renderActivitiesTable(data) {
       <td>
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:nowrap">
         ${canCreateActivity() ? `
-          <button class="btn btn-sm btn-outline" onclick='openActivityForm(${JSON.stringify(a).replace(/'/g,"&#39;")})' title="Modifier">✏️ Modifier</button>
+          <button class="btn btn-sm btn-outline" onclick="openActivityForm(window._actById[${a.id}])" title="Modifier">✏️ Modifier</button>
           <button class="btn btn-sm btn-ghost" title="Scanner billets" onclick="openScanner(${a.id})">📷 Scanner</button>
           <button class="btn btn-sm btn-ghost" onclick="showActivityReport(${a.id})" title="Rapport">📊 Rapport</button>
           <button class="btn btn-sm ${a.featured ? 'btn-accent' : 'btn-ghost'}" onclick="toggleFeatured(${a.id},${a.featured?1:0})" title="${a.featured ? 'Retirer de la une' : 'Mettre à la une'}" style="${a.featured?'background:#f9a825;color:#000':''}">⭐${a.featured?' À LA UNE':''}</button>
@@ -1664,6 +1665,7 @@ async function openMemberDetail(u) {
       api('/paiements?user_id=' + u.id).catch(() => []),
     ]);
     const m = { ...u, ...detail };
+    window._memberDetail = m;
     const age = m.date_naissance ? Math.floor((Date.now() - new Date(m.date_naissance)) / (365.25*24*3600*1000)) : null;
     const totalHeures = Array.isArray(volunteer) ? volunteer.filter(v=>v.statut==='approuve').reduce((s,v)=>s+(v.heures||0),0) : 0;
     const planColors = { gratuit:'#757575', bienfaiteur:'#e65100', partenaire:'#1565c0' };
@@ -1714,7 +1716,7 @@ async function openMemberDetail(u) {
       </div>
 
       ${can.executive() ? `<div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-outline btn-sm" onclick='closeModal();openMemberForm(${JSON.stringify(m).replace(/'/g,"&#39;")})'>✏️ Modifier</button>
+        <button class="btn btn-outline btn-sm" onclick="closeModal();openMemberForm(window._memberDetail)">✏️ Modifier</button>
         <button class="btn btn-ghost btn-sm" onclick="closeModal();showView('carte-gestion')">🪪 Carte membre</button>
         ${m.actif
           ? `<button class="btn btn-danger btn-sm" onclick="closeModal();toggleMember(${m.id},0)">🚫 Désactiver</button>`
@@ -2198,7 +2200,7 @@ async function viewRegistrations(id, titre) {
     <div class="table-wrapper"><table>
       <thead><tr><th>Nom</th><th>Email</th><th>Téléphone</th><th>Statut</th><th>Date</th></tr></thead>
       <tbody>
-        ${data.length ? data.map(r => `<tr><td>${r.prenom} ${r.nom}</td><td>${r.email}</td><td>${r.telephone||'–'}</td><td>${statusPill(r.statut)}</td><td>${fmt(r.date_inscription)}</td></tr>`).join('') : '<tr><td colspan="5" style="text-align:center">Aucune inscription</td></tr>'}
+        ${data.length ? data.map(r => `<tr><td>${escHtml(r.prenom)} ${escHtml(r.nom)}</td><td>${escHtml(r.email)}</td><td>${escHtml(r.telephone||'–')}</td><td>${statusPill(r.statut)}</td><td>${fmt(r.date_inscription)}</td></tr>`).join('') : '<tr><td colspan="5" style="text-align:center">Aucune inscription</td></tr>'}
       </tbody>
     </table></div>
   `);
@@ -2220,6 +2222,7 @@ async function registerActivity(id) {
 async function members() {
   const data = await api('/users');
   window._membersData = data;
+  window._memberById = {}; data.forEach(u => window._memberById[u.id] = u);
   window._membersSort = { col:'nom', dir:1 };
 
   setContent(`
@@ -2346,7 +2349,7 @@ function renderMembersTable(filtered, q) {
       '<mark style="background:#fff3cd;border-radius:2px;padding:0 1px">$1</mark>');
   }
   tbody.innerHTML = filtered.map(u => `<tr>
-    <td><strong style="cursor:pointer;color:var(--g2)" onclick='openMemberDetail(${JSON.stringify(u).replace(/'/g,"&#39;")})'>${hl(u.prenom+' '+u.nom, q)}</strong></td>
+    <td><strong style="cursor:pointer;color:var(--g2)" onclick="openMemberDetail(window._memberById[${u.id}])">${hl(u.prenom+' '+u.nom, q)}</strong></td>
     <td>${hl(u.email, q)}</td>
     <td>${hl(u.telephone||'–', q)}</td>
     <td>${pill(roleName(u.role), u.role==='admin'?'bp-orange':u.role==='member'?'bp-blue':'bp-green')}</td>
@@ -2361,13 +2364,13 @@ function renderMembersTable(filtered, q) {
     <td>${fmt(u.date_inscription)}</td>
     <td>
       ${can.executive() ? `
-        <button class="btn btn-sm btn-outline" onclick='openMemberForm(${JSON.stringify(u).replace(/'/g,"\\'")})'>✏️</button>
+        <button class="btn btn-sm btn-outline" onclick="openMemberForm(window._memberById[${u.id}])">✏️</button>
         ${u.actif
           ? `<button class="btn btn-sm btn-danger" onclick="toggleMember(${u.id},0)" title="Désactiver">🚫</button>`
           : `<button class="btn btn-sm btn-ghost"  onclick="toggleMember(${u.id},1)" title="Activer">✅</button>`}
         ${can.admin() ? `<button class="btn btn-sm btn-ghost" onclick="deleteMember(${u.id})" style="color:var(--red)" title="Supprimer définitivement">🗑</button>` : ''}` : ''}
-      ${can.executive() ? `<button class="btn btn-sm btn-ghost" onclick="showVolunteerFor(${u.id},'${u.prenom} ${u.nom}')">🤝</button>` : ''}
-      ${can.adminOrSec() ? `<button class="btn btn-sm btn-ghost" onclick="memberHistory(${u.id},'${u.prenom} ${u.nom}')" title="Historique">📋</button>` : ''}
+      ${can.executive() ? `<button class="btn btn-sm btn-ghost" onclick="showVolunteerFor(${u.id},window._memberById[${u.id}].prenom+' '+window._memberById[${u.id}].nom)">🤝</button>` : ''}
+      ${can.adminOrSec() ? `<button class="btn btn-sm btn-ghost" onclick="memberHistory(${u.id},window._memberById[${u.id}].prenom+' '+window._memberById[${u.id}].nom)" title="Historique">📋</button>` : ''}
     </td>
   </tr>`).join('');
 }
@@ -3048,10 +3051,11 @@ function openAccountForm(acc) {
 // ══ INVOICES ═══════════════════════════════════════════════════════════════
 async function invoices() {
   const [data, lines] = await Promise.all([api('/finance/invoices'), api('/finance/lines')]);
+  window._invoiceLines = lines;
   setContent(`
     <div class="page-header">
       <div><h2>Factures</h2><p>Gestion des factures et reçus</p></div>
-      ${can.adminOrTre() ? `<div class="page-actions"><button class="btn btn-primary" onclick='openInvoiceForm(${JSON.stringify(lines)})'>+ Nouvelle facture</button></div>` : ''}
+      ${can.adminOrTre() ? `<div class="page-actions"><button class="btn btn-primary" onclick="openInvoiceForm(window._invoiceLines)">+ Nouvelle facture</button></div>` : ''}
     </div>
     <div class="table-card"><div class="table-wrapper"><table>
       <thead><tr><th>Titre</th><th>Fournisseur</th><th>Montant</th><th>Date</th><th>Activité / Projet</th><th>Statut</th><th>Photo</th>${can.adminOrTre() ? '<th>Actions</th>' : ''}</tr></thead>
@@ -5281,7 +5285,7 @@ function gmSuggest(f) {
       </div>` : '';
 
   sg.innerHTML = extExtra + hits.map(u =>
-    `<div class="gm-sg-item" onclick="gmPick('${f}','${u.email}','${u.prenom} ${u.nom}')">
+    `<div class="gm-sg-item" onclick="gmPick('${f}','${escHtml(u.email).replace(/'/g,"\\'")}','${escHtml(u.prenom+' '+u.nom).replace(/'/g,"\\'")}')">
       <div class="gm-sg-av">${u.prenom[0]}${u.nom[0]}</div>
       <div><div class="gm-sg-name">${u.prenom} ${u.nom}</div><div class="gm-sg-email">${u.email}</div></div>
     </div>`).join('');
@@ -5965,11 +5969,12 @@ async function profile() {
     api('/calendar/token').catch(() => null)
   ]);
 
+  window._profileUser = u;
   setContent(`
     <div class="page-header"><div><h2>Mon profil</h2></div>
       <div class="page-actions">
         <a href="../carte.html?id=${u.id}" target="_blank" class="btn btn-ghost">🪪 Carte</a>
-        <button class="btn btn-outline" onclick="openEditProfile(${JSON.stringify(u).replace(/"/g,'&quot;')})">✏️ Modifier</button>
+        <button class="btn btn-outline" onclick="openEditProfile(window._profileUser)">✏️ Modifier</button>
       </div></div>
     <div class="profile-card">
       <div class="profile-avatar-wrap">
@@ -6461,6 +6466,7 @@ function calShowDay(y, m, d) {
 function calOpenEvent(id) {
   const a = _calAllActivities.find(function(x) { return x.id === id; });
   if (!a) return;
+  window._calEventDetail = a;
   const c = calColor(a.type);
   closeModal();
   setTimeout(function() {
@@ -6478,7 +6484,7 @@ function calOpenEvent(id) {
         '<div><label style="font-size:.7rem;font-weight:700;color:var(--muted);display:block;margin-bottom:2px">BUDGET</label>' + fmtMoney(a.budget_prevu||0) + '</div>' +
       '</div>' +
       (can.admin() ? '<div style="padding-top:14px;border-top:1px solid var(--border);margin-top:14px;display:flex;gap:8px">' +
-        '<button class="btn btn-outline btn-sm" onclick=\'closeModal();openActivityForm(' + JSON.stringify(a).replace(/'/g,"&#39;") + ')\'>✏️ Modifier</button>' +
+        '<button class="btn btn-outline btn-sm" onclick="closeModal();openActivityForm(window._calEventDetail)">✏️ Modifier</button>' +
         (a.statut === 'planifiee' ? '<button class="btn btn-primary btn-sm" onclick="closeModal();launchActivity(' + a.id + ',\'' + a.titre.replace(/'/g,"\\'") + '\')">🚀 Lancer</button>' : '') +
         '<button class="btn btn-ghost btn-sm" onclick="closeModal();viewRegistrations(' + a.id + ',\'' + a.titre.replace(/'/g,"\\'") + '\')">👥 Inscrits</button>' +
       '</div>' : '')
@@ -6518,6 +6524,7 @@ async function talents_mgmt() {
     api('/talents/all'),
     api('/users')
   ]);
+  window._talentById = {}; data.forEach(t => window._talentById[t.id] = t);
   const eligibles = allUsers.filter(u => ['bienfaiteur','partenaire'].includes(u.plan));
 
   setContent(`
@@ -6565,7 +6572,7 @@ async function talents_mgmt() {
                   </div>
                   <div style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap">
                     ${t.statut === 'en_attente' ? `<button class="btn btn-sm btn-primary" onclick="approveTalent(${t.id})">✅</button><button class="btn btn-sm btn-danger" onclick="rejectTalent(${t.id})">❌</button>` : ''}
-                    <button class="btn btn-sm btn-outline" onclick='openTalentForm(${JSON.stringify(t)})'>✏️</button>
+                    <button class="btn btn-sm btn-outline" onclick="openTalentForm(window._talentById[${t.id}])">✏️</button>
                     <button class="btn btn-sm ${t.actif ? 'btn-ghost' : 'btn-primary'}" onclick="toggleTalent(${t.id},${t.actif})">${t.actif ? '🙈' : '👁️'}</button>
                     <button class="btn btn-sm btn-danger" onclick="deleteTalent(${t.id})">🗑️</button>
                   </div>
@@ -6745,6 +6752,7 @@ async function deleteAnnonce(id) {
 async function mes_talents() {
   const resp  = await api('/mon-talent');
   const items = resp.items || resp;
+  window._myTalentById = {}; (Array.isArray(items) ? items : []).forEach(t => window._myTalentById[t.id] = t);
   const quota = resp.quota || { plan:'?', totalUsed:0, totalMax:0, monthUsed:0, monthMax:0, canCreate:false };
 
   const statutBadge = function(s) {
@@ -6803,7 +6811,7 @@ async function mes_talents() {
           '</div>' +
           (t.statut !== 'retire' ?
             '<div class="mpc-actions">' +
-              '<button class="btn btn-sm btn-outline" onclick="openMemberTalentModify(' + JSON.stringify(t).replace(/'/g,"&#39;") + ')">✏️ Modifier</button>' +
+              '<button class="btn btn-sm btn-outline" onclick="openMemberTalentModify(window._myTalentById[' + t.id + '])">✏️ Modifier</button>' +
               '<button class="btn btn-sm btn-danger" onclick="openTalentWithdraw(' + t.id + ',\'' + t.nom.replace(/'/g,"\\'") + '\')">📤 Retirer</button>' +
             '</div>'
           : '<div class="mpc-actions"><span style="font-size:.78rem;color:var(--muted)">Publication retirée</span></div>') +
@@ -7587,6 +7595,7 @@ async function recusApercu() {
   } catch(e) { return toast(e.message, 'error'); }
   const totalG = preview.reduce((s, p) => s + (p.total_paiements || 0), 0);
   const zeros  = preview.filter(p => !p.total_paiements).length;
+  window._recusBulkIds = ids;
   openModal('👁 Aperçu — ' + ids.length + ' reçu(s) ' + annee,
     '<p style="margin-bottom:12px;color:var(--muted);font-size:.85rem">Vérifiez les montants avant d\'envoyer. Un reçu sera généré et envoyé par courriel à chaque membre sélectionné.</p>' +
     '<div style="max-height:360px;overflow-y:auto"><table style="width:100%;border-collapse:collapse;font-size:.87rem">' +
@@ -7606,7 +7615,7 @@ async function recusApercu() {
     (zeros ? '<div style="margin-top:12px;padding:10px 14px;background:#fff3e0;border-radius:8px;font-size:.83rem;color:#e65100">⚠️ ' + zeros + ' membre(s) avec $0.00 — le reçu sera quand même généré.</div>' : '') +
     '<div class="form-actions" style="margin-top:16px">' +
       '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button>' +
-      '<button class="btn btn-primary" onclick="recusEnvoyerBulk(' + JSON.stringify(ids) + ',' + annee + ')">📤 Confirmer et envoyer ' + ids.length + ' reçu(s)</button>' +
+      '<button class="btn btn-primary" onclick="recusEnvoyerBulk(window._recusBulkIds,' + annee + ')">📤 Confirmer et envoyer ' + ids.length + ' reçu(s)</button>' +
     '</div>'
   );
 }
@@ -8457,7 +8466,7 @@ async function rappModalNonPayes(activities) {
 // ── Rapport : budget vs réel ─────────────────────────────────────────────────
 async function rappModalBudgetReel() {
   let lines = [];
-  try { const data = await api('/finance'); lines = (data && data.lines) ? data.lines : (Array.isArray(data) ? data : []); } catch {}
+  try { lines = await api('/finance/lines'); } catch {}
   const totBud = lines.reduce((s, l) => s + parseFloat(l.budget_alloue || 0), 0);
   const totDep = lines.reduce((s, l) => s + parseFloat(l.depenses || 0), 0);
   const totRev = lines.reduce((s, l) => s + parseFloat(l.revenus || 0), 0);
@@ -8672,7 +8681,7 @@ async function rappModalFiscal(allPayments) {
 // ── Rapport : suivi des factures ─────────────────────────────────────────────
 async function rappModalFactures() {
   let invoices = [];
-  try { invoices = await api('/invoices') || []; } catch {}
+  try { invoices = await api('/finance/invoices') || []; } catch {}
   const nonPayees = invoices.filter(i => i.statut !== 'paye');
   const payees    = invoices.filter(i => i.statut === 'paye');
   const totDu     = nonPayees.reduce((s, i) => s + parseFloat(i.montant || 0), 0);
@@ -8797,6 +8806,7 @@ async function rappModalExecutif(allCotis, allPayments, activities, allUsers) {
 // ══ TÉMOIGNAGES (admin/secrétaire) ══════════════════════════════════════════
 async function testimonials_mgmt() {
   const data = await api('/testimonials');
+  window._testimonialById = {}; data.forEach(t => window._testimonialById[t.id] = t);
   setContent(`
     <div class="page-header">
       <div><h2>Témoignages</h2><p>Gérez les témoignages affichés sur le site public.</p></div>
@@ -8813,7 +8823,7 @@ async function testimonials_mgmt() {
           <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.texte}</td>
           <td>${t.actif ? pill('Actif','bp-green') : pill('Inactif','bp-red')}</td>
           <td>
-            <button class="btn btn-sm btn-outline" onclick='openTestimonialForm(${JSON.stringify(t).replace(/'/g,"\\'")})'">✏️</button>
+            <button class="btn btn-sm btn-outline" onclick="openTestimonialForm(window._testimonialById[${t.id}])">✏️</button>
             <button class="btn btn-sm btn-danger" onclick="deleteTestimonial(${t.id})">🗑️</button>
           </td>
         </tr>`).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--muted)">Aucun témoignage</td></tr>'}
@@ -8875,6 +8885,7 @@ async function deleteTestimonial(id) {
 // ══ VIDÉOS (admin/secrétaire) ════════════════════════════════════════════════
 async function videos_mgmt() {
   const data = await api('/videos');
+  window._videoById = {}; data.forEach(v => window._videoById[v.id] = v);
   function ytId(url) { const m = url.match(/(?:youtu\.be\/|watch\?v=|embed\/|shorts\/)([^&\s?]+)/); return m?m[1]:null; }
   setContent(`
     <div class="page-header">
@@ -8893,7 +8904,7 @@ async function videos_mgmt() {
           <h3 style="font-size:.95rem;font-weight:700;margin-bottom:4px">${v.titre}</h3>
           <p style="font-size:.8rem;color:var(--muted);margin-bottom:12px">${v.description||''}</p>
           <div style="display:flex;gap:8px">
-            <button class="btn btn-sm btn-outline" onclick='openVideoForm(${JSON.stringify(v).replace(/'/g,"\\'")})'">✏️ Modifier</button>
+            <button class="btn btn-sm btn-outline" onclick="openVideoForm(window._videoById[${v.id}])">✏️ Modifier</button>
             <button class="btn btn-sm btn-danger" onclick="deleteVideo(${v.id})">🗑️</button>
           </div>
         </div>`;
