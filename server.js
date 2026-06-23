@@ -8063,28 +8063,31 @@ app.post('/api/scan/unified', authMiddleware, (req, res) => {
 
     if (!ticket) return null; // not found as ticket
 
+    // IMPORTANT: ticket.act_id vient du LEFT JOIN (null si activité supprimée)
+    // ticket.activity_id vient de t.* (toujours la valeur originale)
+    const ticketActId = ticket.activity_id;
     const nomBilletRaw = (ticket.acheteur_nom || ((ticket.buyer_prenom || '') + ' ' + (ticket.buyer_nom || '')).trim()) || 'Inconnu';
 
     // Found — process check-in
     const isValid = ticket.statut === 'actif' || ticket.payment_status === 'paid';
     if (!isValid) {
       db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details, ticket_id) VALUES (?,?,?,?,?,?)")
-        .run(ticket.act_id || null, req.user.id, qr_data, 'invalide', 'Statut: ' + ticket.statut, ticket.id);
+        .run(ticketActId || null, req.user.id, qr_data, 'invalide', 'Statut: ' + ticket.statut, ticket.id);
       return res.json({
         ok: false, type: 'ticket', status: 'invalide',
         nom: nomBilletRaw,
         message: 'Billet ' + (ticket.statut === 'annule' ? 'annulé' : 'non activé') + ' (statut: ' + ticket.statut + ')',
-        activite: ticket.activite
+        activite: ticket.activite || 'Activité #' + ticketActId
       });
     }
 
     // Vérifier si l'activité existe et son statut
-    if (ticket.act_id) {
-      const actCheck = db.prepare('SELECT id, titre, statut, date_debut FROM activities WHERE id=?').get(ticket.act_id);
-      const actNom = (actCheck && actCheck.titre) || ticket.activite || 'Activité #' + ticket.act_id;
+    if (ticketActId) {
+      const actCheck = db.prepare('SELECT id, titre, statut, date_debut FROM activities WHERE id=?').get(ticketActId);
+      const actNom = (actCheck && actCheck.titre) || ticket.activite || 'Activité #' + ticketActId;
       if (!actCheck || actCheck.statut === 'annulee' || actCheck.statut === 'supprimee') {
         db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details, ticket_id) VALUES (?,?,?,?,?,?)")
-          .run(ticket.act_id || null, req.user.id, qr_data, 'invalide', nomBilletRaw + ' | Activité supprimée/annulée', ticket.id);
+          .run(ticketActId, req.user.id, qr_data, 'invalide', nomBilletRaw + ' | Activité supprimée/annulée', ticket.id);
         return res.json({
           ok: false, type: 'ticket', status: 'supprimee',
           nom: nomBilletRaw,
@@ -8097,11 +8100,11 @@ app.post('/api/scan/unified', authMiddleware, (req, res) => {
         const nowTo = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Toronto'}));
         const actDate = new Date(actCheck.date_debut);
         const diffH = Math.abs(nowTo.getTime() - actDate.getTime()) / (1000 * 60 * 60);
-        if (diffH > 26) { // plus de 26h d'écart = pas aujourd'hui
+        if (diffH > 26) {
           const dateAct = actCheck.date_debut.substring(0, 10);
           const isPast = actDate < nowTo;
           db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details, ticket_id) VALUES (?,?,?,?,?,?)")
-            .run(ticket.act_id, req.user.id, qr_data, 'invalide', nomBilletRaw + ' | Activité ' + (isPast ? 'passée' : 'future') + ': ' + dateAct, ticket.id);
+            .run(ticketActId, req.user.id, qr_data, 'invalide', nomBilletRaw + ' | Activité ' + (isPast ? 'passée' : 'future') + ': ' + dateAct, ticket.id);
           return res.json({
             ok: false, type: 'ticket', status: isPast ? 'passee' : 'future',
             nom: nomBilletRaw,
@@ -8115,9 +8118,9 @@ app.post('/api/scan/unified', authMiddleware, (req, res) => {
       }
     }
 
-    if (activity_id && ticket.act_id !== parseInt(activity_id)) {
+    if (activity_id && ticketActId !== parseInt(activity_id)) {
       db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details, ticket_id) VALUES (?,?,?,?,?,?)")
-        .run(ticket.act_id || null, req.user.id, qr_data, 'invalide', 'Mauvaise activité: ' + ticket.activite, ticket.id);
+        .run(ticketActId || null, req.user.id, qr_data, 'invalide', 'Mauvaise activité: ' + (ticket.activite || ''), ticket.id);
       return res.json({
         ok: false, type: 'ticket', status: 'invalide',
         nom: nomBilletRaw,
@@ -8128,8 +8131,8 @@ app.post('/api/scan/unified', authMiddleware, (req, res) => {
     }
 
     // Check already entered (ticket or via card scan)
-    const regAlreadyIn = ticket.user_id
-      ? db.prepare('SELECT checked_in FROM activity_registrations WHERE user_id=? AND activity_id=? AND checked_in=1').get(ticket.user_id, ticket.act_id)
+    const regAlreadyIn = ticket.user_id && ticketActId
+      ? db.prepare('SELECT checked_in FROM activity_registrations WHERE user_id=? AND activity_id=? AND checked_in=1').get(ticket.user_id, ticketActId)
       : null;
     const alreadyIn = ticket.checked_in === 1 || !!regAlreadyIn;
 
@@ -8137,20 +8140,20 @@ app.post('/api/scan/unified', authMiddleware, (req, res) => {
       db.prepare('UPDATE tickets SET checked_in=1, date_checkin=CURRENT_TIMESTAMP WHERE id=?').run(ticket.id);
     }
     // Cross-check: mark registration too
-    if (ticket.user_id) {
-      const reg = db.prepare('SELECT id FROM activity_registrations WHERE user_id=? AND activity_id=?').get(ticket.user_id, ticket.act_id);
+    if (ticket.user_id && ticketActId) {
+      const reg = db.prepare('SELECT id FROM activity_registrations WHERE user_id=? AND activity_id=?').get(ticket.user_id, ticketActId);
       if (reg) {
-        db.prepare("UPDATE activity_registrations SET statut='present', checked_in=1, date_checkin=COALESCE(date_checkin,CURRENT_TIMESTAMP) WHERE user_id=? AND activity_id=?").run(ticket.user_id, ticket.act_id);
+        db.prepare("UPDATE activity_registrations SET statut='present', checked_in=1, date_checkin=COALESCE(date_checkin,CURRENT_TIMESTAMP) WHERE user_id=? AND activity_id=?").run(ticket.user_id, ticketActId);
       } else {
-        db.prepare("INSERT INTO activity_registrations (user_id, activity_id, statut, checked_in, date_checkin) VALUES (?,?,'present',1,CURRENT_TIMESTAMP)").run(ticket.user_id, ticket.act_id);
+        db.prepare("INSERT INTO activity_registrations (user_id, activity_id, statut, checked_in, date_checkin) VALUES (?,?,'present',1,CURRENT_TIMESTAMP)").run(ticket.user_id, ticketActId);
       }
     }
 
     const nomBillet = ticket.acheteur_nom || ((ticket.buyer_prenom || '') + ' ' + (ticket.buyer_nom || '')).trim();
     db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details, ticket_id) VALUES (?,?,?,?,?,?)")
-      .run(ticket.act_id || null, req.user.id, qr_data, alreadyIn ? 'deja_scanne' : 'valide', nomBillet + (ticket.table_numero ? ' | Table ' + ticket.table_numero : ''), ticket.id);
+      .run(ticketActId || null, req.user.id, qr_data, alreadyIn ? 'deja_scanne' : 'valide', nomBillet + (ticket.table_numero ? ' | Table ' + ticket.table_numero : ''), ticket.id);
 
-    const actInfo = ticket.act_id ? db.prepare('SELECT date_debut, lieu FROM activities WHERE id=?').get(ticket.act_id) : {};
+    const actInfo = ticketActId ? db.prepare('SELECT date_debut, lieu FROM activities WHERE id=?').get(ticketActId) : {};
     return res.json({
       ok: true,
       type: 'ticket',
