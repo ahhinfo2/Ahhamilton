@@ -711,21 +711,50 @@ function _showFullHistory() {
       if (d.table_numero) details += '🪑 Table ' + d.table_numero + '<br>';
       if (d.prix) details += '💵 ' + parseFloat(d.prix).toFixed(2) + ' $<br>';
     }
-    return '<div style="background:' + bgColor + ';border-radius:10px;padding:12px 14px;margin-bottom:8px;cursor:pointer" onclick="_replayHistory(' + i + ');document.getElementById(\'histFullPage\').style.display=\'none\'">' +
-      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:' + (details ? '8' : '0') + 'px">' +
+    return '<div style="background:' + bgColor + ';border-radius:10px;padding:12px 14px;margin-bottom:8px;cursor:pointer" onclick="_expandHistEntry(this,' + i + ')">' +
+      '<div style="display:flex;align-items:center;gap:10px">' +
         '<span style="font-size:1.4rem">' + statusIcon + '</span>' +
         '<div style="flex:1">' +
           '<div style="font-weight:700;color:#fff;font-size:.9rem">' + h.nom + '</div>' +
           '<div style="font-size:.72rem;color:rgba(255,255,255,.5)">' + h.time + ' · ' + label + ' · ' + h.meta + '</div>' +
         '</div>' +
+        '<div style="color:rgba(255,255,255,.4);font-size:.8rem">▼</div>' +
       '</div>' +
-      (details ? '<div style="font-size:.78rem;color:rgba(255,255,255,.6);padding-left:36px;line-height:1.6">' + details + '</div>' : '') +
+      '<div class="hist-expand" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.1)"></div>' +
     '</div>';
   }).join('');
 
   if (history.length === 0) html = '<div style="text-align:center;color:rgba(255,255,255,.4);padding:60px 0"><div style="font-size:2.5rem;margin-bottom:12px">📋</div><div>Aucun scan dans cette session</div></div>';
 
   list.innerHTML = html;
+}
+
+function _expandHistEntry(el, idx) {
+  var h = history[idx];
+  if (!h) return;
+  var expand = el.querySelector('.hist-expand');
+  if (!expand) return;
+  if (expand.style.display === 'block') { expand.style.display = 'none'; return; }
+  // Fermer les autres
+  document.querySelectorAll('.hist-expand').forEach(function(e) { e.style.display = 'none'; });
+  var d = h.fullData || {};
+  var rows = '';
+  if (d.photo_url) rows += '<div style="text-align:center;margin-bottom:8px"><img src="' + d.photo_url + '" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,.3)" onerror="this.style.display=\'none\'"/></div>';
+  if (d.activite) rows += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span style="opacity:.6">Activité</span><strong>' + d.activite + '</strong></div>';
+  if (d.barcode) rows += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span style="opacity:.6">Code</span><strong style="font-family:monospace">' + d.barcode + '</strong></div>';
+  if (d.plan) rows += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span style="opacity:.6">Plan</span><strong>' + d.plan + '</strong></div>';
+  if (d.is_comite) rows += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span style="opacity:.6">Rôle</span><strong>⭐ Comité VIP</strong></div>';
+  if (d.total_billets > 0) rows += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span style="opacity:.6">Billets</span><strong>' + (d.total_billets-(d.billets_restants||0)) + '/' + d.total_billets + '</strong></div>';
+  if (d.table_numero) rows += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span style="opacity:.6">Table</span><strong>' + d.table_numero + '</strong></div>';
+  if (d.prix) rows += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span style="opacity:.6">Prix</span><strong>' + parseFloat(d.prix).toFixed(2) + ' $</strong></div>';
+  if (d.vendeur_nom) rows += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span style="opacity:.6">Vendu par</span><strong>' + d.vendeur_nom + '</strong></div>';
+  if (d.lieu) rows += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span style="opacity:.6">Lieu</span><strong>' + d.lieu + '</strong></div>';
+  if (d.carte_valide === true) rows += '<div style="padding:4px 0;color:#66bb6a;font-weight:600">✅ Carte valide</div>';
+  else if (d.carte_valide === false) rows += '<div style="padding:4px 0;color:#ef5350;font-weight:600">❌ Carte invalide</div>';
+  if (d.message && d.status !== 'valide' && d.status !== 'vip') rows += '<div style="padding:6px 0;color:#ff9800;font-size:.82rem">' + d.message + '</div>';
+  if (!rows) rows = '<div style="color:rgba(255,255,255,.4);padding:8px 0">Aucun détail disponible</div>';
+  expand.innerHTML = '<div style="font-size:.84rem;color:rgba(255,255,255,.85)">' + rows + '</div>';
+  expand.style.display = 'block';
 }
 
 function _replayHistory(idx) {
