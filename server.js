@@ -8063,6 +8063,8 @@ app.post('/api/scan/unified', authMiddleware, (req, res) => {
 
     if (!ticket) return null; // not found as ticket
 
+    const nomBilletRaw = (ticket.acheteur_nom || ((ticket.buyer_prenom || '') + ' ' + (ticket.buyer_nom || '')).trim()) || 'Inconnu';
+
     // Found — process check-in
     const isValid = ticket.statut === 'actif' || ticket.payment_status === 'paid';
     if (!isValid) {
@@ -8070,10 +8072,46 @@ app.post('/api/scan/unified', authMiddleware, (req, res) => {
         .run(ticket.act_id || null, req.user.id, qr_data, 'invalide', 'Statut: ' + ticket.statut, ticket.id);
       return res.json({
         ok: false, type: 'ticket', status: 'invalide',
-        nom: (ticket.acheteur_nom || ((ticket.buyer_prenom || '') + ' ' + (ticket.buyer_nom || '')).trim()) || 'Inconnu',
+        nom: nomBilletRaw,
         message: 'Billet ' + (ticket.statut === 'annule' ? 'annulé' : 'non activé') + ' (statut: ' + ticket.statut + ')',
         activite: ticket.activite
       });
+    }
+
+    // Vérifier si l'activité existe et son statut
+    if (ticket.act_id) {
+      const actCheck = db.prepare('SELECT id, titre, statut, date_debut FROM activities WHERE id=?').get(ticket.act_id);
+      if (!actCheck || actCheck.statut === 'annulee' || actCheck.statut === 'supprimee') {
+        db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details, ticket_id) VALUES (?,?,?,?,?,?)")
+          .run(ticket.act_id || null, req.user.id, qr_data, 'invalide', nomBilletRaw + ' | Activité supprimée/annulée', ticket.id);
+        return res.json({
+          ok: false, type: 'ticket', status: 'supprimee',
+          nom: nomBilletRaw,
+          message: 'Activité « ' + (ticket.activite || '?') + ' » supprimée ou annulée',
+          activite: ticket.activite, barcode: ticket.barcode_data
+        });
+      }
+      // Vérifier si l'activité est du jour (±2h flexibilité, heure Toronto)
+      if (actCheck.date_debut) {
+        const nowTo = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Toronto'}));
+        const actDate = new Date(actCheck.date_debut);
+        const diffH = Math.abs(nowTo.getTime() - actDate.getTime()) / (1000 * 60 * 60);
+        if (diffH > 26) { // plus de 26h d'écart = pas aujourd'hui
+          const dateAct = actCheck.date_debut.substring(0, 10);
+          const isPast = actDate < nowTo;
+          db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details, ticket_id) VALUES (?,?,?,?,?,?)")
+            .run(ticket.act_id, req.user.id, qr_data, 'invalide', nomBilletRaw + ' | Activité ' + (isPast ? 'passée' : 'future') + ': ' + dateAct, ticket.id);
+          return res.json({
+            ok: false, type: 'ticket', status: isPast ? 'passee' : 'future',
+            nom: nomBilletRaw,
+            message: isPast
+              ? 'Activité « ' + (ticket.activite || '?') + ' » terminée (' + dateAct + ')'
+              : 'Activité « ' + (ticket.activite || '?') + ' » pas encore commencée (' + dateAct + ')',
+            activite: ticket.activite, barcode: ticket.barcode_data,
+            date_evenement: actCheck.date_debut
+          });
+        }
+      }
     }
 
     if (activity_id && ticket.act_id !== parseInt(activity_id)) {
@@ -8081,7 +8119,7 @@ app.post('/api/scan/unified', authMiddleware, (req, res) => {
         .run(ticket.act_id || null, req.user.id, qr_data, 'invalide', 'Mauvaise activité: ' + ticket.activite, ticket.id);
       return res.json({
         ok: false, type: 'ticket', status: 'invalide',
-        nom: (ticket.acheteur_nom || ((ticket.buyer_prenom || '') + ' ' + (ticket.buyer_nom || '')).trim()) || 'Inconnu',
+        nom: nomBilletRaw,
         message: 'Ce billet est pour l\'activité : ' + ticket.activite,
         activite: ticket.activite,
         barcode: ticket.barcode_data

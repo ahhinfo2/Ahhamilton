@@ -493,18 +493,30 @@ async function onQRDetected(rawText) {
 
     if (data.type === 'ticket') {
       // ── Ticket result ──
-      if (!data.ok && data.status === 'invalide') {
+      if (data.status === 'supprimee') {
+        showResultUnified('err', '🗑️', 'ACTIVITÉ SUPPRIMÉE', data);
+        playBeep(false);
+        addHistory('err', data.nom || 'Inconnu', '🗑️ ' + (data.activite || 'Supprimée'), data);
+      } else if (data.status === 'passee') {
+        showResultUnified('warn', '📅', 'ACTIVITÉ TERMINÉE', data);
+        playBeep(false);
+        addHistory('err', data.nom || 'Inconnu', '📅 ' + (data.activite || 'Passée'), data);
+      } else if (data.status === 'future') {
+        showResultUnified('warn', '🕐', 'ACTIVITÉ PAS ENCORE', data);
+        playBeep(false);
+        addHistory('err', data.nom || 'Inconnu', '🕐 ' + (data.activite || 'Future'), data);
+      } else if (!data.ok && data.status === 'invalide') {
         showResultUnified('warn', '⚠️', data.message || 'BILLET INVALIDE', data);
         playBeep(false);
-        addHistory('err', data.nom || 'Inconnu', data.message || 'Invalide', data);
+        addHistory('err', data.nom || 'Inconnu', (data.activite ? data.activite + ' — ' : '') + (data.message || 'Invalide'), data);
       } else if (data.status === 'deja_scanne') {
         showResultUnified('dup', '🔄', 'DÉJÀ ENTRÉ', data);
         playBeep(false);
-        addHistory('dup', data.nom, 'Déjà scanné' + (data.table_numero ? ', table ' + data.table_numero : ''), data);
+        addHistory('dup', data.nom, (data.activite ? data.activite + ' — ' : '') + 'Déjà scanné' + (data.table_numero ? ', table ' + data.table_numero : ''), data);
       } else if (data.ok) {
         showResultUnified('ok', '✅', 'BIENVENUE', data);
         playBeep(true);
-        addHistory('ok', data.nom, (data.table_numero ? 'Table ' + data.table_numero + ', ' : '') + (data.vendu_en_ligne ? 'En ligne' : 'Vendu par ' + (data.vendeur_nom || '?')), data);
+        addHistory('ok', data.nom, (data.activite ? data.activite + ' — ' : '') + (data.table_numero ? 'Table ' + data.table_numero + ', ' : '') + (data.vendu_en_ligne ? 'En ligne' : 'Vendu par ' + (data.vendeur_nom || '?')), data);
       } else {
         showResultUnified('err', '❌', data.message || 'ERREUR', data);
         playBeep(false);
@@ -515,16 +527,17 @@ async function onQRDetected(rawText) {
       if (data.status === 'vip') {
         showResultUnified('vip', '👑', 'VIP — COMITÉ', data);
         playBeep(true);
-        addHistory('vip', data.nom, 'Comité VIP', data);
+        addHistory('vip', data.nom, (data.activite ? data.activite + ' — ' : '') + 'Comité VIP', data);
       } else if (data.status === 'deja_scanne') {
         showResultUnified('dup', '🔄', 'DÉJÀ ENTRÉ(E)', data);
         playBeep(false);
-        addHistory('dup', data.nom, 'Déjà entré(e)', data);
+        addHistory('dup', data.nom, (data.activite ? data.activite + ' — ' : '') + 'Déjà entré(e)', data);
       } else if (data.ok) {
         showResultUnified('ok', '✅', 'BIENVENUE', data);
         playBeep(true);
         var histMeta = data.plan ? (data.plan.charAt(0).toUpperCase() + data.plan.slice(1)) : 'Membre';
         if (data.total_billets > 0) histMeta += ', ' + data.billets_restants + '/' + data.total_billets + ' billets';
+        if (data.activite) histMeta = data.activite + ' — ' + histMeta;
         addHistory('ok', data.nom, histMeta, data);
       } else {
         showResultUnified(data.status === 'invalide' ? 'warn' : 'err', '⚠️', data.message || 'INVALIDE', data);
