@@ -279,6 +279,28 @@ function setContent(html) {
 // ── SIDEBAR ─────────────────────────────────────────────────────────────────
 async function buildSidebar() {
   const nav = document.getElementById('sidebarNav');
+  var sc = {};
+  try { sc = await api('/sidebar-counts').catch(function() { return {}; }); } catch(e) {}
+  window._sidebarCounts = sc;
+
+  function badge(id) {
+    var map = {
+      'inscriptions': sc.inscriptions,
+      'carte-gestion': sc.carte_gestion,
+      'tasks': sc.tasks,
+      'notes': sc.notes,
+      'alerts': sc.alerts,
+      'forms-mgmt': sc.forms,
+      'pending-orders': sc.pending_orders,
+      'paiements': sc.paiements,
+      'invoices': sc.invoices,
+      'annuaire': sc.courriel,
+      'forum': sc.forum,
+      'mes_billets': sc.mes_billets
+    };
+    var n = map[id];
+    return (n && n > 0) ? '<span class="nav-badge">' + (n > 99 ? '99+' : n) + '</span>' : '';
+  }
 
   // ── Sidebar restructurée par catégories logiques ─────────────────
   const ALL = ['admin','tresoriere','secretaire','delegue','member'];
@@ -427,6 +449,7 @@ async function buildSidebar() {
       return sectionHeader + `<div class="nav-item" data-view="${i.id}" onclick="showView('${i.id}')">
         <span class="nav-icon">${i.icon}</span>
         <span class="nav-label">${i.label}</span>
+        ${badge(i.id)}
       </div>`;
     }).join('');
     if (window.AHH_LANG) AHH_LANG.apply();
@@ -446,6 +469,7 @@ async function buildSidebar() {
         <div class="nav-item" data-view="${i.id}" onclick="showView('${i.id}')">
           <span class="nav-icon">${i.icon}</span>
           <span class="nav-label" data-i18n="${i.label}">${i.label}</span>
+          ${badge(i.id)}
         </div>`).join('');
   }).join('');
   if (window.AHH_LANG) AHH_LANG.apply();

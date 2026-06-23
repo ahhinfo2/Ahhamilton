@@ -5251,6 +5251,32 @@ app.get('/api/stats/connexions', authMiddleware, requireRole('admin','secretaire
   res.json(rows);
 });
 
+// ── Compteurs sidebar (badges de notification) ──────────────────────────────
+app.get('/api/sidebar-counts', authMiddleware, (req, res) => {
+  const isExec = ['admin','tresoriere','secretaire','delegue'].includes(req.user.role);
+  const counts = {};
+  try {
+    if (isExec) {
+      counts.inscriptions = db.prepare("SELECT COUNT(*) AS c FROM users WHERE actif=1 AND (approved IS NULL OR approved=0)").get()?.c || 0;
+      counts.photos_attente = db.prepare("SELECT COUNT(*) AS c FROM users WHERE photo_url IS NOT NULL AND photo_url != '' AND (carte_photo_approuvee IS NULL OR carte_photo_approuvee=0)").get()?.c || 0;
+      counts.cartes_expirees = db.prepare("SELECT COUNT(*) AS c FROM users WHERE actif=1 AND date_inscription IS NOT NULL AND date(date_inscription, '+2 years') < date('now')").get()?.c || 0;
+      counts.carte_gestion = counts.photos_attente + counts.cartes_expirees;
+      counts.tasks = db.prepare("SELECT COUNT(*) AS c FROM tasks WHERE statut IN ('en_cours','a_faire') AND (assigne_a=? OR cree_par=?)").get(req.user.id, req.user.id)?.c || 0;
+      counts.notes = db.prepare("SELECT COUNT(*) AS c FROM meeting_notes WHERE statut='brouillon'").get()?.c || 0;
+      counts.pending_orders = db.prepare("SELECT COUNT(*) AS c FROM tickets WHERE payment_status='pending'").get()?.c || 0;
+      counts.forms = db.prepare("SELECT COUNT(*) AS c FROM form_responses WHERE statut='nouveau'").get()?.c || 0;
+      counts.alerts = db.prepare("SELECT COUNT(*) AS c FROM alerts WHERE resolved=0").get()?.c || 0;
+      counts.paiements = db.prepare("SELECT COUNT(*) AS c FROM payments WHERE statut='en_attente'").get()?.c || 0;
+      counts.invoices = db.prepare("SELECT COUNT(*) AS c FROM invoices WHERE statut='envoyee'").get()?.c || 0;
+    }
+    // Compteurs pour tout le monde
+    counts.courriel = db.prepare("SELECT COUNT(*) AS c FROM emails WHERE folder='inbox' AND is_read=0 AND (to_email=? OR to_email IS NULL)").get(req.user.email)?.c || 0;
+    counts.forum = db.prepare("SELECT COUNT(*) AS c FROM forum_posts WHERE created_at > COALESCE((SELECT derniere_connexion FROM users WHERE id=?), '2000-01-01')").get(req.user.id)?.c || 0;
+    counts.mes_billets = db.prepare("SELECT COUNT(*) AS c FROM tickets WHERE user_id=? AND payment_status='paid' AND statut='actif' AND checked_in=0").get(req.user.id)?.c || 0;
+  } catch(e) { console.error('[sidebar-counts]', e.message); }
+  res.json(counts);
+});
+
 // ── Documents officiels ──────────────────────────────────────────────────────
 app.get('/api/documents', authMiddleware, (req, res) => {
   const docs = db.prepare(`
