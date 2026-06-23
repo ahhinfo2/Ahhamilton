@@ -7998,6 +7998,324 @@ app.post('/api/sponsoring/checkout', async (req, res) => {
 
 
 // ══════════════════════════════════════════════════════════════════════════════
+// UNIFIED SCANNER — handles both tickets AND member cards
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.post('/api/scan/unified', authMiddleware, (req, res) => {
+  const { qr_data, activity_id } = req.body;
+  if (!qr_data) return res.status(400).json({ ok: false, type: 'error', status: 'invalide', message: 'QR data manquant' });
+
+  console.log(`[UNIFIED-SCAN] user=${req.user.id} qr="${qr_data}" act=${activity_id || 'all'}`);
+
+  // ── Authorization: EXEC or active delegation ──
+  const isExec = ['admin','tresoriere','secretaire','delegue'].includes(req.user.role);
+  if (!isExec) {
+    const delegSql = activity_id
+      ? "SELECT id, type FROM scan_delegations WHERE user_id=? AND actif=1 AND (activity_id IS NULL OR activity_id=?) AND (date_expiration IS NULL OR date_expiration > datetime('now'))"
+      : "SELECT id, type FROM scan_delegations WHERE user_id=? AND actif=1 AND (date_expiration IS NULL OR date_expiration > datetime('now'))";
+    const delegParams = activity_id ? [req.user.id, activity_id] : [req.user.id];
+    const deleg = db.prepare(delegSql).get(...delegParams);
+    if (!deleg) {
+      db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details) VALUES (?,?,?,?,?)")
+        .run(activity_id || null, req.user.id, qr_data, 'invalide', 'Accès refusé');
+      return res.status(403).json({ ok: false, type: 'error', status: 'refuse', message: 'Accès refusé — pas de délégation de scan' });
+    }
+  }
+
+  // ── Detect QR type ──
+  let qrType = null; // 'ticket' | 'carte'
+
+  // TICKET patterns: contains TICKET: or URL with ?t=, or barcode AHH-XXXXXX (exactly 6 alphanum)
+  const ticketTokenMatch = qr_data.match(/TICKET:([^\s]+)/) || qr_data.match(/[?&]t=([^&\s]+)/);
+  const barcodeMatch = qr_data.match(/^AHH-[A-Z0-9]{6}$/);
+
+  // CARD patterns: AHH-XXXXX- (5 digits), ?id=, carte.html
+  const cardIdMatch = qr_data.match(/^AHH-(\d{5})-/) || qr_data.match(/[?&]id=(\d+)/) || qr_data.match(/carte\.html/);
+
+  if (ticketTokenMatch || barcodeMatch) {
+    qrType = 'ticket';
+  } else if (cardIdMatch) {
+    qrType = 'carte';
+  }
+  // Otherwise: try ticket first, then card
+
+  // ── Normalize QR for ticket lookup ──
+  let ticketQr = qr_data;
+  if (ticketTokenMatch) {
+    ticketQr = 'TICKET:' + ticketTokenMatch[1];
+  }
+
+  // ── Helper: try ticket check-in ──
+  function tryTicket() {
+    const ticket = db.prepare(`
+      SELECT t.*, a.titre AS activite, a.id AS act_id,
+        at.numero AS table_numero,
+        v.prenom || ' ' || v.nom AS vendeur_nom,
+        b.prenom AS buyer_prenom, b.nom AS buyer_nom
+      FROM tickets t
+      LEFT JOIN activities a ON a.id = t.activity_id
+      LEFT JOIN activity_tables at ON at.id = t.table_id
+      LEFT JOIN users v ON v.id = t.vendu_par
+      LEFT JOIN users b ON b.id = t.user_id
+      WHERE (t.qr_data = ? OR t.barcode_data = ?)
+    `).get(ticketQr, qr_data);
+
+    if (!ticket) return null; // not found as ticket
+
+    // Found — process check-in
+    const isValid = ticket.statut === 'actif' || ticket.payment_status === 'paid';
+    if (!isValid) {
+      db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details, ticket_id) VALUES (?,?,?,?,?,?)")
+        .run(ticket.act_id || null, req.user.id, qr_data, 'invalide', 'Statut: ' + ticket.statut, ticket.id);
+      return res.json({
+        ok: false, type: 'ticket', status: 'invalide',
+        nom: (ticket.acheteur_nom || ((ticket.buyer_prenom || '') + ' ' + (ticket.buyer_nom || '')).trim()) || 'Inconnu',
+        message: 'Billet ' + (ticket.statut === 'annule' ? 'annulé' : 'non activé') + ' (statut: ' + ticket.statut + ')',
+        activite: ticket.activite
+      });
+    }
+
+    if (activity_id && ticket.act_id !== parseInt(activity_id)) {
+      db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details, ticket_id) VALUES (?,?,?,?,?,?)")
+        .run(ticket.act_id || null, req.user.id, qr_data, 'invalide', 'Mauvaise activité: ' + ticket.activite, ticket.id);
+      return res.json({
+        ok: false, type: 'ticket', status: 'invalide',
+        nom: (ticket.acheteur_nom || ((ticket.buyer_prenom || '') + ' ' + (ticket.buyer_nom || '')).trim()) || 'Inconnu',
+        message: 'Ce billet est pour l\'activité : ' + ticket.activite,
+        activite: ticket.activite,
+        barcode: ticket.barcode_data
+      });
+    }
+
+    // Check already entered (ticket or via card scan)
+    const regAlreadyIn = ticket.user_id
+      ? db.prepare('SELECT checked_in FROM activity_registrations WHERE user_id=? AND activity_id=? AND checked_in=1').get(ticket.user_id, ticket.act_id)
+      : null;
+    const alreadyIn = ticket.checked_in === 1 || !!regAlreadyIn;
+
+    if (!ticket.checked_in) {
+      db.prepare('UPDATE tickets SET checked_in=1, date_checkin=CURRENT_TIMESTAMP WHERE id=?').run(ticket.id);
+    }
+    // Cross-check: mark registration too
+    if (ticket.user_id) {
+      const reg = db.prepare('SELECT id FROM activity_registrations WHERE user_id=? AND activity_id=?').get(ticket.user_id, ticket.act_id);
+      if (reg) {
+        db.prepare("UPDATE activity_registrations SET statut='present', checked_in=1, date_checkin=COALESCE(date_checkin,CURRENT_TIMESTAMP) WHERE user_id=? AND activity_id=?").run(ticket.user_id, ticket.act_id);
+      } else {
+        db.prepare("INSERT INTO activity_registrations (user_id, activity_id, statut, checked_in, date_checkin) VALUES (?,?,'present',1,CURRENT_TIMESTAMP)").run(ticket.user_id, ticket.act_id);
+      }
+    }
+
+    const nomBillet = ticket.acheteur_nom || ((ticket.buyer_prenom || '') + ' ' + (ticket.buyer_nom || '')).trim();
+    db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details, ticket_id) VALUES (?,?,?,?,?,?)")
+      .run(ticket.act_id || null, req.user.id, qr_data, alreadyIn ? 'deja_scanne' : 'valide', nomBillet + (ticket.table_numero ? ' | Table ' + ticket.table_numero : ''), ticket.id);
+
+    const actInfo = ticket.act_id ? db.prepare('SELECT date_debut, lieu FROM activities WHERE id=?').get(ticket.act_id) : {};
+    return res.json({
+      ok: true,
+      type: 'ticket',
+      status: alreadyIn ? 'deja_scanne' : 'valide',
+      nom: nomBillet || 'Inconnu',
+      message: alreadyIn ? 'Ce billet a déjà été scanné' : 'Bienvenue !',
+      activite: ticket.activite,
+      barcode: ticket.barcode_data,
+      table_numero: ticket.table_numero,
+      prix: ticket.prix,
+      vendeur_nom: ticket.vendeur_nom,
+      vendu_en_ligne: !ticket.vendu_par,
+      date_evenement: actInfo && actInfo.date_debut ? actInfo.date_debut : '',
+      lieu: actInfo && actInfo.lieu ? actInfo.lieu : ''
+    });
+  }
+
+  // ── Helper: try card scan ──
+  function tryCard() {
+    // Parse user ID from QR
+    let userId = null;
+    const parts = qr_data.split('-');
+    if (parts[0] === 'AHH' && parts[1]) {
+      const parsed = parseInt(parts[1]);
+      if (!isNaN(parsed)) userId = parsed;
+    }
+    if (!userId) {
+      const idMatch = qr_data.match(/[?&]id=(\d+)/);
+      if (idMatch) userId = parseInt(idMatch[1]);
+    }
+    if (!userId || isNaN(userId)) return null; // not a card
+
+    const member = db.prepare('SELECT id, prenom, nom, email, role, plan, photo_url, carte_photo_approuvee, date_inscription, actif FROM users WHERE id=?').get(userId);
+    if (!member) {
+      db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details) VALUES (?,?,?,?,?)")
+        .run(activity_id || null, req.user.id, qr_data, 'introuvable', 'Membre introuvable (carte)');
+      return res.json({ ok: false, type: 'carte', status: 'introuvable', nom: 'Inconnu', message: 'Membre introuvable' });
+    }
+    if (!member.actif) {
+      db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details) VALUES (?,?,?,?,?)")
+        .run(activity_id || null, req.user.id, qr_data, 'invalide', 'Compte désactivé: ' + member.prenom + ' ' + member.nom);
+      return res.json({ ok: false, type: 'carte', status: 'invalide', nom: member.prenom + ' ' + member.nom, message: 'Compte désactivé' });
+    }
+
+    const expiration = carteExpiration(member.date_inscription);
+    const expired = expiration ? new Date() > new Date(expiration) : false;
+    const carteValide = !expired && member.carte_photo_approuvee === 1 && !!member.photo_url;
+    const isExecMember = CARTE_ROLES.includes(member.role);
+    const nomMembre = member.prenom + ' ' + member.nom;
+
+    // No activity selected → just show card info
+    if (!activity_id) {
+      let cardStatus = 'valide';
+      let cardMessage = 'Carte membre valide';
+      if (expired) { cardStatus = 'invalide'; cardMessage = 'Carte expirée (depuis le ' + expiration + ')'; }
+      else if (!member.photo_url) { cardStatus = 'invalide'; cardMessage = 'Carte sans photo'; }
+      else if (member.carte_photo_approuvee !== 1) { cardStatus = 'invalide'; cardMessage = 'Photo non approuvée'; }
+      if (isExecMember) { cardStatus = 'vip'; cardMessage = 'Membre du comité — ' + member.role; }
+
+      db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details) VALUES (?,?,?,?,?)")
+        .run(null, req.user.id, qr_data, cardStatus === 'vip' ? 'valide' : cardStatus, nomMembre + ' | carte');
+      return res.json({
+        ok: cardStatus === 'valide' || cardStatus === 'vip',
+        type: 'carte',
+        status: cardStatus,
+        nom: nomMembre,
+        message: cardMessage,
+        photo_url: member.photo_url || '',
+        plan: member.plan || 'gratuit',
+        carte_valide: carteValide,
+        is_comite: isExecMember
+      });
+    }
+
+    // Activity selected → mark presence
+    const act = db.prepare('SELECT * FROM activities WHERE id=?').get(parseInt(activity_id));
+    if (!act) {
+      return res.json({ ok: false, type: 'carte', status: 'invalide', nom: nomMembre, message: 'Activité introuvable' });
+    }
+
+    // Check card validity (except EXEC members)
+    if (!isExecMember && expired) {
+      db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details) VALUES (?,?,?,?,?)")
+        .run(parseInt(activity_id), req.user.id, qr_data, 'invalide', nomMembre + ' | Carte expirée');
+      return res.json({
+        ok: false, type: 'carte', status: 'invalide',
+        nom: nomMembre, message: 'Carte expirée depuis le ' + expiration + '. Renouvellement requis.',
+        photo_url: member.photo_url || '', plan: member.plan || 'gratuit',
+        carte_valide: false, is_comite: false
+      });
+    }
+
+    // Find all member tickets for this activity
+    const billets = db.prepare("SELECT * FROM tickets WHERE activity_id=? AND (user_id=? OR acheteur_email=?) AND payment_status='paid' AND statut='actif' ORDER BY checked_in ASC, id ASC")
+      .all(parseInt(activity_id), userId, member.email);
+    const billetsNonUtilises = billets.filter(function(b) { return !b.checked_in; });
+
+    // Paid activity: check ticket or EXEC
+    if (act.paiement_requis && act.prix > 0 && !isExecMember && billets.length === 0) {
+      db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details) VALUES (?,?,?,?,?)")
+        .run(parseInt(activity_id), req.user.id, qr_data, 'invalide', nomMembre + ' | Pas de billet');
+      return res.json({
+        ok: false, type: 'carte', status: 'invalide',
+        nom: nomMembre, message: 'Pas de billet pour ' + act.titre + ' (' + (act.prix || 0).toFixed(2) + ' $). Achat requis.',
+        photo_url: member.photo_url || '', plan: member.plan || 'gratuit',
+        carte_valide: carteValide, is_comite: false, activite: act.titre
+      });
+    }
+
+    // Check if already present
+    const existingReg = db.prepare('SELECT * FROM activity_registrations WHERE user_id=? AND activity_id=?').get(userId, parseInt(activity_id));
+    const regDejaPresent = existingReg && existingReg.checked_in === 1;
+    const alreadyIn = regDejaPresent && billetsNonUtilises.length === 0;
+
+    // Cross-check: mark unused tickets
+    var billetsCheckedIn = 0;
+    var entreesVoulues = Math.min(1, billetsNonUtilises.length || 1);
+    for (var i = 0; i < entreesVoulues && i < billetsNonUtilises.length; i++) {
+      db.prepare('UPDATE tickets SET checked_in=1, date_checkin=CURRENT_TIMESTAMP WHERE id=?').run(billetsNonUtilises[i].id);
+      billetsCheckedIn++;
+    }
+
+    // Mark presence
+    var regStatut = isExecMember ? 'present' : 'confirme';
+    if (existingReg) {
+      db.prepare('UPDATE activity_registrations SET statut=?, checked_in=1, date_checkin=COALESCE(date_checkin,CURRENT_TIMESTAMP) WHERE user_id=? AND activity_id=?')
+        .run(regStatut, userId, parseInt(activity_id));
+    } else {
+      db.prepare("INSERT INTO activity_registrations (user_id, activity_id, statut, checked_in, date_checkin) VALUES (?,?,?,1,CURRENT_TIMESTAMP)")
+        .run(userId, parseInt(activity_id), regStatut);
+    }
+
+    var totalBillets = billets.length;
+    var restants = billetsNonUtilises.length - billetsCheckedIn;
+
+    // Determine status
+    var status, message;
+    if (alreadyIn) {
+      status = 'deja_scanne';
+      message = 'Déjà entré(e), aucun billet restant';
+    } else if (isExecMember) {
+      status = 'vip';
+      message = 'Comité — entrée VIP';
+    } else if (totalBillets > 1) {
+      status = 'valide';
+      message = billetsCheckedIn + ' entrée(s) validée(s), ' + restants + ' billet(s) restant(s) sur ' + totalBillets;
+    } else {
+      status = 'valide';
+      message = 'Présence confirmée';
+    }
+
+    db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details) VALUES (?,?,?,?,?)")
+      .run(parseInt(activity_id), req.user.id, qr_data, status === 'vip' ? 'valide' : status, nomMembre + ' | ' + message);
+
+    var actInfo = db.prepare('SELECT date_debut, lieu FROM activities WHERE id=?').get(parseInt(activity_id));
+    return res.json({
+      ok: status !== 'deja_scanne',
+      type: 'carte',
+      status: status,
+      nom: nomMembre,
+      message: message,
+      photo_url: member.photo_url || '',
+      plan: member.plan || 'gratuit',
+      carte_valide: carteValide,
+      is_comite: isExecMember,
+      total_billets: totalBillets,
+      billets_restants: restants,
+      activite: act.titre,
+      date_evenement: actInfo && actInfo.date_debut ? actInfo.date_debut : '',
+      lieu: actInfo && actInfo.lieu ? actInfo.lieu : ''
+    });
+  }
+
+  // ── Dispatch based on detected type ──
+  if (qrType === 'ticket') {
+    var result = tryTicket();
+    if (result !== null) return; // already responded
+    // Ticket not found — try as card
+    var cardResult = tryCard();
+    if (cardResult !== null) return;
+    db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details) VALUES (?,?,?,?,?)")
+      .run(activity_id || null, req.user.id, qr_data, 'introuvable', 'QR non reconnu');
+    return res.json({ ok: false, type: 'error', status: 'introuvable', nom: 'Inconnu', message: 'Billet introuvable — QR non reconnu' });
+  }
+
+  if (qrType === 'carte') {
+    var cardRes = tryCard();
+    if (cardRes !== null) return;
+    db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details) VALUES (?,?,?,?,?)")
+      .run(activity_id || null, req.user.id, qr_data, 'introuvable', 'QR carte non reconnu');
+    return res.json({ ok: false, type: 'error', status: 'introuvable', nom: 'Inconnu', message: 'Carte membre introuvable — QR non reconnu' });
+  }
+
+  // Unknown type — try ticket first, then card
+  var ticketResult = tryTicket();
+  if (ticketResult !== null) return;
+  var cardResult2 = tryCard();
+  if (cardResult2 !== null) return;
+
+  db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details) VALUES (?,?,?,?,?)")
+    .run(activity_id || null, req.user.id, qr_data, 'introuvable', 'QR non reconnu (ni billet ni carte)');
+  return res.json({ ok: false, type: 'error', status: 'introuvable', nom: 'Inconnu', message: 'QR non reconnu — ni billet ni carte membre' });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
 
 app.use((req, res) => {
   if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Route introuvable' });

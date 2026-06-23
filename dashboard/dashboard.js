@@ -356,8 +356,7 @@ async function buildSidebar() {
 
     // ── Scanners ──────────────────────────────────────────────────
     { label: 'Scanners', items: [
-      { id:'carte-scanner',     icon:'📷', label:'Scanner cartes',      roles:EXEC },
-      { id:'scanner',           icon:'📷', label:'Scanner billets',     roles:EXEC },
+      { id:'scanner-unified',   icon:'📷', label:'Scanner',             roles:EXEC },
       { id:'scan-delegations',  icon:'📱', label:'Déléguer un scanner', roles:EXEC },
     ]},
 
@@ -415,8 +414,7 @@ async function buildSidebar() {
         const showBillets = types.has('billets') || types.has('tous');
         const showCartes  = types.has('cartes')  || types.has('tous');
         const scanItems = [];
-        if (showBillets) scanItems.push({ id:'scanner',       icon:'📷', label:'Scanner billets', _section: scanItems.length === 0 ? '📱 Scanners' : undefined });
-        if (showCartes)  scanItems.push({ id:'carte-scanner', icon:'📷', label:'Scanner cartes',  _section: !showBillets ? '📱 Scanners' : undefined });
+        if (showBillets || showCartes) scanItems.push({ id:'scanner-unified', icon:'📷', label:'Scanner', _section: '📱 Scanners' });
         // Insert before mes-badges
         const badgeIdx = memberItems.findIndex(i => i.id === 'mes-badges');
         memberItems.splice(badgeIdx >= 0 ? badgeIdx : memberItems.length, 0, ...scanItems);
@@ -480,7 +478,7 @@ function setActiveNav(viewId) {
     'young-trainings':'Formations', 'young-polls':'Sondages', 'young-stories':'Success Stories',
     'votes':'Votes & Élections', 'parrainage':'Parrainage', 'stats-growth':'Statistiques',
     'carte-membre':'Ma carte membre', 'actualites':'Actualités', 'notif-prefs':'Notifications',
-    'carte-gestion':'Gestion des cartes', 'carte-scanner':'Scanner cartes',
+    'carte-gestion':'Gestion des cartes', 'carte-scanner':'Scanner cartes', 'scanner-unified':'Scanner',
     'journal-admin':'Journal d\'activité', 'mes-badges':'Mes badges', 'ambassadeur-admin':'Ambassadeur du mois',
     'abonnes-newsletter':'Abonnés newsletter',
     'tasks':'Tâches',
@@ -914,6 +912,7 @@ async function showView(viewId) {
     'notif-prefs': notifPrefsView,
     'carte-gestion': carteGestionView,
     'carte-scanner': carteScannerView,
+    'scanner-unified': function() { window.open(window.location.origin + '/scan.html', '_blank'); },
     'journal-admin': journalAdmin,
     'mes-badges': mesBadgesView,
     'ambassadeur-admin': ambassadeurAdmin,

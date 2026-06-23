@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
-<title>Scanner billets | AHH</title>
+<title>Scanner AHH</title>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -96,6 +96,7 @@
   .result-main.warn {background:rgba(230,81,0,.15)}
   .result-main.err  {background:rgba(198,40,40,.15)}
   .result-main.dup  {background:rgba(106,26,117,.15)}
+  .result-main.vip  {background:rgba(26,35,126,.15)}
 
   .result-icon{font-size:4rem;margin-bottom:12px;line-height:1}
   .result-status{font-size:1rem;font-weight:700;letter-spacing:.05em;margin-bottom:20px;text-transform:uppercase}
@@ -103,6 +104,7 @@
   .warn .result-status{color:#ff9800}
   .err  .result-status{color:#ef5350}
   .dup  .result-status{color:#ce93d8}
+  .vip  .result-status{color:#90caf9}
 
   .result-name{
     font-size:2rem;font-weight:800;color:#fff;text-align:center;
@@ -129,6 +131,14 @@
   .hist-dot.ok{background:#66bb6a}
   .hist-dot.dup{background:#ce93d8}
   .hist-dot.err{background:#ef5350}
+  .hist-dot.vip{background:#90caf9}
+  .hist-dot.warn{background:#ff9800}
+
+  /* Member photo in overlay/result */
+  .ov-photo{width:90px;height:90px;border-radius:50%;object-fit:cover;border:3px solid rgba(255,255,255,.5);margin-bottom:10px}
+  .result-photo{width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,.3);margin-bottom:8px}
+  .ov-plan-badge{display:inline-block;background:rgba(255,255,255,.2);border-radius:20px;padding:4px 14px;font-size:.82rem;color:rgba(255,255,255,.9);margin-bottom:6px}
+  .ov-billets{font-size:.88rem;color:rgba(255,255,255,.75);margin-top:4px}
   .hist-info{flex:1;min-width:0}
   .hist-name{font-size:.78rem;color:#fff;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .hist-meta{font-size:.68rem;color:rgba(255,255,255,.45)}
@@ -193,6 +203,7 @@
   #scanOverlay.dup {background:#4a0072}
   #scanOverlay.err {background:#b71c1c}
   #scanOverlay.warn{background:#bf360c}
+  #scanOverlay.vip {background:#1a237e}
   #scanOverlay .ov-icon{font-size:6rem;margin-bottom:8px;line-height:1}
   #scanOverlay .ov-status{
     font-size:1.2rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
@@ -234,7 +245,7 @@
   <div class="hdr-logo">
     <img src="Public/logo1.png" alt="AHH"/>
     <div>
-      <div class="hdr-title">Scanner de billets</div>
+      <div class="hdr-title">Scanner AHH</div>
       <div class="hdr-sub">Association Haïtienne de Hamilton</div>
     </div>
   </div>
@@ -266,9 +277,9 @@
         <option value="">Toutes les activités</option>
       </select>
     </div>
-    <div class="cam-tip">📱 Pointez la caméra vers le QR code du billet</div>
+    <div class="cam-tip">📱 Pointez la caméra vers un QR code (billet ou carte membre)</div>
     <div style="padding:6px 10px;display:flex;gap:6px;background:#222">
-      <input id="manualCode" placeholder="Saisie manuelle : AHH-XXXXX" style="flex:1;padding:6px 10px;border-radius:6px;border:1px solid #555;background:#333;color:#fff;font-size:.8rem;font-family:monospace" onkeydown="if(event.key==='Enter'){event.preventDefault();_manualScan();}"/>
+      <input id="manualCode" placeholder="Saisie manuelle : AHH-XXXXXX ou AHH-00001-..." style="flex:1;padding:6px 10px;border-radius:6px;border:1px solid #555;background:#333;color:#fff;font-size:.8rem;font-family:monospace" onkeydown="if(event.key==='Enter'){event.preventDefault();_manualScan();}"/>
       <button onclick="_manualScan()" style="background:#2e7d32;color:#fff;border:none;padding:6px 12px;border-radius:6px;font-weight:700;font-size:.8rem;cursor:pointer">OK</button>
     </div>
   </div>
@@ -326,7 +337,16 @@ let myDelegations = [];
       }
     }
 
-    document.getElementById('hdUser').textContent = USER.prenom + ' ' + USER.nom + ' · ' + (isExec ? USER.role : 'délégué(e)');
+    var scanLabel = USER.role;
+    if (!isExec) {
+      var delegTypes = new Set(myDelegations.map(function(d) { return d.type; }));
+      if (delegTypes.has('tous')) scanLabel = 'délégué(e) — billets + cartes';
+      else if (delegTypes.has('billets') && delegTypes.has('cartes')) scanLabel = 'délégué(e) — billets + cartes';
+      else if (delegTypes.has('billets')) scanLabel = 'délégué(e) — billets';
+      else if (delegTypes.has('cartes')) scanLabel = 'délégué(e) — cartes';
+      else scanLabel = 'délégué(e)';
+    }
+    document.getElementById('hdUser').textContent = USER.prenom + ' ' + USER.nom + ' · ' + scanLabel;
     await loadActivities();
     startScanner();
   } catch(e) {
@@ -420,89 +440,167 @@ function _manualScan() {
 async function onQRDetected(rawText) {
   if (rawText === lastQR) return;
   lastQR = rawText;
-  setTimeout(() => { lastQR = ''; }, 2000); // cooldown 2s
+  setTimeout(function() { lastQR = ''; }, 2000); // cooldown 2s
 
   // Normaliser :
   // 1. URL scan.html?t=TOKEN → TICKET:TOKEN
   // 2. Code128 AHH-XXXXXX → envoyé tel quel (barcode_data)
-  let qrText = rawText;
-  const urlMatch = rawText.match(/[?&]t=([^&\s]+)/);
+  // 3. Carte AHH-00001-xxx → envoyé tel quel (unified détecte)
+  var qrText = rawText;
+  var urlMatch = rawText.match(/[?&]t=([^&\s]+)/);
   if (urlMatch) {
     qrText = 'TICKET:' + urlMatch[1];
   }
-  // Si c'est un barcode AHH-XXXXXX, le serveur le reconnaîtra via barcode_data
 
-  const actId = document.getElementById('actSelect').value || null;
-  const box = document.getElementById('resultMain');
+  var actId = document.getElementById('actSelect').value || null;
+  var box = document.getElementById('resultMain');
   box.innerHTML = '<div class="idle-icon" style="animation:spin .5s linear infinite">⏳</div>';
 
   try {
-    const res = await fetch(API + '/tickets/checkin', {
+    var res = await fetch(API + '/scan/unified', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + TOKEN },
       body: JSON.stringify({ qr_data: qrText, activity_id: actId ? parseInt(actId) : undefined })
     });
-    const data = await res.json();
+    var data = await res.json();
 
-    if (!res.ok) {
-      if (res.status === 409) showResult('warn', '⚠️', 'MAUVAISE ACTIVITÉ', data.error, null, null, null);
-      else showResult('err', '❌', 'BILLET INVALIDE', data.error || 'QR non reconnu', null, null, null);
-      playBeep(false);
-      addHistory('err', qrText.split('\n')[0] || 'Inconnu', data.error || 'Invalide');
-    } else if (data.already_checked_in) {
-      showResult('dup', '🔄', 'DÉJÀ ENTRÉ', data.nom, data.table_numero, data.vendeur_nom, data.activite, true);
-      playBeep(false);
-      addHistory('dup', data.nom, 'Déjà scanné, table ' + (data.table_numero || '?'));
+    if (data.type === 'ticket') {
+      // ── Ticket result ──
+      if (!data.ok && data.status === 'invalide') {
+        showResultUnified('warn', '⚠️', data.message || 'BILLET INVALIDE', data);
+        playBeep(false);
+        addHistory('err', data.nom || 'Inconnu', data.message || 'Invalide');
+      } else if (data.status === 'deja_scanne') {
+        showResultUnified('dup', '🔄', 'DÉJÀ ENTRÉ', data);
+        playBeep(false);
+        addHistory('dup', data.nom, 'Déjà scanné' + (data.table_numero ? ', table ' + data.table_numero : ''));
+      } else if (data.ok) {
+        showResultUnified('ok', '✅', 'BIENVENUE', data);
+        playBeep(true);
+        addHistory('ok', data.nom, (data.table_numero ? 'Table ' + data.table_numero + ', ' : '') + (data.vendu_en_ligne ? 'En ligne' : 'Vendu par ' + (data.vendeur_nom || '?')));
+      } else {
+        showResultUnified('err', '❌', data.message || 'ERREUR', data);
+        playBeep(false);
+        addHistory('err', data.nom || 'Inconnu', data.message || 'Erreur');
+      }
+    } else if (data.type === 'carte') {
+      // ── Card result ──
+      if (data.status === 'vip') {
+        showResultUnified('vip', '👑', 'VIP — COMITÉ', data);
+        playBeep(true);
+        addHistory('vip', data.nom, 'Comité VIP');
+      } else if (data.status === 'deja_scanne') {
+        showResultUnified('dup', '🔄', 'DÉJÀ ENTRÉ(E)', data);
+        playBeep(false);
+        addHistory('dup', data.nom, 'Déjà entré(e)');
+      } else if (data.ok) {
+        showResultUnified('ok', '✅', 'BIENVENUE', data);
+        playBeep(true);
+        var histMeta = data.plan ? (data.plan.charAt(0).toUpperCase() + data.plan.slice(1)) : 'Membre';
+        if (data.total_billets > 0) histMeta += ', ' + data.billets_restants + '/' + data.total_billets + ' billets';
+        addHistory('ok', data.nom, histMeta);
+      } else {
+        showResultUnified(data.status === 'invalide' ? 'warn' : 'err', '⚠️', data.message || 'INVALIDE', data);
+        playBeep(false);
+        addHistory('err', data.nom || 'Inconnu', data.message || 'Invalide');
+      }
     } else {
-      showResult('ok', '✅', 'BIENVENUE', data.nom, data.table_numero, data.vendeur_nom, data.activite, false);
-      playBeep(true);
-      addHistory('ok', data.nom, (data.table_numero ? 'Table ' + data.table_numero + ', ' : '') + (data.vendu_en_ligne ? 'En ligne' : 'Vendu par ' + data.vendeur_nom));
+      // ── Error / not found ──
+      showResultUnified('err', '❌', data.message || 'QR NON RECONNU', data);
+      playBeep(false);
+      addHistory('err', qrText.split('\n')[0] || 'Inconnu', data.message || 'Non reconnu');
     }
   } catch(e) {
-    showResult('err', '⚠️', 'ERREUR RÉSEAU', 'Vérifiez la connexion', null, null, null);
+    showResultUnified('err', '⚠️', 'ERREUR RÉSEAU', { nom: 'Vérifiez la connexion', type: 'error' });
     playBeep(false);
   }
 }
 
-let _overlayTimer = null;
+var _overlayTimer = null;
 function closeOverlay() {
-  const o = document.getElementById('scanOverlay');
+  var o = document.getElementById('scanOverlay');
   o.classList.remove('visible');
   lastQR = ''; // réinitialiser cooldown pour re-scanner
 }
 
-function showResult(cls, icon, status, nom, table, vendeur, activite, isdup) {
-  // Overlay plein écran
-  const o = document.getElementById('scanOverlay');
+function showResultUnified(cls, icon, statusText, data) {
+  var type = data.type || 'error';
+  var nom = data.nom || '';
+  var icons = { ok:'✅', dup:'🔄', err:'❌', warn:'⚠️', vip:'👑' };
+
+  // ── Overlay plein écran ──
+  var o = document.getElementById('scanOverlay');
   o.className = 'visible ' + cls;
-  const icons = { ok:'✅', dup:'🔄', err:'❌', warn:'⚠️' };
-  document.getElementById('ovIcon').textContent = icons[cls] || icon;
-  document.getElementById('ovStatus').textContent = status;
-  document.getElementById('ovName').textContent = nom || '';
-  const subs = [];
-  if (table) subs.push('🪑 Table ' + table);
-  if (vendeur) subs.push('👤 ' + vendeur);
-  if (activite) subs.push('🎉 ' + activite);
-  document.getElementById('ovSub').textContent = subs.join(' · ');
+  document.getElementById('ovIcon').innerHTML = (type === 'carte' && data.photo_url)
+    ? '<img class="ov-photo" src="' + data.photo_url + '" onerror="this.outerHTML=\'' + (icons[cls] || icon) + '\'">'
+    : (icons[cls] || icon);
+  document.getElementById('ovStatus').textContent = statusText;
+  document.getElementById('ovName').textContent = nom;
+
+  var subParts = [];
+  if (type === 'ticket') {
+    if (data.table_numero) subParts.push('🪑 Table ' + data.table_numero);
+    if (data.vendeur_nom) subParts.push('👤 ' + data.vendeur_nom);
+    else if (data.vendu_en_ligne) subParts.push('🌐 En ligne');
+    if (data.activite) subParts.push('🎉 ' + data.activite);
+    if (data.prix) subParts.push('💵 ' + parseFloat(data.prix).toFixed(2) + ' $');
+  } else if (type === 'carte') {
+    if (data.plan) subParts.push('🪪 ' + data.plan.charAt(0).toUpperCase() + data.plan.slice(1));
+    if (data.is_comite) subParts.push('⭐ Comité');
+    if (data.activite) subParts.push('🎉 ' + data.activite);
+    if (typeof data.total_billets === 'number' && data.total_billets > 0)
+      subParts.push('🎟 ' + data.billets_restants + '/' + data.total_billets + ' billets');
+    if (data.carte_valide === false && cls !== 'vip') subParts.push('⚠️ Carte invalide');
+  }
+  document.getElementById('ovSub').innerHTML = subParts.join(' · ');
+
   clearTimeout(_overlayTimer);
-  // Auto-fermeture après 4s (succès) ou 3s (erreur)
-  _overlayTimer = setTimeout(closeOverlay, cls === 'ok' || cls === 'dup' ? 4000 : 3000);
+  _overlayTimer = setTimeout(closeOverlay, (cls === 'ok' || cls === 'dup' || cls === 'vip') ? 4000 : 3000);
 
-  // Aussi mettre à jour le panel desktop
-  const box = document.getElementById('resultMain');
+  // ── Panel desktop (result-side) ──
+  var box = document.getElementById('resultMain');
   box.className = 'result-main ' + cls;
-  const achatInfo = vendeur
-    ? '<div class="result-badge">👤 Vendu par ' + vendeur + '</div>'
-    : '<div class="result-badge">🌐 Acheté en ligne</div>';
 
-  box.innerHTML =
-    '<div class="result-icon">' + icon + '</div>' +
-    '<div class="result-status">' + status + '</div>' +
-    '<div class="result-name">' + (nom || '–') + '</div>' +
-    (table ? '<div class="result-table">🪑 Table ' + table + '</div>' : '<div class="result-table" style="color:rgba(255,255,255,.4)">Table non assignée</div>') +
-    (nom !== status ? achatInfo : '') +
-    (activite ? '<div class="result-activity">' + activite + '</div>' : '') +
-    (isdup ? '<div class="result-badge" style="background:rgba(206,147,216,.2);margin-top:8px">⚠️ Ce billet a déjà été scanné</div>' : '');
+  if (type === 'ticket') {
+    var achatInfo = data.vendeur_nom
+      ? '<div class="result-badge">👤 Vendu par ' + data.vendeur_nom + '</div>'
+      : '<div class="result-badge">🌐 Acheté en ligne</div>';
+    box.innerHTML =
+      '<div class="result-icon">' + icon + '</div>' +
+      '<div class="result-status">' + statusText + '</div>' +
+      '<div class="result-name">' + nom + '</div>' +
+      (data.table_numero ? '<div class="result-table">🪑 Table ' + data.table_numero + '</div>' : '<div class="result-table" style="color:rgba(255,255,255,.4)">Table non assignée</div>') +
+      achatInfo +
+      (data.activite ? '<div class="result-activity">' + data.activite + '</div>' : '') +
+      (data.status === 'deja_scanne' ? '<div class="result-badge" style="background:rgba(206,147,216,.2);margin-top:8px">⚠️ Ce billet a déjà été scanné</div>' : '');
+  } else if (type === 'carte') {
+    var photoHtml = data.photo_url
+      ? '<img class="result-photo" src="' + data.photo_url + '" onerror="this.style.display=\'none\'">'
+      : '';
+    var planLabel = data.plan ? data.plan.charAt(0).toUpperCase() + data.plan.slice(1) : 'Gratuit';
+    var carteStatusHtml = '';
+    if (data.carte_valide === false && cls !== 'vip') carteStatusHtml = '<div class="result-badge" style="background:rgba(255,152,0,.2)">⚠️ Carte invalide</div>';
+    else if (data.carte_valide) carteStatusHtml = '<div class="result-badge" style="background:rgba(76,175,80,.2)">✅ Carte valide</div>';
+    var billetsHtml = '';
+    if (typeof data.total_billets === 'number' && data.total_billets > 0)
+      billetsHtml = '<div class="result-badge">🎟 ' + data.billets_restants + ' billet(s) restant(s) sur ' + data.total_billets + '</div>';
+    var vipBadge = data.is_comite ? '<div class="result-badge" style="background:rgba(26,35,126,.3);color:#90caf9">⭐ Comité — VIP</div>' : '';
+    box.innerHTML =
+      photoHtml +
+      '<div class="result-icon">' + icon + '</div>' +
+      '<div class="result-status">' + statusText + '</div>' +
+      '<div class="result-name">' + nom + '</div>' +
+      '<div class="result-badge">🪪 ' + planLabel + '</div>' +
+      vipBadge + carteStatusHtml + billetsHtml +
+      (data.activite ? '<div class="result-activity">' + data.activite + '</div>' : '') +
+      (data.status === 'deja_scanne' ? '<div class="result-badge" style="background:rgba(206,147,216,.2);margin-top:8px">🔄 Déjà entré(e)</div>' : '');
+  } else {
+    // Error / unknown
+    box.innerHTML =
+      '<div class="result-icon">' + icon + '</div>' +
+      '<div class="result-status">' + statusText + '</div>' +
+      '<div class="result-name">' + nom + '</div>';
+  }
 }
 
 // ── Historique ────────────────────────────────────────────────────────────────
