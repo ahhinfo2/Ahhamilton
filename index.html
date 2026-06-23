@@ -408,6 +408,12 @@
         <h2>Contribuez à notre mission</h2>
         <p>Votre don finance nos activités, soutient les familles et fait rayonner la culture haïtienne à Hamilton.</p>
       </div>
+      <!-- Toggle don mensuel -->
+      <div style="display:flex;justify-content:center;margin-bottom:24px">
+        <button id="donToggle" onclick="_toggleDonMode()" style="background:rgba(255,255,255,.15);color:#fff;border:2px solid rgba(255,255,255,.4);padding:12px 28px;border-radius:30px;font-weight:700;font-size:.9rem;cursor:pointer;transition:all .3s">
+          🔄 Don mensuel
+        </button>
+      </div>
       <div class="donation-cards">
         <div class="donation-card" data-reveal data-delay="0">
           <div class="donation-amount">$10</div>
@@ -451,6 +457,89 @@
       btn.textContent = val > 0 ? 'Donner $' + val : 'Donner';
     });
   })();
+  var _donRecurring = false;
+  var _donOriginalLinks = [];
+  function _toggleDonMode() {
+    _donRecurring = !_donRecurring;
+    var toggle = document.getElementById('donToggle');
+    var cards = document.querySelectorAll('.donation-card');
+    if (_donRecurring) {
+      toggle.style.background = '#e65100';
+      toggle.style.borderColor = '#e65100';
+      toggle.textContent = '✅ Mode mensuel actif — cliquez pour revenir au don unique';
+      cards.forEach(function(card, i) {
+        var link = card.querySelector('a.btn, a.btn-primary, a.btn-outline-white');
+        if (link) {
+          if (!_donOriginalLinks[i]) _donOriginalLinks[i] = { href: link.href, text: link.textContent, onclick: link.onclick };
+          var amounts = [10, 50, 100];
+          var amount = amounts[i] || null;
+          link.removeAttribute('href');
+          link.removeAttribute('target');
+          link.style.cursor = 'pointer';
+          link.textContent = amount ? 'Don mensuel $' + amount + '/mois' : link.textContent;
+          link.onclick = function(e) {
+            e.preventDefault();
+            var m = amount || parseInt(document.getElementById('customDonation')?.value) || 0;
+            if (m < 1) { alert('Veuillez entrer un montant minimum de 1$.'); return; }
+            var email = prompt('Votre courriel (optionnel) :');
+            fetch((window.location.hostname === 'localhost' ? 'http://localhost:3001' : '') + '/api/donations/recurring', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ montant: m, email: email || '' })
+            }).then(function(r) { return r.json(); }).then(function(d) {
+              if (d.url) window.location.href = d.url;
+              else alert(d.error || 'Erreur');
+            }).catch(function() { alert('Erreur de connexion'); });
+          };
+        }
+      });
+      // Handle custom amount card
+      var customBtn = document.getElementById('customDonateBtn');
+      if (customBtn) {
+        if (!_donOriginalLinks[3]) _donOriginalLinks[3] = { href: customBtn.href, text: customBtn.textContent };
+        customBtn.removeAttribute('href');
+        customBtn.removeAttribute('target');
+        customBtn.style.cursor = 'pointer';
+        customBtn.textContent = 'Don mensuel';
+        customBtn.onclick = function(e) {
+          e.preventDefault();
+          var m = parseInt(document.getElementById('customDonation')?.value) || 0;
+          if (m < 1) { alert('Veuillez entrer un montant minimum de 1$.'); return; }
+          var email = prompt('Votre courriel (optionnel) :');
+          fetch((window.location.hostname === 'localhost' ? 'http://localhost:3001' : '') + '/api/donations/recurring', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ montant: m, email: email || '' })
+          }).then(function(r) { return r.json(); }).then(function(d) {
+            if (d.url) window.location.href = d.url;
+            else alert(d.error || 'Erreur');
+          }).catch(function() { alert('Erreur de connexion'); });
+        };
+      }
+    } else {
+      toggle.style.background = 'rgba(255,255,255,.15)';
+      toggle.style.borderColor = 'rgba(255,255,255,.4)';
+      toggle.textContent = '🔄 Don mensuel';
+      cards.forEach(function(card, i) {
+        var link = card.querySelector('a.btn, a.btn-primary, a.btn-outline-white');
+        if (link && _donOriginalLinks[i]) {
+          link.href = _donOriginalLinks[i].href;
+          link.target = '_blank';
+          link.textContent = _donOriginalLinks[i].text;
+          link.onclick = _donOriginalLinks[i].onclick || null;
+          link.style.cursor = '';
+        }
+      });
+      var customBtn = document.getElementById('customDonateBtn');
+      if (customBtn && _donOriginalLinks[3]) {
+        customBtn.href = _donOriginalLinks[3].href;
+        customBtn.target = '_blank';
+        customBtn.textContent = _donOriginalLinks[3].text;
+        customBtn.onclick = null;
+        customBtn.style.cursor = '';
+      }
+    }
+  }
   </script>
 
   <!-- ===== AMBASSADEUR DU MOIS ===== -->

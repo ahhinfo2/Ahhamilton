@@ -21,13 +21,35 @@ const Stripe   = require('stripe');
 
 // Créer les dossiers uploads au démarrage
 ['uploads','uploads/gallery','uploads/profiles','uploads/invoices',
- 'uploads/payments','uploads/talents','uploads/annonces','uploads/attachments','uploads/activities','uploads/qr','uploads/forms']
+ 'uploads/payments','uploads/talents','uploads/annonces','uploads/attachments','uploads/activities','uploads/qr','uploads/forms','uploads/shop']
   .forEach(d => { const p = path.join(__dirname, d); if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true }); });
 
 const db = require('./db/database');
 const { authMiddleware, requireRole, JWT_SECRET } = require('./middleware/auth');
 const mailer = require('./mailer');
 const imap   = require('./imap');
+
+// ── Twilio SMS (optionnel — configuré via env vars) ─────────────────────────
+let twilioClient = null;
+try {
+  if (process.env.TWILIO_SID) {
+    const twilio = require('twilio');
+    twilioClient = twilio(process.env.TWILIO_SID, process.env.TWILIO_TOKEN);
+    console.log('[TWILIO] Client initialisé');
+  }
+} catch(e) { console.log('[TWILIO] Module non installé — fallback email-to-SMS'); }
+
+function sendSMS(phone, message) {
+  if (!phone) return Promise.resolve();
+  if (twilioClient && process.env.TWILIO_FROM) {
+    const to = phone.startsWith('+') ? phone : '+1' + phone.replace(/\D/g, '');
+    return twilioClient.messages.create({ body: message, from: process.env.TWILIO_FROM, to })
+      .then(m => console.log('[SMS]', m.sid))
+      .catch(e => { console.error('[SMS]', e.message); return mailer.sendSMS({ telephone: phone, operateur: 'rogers', sms_notifs: 1 }, message); });
+  }
+  // Fallback to email-to-SMS gateway
+  return mailer.sendSMS({ telephone: phone, operateur: 'rogers', sms_notifs: 1 }, message);
+}
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -729,24 +751,47 @@ function newBarcodeData() {
 
 app.post('/api/activities', authMiddleware, requireRole(...ACTIVITY_ROLES), (req, res) => {
   const { titre, description, type, date_debut, date_fin, lieu, budget_prevu, max_participants,
-          prix, paiement_requis, rabais_json } = req.body;
+          prix, paiement_requis, rabais_json, recurrence, recurrence_end, stream_url, stream_actif } = req.body;
   if (!titre) return res.status(400).json({ error: 'Titre requis' });
 
   const qr_token = crypto2.randomBytes(16).toString('hex');
   const r = db.prepare(`INSERT INTO activities
     (titre, description, type, date_debut, date_fin, lieu, budget_prevu, max_participants, cree_par,
-     prix, paiement_requis, rabais_json, qr_token)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+     prix, paiement_requis, rabais_json, qr_token, recurrence, recurrence_end, stream_url, stream_actif)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .run(titre, description||'', type||'general', date_debut||'', date_fin||'', lieu||'',
          budget_prevu||0, max_participants||null, req.user.id,
          parseFloat(prix)||0, paiement_requis?1:0,
-         rabais_json||'{}', qr_token);
+         rabais_json||'{}', qr_token, recurrence||null, recurrence_end||null,
+         stream_url||null, stream_actif?1:0);
+  const parentId = r.lastInsertRowid;
   // Créer ligne financière immédiatement si budget prévu
   if (budget_prevu && parseFloat(budget_prevu) > 0) {
     db.prepare(`INSERT OR IGNORE INTO financial_lines (activity_id, titre, budget_alloue) VALUES (?, ?, ?)`)
-      .run(r.lastInsertRowid, `Budget – ${titre}`, parseFloat(budget_prevu));
+      .run(parentId, `Budget – ${titre}`, parseFloat(budget_prevu));
   }
-  res.status(201).json({ id: r.lastInsertRowid, qr_token });
+  // ── Générer les occurrences récurrentes ──────────────────────────────
+  if (recurrence && recurrence !== 'none' && date_debut) {
+    const patterns = { weekly: 7, biweekly: 14, monthly: 30 };
+    const days = patterns[recurrence] || 0;
+    if (days > 0) {
+      const endDate = recurrence_end ? new Date(recurrence_end) : new Date(Date.now() + 90*24*60*60*1000);
+      let currentStart = new Date(date_debut);
+      const duration = (date_fin && date_debut) ? (new Date(date_fin).getTime() - new Date(date_debut).getTime()) : 0;
+      while (true) {
+        currentStart = new Date(currentStart.getTime() + days * 24*60*60*1000);
+        if (currentStart > endDate) break;
+        const childEnd = duration ? new Date(currentStart.getTime() + duration).toISOString() : '';
+        const childQr = crypto2.randomBytes(16).toString('hex');
+        db.prepare(`INSERT INTO activities (titre,description,type,date_debut,date_fin,lieu,budget_prevu,max_participants,statut,cree_par,prix,paiement_requis,rabais_json,qr_token,parent_activity_id)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+          .run(titre, description||'', type||'general', currentStart.toISOString(), childEnd, lieu||'',
+               0, max_participants||null, 'planifiee', req.user.id,
+               parseFloat(prix)||0, paiement_requis?1:0, rabais_json||'{}', childQr, parentId);
+      }
+    }
+  }
+  res.status(201).json({ id: parentId, qr_token });
 
   // Notifier les abonnés newsletter (non-bloquant)
   setImmediate(async () => {
@@ -809,7 +854,7 @@ app.post('/api/activities', authMiddleware, requireRole(...ACTIVITY_ROLES), (req
 
 app.put('/api/activities/:id', authMiddleware, requireRole(...ACTIVITY_ROLES), (req, res) => {
   const { titre, description, type, date_debut, date_fin, lieu, budget_prevu, max_participants, statut,
-          prix, paiement_requis, rabais_json } = req.body;
+          prix, paiement_requis, rabais_json, stream_url, stream_actif } = req.body;
   const prev = db.prepare('SELECT * FROM activities WHERE id = ?').get(req.params.id);
   if (!prev) return res.status(404).json({ error: 'Activité introuvable' });
 
@@ -831,16 +876,22 @@ app.put('/api/activities/:id', authMiddleware, requireRole(...ACTIVITY_ROLES), (
     const smsText = `Nouvelle activité AHH : "${prev.titre}"${dateStr ? ' le ' + dateStr : ''}${prev.lieu ? ' à ' + prev.lieu : ''}. Connectez-vous pour vous inscrire.`;
     const membresAvecSMS = db.prepare("SELECT telephone, operateur, sms_notifs FROM users WHERE actif=1 AND operateur IS NOT NULL AND sms_notifs=1").all();
     membresAvecSMS.forEach(m => mailer.sendSMS(m, smsText).catch(() => {}));
+    // Twilio SMS — membres avec téléphone (sans doublon si déjà envoyé via gateway)
+    const membresTwilio = db.prepare("SELECT telephone FROM users WHERE actif=1 AND telephone IS NOT NULL AND telephone != '' AND (operateur IS NULL OR sms_notifs=0)").all();
+    membresTwilio.forEach(m => sendSMS(m.telephone, smsText).catch(() => {}));
   }
 
   db.prepare(`UPDATE activities SET titre=?, description=?, type=?, date_debut=?, date_fin=?, lieu=?,
-    budget_prevu=?, max_participants=?, statut=?, prix=?, paiement_requis=?, rabais_json=? WHERE id=?`)
+    budget_prevu=?, max_participants=?, statut=?, prix=?, paiement_requis=?, rabais_json=?,
+    stream_url=?, stream_actif=? WHERE id=?`)
     .run(titre||prev.titre, description??prev.description, type||prev.type, date_debut||prev.date_debut,
          date_fin||prev.date_fin, lieu||prev.lieu, budget_prevu??prev.budget_prevu,
          max_participants??prev.max_participants, statut||prev.statut,
          prix!==undefined ? parseFloat(prix)||0 : prev.prix||0,
          paiement_requis!==undefined ? (paiement_requis?1:0) : prev.paiement_requis||0,
          rabais_json||prev.rabais_json||'{}',
+         stream_url!==undefined ? stream_url : prev.stream_url||null,
+         stream_actif!==undefined ? (stream_actif?1:0) : prev.stream_actif||0,
          req.params.id);
   res.json({ message: 'Activité mise à jour' });
 });
@@ -913,19 +964,51 @@ app.post('/api/activities/:id/duplicate', authMiddleware, requireRole(...ACTIVIT
 
 app.post('/api/activities/:id/register', authMiddleware, (req, res) => {
   try {
+    const actId = parseInt(req.params.id);
+    const act = db.prepare('SELECT * FROM activities WHERE id = ?').get(actId);
+    if (!act) return res.status(404).json({ error: 'Activité introuvable' });
+    // Vérifier si déjà inscrit (y compris sur la liste d'attente)
+    const existing = db.prepare('SELECT * FROM activity_registrations WHERE activity_id = ? AND user_id = ?').get(actId, req.user.id);
+    if (existing) return res.status(409).json({ error: 'Déjà inscrit' });
+    // Vérifier la capacité
+    const currentCount = db.prepare('SELECT COUNT(*) AS c FROM activity_registrations WHERE activity_id = ? AND waitlist = 0').get(actId).c;
+    if (act.max_participants > 0 && currentCount >= act.max_participants) {
+      // Ajouter à la liste d'attente
+      const waitlistCount = db.prepare('SELECT COUNT(*) AS c FROM activity_registrations WHERE activity_id = ? AND waitlist = 1').get(actId).c;
+      db.prepare("INSERT INTO activity_registrations (activity_id, user_id, statut, waitlist) VALUES (?,?,'en_attente',1)").run(actId, req.user.id);
+      return res.json({ ok: true, waitlist: true, position: waitlistCount + 1 });
+    }
     db.prepare('INSERT INTO activity_registrations (activity_id, user_id) VALUES (?, ?)')
-      .run(req.params.id, req.user.id);
-    const activite = db.prepare('SELECT * FROM activities WHERE id = ?').get(req.params.id);
-    if (activite) mailer.sendInscriptionActivite(req.user, activite).catch(()=>{});
+      .run(actId, req.user.id);
+    if (act) mailer.sendInscriptionActivite(req.user, act).catch(()=>{});
     res.status(201).json({ message: 'Inscription confirmée' });
-  } catch {
+  } catch(e) {
     res.status(409).json({ error: 'Déjà inscrit' });
   }
 });
 
 app.delete('/api/activities/:id/register', authMiddleware, (req, res) => {
+  const actId = parseInt(req.params.id);
+  const reg = db.prepare('SELECT * FROM activity_registrations WHERE activity_id = ? AND user_id = ?').get(actId, req.user.id);
   db.prepare('DELETE FROM activity_registrations WHERE activity_id = ? AND user_id = ?')
-    .run(req.params.id, req.user.id);
+    .run(actId, req.user.id);
+  // Auto-promouvoir le premier en liste d'attente
+  if (reg && reg.waitlist === 0) {
+    const next = db.prepare('SELECT * FROM activity_registrations WHERE activity_id = ? AND waitlist = 1 ORDER BY date_inscription ASC LIMIT 1').get(actId);
+    if (next) {
+      db.prepare("UPDATE activity_registrations SET waitlist = 0, statut = 'inscrit' WHERE id = ?").run(next.id);
+      // Notifier le membre promu
+      try {
+        const act = db.prepare('SELECT * FROM activities WHERE id = ?').get(actId);
+        const user = db.prepare('SELECT * FROM users WHERE id = ?').get(next.user_id);
+        if (act && user) {
+          db.prepare("INSERT INTO alerts (type, titre, contenu, destinataire_id, source_id) VALUES (?,?,?,?,?)")
+            .run('activite', 'Place disponible !', `Une place s'est libérée pour "${act.titre}". Vous avez été automatiquement inscrit(e).`, next.user_id, actId);
+          mailer.sendInscriptionActivite(user, act).catch(()=>{});
+        }
+      } catch(_) {}
+    }
+  }
   res.json({ message: 'Inscription annulée' });
 });
 
@@ -2796,6 +2879,7 @@ app.patch('/api/payments/:id/approuver', authMiddleware, requireRole('admin','tr
 
   const membre = db.prepare('SELECT * FROM users WHERE id=?').get(pay.user_id);
   if (membre) mailer.sendPaiementApprouve(membre, pay.montant, mois).catch(()=>{});
+  if (membre && membre.telephone) sendSMS(membre.telephone, `AHH: Votre ${typeLabel.toLowerCase()} de $${pay.montant} a été approuvé.`).catch(()=>{});
 
   logAdmin(req.user.id, 'paiement_approuve', `$${pay.montant} — user ${pay.user_id}`, pay.id, 'payment', req.ip);
   logAudit(req.user.id, 'payment_approved', 'payment', pay.id, `Paiement $${pay.montant} approuvé — user ${pay.user_id}`, req.ip);
@@ -6634,6 +6718,8 @@ app.post('/api/scan-delegations', authMiddleware, requireRole(...SCAN_EXEC_ROLES
   if (existing) return res.status(409).json({ error: 'Ce membre a déjà une délégation active pour cette activité' });
   const result = db.prepare('INSERT INTO scan_delegations (activity_id, user_id, delegue_par, type, date_expiration) VALUES (?,?,?,?,?)')
     .run(activity_id || null, user_id, req.user.id, type || 'billets', date_expiration || null);
+  const delegUser = db.prepare('SELECT telephone FROM users WHERE id=?').get(user_id);
+  if (delegUser && delegUser.telephone) sendSMS(delegUser.telephone, `AHH: Vous avez reçu une délégation de scan (${type || 'billets'}).`).catch(()=>{});
   res.json({ ok: true, id: result.lastInsertRowid });
 });
 
@@ -6961,6 +7047,8 @@ app.post('/api/tasks', authMiddleware, requireRole(...EXEC_ROLES), async (req, r
         </div>`
       }).catch(e => console.error('[TASK EMAIL]', e.message));
       createAlert(parseInt(assigne_a), 'tache', `📋 Tâche assignée : ${titre}`, description || '');
+      const assigneeFull = db.prepare('SELECT telephone FROM users WHERE id=?').get(assigne_a);
+      if (assigneeFull && assigneeFull.telephone) sendSMS(assigneeFull.telephone, `AHH: Nouvelle tâche assignée — ${titre}`).catch(()=>{});
     }
   }
   res.status(201).json({ id: r.lastInsertRowid });
@@ -6995,6 +7083,8 @@ app.put('/api/tasks/:id', authMiddleware, requireRole(...EXEC_ROLES), async (req
         </div>`
       }).catch(e => console.error('[TASK EMAIL]', e.message));
       createAlert(parseInt(assigne_a), 'tache', `📋 Tâche assignée : ${titre}`, description || '');
+      const assigneeFull2 = db.prepare('SELECT telephone FROM users WHERE id=?').get(assigne_a);
+      if (assigneeFull2 && assigneeFull2.telephone) sendSMS(assigneeFull2.telephone, `AHH: Tâche assignée — ${titre}`).catch(()=>{});
     }
   }
   res.json({ message: 'Tâche mise à jour' });
@@ -7663,6 +7753,275 @@ app.get('/api/calendar/feed.ics', (req, res) => {
   res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
   res.setHeader('Content-Disposition', 'inline; filename="ahh-activites.ics"');
   res.send(ical);
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// COVOITURAGE
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GET rideshares for an activity
+app.get('/api/activities/:id/rideshares', authMiddleware, (req, res) => {
+  const actId = parseInt(req.params.id);
+  const rows = db.prepare(`
+    SELECT r.*, u.prenom, u.nom,
+      (SELECT COUNT(*) FROM rideshare_requests rr WHERE rr.rideshare_id = r.id AND rr.statut = 'accepte') AS places_prises,
+      (SELECT COUNT(*) FROM rideshare_requests rr WHERE rr.rideshare_id = r.id AND rr.statut = 'en_attente') AS demandes_attente
+    FROM rideshares r JOIN users u ON u.id = r.user_id
+    WHERE r.activity_id = ? ORDER BY r.date_creation DESC
+  `).all(actId);
+  // Ajouter les demandes de l'utilisateur courant
+  rows.forEach(r => {
+    r.my_request = db.prepare('SELECT * FROM rideshare_requests WHERE rideshare_id = ? AND user_id = ?').get(r.id, req.user.id) || null;
+  });
+  res.json(rows);
+});
+
+// POST create rideshare offer/request
+app.post('/api/rideshares', authMiddleware, (req, res) => {
+  const { activity_id, type, depart, places, heure_depart, note } = req.body;
+  if (!activity_id) return res.status(400).json({ error: 'activity_id requis' });
+  const r = db.prepare(`INSERT INTO rideshares (activity_id, user_id, type, depart, places, heure_depart, note) VALUES (?,?,?,?,?,?,?)`)
+    .run(activity_id, req.user.id, type || 'offer', depart || '', parseInt(places) || 1, heure_depart || '', note || '');
+  res.status(201).json({ id: r.lastInsertRowid });
+});
+
+// POST request a seat
+app.post('/api/rideshares/:id/request', authMiddleware, (req, res) => {
+  const rsId = parseInt(req.params.id);
+  const rs = db.prepare('SELECT * FROM rideshares WHERE id = ?').get(rsId);
+  if (!rs) return res.status(404).json({ error: 'Covoiturage introuvable' });
+  if (rs.user_id === req.user.id) return res.status(400).json({ error: 'Vous ne pouvez pas demander une place dans votre propre covoiturage' });
+  const existing = db.prepare('SELECT * FROM rideshare_requests WHERE rideshare_id = ? AND user_id = ?').get(rsId, req.user.id);
+  if (existing) return res.status(409).json({ error: 'Demande déjà envoyée' });
+  const r = db.prepare("INSERT INTO rideshare_requests (rideshare_id, user_id, statut) VALUES (?,?,'en_attente')").run(rsId, req.user.id);
+  // Notifier le conducteur
+  try {
+    const requester = db.prepare('SELECT prenom, nom FROM users WHERE id = ?').get(req.user.id);
+    db.prepare("INSERT INTO alerts (type, titre, contenu, destinataire_id, source_id) VALUES (?,?,?,?,?)")
+      .run('covoiturage', 'Demande de covoiturage', `${requester.prenom} ${requester.nom} souhaite rejoindre votre covoiturage.`, rs.user_id, rsId);
+  } catch(_) {}
+  res.status(201).json({ id: r.lastInsertRowid });
+});
+
+// PUT accept/reject a request
+app.put('/api/rideshares/:id/requests/:reqId', authMiddleware, (req, res) => {
+  const rsId = parseInt(req.params.id);
+  const reqId = parseInt(req.params.reqId);
+  const { statut } = req.body;
+  if (!['accepte', 'refuse'].includes(statut)) return res.status(400).json({ error: 'Statut invalide' });
+  const rs = db.prepare('SELECT * FROM rideshares WHERE id = ?').get(rsId);
+  if (!rs) return res.status(404).json({ error: 'Covoiturage introuvable' });
+  if (rs.user_id !== req.user.id) return res.status(403).json({ error: 'Non autorisé' });
+  db.prepare('UPDATE rideshare_requests SET statut = ? WHERE id = ?').run(statut, reqId);
+  // Notifier le demandeur
+  try {
+    const rr = db.prepare('SELECT * FROM rideshare_requests WHERE id = ?').get(reqId);
+    if (rr) {
+      const msg = statut === 'accepte' ? 'Votre demande de covoiturage a été acceptée !' : 'Votre demande de covoiturage a été refusée.';
+      db.prepare("INSERT INTO alerts (type, titre, contenu, destinataire_id, source_id) VALUES (?,?,?,?,?)")
+        .run('covoiturage', 'Réponse covoiturage', msg, rr.user_id, rsId);
+    }
+  } catch(_) {}
+  res.json({ ok: true });
+});
+
+// GET requests for a rideshare (owner only)
+app.get('/api/rideshares/:id/requests', authMiddleware, (req, res) => {
+  const rsId = parseInt(req.params.id);
+  const rs = db.prepare('SELECT * FROM rideshares WHERE id = ?').get(rsId);
+  if (!rs) return res.status(404).json({ error: 'Covoiturage introuvable' });
+  if (rs.user_id !== req.user.id && !['admin', 'secretaire'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Non autorisé' });
+  }
+  const rows = db.prepare(`SELECT rr.*, u.prenom, u.nom, u.telephone FROM rideshare_requests rr
+    JOIN users u ON u.id = rr.user_id WHERE rr.rideshare_id = ? ORDER BY rr.date_demande ASC`).all(rsId);
+  res.json(rows);
+});
+
+// DELETE own rideshare
+app.delete('/api/rideshares/:id', authMiddleware, (req, res) => {
+  const rsId = parseInt(req.params.id);
+  const rs = db.prepare('SELECT * FROM rideshares WHERE id = ?').get(rsId);
+  if (!rs) return res.status(404).json({ error: 'Covoiturage introuvable' });
+  if (rs.user_id !== req.user.id && !['admin', 'secretaire'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Non autorisé' });
+  }
+  db.prepare('DELETE FROM rideshares WHERE id = ?').run(rsId);
+  res.json({ ok: true });
+});
+
+// ── Multer : shop product images ────────────────────────────────────────────
+const shopStorage = multer.diskStorage({
+  destination: (req, file, cb) => { const d = path.join(__dirname,'uploads','shop'); fs.mkdirSync(d,{recursive:true}); cb(null,d); },
+  filename:    (req, file, cb) => cb(null, `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g,'_')}`)
+});
+const uploadShop = multer({ storage: shopStorage, limits: { fileSize: 10 * 1024 * 1024 } });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── BOUTIQUE EN LIGNE ─────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Public — liste des produits actifs
+app.get('/api/shop/products', (req, res) => {
+  const rows = db.prepare("SELECT * FROM shop_products WHERE actif=1 ORDER BY date_creation DESC").all();
+  res.json(rows);
+});
+
+// Public — un produit
+app.get('/api/shop/products/:id', (req, res) => {
+  const p = db.prepare("SELECT * FROM shop_products WHERE id=?").get(req.params.id);
+  if (!p) return res.status(404).json({ error: 'Produit introuvable' });
+  res.json(p);
+});
+
+// Admin — tous les produits (y compris inactifs)
+app.get('/api/shop/products-all', authMiddleware, requireRole('admin','secretaire','tresoriere','delegue'), (req, res) => {
+  const rows = db.prepare("SELECT sp.*, u.prenom || ' ' || u.nom AS cree_par_nom FROM shop_products sp LEFT JOIN users u ON sp.cree_par=u.id ORDER BY sp.date_creation DESC").all();
+  res.json(rows);
+});
+
+// Créer un produit
+app.post('/api/shop/products', authMiddleware, requireRole('admin','secretaire','tresoriere','delegue'), uploadShop.single('image'), (req, res) => {
+  const { nom, description, prix, categorie, stock } = req.body;
+  if (!nom || !prix) return res.status(400).json({ error: 'Nom et prix requis' });
+  const image_path = req.file ? '/uploads/shop/' + req.file.filename : null;
+  const r = db.prepare("INSERT INTO shop_products (nom,description,prix,image_path,categorie,stock,cree_par) VALUES (?,?,?,?,?,?,?)").run(
+    nom, description || null, parseFloat(prix), image_path, categorie || 'general', parseInt(stock) || 0, req.user.id);
+  res.json({ ok: true, id: r.lastInsertRowid });
+});
+
+// Modifier un produit
+app.put('/api/shop/products/:id', authMiddleware, requireRole('admin','secretaire','tresoriere','delegue'), uploadShop.single('image'), (req, res) => {
+  const prev = db.prepare("SELECT * FROM shop_products WHERE id=?").get(req.params.id);
+  if (!prev) return res.status(404).json({ error: 'Produit introuvable' });
+  const { nom, description, prix, categorie, stock, actif } = req.body;
+  const image_path = req.file ? '/uploads/shop/' + req.file.filename : prev.image_path;
+  db.prepare("UPDATE shop_products SET nom=?,description=?,prix=?,image_path=?,categorie=?,stock=?,actif=? WHERE id=?").run(
+    nom || prev.nom, description !== undefined ? description : prev.description,
+    prix !== undefined ? parseFloat(prix) : prev.prix, image_path,
+    categorie || prev.categorie, stock !== undefined ? parseInt(stock) : prev.stock,
+    actif !== undefined ? parseInt(actif) : prev.actif, req.params.id);
+  res.json({ ok: true });
+});
+
+// Supprimer un produit
+app.delete('/api/shop/products/:id', authMiddleware, requireRole('admin','secretaire','tresoriere','delegue'), (req, res) => {
+  const prev = db.prepare("SELECT * FROM shop_products WHERE id=?").get(req.params.id);
+  if (!prev) return res.status(404).json({ error: 'Produit introuvable' });
+  db.prepare("DELETE FROM shop_products WHERE id=?").run(req.params.id);
+  res.json({ ok: true });
+});
+
+// Créer une commande (authentifié)
+app.post('/api/shop/orders', authMiddleware, (req, res) => {
+  const { items, acheteur_nom, acheteur_email, acheteur_telephone, methode } = req.body;
+  if (!items || !items.length) return res.status(400).json({ error: 'Panier vide' });
+  let total = 0;
+  const resolved = [];
+  for (const it of items) {
+    const p = db.prepare("SELECT * FROM shop_products WHERE id=? AND actif=1").get(it.product_id);
+    if (!p) return res.status(400).json({ error: 'Produit introuvable: ' + it.product_id });
+    if (p.stock > 0 && p.stock < (it.quantite || 1)) return res.status(400).json({ error: 'Stock insuffisant pour ' + p.nom });
+    total += p.prix * (it.quantite || 1);
+    resolved.push({ ...it, prix_unitaire: p.prix });
+  }
+  const r = db.prepare("INSERT INTO shop_orders (user_id,acheteur_nom,acheteur_email,acheteur_telephone,total,methode) VALUES (?,?,?,?,?,?)").run(
+    req.user.id, acheteur_nom || (req.user.prenom + ' ' + req.user.nom), acheteur_email || req.user.email,
+    acheteur_telephone || '', total, methode || 'interac');
+  const orderId = r.lastInsertRowid;
+  for (const it of resolved) {
+    db.prepare("INSERT INTO shop_order_items (order_id,product_id,quantite,prix_unitaire) VALUES (?,?,?,?)").run(
+      orderId, it.product_id, it.quantite || 1, it.prix_unitaire);
+    const p = db.prepare("SELECT stock FROM shop_products WHERE id=?").get(it.product_id);
+    if (p && p.stock > 0) db.prepare("UPDATE shop_products SET stock=stock-? WHERE id=?").run(it.quantite || 1, it.product_id);
+  }
+  res.json({ ok: true, id: orderId, total });
+});
+
+// Liste des commandes (admin)
+app.get('/api/shop/orders', authMiddleware, requireRole('admin','secretaire','tresoriere','delegue'), (req, res) => {
+  const orders = db.prepare("SELECT o.*, u.prenom || ' ' || u.nom AS user_nom FROM shop_orders o LEFT JOIN users u ON o.user_id=u.id ORDER BY o.date_commande DESC").all();
+  for (const o of orders) {
+    o.items = db.prepare("SELECT oi.*, sp.nom AS produit_nom FROM shop_order_items oi JOIN shop_products sp ON oi.product_id=sp.id WHERE oi.order_id=?").all(o.id);
+  }
+  res.json(orders);
+});
+
+// Modifier le statut d'une commande
+app.put('/api/shop/orders/:id/status', authMiddleware, requireRole('admin','secretaire','tresoriere','delegue'), (req, res) => {
+  const { statut } = req.body;
+  const valid = ['en_attente', 'confirmee', 'expediee', 'livree', 'annulee'];
+  if (!valid.includes(statut)) return res.status(400).json({ error: 'Statut invalide' });
+  const o = db.prepare("SELECT * FROM shop_orders WHERE id=?").get(req.params.id);
+  if (!o) return res.status(404).json({ error: 'Commande introuvable' });
+  db.prepare("UPDATE shop_orders SET statut=? WHERE id=?").run(statut, req.params.id);
+  res.json({ ok: true });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── DONS RÉCURRENTS STRIPE ────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.post('/api/donations/recurring', async (req, res) => {
+  const stripeKey = (process.env.STRIPE_SECRET_KEY || '').trim();
+  if (!stripeKey) return res.status(500).json({ error: 'Stripe non configuré' });
+  const { montant, email } = req.body;
+  if (!montant || montant < 1) return res.status(400).json({ error: 'Montant minimum 1$' });
+  try {
+    const stripe = require('stripe')(stripeKey);
+    const siteUrl = process.env.SITE_URL || 'https://ahhamilton.ca';
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'], mode: 'subscription',
+      customer_email: email || undefined,
+      line_items: [{ price_data: { currency:'cad', product_data:{name:'Don mensuel — AHH'}, unit_amount:Math.round(montant*100), recurring:{interval:'month'} }, quantity:1 }],
+      success_url: siteUrl + '/index.html?donation=merci',
+      cancel_url: siteUrl + '/index.html#don',
+    });
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error('Stripe recurring donation error:', err.message);
+    res.status(500).json({ error: 'Erreur Stripe: ' + err.message });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── COMMANDITES AUTOMATISÉES ──────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.post('/api/sponsoring/checkout', async (req, res) => {
+  const stripeKey = (process.env.STRIPE_SECRET_KEY || '').trim();
+  if (!stripeKey) return res.status(500).json({ error: 'Stripe non configuré' });
+  const { tier, company_name, email, website } = req.body;
+  const prices = { bronze:10000, argent:25000, or:50000, platine:100000 };
+  if (!prices[tier]) return res.status(400).json({ error: 'Tier invalide' });
+  try {
+    const stripe = require('stripe')(stripeKey);
+    const siteUrl = process.env.SITE_URL || 'https://ahhamilton.ca';
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'], mode: 'payment',
+      customer_email: email,
+      line_items: [{ price_data: { currency:'cad', product_data:{name:'Commandite ' + tier.charAt(0).toUpperCase()+tier.slice(1) + ' — AHH', description:'Commandite annuelle pour ' + company_name}, unit_amount:prices[tier] }, quantity:1 }],
+      metadata: { type:'commandite', tier, company_name, email, website: website || '' },
+      success_url: siteUrl + '/index.html?sponsor=merci',
+      cancel_url: siteUrl + '/index.html',
+    });
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error('Stripe sponsoring checkout error:', err.message);
+    res.status(500).json({ error: 'Erreur Stripe: ' + err.message });
+  }
+});
+
+// ── Test SMS (EXEC seulement) ────────────────────────────────────────────────
+app.post('/api/test/sms', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), async (req, res) => {
+  const { to, message } = req.body;
+  if (!to || !message) return res.status(400).json({ error: 'Paramètres "to" et "message" requis' });
+  try {
+    await sendSMS(to, message);
+    res.json({ ok: true, message: 'SMS envoyé (ou fallback email-to-SMS)' });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ══════════════════════════════════════════════════════════════════════════════

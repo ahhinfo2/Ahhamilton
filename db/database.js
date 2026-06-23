@@ -1132,6 +1132,74 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS comments (
   date_creation TEXT DEFAULT CURRENT_TIMESTAMP
 )`); } catch {}
 
+// ── Récurrence activités ─────────────────────────────────────────────────────
+try { db.exec("ALTER TABLE activities ADD COLUMN recurrence TEXT"); } catch {}
+try { db.exec("ALTER TABLE activities ADD COLUMN recurrence_end TEXT"); } catch {}
+try { db.exec("ALTER TABLE activities ADD COLUMN parent_activity_id INTEGER"); } catch {}
+
+// ── Liste d'attente ─────────────────────────────────────────────────────────
+try { db.exec("ALTER TABLE activity_registrations ADD COLUMN waitlist INTEGER DEFAULT 0"); } catch {}
+
+// ── Covoiturage ─────────────────────────────────────────────────────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS rideshares (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  activity_id INTEGER REFERENCES activities(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  type TEXT NOT NULL DEFAULT 'offer',
+  depart TEXT,
+  places INTEGER DEFAULT 1,
+  heure_depart TEXT,
+  note TEXT,
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
+try { db.exec(`CREATE TABLE IF NOT EXISTS rideshare_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  rideshare_id INTEGER NOT NULL REFERENCES rideshares(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  statut TEXT DEFAULT 'en_attente',
+  date_demande TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
+// ── Boutique en ligne ──────────────────────────────────────────────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS shop_products (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nom TEXT NOT NULL,
+  description TEXT,
+  prix REAL NOT NULL,
+  image_path TEXT,
+  categorie TEXT DEFAULT 'general',
+  stock INTEGER DEFAULT 0,
+  actif INTEGER DEFAULT 1,
+  cree_par INTEGER REFERENCES users(id),
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
+try { db.exec(`CREATE TABLE IF NOT EXISTS shop_orders (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER REFERENCES users(id),
+  acheteur_nom TEXT,
+  acheteur_email TEXT,
+  acheteur_telephone TEXT,
+  total REAL NOT NULL,
+  statut TEXT DEFAULT 'en_attente',
+  methode TEXT DEFAULT 'interac',
+  reference TEXT,
+  date_commande TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
+try { db.exec(`CREATE TABLE IF NOT EXISTS shop_order_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_id INTEGER NOT NULL REFERENCES shop_orders(id) ON DELETE CASCADE,
+  product_id INTEGER NOT NULL REFERENCES shop_products(id),
+  quantite INTEGER DEFAULT 1,
+  prix_unitaire REAL NOT NULL
+)`); } catch {}
+
+// ── Streaming vidéo sur activités ──────────────────────────────────────────
+try { db.exec("ALTER TABLE activities ADD COLUMN stream_url TEXT"); } catch {}
+try { db.exec("ALTER TABLE activities ADD COLUMN stream_actif INTEGER DEFAULT 0"); } catch {}
+
 init();
 
 module.exports = db;

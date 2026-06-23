@@ -342,6 +342,7 @@ async function buildSidebar() {
       { id:'annonces_mgmt',     icon:'◉', label:'Annonces',          roles:['admin','secretaire'] },
       { id:'documents_mgmt',    icon:'📁', label:'Documents',         roles:['admin','secretaire'] },
       { id:'sponsors_mgmt',     icon:'🤝', label:'Commanditaires',    roles:['admin','secretaire'] },
+      { id:'shop-mgmt',         icon:'🛒', label:'Boutique',           roles:EXEC },
     ]},
 
     // ── Espace Jeunes ─────────────────────────────────────────────
@@ -492,7 +493,8 @@ function setActiveNav(viewId) {
     'export-data':'Export données',
     'annual-report':'Rapport annuel',
     'scan-delegations':'Déléguer un scanner',
-    'forms-mgmt':'Formulaires'
+    'forms-mgmt':'Formulaires',
+    'shop-mgmt':'Boutique en ligne'
   };
   const raw = labels[viewId] || 'Dashboard';
   document.getElementById('topbarTitle').textContent = window.AHH_LANG ? AHH_LANG.get(raw) : raw;
@@ -927,6 +929,7 @@ async function showView(viewId) {
     'annual-report': annualReportView,
     'scan-delegations': scanDelegationsListView,
     'forms-mgmt': formsMgmtView,
+    'shop-mgmt': shopMgmtView,
   };
   if (extViews[viewId]) {
     try { await extViews[viewId](); } catch(e) { setContent(`<div class="empty-state"><div class="es-icon">⚠️</div><p>${e.message}</p></div>`); }
@@ -1628,6 +1631,7 @@ function renderActivitiesTable(data) {
               <div class="act-menu-item" onclick="closeActMenus();manageTicketTypes(${a.id})">🎟 Types de billets</div>
               <div class="act-menu-item" onclick="closeActMenus();managerTables(${a.id},'${a.titre.replace(/'/g,"\\'")}')">🪑 Tables</div>
               <div class="act-menu-item" onclick="closeActMenus();manageActivityPhotos(${a.id},'${a.titre.replace(/'/g,"\\'")}')">🖼 Photos</div>
+              <div class="act-menu-item" onclick="closeActMenus();openActivityDetail(${a.id})">🚗 Covoiturage</div>
               <div style="border-top:1px solid var(--border);margin:4px 0"></div>
               <div class="act-menu-item" onclick="closeActMenus();openScanDelegation(${a.id},'${a.titre.replace(/'/g,"\\'")}')">📱 Déléguer un scanner</div>
               <div class="act-menu-item" onclick="closeActMenus();viewScanLogs(${a.id},'${a.titre.replace(/'/g,"\\'")}')">📋 Journal des scans</div>
@@ -1839,6 +1843,10 @@ async function openActivityDetail(actId) {
                 ${a.lieu ? `<br>📍 ${escHtml(a.lieu)}` : ''}
                 ${a.prix > 0 ? `<br>${prixLabel}` : ''}
               </div>
+              ${a.stream_url && a.stream_actif ? `<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+                <span style="background:#e53935;color:#fff;padding:6px 16px;border-radius:20px;font-weight:800;font-size:.82rem;animation:pulse 1.5s infinite">EN DIRECT</span>
+                <a href="${escHtml(a.stream_url)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;background:#fff;color:#1b5e20;padding:10px 22px;border-radius:10px;font-weight:700;font-size:.9rem;text-decoration:none;box-shadow:0 2px 10px rgba(0,0,0,.2)">Regarder</a>
+              </div>` : ''}
               ${a.description ? `<div style="font-size:.9rem;opacity:.8;margin-bottom:28px;line-height:1.7;max-width:480px">${a.description}</div>` : ''}
 
               ${a.statut === 'planifiee' ? `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px">
@@ -1884,9 +1892,140 @@ async function openActivityDetail(actId) {
               </div>
             </div>
           </div>
+
+          <!-- Section Covoiturage -->
+          <div id="rideshareSection" style="margin-top:32px;background:rgba(255,255,255,.1);border-radius:16px;padding:24px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+              <h3 style="color:#fff;margin:0;font-size:1.1rem">🚗 Covoiturage</h3>
+              <button onclick="openRideshareForm(${a.id})" style="background:#fff;color:#1b5e20;border:none;padding:8px 18px;border-radius:8px;font-weight:700;font-size:.85rem;cursor:pointer">+ Proposer / Chercher</button>
+            </div>
+            <div id="rideshareList" style="color:#fff;font-size:.88rem;opacity:.8">Chargement...</div>
+          </div>
+
         </div>
       </div>
     `);
+    // Charger les covoiturages
+    _loadRideshares(a.id);
+  } catch(e) { toast(e.message, true); }
+}
+
+async function _loadRideshares(actId) {
+  try {
+    const rides = await api('/activities/' + actId + '/rideshares');
+    const el = document.getElementById('rideshareList');
+    if (!el) return;
+    if (!rides.length) {
+      el.innerHTML = '<p style="opacity:.6">Aucun covoiturage proposé pour le moment.</p>';
+      return;
+    }
+    el.innerHTML = rides.map(r => {
+      const placesLibres = r.places - (r.places_prises || 0);
+      const myReq = r.my_request;
+      const isOwner = r.user_id === USER.id;
+      return '<div style="background:rgba(255,255,255,.1);border-radius:12px;padding:14px 18px;margin-bottom:10px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
+          '<div>' +
+            '<strong>' + escHtml(r.prenom + ' ' + r.nom) + '</strong>' +
+            (r.type === 'offer' ? ' — offre un trajet' : ' — cherche un trajet') +
+            (r.depart ? '<br>📍 Départ : ' + escHtml(r.depart) : '') +
+            (r.heure_depart ? ' | 🕐 ' + escHtml(r.heure_depart) : '') +
+            (r.type === 'offer' ? '<br>🪑 ' + placesLibres + ' place(s) libre(s) sur ' + r.places : '') +
+            (r.note ? '<br>💬 ' + escHtml(r.note) : '') +
+          '</div>' +
+          '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+            ((!isOwner && r.type === 'offer' && !myReq && placesLibres > 0)
+              ? '<button onclick="_requestRideshare(' + r.id + ',' + actId + ')" style="background:#fff;color:#1b5e20;border:none;padding:6px 14px;border-radius:8px;font-weight:600;font-size:.82rem;cursor:pointer">Demander une place</button>'
+              : '') +
+            (myReq ? '<span style="background:rgba(255,255,255,.2);padding:4px 12px;border-radius:8px;font-size:.8rem">' + (myReq.statut === 'accepte' ? '✅ Accepté' : myReq.statut === 'refuse' ? '❌ Refusé' : '⏳ En attente') + '</span>' : '') +
+            (isOwner && r.demandes_attente > 0
+              ? '<button onclick="_manageRideshareRequests(' + r.id + ',' + actId + ')" style="background:#FFB300;color:#000;border:none;padding:6px 14px;border-radius:8px;font-weight:600;font-size:.82rem;cursor:pointer">📬 ' + r.demandes_attente + ' demande(s)</button>'
+              : '') +
+            (isOwner ? '<button onclick="_deleteRideshare(' + r.id + ',' + actId + ')" style="background:rgba(255,0,0,.3);color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:.82rem;cursor:pointer">🗑️</button>' : '') +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  } catch(e) {
+    const el = document.getElementById('rideshareList');
+    if (el) el.innerHTML = '<p style="color:#ff9999">Erreur chargement covoiturages</p>';
+  }
+}
+
+function openRideshareForm(actId) {
+  openModal('Covoiturage', '<form id="rideshareForm">' +
+    '<div class="form-group"><label>Type</label>' +
+      '<select id="rs_type"><option value="offer">Je propose un trajet</option><option value="request">Je cherche un trajet</option></select></div>' +
+    '<div class="form-group"><label>Lieu de départ</label><input id="rs_depart" placeholder="ex: Centre-ville Hamilton"/></div>' +
+    '<div class="form-row">' +
+      '<div class="form-group"><label>Places disponibles</label><input type="number" id="rs_places" value="1" min="1" max="8"/></div>' +
+      '<div class="form-group"><label>Heure de départ</label><input type="time" id="rs_heure"/></div>' +
+    '</div>' +
+    '<div class="form-group"><label>Note</label><textarea id="rs_note" rows="2" placeholder="Infos supplémentaires..."></textarea></div>' +
+    '<div class="form-actions">' +
+      '<button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>' +
+      '<button type="submit" class="btn btn-primary">Publier</button>' +
+    '</div></form>');
+  document.getElementById('rideshareForm').onsubmit = async function(e) {
+    e.preventDefault();
+    try {
+      await api('/rideshares', { method:'POST', body: JSON.stringify({
+        activity_id: actId,
+        type: document.getElementById('rs_type').value,
+        depart: document.getElementById('rs_depart').value,
+        places: parseInt(document.getElementById('rs_places').value) || 1,
+        heure_depart: document.getElementById('rs_heure').value,
+        note: document.getElementById('rs_note').value
+      })});
+      toast('Covoiturage publié !');
+      closeModal();
+      openActivityDetail(actId);
+    } catch(ex) { toast(ex.message, true); }
+  };
+}
+
+async function _requestRideshare(rsId, actId) {
+  try {
+    await api('/rideshares/' + rsId + '/request', { method:'POST' });
+    toast('Demande envoyée !');
+    _loadRideshares(actId);
+  } catch(e) { toast(e.message, true); }
+}
+
+async function _deleteRideshare(rsId, actId) {
+  if (!confirm('Supprimer ce covoiturage ?')) return;
+  try {
+    await api('/rideshares/' + rsId, { method:'DELETE' });
+    toast('Covoiturage supprimé');
+    _loadRideshares(actId);
+  } catch(e) { toast(e.message, true); }
+}
+
+async function _manageRideshareRequests(rsId, actId) {
+  try {
+    const reqs = await api('/rideshares/' + rsId + '/requests');
+    openModal('Demandes de covoiturage', reqs.length === 0
+      ? '<p style="color:var(--muted)">Aucune demande en attente.</p>'
+      : '<div>' + reqs.map(function(r) {
+          return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">' +
+            '<div><strong>' + escHtml(r.prenom + ' ' + r.nom) + '</strong>' + (r.telephone ? ' | ' + escHtml(r.telephone) : '') +
+              '<br><span style="font-size:.8rem;color:var(--muted)">' + (r.statut === 'en_attente' ? '⏳ En attente' : r.statut === 'accepte' ? '✅ Accepté' : '❌ Refusé') + '</span></div>' +
+            (r.statut === 'en_attente' ? '<div style="display:flex;gap:6px">' +
+              '<button onclick="_respondRideshareReq(' + rsId + ',' + r.id + ',\'accepte\',' + actId + ')" class="btn btn-sm btn-primary" style="font-size:.8rem">Accepter</button>' +
+              '<button onclick="_respondRideshareReq(' + rsId + ',' + r.id + ',\'refuse\',' + actId + ')" class="btn btn-sm btn-ghost" style="font-size:.8rem">Refuser</button>' +
+            '</div>' : '') +
+          '</div>';
+        }).join('') + '</div>' +
+      '<div class="form-actions" style="margin-top:16px"><button class="btn btn-ghost" onclick="closeModal()">Fermer</button></div>'
+    );
+  } catch(e) { toast(e.message, true); }
+}
+
+async function _respondRideshareReq(rsId, reqId, statut, actId) {
+  try {
+    await api('/rideshares/' + rsId + '/requests/' + reqId, { method:'PUT', body: JSON.stringify({ statut: statut }) });
+    toast(statut === 'accepte' ? 'Demande acceptée' : 'Demande refusée');
+    _manageRideshareRequests(rsId, actId);
   } catch(e) { toast(e.message, true); }
 }
 
@@ -1939,6 +2078,27 @@ function openActivityForm(a = null) {
           <input type="checkbox" id="a_payant" style="width:auto" ${a?.paiement_requis?'checked':''} onchange="document.getElementById('payBlock').style.display=this.checked?'block':'none'"/>
           Activité payante
         </label></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Récurrence</label>
+          <select id="a_recurrence">
+            <option value="none" ${(!a?.recurrence||a?.recurrence==='none')?'selected':''}>Aucune</option>
+            <option value="weekly" ${a?.recurrence==='weekly'?'selected':''}>Chaque semaine</option>
+            <option value="biweekly" ${a?.recurrence==='biweekly'?'selected':''}>Aux 2 semaines</option>
+            <option value="monthly" ${a?.recurrence==='monthly'?'selected':''}>Chaque mois</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Fin de récurrence</label>
+          <input type="date" id="a_recurrence_end" value="${a?.recurrence_end||''}"/>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group"><label>Lien streaming (YouTube/Zoom)</label>
+          <input id="a_stream" placeholder="https://..." value="${a?.stream_url||''}"/></div>
+        <div class="form-group"><label style="display:flex;align-items:center;gap:8px">
+          <input type="checkbox" id="a_stream_actif" style="width:auto" ${a?.stream_actif?'checked':''}/>
+          Streaming en direct</label></div>
       </div>
 
       <!-- Bloc paiement -->
@@ -1997,7 +2157,11 @@ function openActivityForm(a = null) {
       max_participants:parseInt(document.getElementById('a_max').value)||null,
       paiement_requis: payant ? 1 : 0,
       prix: payant ? parseFloat(document.getElementById('a_prix').value)||0 : 0,
-      rabais_json: JSON.stringify(rabaisJson) };
+      rabais_json: JSON.stringify(rabaisJson),
+      recurrence: document.getElementById('a_recurrence').value,
+      recurrence_end: document.getElementById('a_recurrence_end').value || null,
+      stream_url: document.getElementById('a_stream').value || null,
+      stream_actif: document.getElementById('a_stream_actif').checked ? 1 : 0 };
     try {
       if (isEdit) {
         await api(`/activities/${a.id}`, { method:'PUT', body:JSON.stringify(body) });
@@ -2013,6 +2177,8 @@ function openActivityForm(a = null) {
         } else {
           activities();
         }
+        // Proposer le partage réseaux sociaux
+        setTimeout(() => showSocialShareModal(body), 500);
       }
     } catch(ex) { toast(ex.message, 'error'); }
   };
@@ -2040,8 +2206,12 @@ async function viewRegistrations(id, titre) {
 
 async function registerActivity(id) {
   try {
-    await api(`/activities/${id}/register`, { method:'POST' });
-    toast('✅ Inscription confirmée !');
+    const result = await api('/activities/' + id + '/register', { method:'POST' });
+    if (result && result.waitlist) {
+      toast('📋 Activité complète — vous êtes en liste d\'attente (position ' + result.position + ')');
+    } else {
+      toast('✅ Inscription confirmée !');
+    }
     activities();
   } catch(ex) { toast(ex.message, 'error'); }
 }
@@ -14366,4 +14536,231 @@ function _sortFormResults(col) {
     return _frSortDir === 'asc' ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
   });
   rows.forEach(function(r) { tbody.appendChild(r); });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── BOUTIQUE EN LIGNE — Gestion des produits & commandes ─────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function shopMgmtView() {
+  var tab = window._shopTab || 'products';
+  var products = [];
+  var orders = [];
+  try { products = await api('/shop/products-all'); } catch(e) { products = []; }
+  try { orders = await api('/shop/orders'); } catch(e) { orders = []; }
+  window._shopProducts = products;
+  window._shopOrders = orders;
+
+  function shopStatusPill(s) {
+    var colors = { en_attente:'#ff9800', confirmee:'#2196f3', expediee:'#9c27b0', livree:'#4caf50', annulee:'#f44336' };
+    var labels = { en_attente:'En attente', confirmee:'Confirmee', expediee:'Expediee', livree:'Livree', annulee:'Annulee' };
+    return '<span style="background:' + (colors[s]||'#999') + ';color:#fff;padding:3px 10px;border-radius:12px;font-size:.75rem;font-weight:700">' + (labels[s]||s) + '</span>';
+  }
+
+  var productsHtml = '<div class="table-wrapper"><table><thead><tr>' +
+    '<th>Image</th><th>Nom</th><th>Prix</th><th>Stock</th><th>Categorie</th><th>Actif</th><th>Actions</th>' +
+    '</tr></thead><tbody>' +
+    (products.length ? products.map(function(p) {
+      return '<tr>' +
+        '<td>' + (p.image_path ? '<img src="' + escHtml(p.image_path) + '" style="width:48px;height:48px;object-fit:cover;border-radius:8px" onerror="this.style.display=\'none\'"/>' : '-') + '</td>' +
+        '<td><strong>' + escHtml(p.nom) + '</strong></td>' +
+        '<td>' + (p.prix ? p.prix.toFixed(2) + ' $' : '-') + '</td>' +
+        '<td>' + p.stock + '</td>' +
+        '<td>' + escHtml(p.categorie || 'general') + '</td>' +
+        '<td>' + (p.actif ? '<span style="color:#4caf50;font-weight:700">Oui</span>' : '<span style="color:#f44336">Non</span>') + '</td>' +
+        '<td style="white-space:nowrap">' +
+          '<button class="btn btn-ghost" style="font-size:.78rem;padding:4px 10px" onclick="_shopEditProduct(' + p.id + ')">Modifier</button> ' +
+          '<button class="btn btn-ghost" style="font-size:.78rem;padding:4px 10px;color:#f44336" onclick="_shopDeleteProduct(' + p.id + ')">Supprimer</button>' +
+        '</td></tr>';
+    }).join('') : '<tr><td colspan="7" style="text-align:center">Aucun produit</td></tr>') +
+    '</tbody></table></div>';
+
+  var ordersHtml = '<div class="table-wrapper"><table><thead><tr>' +
+    '<th>#</th><th>Acheteur</th><th>Total</th><th>Methode</th><th>Statut</th><th>Date</th><th>Articles</th><th>Actions</th>' +
+    '</tr></thead><tbody>' +
+    (orders.length ? orders.map(function(o) {
+      var itemsStr = (o.items || []).map(function(i) { return escHtml(i.produit_nom) + ' x' + i.quantite; }).join(', ');
+      return '<tr>' +
+        '<td>' + o.id + '</td>' +
+        '<td>' + escHtml(o.acheteur_nom || o.user_nom || '-') + '</td>' +
+        '<td>' + (o.total ? o.total.toFixed(2) + ' $' : '-') + '</td>' +
+        '<td>' + escHtml(o.methode || 'interac') + '</td>' +
+        '<td>' + shopStatusPill(o.statut) + '</td>' +
+        '<td>' + fmt(o.date_commande) + '</td>' +
+        '<td style="font-size:.8rem;max-width:200px">' + escHtml(itemsStr) + '</td>' +
+        '<td><select onchange="_shopUpdateOrderStatus(' + o.id + ',this.value)" style="font-size:.78rem;padding:3px 6px;border-radius:6px;border:1px solid var(--border)">' +
+          ['en_attente','confirmee','expediee','livree','annulee'].map(function(s) {
+            return '<option value="' + s + '"' + (o.statut===s?' selected':'') + '>' + s.charAt(0).toUpperCase()+s.slice(1) + '</option>';
+          }).join('') +
+        '</select></td></tr>';
+    }).join('') : '<tr><td colspan="8" style="text-align:center">Aucune commande</td></tr>') +
+    '</tbody></table></div>';
+
+  setContent(
+    '<div class="page-header">' +
+      '<div><h2>Boutique en ligne</h2><p>' + products.length + ' produit(s) &mdash; ' + orders.length + ' commande(s)</p></div>' +
+      '<div class="page-actions"><button class="btn btn-primary" onclick="_shopAddProduct()">+ Ajouter un produit</button></div>' +
+    '</div>' +
+    '<div style="display:flex;gap:8px;margin-bottom:18px">' +
+      '<button class="btn ' + (tab==='products'?'btn-primary':'btn-ghost') + '" onclick="window._shopTab=\'products\';shopMgmtView()">Produits</button>' +
+      '<button class="btn ' + (tab==='orders'?'btn-primary':'btn-ghost') + '" onclick="window._shopTab=\'orders\';shopMgmtView()">Commandes</button>' +
+    '</div>' +
+    (tab === 'products' ? productsHtml : ordersHtml)
+  );
+}
+
+function _shopAddProduct() {
+  openModal('Ajouter un produit',
+    '<form id="shopProdForm" enctype="multipart/form-data">' +
+    '<div class="form-group"><label>Nom *</label><input id="sp_nom" required/></div>' +
+    '<div class="form-group"><label>Description</label><textarea id="sp_desc" rows="3"></textarea></div>' +
+    '<div class="form-row">' +
+      '<div class="form-group"><label>Prix ($) *</label><input type="number" id="sp_prix" step="0.01" min="0" required/></div>' +
+      '<div class="form-group"><label>Stock</label><input type="number" id="sp_stock" value="0" min="0"/></div>' +
+    '</div>' +
+    '<div class="form-row">' +
+      '<div class="form-group"><label>Categorie</label><input id="sp_cat" value="general"/></div>' +
+      '<div class="form-group"><label>Image</label><input type="file" id="sp_image" accept="image/*"/></div>' +
+    '</div>' +
+    '<div class="form-actions">' +
+      '<button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>' +
+      '<button type="submit" class="btn btn-primary">Ajouter</button>' +
+    '</div></form>'
+  );
+  document.getElementById('shopProdForm').onsubmit = async function(e) {
+    e.preventDefault();
+    var fd = new FormData();
+    fd.append('nom', document.getElementById('sp_nom').value);
+    fd.append('description', document.getElementById('sp_desc').value);
+    fd.append('prix', document.getElementById('sp_prix').value);
+    fd.append('stock', document.getElementById('sp_stock').value);
+    fd.append('categorie', document.getElementById('sp_cat').value);
+    var img = document.getElementById('sp_image').files[0];
+    if (img) fd.append('image', img);
+    try {
+      await fetch(API + '/shop/products', { method:'POST', headers:{ 'Authorization':'Bearer ' + TOKEN }, body:fd });
+      toast('Produit ajoute !');
+      closeModal();
+      shopMgmtView();
+    } catch(ex) { toast(ex.message, 'error'); }
+  };
+}
+
+async function _shopEditProduct(id) {
+  var p = (window._shopProducts || []).find(function(x) { return x.id === id; });
+  if (!p) return;
+  openModal('Modifier le produit',
+    '<form id="shopProdForm" enctype="multipart/form-data">' +
+    '<div class="form-group"><label>Nom *</label><input id="sp_nom" value="' + escHtml(p.nom) + '" required/></div>' +
+    '<div class="form-group"><label>Description</label><textarea id="sp_desc" rows="3">' + escHtml(p.description || '') + '</textarea></div>' +
+    '<div class="form-row">' +
+      '<div class="form-group"><label>Prix ($) *</label><input type="number" id="sp_prix" step="0.01" min="0" value="' + p.prix + '" required/></div>' +
+      '<div class="form-group"><label>Stock</label><input type="number" id="sp_stock" value="' + p.stock + '" min="0"/></div>' +
+    '</div>' +
+    '<div class="form-row">' +
+      '<div class="form-group"><label>Categorie</label><input id="sp_cat" value="' + escHtml(p.categorie || 'general') + '"/></div>' +
+      '<div class="form-group"><label>Image</label><input type="file" id="sp_image" accept="image/*"/></div>' +
+    '</div>' +
+    '<div class="form-group"><label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="sp_actif" style="width:auto"' + (p.actif ? ' checked' : '') + '/> Produit actif</label></div>' +
+    '<div class="form-actions">' +
+      '<button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>' +
+      '<button type="submit" class="btn btn-primary">Enregistrer</button>' +
+    '</div></form>'
+  );
+  document.getElementById('shopProdForm').onsubmit = async function(e) {
+    e.preventDefault();
+    var fd = new FormData();
+    fd.append('nom', document.getElementById('sp_nom').value);
+    fd.append('description', document.getElementById('sp_desc').value);
+    fd.append('prix', document.getElementById('sp_prix').value);
+    fd.append('stock', document.getElementById('sp_stock').value);
+    fd.append('categorie', document.getElementById('sp_cat').value);
+    fd.append('actif', document.getElementById('sp_actif').checked ? '1' : '0');
+    var img = document.getElementById('sp_image').files[0];
+    if (img) fd.append('image', img);
+    try {
+      await fetch(API + '/shop/products/' + id, { method:'PUT', headers:{ 'Authorization':'Bearer ' + TOKEN }, body:fd });
+      toast('Produit mis a jour !');
+      closeModal();
+      shopMgmtView();
+    } catch(ex) { toast(ex.message, 'error'); }
+  };
+}
+
+async function _shopDeleteProduct(id) {
+  if (!confirm('Supprimer ce produit ?')) return;
+  try {
+    await api('/shop/products/' + id, { method:'DELETE' });
+    toast('Produit supprime');
+    shopMgmtView();
+  } catch(ex) { toast(ex.message, 'error'); }
+}
+
+async function _shopUpdateOrderStatus(orderId, statut) {
+  try {
+    await api('/shop/orders/' + orderId + '/status', { method:'PUT', body: JSON.stringify({ statut: statut }) });
+    toast('Statut mis a jour');
+  } catch(ex) { toast(ex.message, 'error'); }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── AUTO-PUBLICATION RESEAUX SOCIAUX ─────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+function showSocialShareModal(act) {
+  var titre = act.titre || 'Nouvelle activite';
+  var dateTxt = act.date_debut ? new Date(act.date_debut).toLocaleDateString('fr-CA', {weekday:'long', year:'numeric', month:'long', day:'numeric'}) : '';
+  var lieu = act.lieu || '';
+  var prixTxt = act.paiement_requis && act.prix > 0 ? act.prix.toFixed(2) + ' $' : 'Gratuit';
+  var siteUrl = window.location.origin;
+  var hashtags = '#AHH #Hamilton #Haiti';
+
+  var fbPost = titre + '\n\n' +
+    (dateTxt ? '📅 ' + dateTxt + '\n' : '') +
+    (lieu ? '📍 ' + lieu + '\n' : '') +
+    '🎫 ' + prixTxt + '\n\n' +
+    (act.description ? act.description.replace(/<[^>]+>/g, '').substring(0, 200) + '\n\n' : '') +
+    '👉 Inscrivez-vous sur ' + siteUrl + '\n\n' +
+    hashtags;
+
+  var igPost = '✨ ' + titre + ' ✨\n\n' +
+    (dateTxt ? '📅 ' + dateTxt + '\n' : '') +
+    (lieu ? '📍 ' + lieu + '\n' : '') +
+    '🎫 ' + prixTxt + '\n\n' +
+    'Rejoignez-nous pour cet evenement exceptionnel !\n' +
+    'Lien en bio 👆\n\n' +
+    hashtags + ' #Communaute #Culture #Evenement';
+
+  var waPost = '🌟 *' + titre + '* 🌟\n\n' +
+    (dateTxt ? '📅 ' + dateTxt + '\n' : '') +
+    (lieu ? '📍 ' + lieu + '\n' : '') +
+    '🎫 ' + prixTxt + '\n\n' +
+    '👉 ' + siteUrl + '/actualites.html\n\n' +
+    'Partagez avec vos proches ! ❤️';
+
+  window._socialPosts = { fb: fbPost, ig: igPost, wa: waPost };
+
+  openModal('Partager sur les reseaux sociaux',
+    '<div style="margin-bottom:16px;font-size:.9rem;color:var(--muted)">Copiez le texte et collez-le sur vos reseaux sociaux pour promouvoir l\'activite.</div>' +
+
+    '<div style="margin-bottom:18px">' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-size:1.2rem">📘</span><strong>Facebook</strong>' +
+        '<button class="btn btn-ghost" style="font-size:.78rem;padding:3px 10px;margin-left:auto" onclick="navigator.clipboard.writeText(window._socialPosts.fb);toast(\'Copie !\')">Copier</button></div>' +
+      '<textarea readonly style="width:100%;height:120px;font-size:.82rem;border:1px solid var(--border);border-radius:8px;padding:10px;resize:vertical;background:var(--off)">' + escHtml(fbPost) + '</textarea>' +
+    '</div>' +
+
+    '<div style="margin-bottom:18px">' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-size:1.2rem">📷</span><strong>Instagram</strong>' +
+        '<button class="btn btn-ghost" style="font-size:.78rem;padding:3px 10px;margin-left:auto" onclick="navigator.clipboard.writeText(window._socialPosts.ig);toast(\'Copie !\')">Copier</button></div>' +
+      '<textarea readonly style="width:100%;height:120px;font-size:.82rem;border:1px solid var(--border);border-radius:8px;padding:10px;resize:vertical;background:var(--off)">' + escHtml(igPost) + '</textarea>' +
+    '</div>' +
+
+    '<div style="margin-bottom:18px">' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-size:1.2rem">📲</span><strong>WhatsApp</strong>' +
+        '<button class="btn btn-ghost" style="font-size:.78rem;padding:3px 10px;margin-left:auto" onclick="navigator.clipboard.writeText(window._socialPosts.wa);toast(\'Copie !\')">Copier</button></div>' +
+      '<textarea readonly style="width:100%;height:120px;font-size:.82rem;border:1px solid var(--border);border-radius:8px;padding:10px;resize:vertical;background:var(--off)">' + escHtml(waPost) + '</textarea>' +
+    '</div>' +
+
+    '<div class="form-actions"><button class="btn btn-ghost" onclick="closeModal()">Fermer</button></div>'
+  );
 }

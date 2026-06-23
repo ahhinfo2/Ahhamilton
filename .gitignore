@@ -13,3 +13,5 @@ Public/Galerie/*.CR2
 Public/Galerie/*.cr2
 _fix_lightbox.js
 _gal_replace.js
+desktop-app/node_modules/
+desktop-app/dist/
