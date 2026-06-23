@@ -29,26 +29,10 @@ const { authMiddleware, requireRole, JWT_SECRET } = require('./middleware/auth')
 const mailer = require('./mailer');
 const imap   = require('./imap');
 
-// ── Twilio SMS (optionnel — configuré via env vars) ─────────────────────────
-let twilioClient = null;
-try {
-  if (process.env.TWILIO_SID) {
-    const twilio = require('twilio');
-    twilioClient = twilio(process.env.TWILIO_SID, process.env.TWILIO_TOKEN);
-    console.log('[TWILIO] Client initialisé');
-  }
-} catch(e) { console.log('[TWILIO] Module non installé — fallback email-to-SMS'); }
-
+// ── SMS via email-to-SMS gateway (gratuit) ──────────────────────────────────
 function sendSMS(phone, message) {
   if (!phone) return Promise.resolve();
-  if (twilioClient && process.env.TWILIO_FROM) {
-    const to = phone.startsWith('+') ? phone : '+1' + phone.replace(/\D/g, '');
-    return twilioClient.messages.create({ body: message, from: process.env.TWILIO_FROM, to })
-      .then(m => console.log('[SMS]', m.sid))
-      .catch(e => { console.error('[SMS]', e.message); return mailer.sendSMS({ telephone: phone, operateur: 'rogers', sms_notifs: 1 }, message); });
-  }
-  // Fallback to email-to-SMS gateway
-  return mailer.sendSMS({ telephone: phone, operateur: 'rogers', sms_notifs: 1 }, message);
+  return mailer.sendSMS({ telephone: phone, operateur: 'rogers', sms_notifs: 1 }, message).catch(function() {});
 }
 
 const app  = express();
@@ -8012,17 +7996,6 @@ app.post('/api/sponsoring/checkout', async (req, res) => {
   }
 });
 
-// ── Test SMS (EXEC seulement) ────────────────────────────────────────────────
-app.post('/api/test/sms', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), async (req, res) => {
-  const { to, message } = req.body;
-  if (!to || !message) return res.status(400).json({ error: 'Paramètres "to" et "message" requis' });
-  try {
-    await sendSMS(to, message);
-    res.json({ ok: true, message: 'SMS envoyé (ou fallback email-to-SMS)' });
-  } catch(e) {
-    res.status(500).json({ error: e.message });
-  }
-});
 
 // ══════════════════════════════════════════════════════════════════════════════
 
