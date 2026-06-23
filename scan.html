@@ -469,46 +469,46 @@ async function onQRDetected(rawText) {
       if (!data.ok && data.status === 'invalide') {
         showResultUnified('warn', '⚠️', data.message || 'BILLET INVALIDE', data);
         playBeep(false);
-        addHistory('err', data.nom || 'Inconnu', data.message || 'Invalide');
+        addHistory('err', data.nom || 'Inconnu', data.message || 'Invalide', data);
       } else if (data.status === 'deja_scanne') {
         showResultUnified('dup', '🔄', 'DÉJÀ ENTRÉ', data);
         playBeep(false);
-        addHistory('dup', data.nom, 'Déjà scanné' + (data.table_numero ? ', table ' + data.table_numero : ''));
+        addHistory('dup', data.nom, 'Déjà scanné' + (data.table_numero ? ', table ' + data.table_numero : ''), data);
       } else if (data.ok) {
         showResultUnified('ok', '✅', 'BIENVENUE', data);
         playBeep(true);
-        addHistory('ok', data.nom, (data.table_numero ? 'Table ' + data.table_numero + ', ' : '') + (data.vendu_en_ligne ? 'En ligne' : 'Vendu par ' + (data.vendeur_nom || '?')));
+        addHistory('ok', data.nom, (data.table_numero ? 'Table ' + data.table_numero + ', ' : '') + (data.vendu_en_ligne ? 'En ligne' : 'Vendu par ' + (data.vendeur_nom || '?')), data);
       } else {
         showResultUnified('err', '❌', data.message || 'ERREUR', data);
         playBeep(false);
-        addHistory('err', data.nom || 'Inconnu', data.message || 'Erreur');
+        addHistory('err', data.nom || 'Inconnu', data.message || 'Erreur', data);
       }
     } else if (data.type === 'carte') {
       // ── Card result ──
       if (data.status === 'vip') {
         showResultUnified('vip', '👑', 'VIP — COMITÉ', data);
         playBeep(true);
-        addHistory('vip', data.nom, 'Comité VIP');
+        addHistory('vip', data.nom, 'Comité VIP', data);
       } else if (data.status === 'deja_scanne') {
         showResultUnified('dup', '🔄', 'DÉJÀ ENTRÉ(E)', data);
         playBeep(false);
-        addHistory('dup', data.nom, 'Déjà entré(e)');
+        addHistory('dup', data.nom, 'Déjà entré(e)', data);
       } else if (data.ok) {
         showResultUnified('ok', '✅', 'BIENVENUE', data);
         playBeep(true);
         var histMeta = data.plan ? (data.plan.charAt(0).toUpperCase() + data.plan.slice(1)) : 'Membre';
         if (data.total_billets > 0) histMeta += ', ' + data.billets_restants + '/' + data.total_billets + ' billets';
-        addHistory('ok', data.nom, histMeta);
+        addHistory('ok', data.nom, histMeta, data);
       } else {
         showResultUnified(data.status === 'invalide' ? 'warn' : 'err', '⚠️', data.message || 'INVALIDE', data);
         playBeep(false);
-        addHistory('err', data.nom || 'Inconnu', data.message || 'Invalide');
+        addHistory('err', data.nom || 'Inconnu', data.message || 'Invalide', data);
       }
     } else {
       // ── Error / not found ──
       showResultUnified('err', '❌', data.message || 'QR NON RECONNU', data);
       playBeep(false);
-      addHistory('err', qrText.split('\n')[0] || 'Inconnu', data.message || 'Non reconnu');
+      addHistory('err', qrText.split('\n')[0] || 'Inconnu', data.message || 'Non reconnu', data);
     }
   } catch(e) {
     showResultUnified('err', '⚠️', 'ERREUR RÉSEAU', { nom: 'Vérifiez la connexion', type: 'error' });
@@ -604,22 +604,48 @@ function showResultUnified(cls, icon, statusText, data) {
 }
 
 // ── Historique ────────────────────────────────────────────────────────────────
-function addHistory(type, nom, meta) {
-  history.unshift({ type, nom, meta, time: new Date().toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'}) });
-  if (history.length > 10) history.pop();
+function addHistory(type, nom, meta, fullData) {
+  history.unshift({ type, nom, meta, fullData: fullData || {}, time: new Date().toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'}) });
+  if (history.length > 20) history.pop();
 
-  const box = document.getElementById('historyBox');
-  const list = document.getElementById('histList');
+  var box = document.getElementById('historyBox');
+  var list = document.getElementById('histList');
   box.style.display = 'block';
-  list.innerHTML = history.map(h =>
-    '<div class="hist-item">' +
+  list.innerHTML = history.map(function(h, i) {
+    return '<div class="hist-item" style="cursor:pointer" onclick="_replayHistory(' + i + ')">' +
       '<div class="hist-dot ' + h.type + '"></div>' +
       '<div class="hist-info">' +
         '<div class="hist-name">' + h.nom + '</div>' +
         '<div class="hist-meta">' + h.time + ' · ' + h.meta + '</div>' +
       '</div>' +
-    '</div>'
-  ).join('');
+      '<div style="color:rgba(255,255,255,.3);font-size:.7rem">›</div>' +
+    '</div>';
+  }).join('');
+}
+
+function _replayHistory(idx) {
+  var h = history[idx];
+  if (!h || !h.fullData) return;
+  var d = h.fullData;
+  var o = document.getElementById('scanOverlay');
+  var cls = h.type === 'vip' ? 'vip' : h.type;
+  o.className = 'visible ' + cls;
+  document.getElementById('ovIcon').textContent = cls === 'ok' ? '✅' : cls === 'dup' ? '🔄' : cls === 'vip' ? '👑' : '❌';
+  document.getElementById('ovStatus').textContent = d.status === 'vip' ? 'VIP — COMITÉ' : d.status === 'valide' ? 'VALIDE' : d.status === 'deja_scanne' ? 'DÉJÀ SCANNÉ' : d.status || 'ERREUR';
+  document.getElementById('ovName').textContent = d.nom || h.nom || '';
+
+  var rows = [];
+  if (d.activite) rows.push('<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.15)"><span style="opacity:.7">Activité</span><strong>' + d.activite + '</strong></div>');
+  if (d.barcode) rows.push('<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.15)"><span style="opacity:.7">Billet</span><strong style="font-family:monospace">' + d.barcode + '</strong></div>');
+  if (d.plan) rows.push('<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.15)"><span style="opacity:.7">Plan</span><strong>' + d.plan + '</strong></div>');
+  if (d.total_billets > 0) rows.push('<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.15)"><span style="opacity:.7">Billets</span><strong>' + (d.total_billets - (d.billets_restants||0)) + '/' + d.total_billets + ' utilisés</strong></div>');
+  if (d.table_numero) rows.push('<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.15)"><span style="opacity:.7">Table</span><strong>' + d.table_numero + '</strong></div>');
+  if (d.prix) rows.push('<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.15)"><span style="opacity:.7">Prix</span><strong>' + d.prix.toFixed(2) + ' $</strong></div>');
+  if (d.lieu) rows.push('<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.15)"><span style="opacity:.7">Lieu</span><strong>' + d.lieu + '</strong></div>');
+
+  document.getElementById('ovDetails').innerHTML = rows.length ? '<div style="background:rgba(0,0,0,.2);border-radius:14px;padding:8px 14px;margin:8px 0;font-size:.85rem;text-align:left">' + rows.join('') + '</div>' : '';
+  document.getElementById('ovSub').textContent = h.time;
+  clearTimeout(_overlayTimer);
 }
 
 // ── Son ───────────────────────────────────────────────────────────────────────

@@ -8165,10 +8165,10 @@ app.post('/api/scan/unified', authMiddleware, (req, res) => {
     if (!activity_id) {
       let cardStatus = 'valide';
       let cardMessage = 'Carte membre valide';
-      if (expired) { cardStatus = 'invalide'; cardMessage = 'Carte expirée (depuis le ' + expiration + ')'; }
-      else if (!member.photo_url) { cardStatus = 'invalide'; cardMessage = 'Carte sans photo'; }
+      if (!member.photo_url) { cardStatus = 'invalide'; cardMessage = 'Carte sans photo — ajoutez une photo pour valider'; }
       else if (member.carte_photo_approuvee !== 1) { cardStatus = 'invalide'; cardMessage = 'Photo non approuvée'; }
-      if (isExecMember) { cardStatus = 'vip'; cardMessage = 'Membre du comité — ' + member.role; }
+      else if (expired && !isExecMember) { cardStatus = 'invalide'; cardMessage = 'Carte expirée (depuis le ' + expiration + ')'; }
+      if (cardStatus !== 'invalide' && isExecMember) { cardStatus = 'vip'; cardMessage = 'Membre du comité — ' + member.role; }
 
       db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details) VALUES (?,?,?,?,?)")
         .run(null, req.user.id, qr_data, cardStatus === 'vip' ? 'valide' : cardStatus, nomMembre + ' | carte');
@@ -8191,7 +8191,18 @@ app.post('/api/scan/unified', authMiddleware, (req, res) => {
       return res.json({ ok: false, type: 'carte', status: 'invalide', nom: nomMembre, message: 'Activité introuvable' });
     }
 
-    // Check card validity (except EXEC members)
+    // Check card validity — photo obligatoire pour TOUS (y compris comité)
+    if (!member.photo_url || !member.carte_photo_approuvee) {
+      db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details) VALUES (?,?,?,?,?)")
+        .run(parseInt(activity_id), req.user.id, qr_data, 'invalide', nomMembre + ' | Carte sans photo');
+      return res.json({
+        ok: false, type: 'carte', status: 'invalide',
+        nom: nomMembre, message: 'Carte invalide — aucune photo approuvée. Ajoutez une photo pour valider la carte.',
+        photo_url: '', plan: member.plan || 'gratuit',
+        carte_valide: false, is_comite: isExecMember
+      });
+    }
+    // Carte expirée (sauf comité)
     if (!isExecMember && expired) {
       db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details) VALUES (?,?,?,?,?)")
         .run(parseInt(activity_id), req.user.id, qr_data, 'invalide', nomMembre + ' | Carte expirée');
