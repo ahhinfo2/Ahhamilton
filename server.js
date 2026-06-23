@@ -3162,7 +3162,7 @@ app.get('/api/receipts/:id/print', (req, res) => {
       <div class="org-name">Association Haïtienne de Hamilton</div>
       <div class="org-sub">No. d'enregistrement : AHH-Hamilton-ON</div>
       <div class="org-addr">231 Fernwood Crescent, Hamilton, ON  L8T 3L7<br/>
-        Tél : 905-818-8269 &nbsp;|&nbsp; info@ahhamilton.ca</div>
+        Tél : 905-818-8269 &nbsp;|&nbsp; contact@ahhamilton.ca</div>
     </div>
   </div>
 
@@ -7704,7 +7704,7 @@ app.post('/api/chatbot', (req, res) => {
   const faqs = [
     { keys: ['inscription','inscrire','membre','adhésion','rejoindre','join'], reply: 'Pour devenir membre, visitez notre page d\'adhésion : <a href="/adhesion.html">Devenir membre</a>. L\'inscription est simple et rapide !' },
     { keys: ['activité','événement','activite','evenement','bbq','gala'], reply: 'Consultez nos prochains événements sur la page <a href="/actualites.html">Activités</a>. Vous pouvez vous inscrire directement en ligne !' },
-    { keys: ['contact','joindre','téléphone','telephone','email','courriel'], reply: 'Contactez-nous :<br>📞 905-818-8269<br>📧 info@ahhamilton.ca<br>📍 231 Fernwood Crescent, Hamilton, ON' },
+    { keys: ['contact','joindre','téléphone','telephone','email','courriel'], reply: 'Contactez-nous :<br>📞 905-818-8269<br>📧 contact@ahhamilton.ca<br>📍 231 Fernwood Crescent, Hamilton, ON' },
     { keys: ['don','donner','donation','soutenir','supporter'], reply: 'Merci pour votre générosité ! Vous pouvez faire un don via <a href="https://donate.stripe.com/fZe9CTg1Oh0qehacMM" target="_blank">Stripe</a> ou par virement Interac.' },
     { keys: ['bénévol','benevol','volontaire','aider'], reply: 'Le bénévolat est au cœur de notre mission ! Connectez-vous à votre espace membre pour soumettre vos heures.' },
     { keys: ['horaire','heure','ouvert','quand'], reply: 'Nos événements ont lieu principalement les week-ends. Consultez le calendrier des <a href="/actualites.html">activités</a> pour les dates exactes.' },
@@ -7718,7 +7718,7 @@ app.post('/api/chatbot', (req, res) => {
   for (const faq of faqs) {
     if (faq.keys.some(k => msg.includes(k))) return res.json({ reply: faq.reply });
   }
-  res.json({ reply: 'Je ne suis pas sûr de comprendre. Essayez de me poser une question sur : les activités, l\'inscription, les contacts, les dons, ou le bénévolat. Ou contactez-nous à info@ahhamilton.ca' });
+  res.json({ reply: 'Je ne suis pas sûr de comprendre. Essayez de me poser une question sur : les activités, l\'inscription, les contacts, les dons, ou le bénévolat. Ou contactez-nous à contact@ahhamilton.ca' });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════

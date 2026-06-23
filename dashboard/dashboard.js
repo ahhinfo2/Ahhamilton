@@ -4206,7 +4206,7 @@ function ahhPrintHeader() {
       <div>
         <div style="font-size:1.3rem;font-weight:800;color:#1b5e20">Association Haïtienne de Hamilton</div>
         <div style="font-size:.82rem;color:#555;margin-top:2px">231 Fernwood Crescent, Hamilton, ON  L8T 3L7</div>
-        <div style="font-size:.78rem;color:#777;margin-top:1px">Tél : 905-818-8269 &nbsp;|&nbsp; info@ahhamilton.ca &nbsp;|&nbsp; ahhamilton.ca</div>
+        <div style="font-size:.78rem;color:#777;margin-top:1px">Tél : 905-818-8269 &nbsp;|&nbsp; contact@ahhamilton.ca &nbsp;|&nbsp; ahhamilton.ca</div>
       </div>
     </div>`;
 }

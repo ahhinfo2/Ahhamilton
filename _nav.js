@@ -215,7 +215,7 @@
         <p>231 Fernwood Crescent<br/>Hamilton, ON  L8T 3L7</p>
         <p><a href="tel:9058188269">905-818-8269</a></p>
         <p><a href="tel:9055197967">905-519-7967</a></p>
-        <p><a href="mailto:info@ahhamilton.ca">info@ahhamilton.ca</a></p>
+        <p><a href="mailto:contact@ahhamilton.ca">contact@ahhamilton.ca</a></p>
       </div>
     </div>
     <div class="footer-bottom">
