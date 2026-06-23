@@ -8081,14 +8081,15 @@ app.post('/api/scan/unified', authMiddleware, (req, res) => {
     // Vérifier si l'activité existe et son statut
     if (ticket.act_id) {
       const actCheck = db.prepare('SELECT id, titre, statut, date_debut FROM activities WHERE id=?').get(ticket.act_id);
+      const actNom = (actCheck && actCheck.titre) || ticket.activite || 'Activité #' + ticket.act_id;
       if (!actCheck || actCheck.statut === 'annulee' || actCheck.statut === 'supprimee') {
         db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details, ticket_id) VALUES (?,?,?,?,?,?)")
           .run(ticket.act_id || null, req.user.id, qr_data, 'invalide', nomBilletRaw + ' | Activité supprimée/annulée', ticket.id);
         return res.json({
           ok: false, type: 'ticket', status: 'supprimee',
           nom: nomBilletRaw,
-          message: 'Activité « ' + (ticket.activite || '?') + ' » supprimée ou annulée',
-          activite: ticket.activite, barcode: ticket.barcode_data
+          message: 'Activité « ' + actNom + ' » supprimée ou annulée',
+          activite: actNom, barcode: ticket.barcode_data
         });
       }
       // Vérifier si l'activité est du jour (±2h flexibilité, heure Toronto)
@@ -8105,9 +8106,9 @@ app.post('/api/scan/unified', authMiddleware, (req, res) => {
             ok: false, type: 'ticket', status: isPast ? 'passee' : 'future',
             nom: nomBilletRaw,
             message: isPast
-              ? 'Activité « ' + (ticket.activite || '?') + ' » terminée (' + dateAct + ')'
-              : 'Activité « ' + (ticket.activite || '?') + ' » pas encore commencée (' + dateAct + ')',
-            activite: ticket.activite, barcode: ticket.barcode_data,
+              ? 'Activité « ' + actNom + ' » terminée (' + dateAct + ')'
+              : 'Activité « ' + actNom + ' » pas encore commencée (' + dateAct + ')',
+            activite: actNom, barcode: ticket.barcode_data,
             date_evenement: actCheck.date_debut
           });
         }
