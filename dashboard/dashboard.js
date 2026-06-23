@@ -11084,7 +11084,7 @@ async function carteGestionView() {
     <div class="table-card">
       <div style="overflow-x:auto"><table class="data-table">
         <thead><tr>
-          <th>Membre</th><th>Rôle</th><th>Plan</th><th>Photo</th><th>Expiration</th><th>Connexions</th><th>Dernière connexion</th><th>Actions</th>
+          <th style="cursor:pointer" onclick="_cgSort('nom')">Membre ⇅</th><th style="cursor:pointer" onclick="_cgSort('role')">Rôle ⇅</th><th style="cursor:pointer" onclick="_cgSort('plan')">Plan ⇅</th><th style="cursor:pointer" onclick="_cgSort('photo')">Photo ⇅</th><th style="cursor:pointer" onclick="_cgSort('expiration')">Expiration ⇅</th><th style="cursor:pointer" onclick="_cgSort('connexions')">Connexions ⇅</th><th style="cursor:pointer" onclick="_cgSort('derniere')">Dernière connexion ⇅</th><th>Actions</th>
         </tr></thead>
         <tbody id="cgBody">
           ${membres.map(function(m) {
@@ -11105,7 +11105,7 @@ async function carteGestionView() {
             const lastConn = conn.derniere_connexion ? conn.derniere_connexion.substring(0,16).replace('T',' ') : 'Jamais';
             const searchData = ((m.prenom||'')+' '+(m.nom||'')+' '+(m.email||'')+' '+(m.role||'')+' '+(m.plan||'')).toLowerCase();
 
-            return '<tr class="cg-row" data-search="' + escHtml(searchData) + '" data-role="' + (m.role||'') + '" data-photo="' + photoStatus + '" data-plan="' + (m.plan||'gratuit') + '">' +
+            return '<tr class="cg-row" data-search="' + escHtml(searchData) + '" data-role="' + (m.role||'') + '" data-photo="' + photoStatus + '" data-plan="' + (m.plan||'gratuit') + '" data-nom="' + escHtml(((m.prenom||'')+ ' ' +(m.nom||'')).toLowerCase()) + '" data-connexions="' + (conn.nb_connexions||0) + '" data-derniere="' + (conn.derniere_connexion||'') + '" data-expiration="' + (m.days_left!=null?m.days_left:9999) + '">' +
               '<td><div style="display:flex;align-items:center;gap:8px">' +
                 (m.photo_url
                   ? '<img src="' + BASE + m.photo_url + '" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid ' + (m.carte_photo_approuvee?'#2e7d32':'#e65100') + '"/>'
@@ -11158,6 +11158,30 @@ function _cgFilter() {
   });
   var cnt = document.getElementById('cgCount');
   if (cnt) cnt.textContent = shown + ' membre(s) affiché(s) sur ' + (window._carteMembers||[]).length;
+}
+
+window._cgSortCol = '';
+window._cgSortAsc = true;
+function _cgSort(col) {
+  if (window._cgSortCol === col) { window._cgSortAsc = !window._cgSortAsc; }
+  else { window._cgSortCol = col; window._cgSortAsc = true; }
+  var tbody = document.getElementById('cgBody');
+  if (!tbody) return;
+  var rows = Array.from(tbody.querySelectorAll('.cg-row'));
+  rows.sort(function(a, b) {
+    var va, vb;
+    if (col === 'nom') { va = a.dataset.nom || ''; vb = b.dataset.nom || ''; }
+    else if (col === 'role') { va = a.dataset.role || ''; vb = b.dataset.role || ''; }
+    else if (col === 'plan') { va = a.dataset.plan || ''; vb = b.dataset.plan || ''; }
+    else if (col === 'photo') { va = a.dataset.photo || ''; vb = b.dataset.photo || ''; }
+    else if (col === 'expiration') { va = parseInt(a.dataset.expiration)||9999; vb = parseInt(b.dataset.expiration)||9999; return window._cgSortAsc ? va - vb : vb - va; }
+    else if (col === 'connexions') { va = parseInt(a.dataset.connexions)||0; vb = parseInt(b.dataset.connexions)||0; return window._cgSortAsc ? va - vb : vb - va; }
+    else if (col === 'derniere') { va = a.dataset.derniere || ''; vb = b.dataset.derniere || ''; }
+    else return 0;
+    if (typeof va === 'string') return window._cgSortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+    return 0;
+  });
+  rows.forEach(function(r) { tbody.appendChild(r); });
 }
 
 async function _cgOpenProfile(id) {
