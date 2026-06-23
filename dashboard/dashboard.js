@@ -13549,17 +13549,10 @@ async function scanDelegationsListView() {
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label>Type de scan</label>
-              <select id="sdType">
-                <option value="billets">Billets uniquement</option>
-                <option value="cartes">Cartes membres uniquement</option>
-                <option value="tous">Billets + Cartes</option>
-              </select>
-            </div>
-            <div class="form-group">
               <label>Expiration</label>
               <input type="datetime-local" id="sdExpiration" value="${new Date(Date.now()+24*60*60*1000).toISOString().slice(0,16)}">
             </div>
+            <input type="hidden" id="sdType" value="tous">
           </div>
           <button class="btn btn-primary" onclick="_sdCreate()">Déléguer le scanner</button>
         </div>
@@ -13568,15 +13561,14 @@ async function scanDelegationsListView() {
       <div class="table-card">
         <div class="table-card-header"><h3>Délégations actives (${delegations.length})</h3></div>
         <div class="table-wrapper"><table>
-          <thead><tr><th>Membre</th><th>Activité</th><th>Type</th><th>Expiration</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Membre</th><th>Activité</th><th>Expiration</th><th>Actions</th></tr></thead>
           <tbody>
             ${delegations.length ? delegations.map(d => `<tr>
               <td><strong>${escHtml((d.prenom||'') + ' ' + (d.nom||'') || '–')}</strong><br><span style="font-size:.75rem;color:var(--muted)">${escHtml(d.email||'')}</span></td>
               <td>${escHtml(d.activite_titre || d.activity_titre || 'Toutes')}</td>
-              <td>${pill(d.type === 'tous' ? 'Tous' : d.type === 'cartes' ? 'Cartes' : 'Billets', d.type === 'tous' ? 'bp-green' : 'bp-blue')}</td>
               <td>${d.date_expiration ? fmt(d.date_expiration) : 'Illimitée'}</td>
               <td><button class="btn btn-ghost btn-sm" style="color:#c62828" onclick="_sdRevoke(${d.id})">Révoquer</button></td>
-            </tr>`).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">Aucune délégation active</td></tr>'}
+            </tr>`).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">Aucune délégation active</td></tr>'}
           </tbody>
         </table></div>
       </div>
