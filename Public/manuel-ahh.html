@@ -89,7 +89,7 @@
   <div class="subtitle">Guide complet de la plateforme numérique</div>
   <p style="font-size:1rem;color:#333;margin-bottom:30px;text-align:center">Association Haïtienne de Hamilton</p>
   <div class="meta">
-    Version 3.0 — Juin 2026<br/>
+    Version 3.1 — Juin 2026<br/>
     Comptes Comité exécutif & Comptes Membres<br/>
     Hamilton, Ontario, Canada
   </div>
@@ -228,7 +228,7 @@
 <h4>Conditions de validité</h4>
 <p>Pour que votre carte soit considérée comme valide, trois conditions doivent être remplies simultanément. Premièrement, vous devez avoir une <strong>photo de profil approuvée</strong> par le comité. Deuxièmement, votre carte ne doit pas être <strong>expirée</strong> — les cartes sont valides pendant deux ans à partir de la date d'inscription. Troisièmement, votre compte doit être <strong>actif</strong>.</p>
 
-<p>Si votre carte est invalide (pas de photo ou expirée), vous ne pourrez pas l'utiliser pour entrer aux activités. Le comité peut prendre votre photo directement lors d'un événement si vous n'en avez pas encore, et renouveler votre carte si elle est expirée.</p>
+<p>Si votre carte est invalide (pas de photo ou expirée), vous ne pourrez pas l'utiliser pour entrer aux activités, <strong>même si vous êtes membre du comité</strong>. Le comité peut prendre votre photo directement depuis la page Cartes membres en cliquant sur le bouton 📷 à côté de votre nom. Cependant, la photo devra être approuvée par un <strong>autre</strong> membre du comité — la personne qui upload ne peut pas l'approuver elle-même.</p>
 
 <div class="tip">💡 <strong>Astuce :</strong> Votre carte de membre et vos billets QR sont interchangeables. Si vous avez acheté un billet pour une activité, vous pouvez présenter soit votre billet QR, soit votre carte de membre à l'entrée — le système reconnaîtra automatiquement votre achat.</div>
 
@@ -308,7 +308,9 @@
 
 <p>Le menu « Annuaire » donne accès à la liste complète de tous les membres actifs. Vous pouvez rechercher un membre par nom, filtrer par rôle ou par plan, et cliquer sur un membre pour voir sa fiche détaillée (historique de paiements, activités participées, heures de bénévolat, badges obtenus).</p>
 
-<p>Le menu « Cartes membres » permet de gérer les cartes numériques : approuver les photos soumises par les membres, rejeter celles qui ne sont pas conformes, et renouveler les cartes expirées.</p>
+<p>Le menu « <strong>Cartes membres</strong> » est une vue unifiée qui combine la gestion des cartes et le journal de connexions. Pour chaque membre, vous voyez en un coup d'œil : le rôle, le plan, le statut de la photo, l'expiration de la carte, le nombre de connexions et la dernière connexion. Toutes les colonnes sont <strong>triables</strong> (cliquez sur l'en-tête). Une barre de recherche et des filtres (rôle, photo, plan) permettent de trouver rapidement un membre. Cliquez sur le <strong>nom d'un membre</strong> pour ouvrir son profil complet avec photo, badges, statistiques et boutons d'action (ajouter photo, approuver, renouveler).</p>
+
+<div class="warn">⚠️ <strong>Règle photo :</strong> La personne du comité qui ajoute une photo pour un membre ne peut <strong>pas</strong> l'approuver elle-même — un autre membre du comité doit l'approuver. Cela garantit une double vérification de l'identité.</div>
 
 <!-- 2.3 -->
 <h3 id="c3" class="page-break">2.3 Créer et gérer les activités</h3>
@@ -342,32 +344,62 @@
 <p>Pour chaque activité, vous pouvez créer différents types de billets (par exemple : Adulte à 10 $, Enfant à 5 $, VIP à 25 $, Gratuit 60 ans+). Chaque type peut avoir son propre prix, sa propre capacité maximale et sa propre description. Les acheteurs pourront choisir le type qui leur convient lors de l'achat.</p>
 
 <!-- 2.5 -->
-<h3 id="c5" class="page-break">2.5 Scanner les billets et cartes</h3>
+<h3 id="c5" class="page-break">2.5 Le scanner unifié</h3>
 
-<p>Le jour de l'événement, le comité utilise les scanners intégrés à la plateforme pour contrôler les entrées. Il existe deux scanners distincts : le scanner de billets et le scanner de cartes membres.</p>
+<p>Le scanner AHH est un outil <strong>unique et unifié</strong> qui gère à la fois les billets, les cartes de membre et les QR d'activités. Il est accessible via le menu « Scanner » du tableau de bord ou directement à l'adresse <code>ahhamilton.ca/scan.html</code> depuis un téléphone.</p>
 
-<h4>Scanner de billets</h4>
-<p>Le scanner de billets est accessible via le menu « Scanner billets » ou directement à l'adresse <code>ahhamilton.ca/scan.html</code> depuis un téléphone. Pour l'utiliser, ouvrez la page, sélectionnez l'activité concernée dans le menu déroulant, puis pointez la caméra de votre téléphone vers le code QR du billet. Le résultat s'affiche instantanément en plein écran avec un code couleur :</p>
+<h4>Utilisation</h4>
+<p>Ouvrez la page du scanner, sélectionnez éventuellement une activité dans le menu déroulant (ou laissez « Toutes les activités » pour un scan général), puis pointez la caméra vers n'importe quel QR code AHH. Le scanner détecte automatiquement le type de QR et affiche le résultat correspondant. Un champ de saisie manuelle est disponible pour entrer le code si la caméra ne fonctionne pas.</p>
 
+<h4>Types de QR reconnus</h4>
 <table>
-  <thead><tr><th>Couleur</th><th>Signification</th><th>Action à prendre</th></tr></thead>
+  <thead><tr><th>Type de QR</th><th>Format</th><th>Résultat affiché</th></tr></thead>
   <tbody>
-    <tr><td><span class="badge bg">VERT</span></td><td>Billet valide et payé</td><td>Laisser entrer la personne</td></tr>
-    <tr><td><span class="badge bv">VIOLET</span></td><td>Billet déjà scanné</td><td>Vérifier l'identité — possible doublon</td></tr>
-    <tr><td><span class="badge br">ROUGE</span></td><td>Billet introuvable ou invalide</td><td>Refuser l'entrée</td></tr>
-    <tr><td><span class="badge bo">ORANGE</span></td><td>Billet pour une autre activité</td><td>Rediriger la personne</td></tr>
+    <tr><td>🎟 Billet</td><td>Code QR du billet ou code-barres AHH-XXXXXX</td><td>Nom, table, vendeur, prix, activité</td></tr>
+    <tr><td>🪪 Carte membre</td><td>QR de la carte (AHH-XXXXX-...)</td><td>Photo, nom, plan, statut carte, activités du jour</td></tr>
+    <tr><td>🎉 QR Activité</td><td>URL activity-checkout.html</td><td>Nom activité, lieu, prix, billets vendus, présences</td></tr>
   </tbody>
 </table>
 
-<p>L'écran de résultat affiche le nom du porteur du billet, le numéro du billet, la table assignée (si applicable), le nom du vendeur et le prix payé. Touchez n'importe où sur l'écran pour fermer le résultat et scanner le billet suivant. Un champ de saisie manuelle est disponible sous la caméra pour entrer le code manuellement si la caméra ne fonctionne pas.</p>
+<h4>Codes couleurs</h4>
+<table>
+  <thead><tr><th>Couleur</th><th>Signification</th><th>Action à prendre</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge bg">VERT ✅</span></td><td>Billet valide / Carte valide / Bienvenue</td><td>Laisser entrer</td></tr>
+    <tr><td><span class="badge bb">BLEU 👑</span></td><td>VIP — Membre du comité</td><td>Entrée automatique</td></tr>
+    <tr><td><span class="badge bv">VIOLET 🔄</span></td><td>Déjà scanné / Déjà entré(e)</td><td>Vérifier l'identité — possible doublon</td></tr>
+    <tr><td><span class="badge bo">ORANGE ⚠️</span></td><td>Carte sans photo / Expirée / Mauvaise activité / Activité passée ou future</td><td>Selon le message affiché</td></tr>
+    <tr><td><span class="badge br">ROUGE ❌</span></td><td>Introuvable / Activité supprimée / Compte désactivé</td><td>Refuser l'entrée</td></tr>
+  </tbody>
+</table>
 
-<h4>Scanner de cartes membres</h4>
-<p>Le scanner de cartes membres est accessible via le menu « Scanner cartes » dans le tableau de bord. Il fonctionne de manière similaire au scanner de billets, mais il lit le QR de la carte de membre. Après le scan, le profil complet du membre s'affiche : photo, nom, plan, statut de la carte (valide, expirée, sans photo). Vous pouvez ensuite confirmer la présence du membre à une activité spécifique.</p>
+<h4>Carte membre : activités du jour</h4>
+<p>Lorsqu'une carte de membre est scannée sans activité sélectionnée, le scanner affiche automatiquement la <strong>liste des activités du jour</strong> (±2h de flexibilité autour de minuit, heure de Toronto). Pour chaque activité, vous voyez si le membre est déjà présent (✅) ou non, et pouvez le marquer comme présent directement depuis le scanner.</p>
 
-<div class="important">📌 <strong>Check-in croisé :</strong> Le système synchronise automatiquement les billets et les cartes de membre. Si un membre a acheté un billet et que vous scannez sa carte de membre, le système trouvera son billet et le marquera comme utilisé. Inversement, si le billet QR est scanné, la carte de membre sera également marquée. Cela signifie qu'un membre avec un billet peut entrer en présentant l'un ou l'autre de ses QR codes — les deux fonctionnent.</div>
+<h4>Photo obligatoire</h4>
+<p><strong>Tous les membres</strong>, y compris le comité exécutif, doivent avoir une photo approuvée pour que leur carte soit valide au scan. Un membre du comité sans photo recevra « Carte invalide — aucune photo approuvée » au lieu de « VIP ».</p>
+
+<h4>Vérifications automatiques du scanner</h4>
+<ul>
+  <li><strong>Activité supprimée</strong> — Si l'activité liée au billet a été supprimée → 🗑️ rouge « Activité supprimée »</li>
+  <li><strong>Activité annulée</strong> — Si le statut est « annulée » → 🗑️ rouge « Activité annulée »</li>
+  <li><strong>Activité passée</strong> — Si la date est dépassée de plus de 26h → 📅 orange « Activité terminée »</li>
+  <li><strong>Activité future</strong> — Si l'activité n'a pas encore lieu (>26h) → 🕐 orange « Pas encore commencée »</li>
+  <li><strong>Mauvaise activité</strong> — Si un billet est pour une autre activité → ⚠️ orange avec nom de la bonne activité</li>
+</ul>
+
+<h4>Historique de la session</h4>
+<p>Chaque scan est enregistré dans un <strong>historique de session</strong> visible en bas du panneau. Les 5 derniers scans sont affichés directement. Un bouton « 📋 Voir tout l'historique » ouvre une page plein écran avec :</p>
+<ul>
+  <li>4 cartes résumé : Valides, Doublons, Refusés, Total</li>
+  <li>Liste complète de tous les scans avec icône (🪪 carte / 🎟 billet), nom, heure, statut</li>
+  <li>Chaque entrée est <strong>cliquable</strong> — les détails s'ouvrent en accordéon (photo, activité, plan, billets, table, prix, lieu)</li>
+</ul>
+
+<div class="important">📌 <strong>Check-in croisé :</strong> Le système synchronise automatiquement les billets et les cartes. Si un membre a acheté un billet et que vous scannez sa carte, le système trouvera son billet et le marquera comme utilisé. Un membre avec un billet peut entrer en présentant soit son billet QR, soit sa carte de membre.</div>
 
 <h4>Entrée VIP pour le comité</h4>
-<p>Les membres du comité exécutif (administrateur, trésorière, secrétaire, délégués) bénéficient d'une entrée gratuite à toutes les activités, y compris les activités payantes. Lorsque la carte d'un membre du comité est scannée, le système affiche « Comité (entrée VIP) » et le compte comme présent, sans exiger de billet.</p>
+<p>Les membres du comité (avec photo approuvée) bénéficient d'une entrée gratuite à toutes les activités. Le scan affiche « 👑 VIP — COMITÉ » en bleu. La carte expirée est ignorée pour le comité, mais la photo reste obligatoire.</p>
 
 <!-- 2.6 -->
 <h3 id="c6" class="page-break">2.6 Gérer les finances</h3>
@@ -456,7 +488,10 @@
 <p>Créez des ordres du jour structurés pour vos réunions avec des points numérotés, la durée prévue pour chaque point et le responsable de chaque sujet. L'ordre du jour peut être lié à une réunion et partagé avec les membres du comité.</p>
 
 <h4>Rapports et statistiques</h4>
-<p>Le menu « Rapports » offre des rapports détaillés par activité (billets vendus, présences, revenus). Le menu « Statistiques » montre les tendances de croissance de l'association. Le menu « Journal d'audit » permet de voir toutes les connexions et actions des membres, avec recherche, filtres et tri.</p>
+<p>Le menu « Rapports » offre des rapports détaillés par activité (billets vendus, présences, revenus). Le menu « Statistiques » montre les tendances de croissance de l'association. Le « Journal d'audit » des connexions est maintenant intégré directement dans la page « Cartes membres » (colonnes Connexions et Dernière connexion).</p>
+
+<h4>Badges de notification</h4>
+<p>Tous les boutons du menu latéral affichent un <strong>badge rouge</strong> avec un compteur lorsqu'il y a une action à prendre : inscriptions en attente, photos à approuver, tâches assignées, emails non lus, alertes, formulaires non traités, paiements en attente, factures impayées, etc. Les compteurs se mettent à jour à chaque chargement du tableau de bord.</p>
 
 <h4>Export et sauvegarde</h4>
 <p>Le menu « Export / Backup » permet de télécharger les données de l'association en format CSV (membres, paiements, activités) pour les analyser dans Excel. L'administrateur peut également créer des sauvegardes complètes de la base de données.</p>
@@ -469,7 +504,7 @@
 
 <p>Lors des événements importants, le comité peut avoir besoin de personnel supplémentaire pour scanner les billets et les cartes à l'entrée. La fonctionnalité de délégation de scan permet de donner temporairement ce droit à un membre régulier de l'association.</p>
 
-<p>Pour créer une délégation, rendez-vous dans le menu « Déléguer un scanner » de la section Scanners. Recherchez le membre par son nom, sélectionnez l'activité concernée (ou toutes les activités), choisissez le type de scan autorisé (billets uniquement, cartes uniquement, ou les deux) et définissez une date d'expiration. Le membre délégué verra automatiquement le ou les scanners apparaître dans son menu latéral dans les 30 secondes suivant la création de la délégation, sans avoir besoin de se déconnecter et reconnecter.</p>
+<p>Pour créer une délégation, rendez-vous dans le menu « Déléguer un scanner » de la section Scanners. Recherchez le membre par son nom, sélectionnez l'activité concernée (ou toutes les activités) et définissez une date d'expiration. Le scanner étant unifié, il n'y a plus de choix de type (billets/cartes) — le membre délégué aura accès à tout le scanner. Le scanner apparaîtra automatiquement dans son menu latéral dans les 30 secondes suivant la création de la délégation, sans avoir besoin de se déconnecter.</p>
 
 <p>Pour révoquer une délégation, retournez dans le menu « Déléguer un scanner » et cliquez sur « Révoquer » à côté de la délégation concernée. Le scanner disparaîtra automatiquement du menu du membre délégué au prochain rafraîchissement.</p>
 
@@ -489,11 +524,13 @@
     <tr><td>Site public</td><td><code>ahhamilton.ca</code></td><td>Tout le monde</td></tr>
     <tr><td>Page de connexion</td><td><code>ahhamilton.ca/dashboard/login.html</code></td><td>Tout le monde</td></tr>
     <tr><td>Tableau de bord</td><td><code>ahhamilton.ca/dashboard/app.html</code></td><td>Membres connectés</td></tr>
-    <tr><td>Scanner de billets</td><td><code>ahhamilton.ca/scan.html</code></td><td>Comité + délégués</td></tr>
+    <tr><td>Scanner unifié (billets + cartes)</td><td><code>ahhamilton.ca/scan.html</code></td><td>Comité + délégués</td></tr>
     <tr><td>Carte de membre</td><td><code>ahhamilton.ca/carte.html?id=VOTRE_ID</code></td><td>Membre concerné</td></tr>
+    <tr><td>Purge du cache (PWA)</td><td><code>ahhamilton.ca/purge.html</code></td><td>Tout le monde</td></tr>
     <tr><td>Calendrier iCal</td><td><code>ahhamilton.ca/api/calendar/feed.ics</code></td><td>Tout le monde</td></tr>
     <tr><td>Page d'adhésion</td><td><code>ahhamilton.ca/adhesion.html</code></td><td>Tout le monde</td></tr>
     <tr><td>Documentation billets</td><td><code>ahhamilton.ca/Public/doc-billets-cartes.html</code></td><td>Tout le monde</td></tr>
+    <tr><td>Manuel d'utilisation</td><td><code>ahhamilton.ca/Public/manuel-ahh.html</code></td><td>Tout le monde</td></tr>
   </tbody>
 </table>
 
@@ -517,6 +554,9 @@
 
 <h4>Comment savoir si ma cotisation est à jour ?</h4>
 <p>Le badge en haut de votre tableau de bord indique le statut de votre cotisation. Vert signifie « À jour », orange signifie « En attente de validation » et rouge signifie « Due ».</p>
+
+<h4>Le scanner ou le site ne fonctionne pas correctement ?</h4>
+<p>La plateforme utilise un service worker pour fonctionner hors ligne. Si vous constatez un comportement anormal après une mise à jour, videz le cache en visitant <code>ahhamilton.ca/purge.html</code> — cliquez sur « Purger maintenant ». Cela vide le cache et redirige vers le scanner. Sur ordinateur, vous pouvez aussi utiliser Ctrl+Maj+R pour un rechargement forcé.</p>
 
 <h4>Comment contacter le comité ?</h4>
 <p>Vous pouvez envoyer un message via la messagerie interne (menu « Courriel »), ou contacter directement le comité par courriel à <code>contact@ahhamilton.ca</code> ou par téléphone au 905-818-8269.</p>
