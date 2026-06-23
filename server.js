@@ -2364,7 +2364,7 @@ app.post('/api/auth/forgot-password', (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: 'Email requis' });
 
-  const user = db.prepare('SELECT id, prenom, nom FROM users WHERE email = ? AND actif = 1').get(email);
+  const user = db.prepare('SELECT id, prenom, nom, email FROM users WHERE email = ? AND actif = 1').get(email);
   if (!user) return res.json({ message: 'Si cet email existe, un lien a été envoyé.' }); // security: don't reveal
 
   // Expire old tokens
