@@ -5622,10 +5622,8 @@ async function gmSend() {
     const memberRecips = toArr.filter(c => _M.members.find(u => u.email === c.email));
     // Non-membres (SMTP seulement)
     const nonMemberRecips = toArr.filter(c => !_M.members.find(u => u.email === c.email));
-    // Membres avec email non-@ahhamilton.ca → aussi SMTP externe (ex: @gmail.com)
-    const memberAlsoEmail = memberRecips.filter(c => !c.email.toLowerCase().endsWith('@ahhamilton.ca'));
-    // Tous les destinataires SMTP
-    const smtpRecips = [...nonMemberRecips, ...memberAlsoEmail];
+    // SMTP seulement pour les non-membres (les membres reçoivent via la messagerie interne)
+    const smtpRecips = nonMemberRecips;
 
     if (!memberRecips.length && !nonMemberRecips.length) {
       toast('Ajoutez au moins un destinataire valide', 'error');
