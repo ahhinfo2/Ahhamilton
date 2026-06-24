@@ -418,7 +418,7 @@ async function sendRappelAdhesion(user) {
 }
 
 // ── Courriel externe depuis le comité ────────────────────────────────────
-async function sendExternalEmail({ to, subject, bodyHtml, senderName, senderEmail, orgEmail, orgSmtpPass }) {
+async function sendExternalEmail({ to, subject, bodyHtml, senderName, senderEmail, orgEmail, orgSmtpPass, attachments }) {
   const html = wrap(subject,
     `<p>Bonjour,</p>
      ${bodyHtml}
@@ -447,7 +447,7 @@ async function sendExternalEmail({ to, subject, bodyHtml, senderName, senderEmai
         await t.verify();
         const from = `"${senderName} | AHH" <${orgEmail}>`;
         const plainText = html.replace(/<style[\s\S]*?<\/style>/gi,'').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim();
-        await t.sendMail({ from, to, subject, html, text: plainText });
+        await t.sendMail({ from, to, subject, html, text: plainText, attachments: attachments || [] });
         console.log(`✉️  Email envoyé (org ${orgEmail} port ${port}) → ${to} | ${subject}`);
         return;
       } catch(e) {
@@ -466,7 +466,7 @@ async function sendExternalEmail({ to, subject, bodyHtml, senderName, senderEmai
   const replyTo = orgEmail    ? `"${senderName}" <${orgEmail}>` :
                   senderEmail ? `"${senderName}" <${senderEmail}>` : FROM;
   const plainText = html.replace(/<style[\s\S]*?<\/style>/gi,'').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim();
-  await t.sendMail({ from, to, replyTo, subject, html, text: plainText });
+  await t.sendMail({ from, to, replyTo, subject, html, text: plainText, attachments: attachments || [] });
   console.log(`✉️  Email envoyé (fallback ${SMTP_USER}) → ${to} | ${subject}`);
 }
 

@@ -5586,8 +5586,18 @@ async function gmSend() {
     }
 
     // Envoi SMTP externe : non-membres + membres avec email hors @ahhamilton.ca
+    const attachment = fileEl?.files?.[0];
     for (const c of smtpRecips) {
-      await api('/email/send', { method: 'POST', body: JSON.stringify({ to: c.email, subject, body }) });
+      if (attachment) {
+        var fd2 = new FormData();
+        fd2.append('to', c.email);
+        fd2.append('subject', subject);
+        fd2.append('body', body);
+        fd2.append('attachments', attachment);
+        await fetch(API + '/email/send', { method:'POST', headers:{ Authorization:'Bearer '+TOKEN }, body:fd2 });
+      } else {
+        await api('/email/send', { method: 'POST', body: JSON.stringify({ to: c.email, subject, body }) });
+      }
     }
 
     _MC.to=[]; _MC.cc=[];
@@ -10022,6 +10032,10 @@ async function externalEmail() {
       '<label style="display:block;font-weight:600;margin-bottom:5px">Message</label>' +
       '<textarea id="extEmailBody" rows="7" placeholder="Votre message…" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:.9rem;box-sizing:border-box;resize:vertical"></textarea>' +
     '</div>' +
+    '<div style="margin-bottom:18px">' +
+      '<label style="display:block;font-weight:600;margin-bottom:5px">📎 Pièces jointes (max 10 Mo chacune)</label>' +
+      '<input type="file" id="extEmailFile" multiple style="font-size:.85rem"/>' +
+    '</div>' +
     '<button class="btn btn-primary" onclick="sendExternalEmailMsg()" style="min-width:140px">Envoyer</button>' +
     '</div>' +
     '<h3 style="margin-bottom:14px">Historique des envois</h3>' +
@@ -10035,12 +10049,25 @@ function escHtml(s) {
 }
 
 async function sendExternalEmailMsg() {
-  const to      = document.getElementById('extEmailTo').value.trim();
-  const subject = document.getElementById('extEmailSubject').value.trim();
-  const body    = document.getElementById('extEmailBody').value.trim();
+  var to      = document.getElementById('extEmailTo').value.trim();
+  var subject = document.getElementById('extEmailSubject').value.trim();
+  var body    = document.getElementById('extEmailBody').value.trim();
+  var fileEl  = document.getElementById('extEmailFile');
   if (!to || !subject || !body) { toast('Veuillez remplir tous les champs', 'error'); return; }
   try {
-    await api('/email/send', { method: 'POST', body: JSON.stringify({ to, subject, body }) });
+    var files = fileEl ? fileEl.files : [];
+    if (files.length) {
+      var fd = new FormData();
+      fd.append('to', to);
+      fd.append('subject', subject);
+      fd.append('body', body);
+      for (var i = 0; i < files.length; i++) fd.append('attachments', files[i]);
+      var r = await fetch(API + '/email/send', { method:'POST', headers:{ Authorization:'Bearer '+TOKEN }, body:fd });
+      var d = await r.json().catch(function(){return {};});
+      if (!r.ok) throw new Error(d.error || 'Erreur envoi');
+    } else {
+      await api('/email/send', { method: 'POST', body: JSON.stringify({ to, subject, body }) });
+    }
     toast('✅ Courriel envoyé à ' + to);
     externalEmail();
   } catch(e) { toast(e.message, 'error'); }

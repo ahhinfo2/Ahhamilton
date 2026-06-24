@@ -1861,18 +1861,19 @@ app.get('/api/email/test-smtp', authMiddleware, requireRole(...COMITE_ROLES), as
   res.json({ ok: anyOk, results, smtpHost, orgEmail });
 });
 
-app.post('/api/email/send', authMiddleware, requireRole(...COMITE_ROLES), async (req, res) => {
+const uploadEmailAttach = multer({ dest: path.join(__dirname, 'uploads/email-temp'), limits: { fileSize: 10 * 1024 * 1024 } });
+app.post('/api/email/send', authMiddleware, requireRole(...COMITE_ROLES), uploadEmailAttach.array('attachments', 5), async (req, res) => {
   const { to, subject, body } = req.body;
   if (!to || !subject || !body) return res.status(400).json({ error: 'Champs manquants' });
   const sender = db.prepare('SELECT prenom, nom, email, email_org, smtp_pass_org FROM users WHERE id = ?').get(req.user.id);
   const senderName  = sender ? sender.prenom + ' ' + sender.nom : 'Comité AHH';
   const senderEmail = sender?.email || '';
-  // Utiliser email_org si défini, sinon l'email principal s'il est @ahhamilton.ca
   const orgEmail    = sender?.email_org || (senderEmail.endsWith('@ahhamilton.ca') ? senderEmail : null);
   const orgSmtpPass = sender?.smtp_pass_org || null;
   const bodyHtml = body.replace(/\n/g, '<br/>');
+  const attachments = (req.files || []).map(f => ({ filename: f.originalname, path: f.path }));
   try {
-    await mailer.sendExternalEmail({ to, subject, bodyHtml, senderName, senderEmail, orgEmail, orgSmtpPass });
+    await mailer.sendExternalEmail({ to, subject, bodyHtml, senderName, senderEmail, orgEmail, orgSmtpPass, attachments });
     db.prepare(`INSERT INTO emails_externes (expediteur_id, expediteur_nom, expediteur_email, destinataire, sujet, corps, statut)
       VALUES (?, ?, ?, ?, ?, ?, 'envoye')`)
       .run(req.user.id, senderName, senderEmail, to, subject, body);
@@ -1882,6 +1883,8 @@ app.post('/api/email/send', authMiddleware, requireRole(...COMITE_ROLES), async 
       VALUES (?, ?, ?, ?, ?, ?, 'erreur')`)
       .run(req.user.id, senderName, senderEmail, to, subject, body);
     res.status(500).json({ error: 'Échec d\'envoi: ' + e.message });
+  } finally {
+    for (const f of (req.files || [])) { try { require('fs').unlinkSync(f.path); } catch {} }
   }
 });
 
