@@ -4868,7 +4868,7 @@ async function annuaire() {
           <div class="gm-nav-row" id="gn-sent"      onclick="gmNav('sent')"  ><span>📤</span><span>Envoyés</span></div>
           <div class="gm-nav-row" id="gn-all"       onclick="gmNav('all')"   ><span>📂</span><span>Tous</span></div>
           <div class="gm-nav-row" id="gn-trash"     onclick="gmNav('trash')" ><span>🗑️</span><span>Corbeille</span></div>
-          ${can.executive() ? `<div class="gm-nav-row" id="gn-external" onclick="gmNav('external')" style="margin-top:10px;border-top:1px solid rgba(255,255,255,.1);padding-top:10px"><span>📬</span><span>Externe (@ahhamilton)</span></div>` : ''}
+          ${can.executive() ? '<div class="gm-nav-row" id="gn-external" onclick="gmNav(\'external\')" style="margin-top:10px;border-top:1px solid rgba(255,255,255,.1);padding-top:10px"><span>📬</span><span>Externe</span><span class="gm-badge" id="gm-ext-badge" style="display:none"></span></div>' : ''}
         </nav>
       </aside>
       <div class="gm-main" id="gmMain">
@@ -4903,17 +4903,67 @@ async function gmLoadTrash() {
 }
 
 async function gmLoadInbox() {
-  const { inbox, sent } = await api('/messages');
-  _M.all = { inbox, sent };
-  const unread = inbox.filter(m => !m.lu).length;
-  const b = document.getElementById('gm-badge');
-  if (b) { b.textContent = unread||''; b.style.display = unread ? '' : 'none'; }
-  gmRenderList(inbox, 'inbox');
+  var msgData = await api('/messages');
+  _M.all = { inbox: msgData.inbox, sent: msgData.sent };
+  var combined = msgData.inbox.map(function(m) { m._source = 'interne'; return m; });
+
+  // Charger aussi les externes pour le comité
+  if (can.executive()) {
+    try {
+      var ext = await api('/email/inbox', { timeout: 15000 }).catch(function() { return []; });
+      _extEmails = ext;
+      ext.forEach(function(e) {
+        combined.push({
+          _source: 'externe',
+          _ext: e,
+          id: 'ext-' + e.uid,
+          message_id: 'ext-' + e.uid,
+          expediteur_nom: e.fromName || e.from || '',
+          sujet: e.subject || '(sans sujet)',
+          contenu: '',
+          date_envoi: e.date || '',
+          lu: e.seen ? 1 : 0,
+          _extUid: e.uid
+        });
+      });
+      var extBadge = document.getElementById('gm-ext-badge');
+      var extUnread = ext.filter(function(e) { return !e.seen; }).length;
+      if (extBadge) { extBadge.textContent = extUnread || ''; extBadge.style.display = extUnread ? '' : 'none'; }
+    } catch(ex) {}
+  }
+
+  combined.sort(function(a, b) { return new Date(b.date_envoi) - new Date(a.date_envoi); });
+  var unread = combined.filter(function(m) { return !m.lu; }).length;
+  var b = document.getElementById('gm-badge');
+  if (b) { b.textContent = unread || ''; b.style.display = unread ? '' : 'none'; }
+  _M.all.combined = combined;
+  gmRenderList(combined, 'inbox');
 }
 async function gmLoadSent() {
-  const { sent } = await api('/messages');
-  _M.all.sent = sent;
-  gmRenderList(sent, 'sent');
+  var msgData = await api('/messages');
+  _M.all.sent = msgData.sent;
+  // Ajouter aussi les envoyés externes
+  if (can.executive()) {
+    try {
+      var extSent = await api('/email/sent').catch(function() { return []; });
+      extSent.forEach(function(m) {
+        _M.all.sent.push({
+          _source: 'externe',
+          id: 'extsent-' + m.id,
+          message_id: 'extsent-' + m.id,
+          expediteur_nom: m.expediteur_nom || '',
+          destinataire_nom: m.destinataire || '',
+          sujet: m.sujet || '',
+          contenu: m.corps || '',
+          date_envoi: m.date_envoi || '',
+          lu: 1,
+          _statut: m.statut
+        });
+      });
+      _M.all.sent.sort(function(a, b) { return new Date(b.date_envoi) - new Date(a.date_envoi); });
+    } catch(ex) {}
+  }
+  gmRenderList(_M.all.sent, 'sent');
 }
 
 let _extEmails   = [];
@@ -5224,36 +5274,53 @@ function gmRenderList(msgs, type) {
 }
 
 function gmRow(m, type) {
-  const id      = m.message_id || m.id;
-  const unread  = type === 'inbox' && !m.lu;
-  const starred = _M.starred.has(id);
-  const from    = type === 'inbox' ? (m.expediteur||'–') : `À ${m.nb_destinataires||1} dest.`;
-  const subj    = m.sujet || '(Sans objet)';
-  const prev    = (m.contenu||'').replace(/\n/g,' ').substring(0, 80);
-  const date    = gmDate(m.date_envoi);
+  var id      = m.message_id || m.id;
+  var unread  = type === 'inbox' && !m.lu;
+  var starred = _M.starred.has(id);
+  var isExt   = m._source === 'externe';
+  var from    = type === 'sent'
+    ? (isExt ? 'À : ' + (m.destinataire_nom||'') : 'À ' + (m.nb_destinataires||1) + ' dest.')
+    : (isExt ? (m.expediteur_nom||'Externe') : (m.expediteur||'–'));
+  var subj    = m.sujet || '(Sans objet)';
+  var prev    = (m.contenu||'').replace(/\n/g,' ').substring(0, 80);
+  var date    = gmDate(m.date_envoi);
+  var srcBadge = isExt
+    ? '<span style="font-size:.58rem;background:#e3f2fd;color:#1565c0;padding:1px 5px;border-radius:3px;font-weight:700;margin-right:4px;flex-shrink:0">EXT</span>'
+    : '';
+  var sentStatusBadge = (type === 'sent' && isExt && m._statut)
+    ? '<span style="font-size:.58rem;padding:1px 5px;border-radius:3px;font-weight:600;margin-left:4px;background:' + (m._statut==='envoye'?'#e8f5e9;color:#1b5e20':'#ffebee;color:#c62828') + '">' + (m._statut==='envoye'?'✓':'✗') + '</span>'
+    : '';
 
-  const isTrash = type === 'trash';
-  const mtype   = m._type || type;
+  var isTrash = type === 'trash';
+  var mtype   = m._type || type;
+  var clickFn = isExt && m._ext
+    ? 'gmShowExternal(' + JSON.stringify({uid:m._ext.uid,date:m._ext.date,from:m._ext.from,fromName:m._ext.fromName,subject:m._ext.subject,seen:m._ext.seen}).replace(/"/g,'&quot;') + ')'
+    : 'gmOpen(' + (typeof id === 'string' ? "'" + id + "'" : id) + ",'" + mtype + "')";
 
-  return `<div class="gm-row ${unread?'gm-unread':''}" id="gmr-${id}">
-    <div class="gm-row-l" onclick="event.stopPropagation()">
-      <input type="checkbox" class="gm-cb" data-id="${id}" data-type="${mtype}" style="width:15px;height:15px;accent-color:var(--g2)" onchange="gmCheck(${id},this.checked)"/>
-      <button class="gm-star ${starred?'on':''}" onclick="event.stopPropagation();gmStar(${id})">${starred?'★':'☆'}</button>
-    </div>
-    <div class="gm-row-body" onclick="gmOpen(${id},'${mtype}')">
-      <span class="gm-from">${from}</span>
-      <span class="gm-subj">${subj}</span><span class="gm-prev"> — ${prev}</span>
-    </div>
-    <div class="gm-row-r">
-      ${isTrash
-        ? `<button class="gm-fwd" title="Restaurer" onclick="event.stopPropagation();gmRestore(${id},'${mtype}')">↩</button>
-           <button class="gm-trash" title="Supprimer définitivement" onclick="event.stopPropagation();gmDeletePermanent(${id})">✕</button>`
-        : `<button class="gm-fwd" title="Faire suivre" onclick="event.stopPropagation();gmFwdOne(${id})">↪</button>
-           <button class="gm-trash" title="Mettre à la corbeille" onclick="event.stopPropagation();gmDelete(${id},'${mtype}')">🗑️</button>`
-      }
-      <span class="gm-date">${date}</span>
-    </div>
-  </div>`;
+  return '<div class="gm-row ' + (unread?'gm-unread':'') + '" id="gmr-' + id + '">' +
+    '<div class="gm-row-l" onclick="event.stopPropagation()">' +
+      (!isExt ? '<input type="checkbox" class="gm-cb" data-id="' + id + '" data-type="' + mtype + '" style="width:15px;height:15px;accent-color:var(--g2)" onchange="gmCheck(' + id + ',this.checked)"/>' : '<span style="width:15px"></span>') +
+      (!isExt ? '<button class="gm-star ' + (starred?'on':'') + '" onclick="event.stopPropagation();gmStar(' + id + ')">' + (starred?'★':'☆') + '</button>' : '<span style="width:20px"></span>') +
+    '</div>' +
+    '<div class="gm-row-body" onclick="' + clickFn + '">' +
+      srcBadge +
+      '<span class="gm-from">' + escHtml(from) + '</span>' +
+      '<span class="gm-subj">' + escHtml(subj) + '</span><span class="gm-prev"> — ' + escHtml(prev) + '</span>' +
+      sentStatusBadge +
+    '</div>' +
+    '<div class="gm-row-r">' +
+      (isTrash
+        ? '<button class="gm-fwd" title="Restaurer" onclick="event.stopPropagation();gmRestore(' + id + ',\'' + mtype + '\')">↩</button>' +
+          '<button class="gm-trash" title="Supprimer" onclick="event.stopPropagation();gmDeletePermanent(' + id + ')">✕</button>'
+        : (!isExt
+          ? '<button class="gm-fwd" title="Faire suivre" onclick="event.stopPropagation();gmFwdOne(' + id + ')">↪</button>' +
+            '<button class="gm-trash" title="Corbeille" onclick="event.stopPropagation();gmDelete(' + id + ',\'' + mtype + '\')">🗑️</button>'
+          : '<button class="gm-trash" title="Supprimer" onclick="event.stopPropagation();gmExtDeleteOne(' + (m._extUid||0) + ')">🗑️</button>'
+        )
+      ) +
+      '<span class="gm-date">' + date + '</span>' +
+    '</div>' +
+  '</div>';
 }
 
 function gmDate(s) {
