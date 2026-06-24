@@ -4271,77 +4271,127 @@ async function generateVolunteerLetter(userId, lang) {
     var hours = data.heures || [];
     var isFr = lang === 'fr';
     var today = new Date().toLocaleDateString(isFr ? 'fr-CA' : 'en-CA', { year:'numeric', month:'long', day:'numeric' });
-    var title = isFr ? 'Attestation de bénévolat' : 'Volunteer Confirmation Letter';
 
     var tableHtml = '';
     if (hours.length) {
-      tableHtml = '<table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:11px">' +
-        '<thead><tr><th style="background:#1b5e20;color:#fff;padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.04em">' + (isFr?'Date':'Date') + '</th><th style="background:#1b5e20;color:#fff;padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.04em">' + (isFr?'Activité':'Activity') + '</th><th style="background:#1b5e20;color:#fff;padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.04em">Description</th><th style="background:#1b5e20;color:#fff;padding:8px 10px;text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:.04em">' + (isFr?'Heures':'Hours') + '</th></tr></thead><tbody>' +
+      tableHtml = '<table><thead><tr>' +
+        '<th>' + (isFr?'Date':'Date') + '</th><th>' + (isFr?'Activité':'Activity') + '</th><th>Description</th><th style="text-align:right">' + (isFr?'Heures':'Hours') + '</th>' +
+        '</tr></thead><tbody>' +
         hours.map(function(h, i) {
-          var bg = i % 2 ? '#f5f5f5' : '#fff';
-          return '<tr style="background:' + bg + '"><td style="padding:6px 10px;border-bottom:1px solid #e0e0e0">' + (h.date_service||'–') + '</td><td style="padding:6px 10px;border-bottom:1px solid #e0e0e0">' + escHtml(h.activite||'–') + '</td><td style="padding:6px 10px;border-bottom:1px solid #e0e0e0">' + escHtml(h.description||'–') + '</td><td style="padding:6px 10px;border-bottom:1px solid #e0e0e0;text-align:right;font-weight:600">' + (h.heures||0) + 'h</td></tr>';
+          return '<tr class="' + (i%2?'alt':'') + '"><td>' + (h.date_service||'–') + '</td><td>' + escHtml(h.activite||'–') + '</td><td>' + escHtml(h.description||'–') + '</td><td style="text-align:right;font-weight:700">' + (h.heures||0) + 'h</td></tr>';
         }).join('') +
-        '<tr style="background:#e8f5e9"><td colspan="3" style="padding:8px 10px;font-weight:800;font-size:11px">Total</td><td style="padding:8px 10px;text-align:right;font-weight:800;font-size:12px;color:#1b5e20">' + total.toFixed(1) + 'h</td></tr></tbody></table>';
+        '<tr class="total"><td colspan="3">Total</td><td style="text-align:right">' + total.toFixed(1) + 'h</td></tr></tbody></table>';
     }
 
     var w = window.open('','_blank');
-    w.document.write('<!DOCTYPE html><html lang="' + lang + '"><head><meta charset="UTF-8"/><title>' + title + ' — ' + nom + '</title>' +
-      '<style>' +
-      '@page{size:letter;margin:0}' +
-      '*{box-sizing:border-box;margin:0;padding:0}' +
-      'body{font-family:Georgia,"Times New Roman",serif;color:#222;background:#fff;min-height:100vh;display:flex;flex-direction:column}' +
-      '.header{background:linear-gradient(135deg,#1b5e20 0%,#2e7d32 50%,#388e3c 100%);padding:24px 48px;display:flex;align-items:center;gap:20px}' +
-      '.header img{width:68px;height:68px;border-radius:50%;object-fit:cover;border:3px solid rgba(255,255,255,.4);box-shadow:0 2px 10px rgba(0,0,0,.3)}' +
-      '.header .org{font-size:1.4rem;font-weight:900;color:#fff;font-family:Arial,sans-serif;letter-spacing:.02em;text-shadow:0 1px 3px rgba(0,0,0,.2)}' +
-      '.header .addr{font-size:.78rem;color:rgba(255,255,255,.85);margin-top:4px;font-family:Arial,sans-serif}' +
-      '.header .contact{font-size:.72rem;color:rgba(255,255,255,.65);margin-top:2px;font-family:Arial,sans-serif}' +
-      '.gold-bar{height:4px;background:linear-gradient(90deg,#f9a825,#fdd835,#f9a825)}' +
-      '.content{flex:1;padding:36px 56px 80px;position:relative}' +
-      '.content [contenteditable]{outline:none;border-bottom:1px dashed transparent}' +
-      '.content [contenteditable]:hover{border-bottom-color:#ccc}' +
-      '.content [contenteditable]:focus{border-bottom-color:#1b5e20;background:rgba(27,94,32,.03)}' +
-      '.doc-title{text-align:center;font-size:1.15rem;font-weight:800;color:#1b5e20;margin:24px 0;font-family:Arial,sans-serif;text-transform:uppercase;letter-spacing:.08em}' +
-      '.doc-date{text-align:right;font-size:.88rem;color:#555;margin-bottom:28px}' +
-      'p{font-size:13px;line-height:1.85;margin-bottom:14px}' +
-      '.sig-block{margin-top:50px;display:flex;gap:80px}' +
-      '.sig-line{width:200px;text-align:center}' +
-      '.sig-line .line{border-top:1px solid #333;padding-top:6px;font-size:.78rem;color:#555;font-family:Arial,sans-serif}' +
-      '.footer{background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:12px 48px;text-align:center;position:fixed;bottom:0;left:0;right:0}' +
-      '.footer div{font-size:.68rem;color:rgba(255,255,255,.8);font-family:Arial,sans-serif}' +
-      '.footer .sub{font-size:.62rem;color:rgba(255,255,255,.5);margin-top:2px}' +
-      '.toolbar{background:#f5f5f5;padding:10px 20px;display:flex;gap:10px;align-items:center;border-bottom:1px solid #e0e0e0}' +
-      '.toolbar button{background:#1b5e20;color:#fff;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:.85rem;font-weight:600}' +
-      '.toolbar button:hover{background:#2e7d32}' +
-      '.toolbar .hint{font-size:.75rem;color:#999;margin-left:auto}' +
-      '@media print{.toolbar{display:none !important}.footer{position:fixed}}' +
-      '</style></head><body>' +
-      '<div class="toolbar"><button onclick="window.print()">🖨️ Imprimer / PDF</button><span class="hint">' + (isFr ? 'Cliquez sur le texte pour modifier avant d\'imprimer' : 'Click text to edit before printing') + '</span></div>' +
-      '<div class="header"><img src="/Public/logo1.png" alt="AHH" onerror="this.style.display=\'none\'"/><div><div class="org">Association Haïtienne de Hamilton</div><div class="addr">231 Fernwood Crescent, Hamilton, ON  L8T 3L7</div><div class="contact">905-818-8269 · contact@ahhamilton.ca · ahhamilton.ca</div></div></div>' +
-      '<div class="gold-bar"></div>' +
-      '<div class="content">' +
-      '<div class="doc-date" contenteditable="true">Hamilton, ' + (isFr ? 'le ' : '') + today + '</div>' +
-      '<div class="doc-title">' + (isFr ? 'ATTESTATION DE BÉNÉVOLAT' : 'VOLUNTEER SERVICE CONFIRMATION') + '</div>' +
-      '<p contenteditable="true">' + (isFr ? 'À qui de droit,' : 'To Whom It May Concern,') + '</p>' +
-      '<p contenteditable="true">' + (isFr
-        ? 'Par la présente, nous attestons que <strong>' + escHtml(nom) + '</strong> est un membre actif de l\'Association Haïtienne de Hamilton (AHH) et a contribué bénévolement à nos activités communautaires.'
-        : 'This letter confirms that <strong>' + escHtml(nom) + '</strong> is an active member of the Haitian Association of Hamilton (AHH) and has volunteered their time to support our community activities.') + '</p>' +
-      (total > 0
-        ? '<p contenteditable="true">' + (isFr
-          ? 'Au total, <strong>' + total.toFixed(1) + ' heures</strong> de bénévolat ont été enregistrées et approuvées à son dossier.'
-          : 'A total of <strong>' + total.toFixed(1) + ' hours</strong> of volunteer service have been recorded and approved in their file.') + '</p>'
-        : '<p contenteditable="true">' + (isFr ? 'Ce membre participe activement à nos activités communautaires.' : 'This member actively participates in our community activities.') + '</p>') +
-      (hours.length ? '<p style="font-weight:700;font-family:Arial,sans-serif;font-size:12px;margin-top:20px">' + (isFr ? 'Détail des heures de bénévolat :' : 'Volunteer hours breakdown:') + '</p>' + tableHtml : '') +
-      '<p contenteditable="true">' + (isFr
+    w.document.write([
+      '<!DOCTYPE html><html lang="'+lang+'"><head><meta charset="UTF-8"/>',
+      '<title>'+(isFr?'Attestation de bénévolat':'Volunteer Letter')+' — '+escHtml(nom)+'</title>',
+      '<style>',
+      '@page{size:letter;margin:0}',
+      '*{box-sizing:border-box;margin:0;padding:0}',
+      'body{font-family:Georgia,"Times New Roman",serif;color:#1a1a1a;background:#fff}',
+      '',
+      '/* TOOLBAR */',
+      '.tb{background:#fff;padding:12px 24px;display:flex;gap:12px;align-items:center;border-bottom:2px solid #1b5e20;position:sticky;top:0;z-index:10}',
+      '.tb button{background:#1b5e20;color:#fff;border:none;padding:10px 24px;border-radius:8px;cursor:pointer;font-size:.9rem;font-weight:700}',
+      '.tb button:hover{background:#145216}',
+      '.tb .info{font-size:.78rem;color:#888;margin-left:auto}',
+      '',
+      '/* HEADER — vert solide pour impression */',
+      '.hd{background:#1b5e20;color:#fff;padding:28px 50px;display:flex;align-items:center;gap:24px;-webkit-print-color-adjust:exact;print-color-adjust:exact}',
+      '.hd img{width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid #fff;flex-shrink:0}',
+      '.hd h1{font-family:Arial,Helvetica,sans-serif;font-size:1.5rem;font-weight:900;margin:0}',
+      '.hd .a1{font-size:.82rem;opacity:.9;margin-top:4px;font-family:Arial,sans-serif}',
+      '.hd .a2{font-size:.76rem;opacity:.7;margin-top:2px;font-family:Arial,sans-serif}',
+      '.bar{height:5px;background:#c8a415;-webkit-print-color-adjust:exact;print-color-adjust:exact}',
+      '',
+      '/* PAGE */',
+      '.page{max-width:760px;margin:0 auto;padding:40px 56px 100px}',
+      '.date{text-align:right;font-size:.9rem;color:#444;margin-bottom:32px}',
+      '.title{text-align:center;font-size:1.2rem;font-weight:900;color:#1b5e20;margin-bottom:28px;font-family:Arial,sans-serif;text-transform:uppercase;letter-spacing:.1em}',
+      '',
+      '/* TEXTE ÉDITABLE */',
+      '.ed{font-size:13.5px;line-height:1.9;margin-bottom:16px;text-align:justify;padding:4px 6px;border-radius:4px;outline:none;border:1px solid transparent;transition:border .2s,background .2s}',
+      '.ed:hover{border-color:#c8e6c9}',
+      '.ed:focus{border-color:#1b5e20;background:#f1f8e9}',
+      '',
+      '/* TABLEAU */',
+      'table{width:100%;border-collapse:collapse;margin:20px 0;font-family:Arial,sans-serif;font-size:11.5px}',
+      'th{background:#1b5e20;color:#fff;padding:9px 12px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;-webkit-print-color-adjust:exact;print-color-adjust:exact}',
+      'td{padding:7px 12px;border-bottom:1px solid #e0e0e0}',
+      'tr.alt{background:#f7f7f7}',
+      'tr.total{background:#e8f5e9;font-weight:800;font-size:12px;-webkit-print-color-adjust:exact;print-color-adjust:exact}',
+      'tr.total td{color:#1b5e20;border-bottom:none}',
+      '',
+      '/* SIGNATURES */',
+      '.sigs{margin-top:60px;display:flex;gap:100px}',
+      '.sig{width:200px;text-align:center}',
+      '.sig .ln{border-top:1.5px solid #222;padding-top:8px;font-size:.8rem;color:#555;font-family:Arial,sans-serif;font-weight:600}',
+      '',
+      '/* FOOTER */',
+      '.ft{background:#1b5e20;color:#fff;padding:14px 50px;text-align:center;position:fixed;bottom:0;left:0;right:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}',
+      '.ft .l1{font-size:.72rem;font-family:Arial,sans-serif;opacity:.9}',
+      '.ft .l2{font-size:.65rem;font-family:Arial,sans-serif;opacity:.6;margin-top:2px}',
+      '',
+      '@media print{.tb{display:none !important}}',
+      '</style></head><body>',
+      '',
+      '<div class="tb">',
+      '  <button onclick="window.print()">🖨️ Imprimer / PDF</button>',
+      '  <span class="info">'+(isFr?'✏️ Cliquez sur le texte pour le modifier avant d\'imprimer':'✏️ Click any text to edit before printing')+'</span>',
+      '</div>',
+      '',
+      '<div class="hd">',
+      '  <img src="/Public/logo1.png" alt="AHH" onerror="this.outerHTML=\'\'"/>',
+      '  <div>',
+      '    <h1>Association Haïtienne de Hamilton</h1>',
+      '    <div class="a1">231 Fernwood Crescent, Hamilton, ON  L8T 3L7</div>',
+      '    <div class="a2">905-818-8269 · contact@ahhamilton.ca · ahhamilton.ca</div>',
+      '  </div>',
+      '</div>',
+      '<div class="bar"></div>',
+      '',
+      '<div class="page">',
+      '  <div class="date" contenteditable="true">Hamilton, '+(isFr?'le ':'')+today+'</div>',
+      '  <div class="title">'+(isFr?'ATTESTATION DE BÉNÉVOLAT':'VOLUNTEER SERVICE CONFIRMATION')+'</div>',
+      '',
+      '  <div class="ed" contenteditable="true">'+(isFr?'À qui de droit,':'To Whom It May Concern,')+'</div>',
+      '',
+      '  <div class="ed" contenteditable="true">'+(isFr
+        ? 'Par la présente, nous attestons que <strong>'+escHtml(nom)+'</strong> est un membre actif de l\'Association Haïtienne de Hamilton (AHH) et a contribué bénévolement à nos activités communautaires.'
+        : 'This letter confirms that <strong>'+escHtml(nom)+'</strong> is an active member of the Haitian Association of Hamilton (AHH) and has volunteered their time to support our community activities.')+'</div>',
+      '',
+      total > 0
+        ? '  <div class="ed" contenteditable="true">'+(isFr
+          ? 'Au total, <strong>'+total.toFixed(1)+' heures</strong> de bénévolat ont été enregistrées et approuvées à son dossier.'
+          : 'A total of <strong>'+total.toFixed(1)+' hours</strong> of volunteer service have been recorded and approved in their file.')+'</div>'
+        : '  <div class="ed" contenteditable="true">'+(isFr?'Ce membre participe activement à nos activités communautaires.':'This member actively participates in our community activities.')+'</div>',
+      '',
+      hours.length ? tableHtml : '',
+      '',
+      '  <div class="ed" contenteditable="true">'+(isFr
         ? 'L\'Association Haïtienne de Hamilton est un organisme communautaire à but non lucratif dédié au rapprochement, à l\'intégration et au soutien de la communauté haïtienne de Hamilton, Ontario.'
-        : 'The Haitian Association of Hamilton is a non-profit community organization dedicated to bringing together, integrating, and supporting the Haitian community in Hamilton, Ontario, Canada.') + '</p>' +
-      '<p contenteditable="true">' + (isFr
+        : 'The Haitian Association of Hamilton is a non-profit community organization dedicated to bringing together, integrating, and supporting the Haitian community in Hamilton, Ontario, Canada.')+'</div>',
+      '',
+      '  <div class="ed" contenteditable="true">'+(isFr
         ? 'Cette attestation est délivrée pour servir et valoir ce que de droit.'
-        : 'This letter is issued upon request for any purpose deemed appropriate.') + '</p>' +
-      '<p contenteditable="true" style="margin-top:32px">' + (isFr ? 'Cordialement,' : 'Sincerely,') + '</p>' +
-      '<div class="sig-block"><div class="sig-line"><div style="height:40px"></div><div class="line">' + (isFr ? 'Secrétaire' : 'Secretary') + '</div></div><div class="sig-line"><div style="height:40px"></div><div class="line">' + (isFr ? 'Président(e)' : 'President') + '</div></div></div>' +
-      '</div>' +
-      '<div class="footer"><div>Association Haïtienne de Hamilton · 231 Fernwood Crescent, Hamilton, ON L8T 3L7</div><div class="sub">contact@ahhamilton.ca · 905-818-8269 · ahhamilton.ca</div></div>' +
-      '</body></html>');
+        : 'This letter is issued upon request for any purpose deemed appropriate.')+'</div>',
+      '',
+      '  <div class="ed" contenteditable="true" style="margin-top:28px">'+(isFr?'Cordialement,':'Sincerely,')+'</div>',
+      '',
+      '  <div class="sigs">',
+      '    <div class="sig"><div style="height:44px"></div><div class="ln">'+(isFr?'Secrétaire':'Secretary')+'</div></div>',
+      '    <div class="sig"><div style="height:44px"></div><div class="ln">'+(isFr?'Président(e)':'President')+'</div></div>',
+      '  </div>',
+      '</div>',
+      '',
+      '<div class="ft">',
+      '  <div class="l1">Association Haïtienne de Hamilton · 231 Fernwood Crescent, Hamilton, ON L8T 3L7</div>',
+      '  <div class="l2">contact@ahhamilton.ca · 905-818-8269 · ahhamilton.ca</div>',
+      '</div>',
+      '</body></html>'
+    ].join('\n'));
     w.document.close();
   } catch(e) { toast('Erreur: ' + e.message, true); }
 }
