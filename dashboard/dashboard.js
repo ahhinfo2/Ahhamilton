@@ -4253,6 +4253,98 @@ function ahhPrintStyles() {
   </style>`;
 }
 
+async function generateVolunteerLetter(userId, lang) {
+  if (!lang) lang = 'fr';
+  try {
+    var data = await api('/volunteer/letter/' + userId);
+    if (!data || !data.nom) return toast('Membre introuvable', true);
+    var nom = data.nom;
+    var total = data.total_heures || 0;
+    var hours = data.heures || [];
+    var isFr = lang === 'fr';
+    var today = new Date().toLocaleDateString(isFr ? 'fr-CA' : 'en-CA', { year:'numeric', month:'long', day:'numeric' });
+
+    var title = isFr ? 'Lettre de confirmation de bénévolat' : 'Volunteer Confirmation Letter';
+    var body = '';
+    if (isFr) {
+      body = '<p style="margin-bottom:24px;text-align:right">Hamilton, le ' + today + '</p>' +
+        '<h2 style="text-align:center;font-size:1.1rem;margin-bottom:24px;color:#1b5e20">ATTESTATION DE BÉNÉVOLAT</h2>' +
+        '<p>À qui de droit,</p>' +
+        '<p>Par la présente, nous attestons que <strong>' + escHtml(nom) + '</strong> est un membre actif de l\'Association Haïtienne de Hamilton (AHH) et a contribué bénévolement à nos activités communautaires.</p>' +
+        (total > 0 ? '<p>Au total, <strong>' + total.toFixed(1) + ' heures</strong> de bénévolat ont été enregistrées et approuvées à son dossier.</p>' : '<p>Ce membre participe activement à nos activités communautaires.</p>');
+      if (hours.length) {
+        body += '<p style="margin-top:16px;font-weight:700">Détail des heures de bénévolat :</p>' +
+          '<table style="width:100%;border-collapse:collapse;margin:12px 0;font-size:.85rem"><thead><tr style="background:#e8f5e9"><th style="padding:8px;text-align:left;border:1px solid #c8e6c9">Date</th><th style="padding:8px;text-align:left;border:1px solid #c8e6c9">Activité</th><th style="padding:8px;text-align:left;border:1px solid #c8e6c9">Description</th><th style="padding:8px;text-align:right;border:1px solid #c8e6c9">Heures</th></tr></thead><tbody>' +
+          hours.map(function(h) {
+            return '<tr><td style="padding:6px 8px;border:1px solid #e0e0e0">' + (h.date_service || '–') + '</td><td style="padding:6px 8px;border:1px solid #e0e0e0">' + escHtml(h.activite || '–') + '</td><td style="padding:6px 8px;border:1px solid #e0e0e0">' + escHtml(h.description || '–') + '</td><td style="padding:6px 8px;border:1px solid #e0e0e0;text-align:right;font-weight:600">' + (h.heures || 0) + 'h</td></tr>';
+          }).join('') +
+          '<tr style="background:#e8f5e9;font-weight:700"><td colspan="3" style="padding:8px;border:1px solid #c8e6c9">Total</td><td style="padding:8px;text-align:right;border:1px solid #c8e6c9">' + total.toFixed(1) + 'h</td></tr></tbody></table>';
+      }
+      body += '<p>L\'Association Haïtienne de Hamilton est un organisme communautaire à but non lucratif dédié au rapprochement, à l\'intégration et au soutien de la communauté haïtienne de Hamilton, Ontario.</p>' +
+        '<p>Cette attestation est délivrée pour servir et valoir ce que de droit.</p>' +
+        '<p style="margin-top:40px">Cordialement,</p>' +
+        '<div style="margin-top:50px;display:flex;gap:60px"><div style="border-top:1px solid #333;width:200px;padding-top:6px;font-size:.8rem;color:#555;text-align:center">Secrétaire</div><div style="border-top:1px solid #333;width:200px;padding-top:6px;font-size:.8rem;color:#555;text-align:center">Président(e)</div></div>';
+    } else {
+      body = '<p style="margin-bottom:24px;text-align:right">Hamilton, ' + today + '</p>' +
+        '<h2 style="text-align:center;font-size:1.1rem;margin-bottom:24px;color:#1b5e20">VOLUNTEER SERVICE CONFIRMATION</h2>' +
+        '<p>To Whom It May Concern,</p>' +
+        '<p>This letter confirms that <strong>' + escHtml(nom) + '</strong> is an active member of the Haitian Association of Hamilton (AHH) and has volunteered their time to support our community activities.</p>' +
+        (total > 0 ? '<p>A total of <strong>' + total.toFixed(1) + ' hours</strong> of volunteer service have been recorded and approved in their file.</p>' : '<p>This member actively participates in our community activities.</p>');
+      if (hours.length) {
+        body += '<p style="margin-top:16px;font-weight:700">Volunteer hours breakdown:</p>' +
+          '<table style="width:100%;border-collapse:collapse;margin:12px 0;font-size:.85rem"><thead><tr style="background:#e8f5e9"><th style="padding:8px;text-align:left;border:1px solid #c8e6c9">Date</th><th style="padding:8px;text-align:left;border:1px solid #c8e6c9">Activity</th><th style="padding:8px;text-align:left;border:1px solid #c8e6c9">Description</th><th style="padding:8px;text-align:right;border:1px solid #c8e6c9">Hours</th></tr></thead><tbody>' +
+          hours.map(function(h) {
+            return '<tr><td style="padding:6px 8px;border:1px solid #e0e0e0">' + (h.date_service || '–') + '</td><td style="padding:6px 8px;border:1px solid #e0e0e0">' + escHtml(h.activite || '–') + '</td><td style="padding:6px 8px;border:1px solid #e0e0e0">' + escHtml(h.description || '–') + '</td><td style="padding:6px 8px;border:1px solid #e0e0e0;text-align:right;font-weight:600">' + (h.heures || 0) + 'h</td></tr>';
+          }).join('') +
+          '<tr style="background:#e8f5e9;font-weight:700"><td colspan="3" style="padding:8px;border:1px solid #c8e6c9">Total</td><td style="padding:8px;text-align:right;border:1px solid #c8e6c9">' + total.toFixed(1) + 'h</td></tr></tbody></table>';
+      }
+      body += '<p>The Haitian Association of Hamilton is a non-profit community organization dedicated to bringing together, integrating, and supporting the Haitian community in Hamilton, Ontario, Canada.</p>' +
+        '<p>This letter is issued upon request for any purpose deemed appropriate.</p>' +
+        '<p style="margin-top:40px">Sincerely,</p>' +
+        '<div style="margin-top:50px;display:flex;gap:60px"><div style="border-top:1px solid #333;width:200px;padding-top:6px;font-size:.8rem;color:#555;text-align:center">Secretary</div><div style="border-top:1px solid #333;width:200px;padding-top:6px;font-size:.8rem;color:#555;text-align:center">President</div></div>';
+    }
+
+    var w = window.open('','_blank');
+    w.document.write('<!DOCTYPE html><html lang="' + lang + '"><head><meta charset="UTF-8"/><title>' + title + ' — ' + nom + '</title>' +
+      ahhPrintStyles() +
+      '<style>p{font-size:13px;line-height:1.8;margin-bottom:12px;font-family:Georgia,serif}h2{font-family:Arial,sans-serif}</style>' +
+      '</head><body>' +
+      '<div class="noprint" style="margin-bottom:16px"><button class="btn-print" onclick="window.print()">🖨️ Imprimer / PDF</button></div>' +
+      ahhPrintHeader() +
+      body +
+      '<div style="position:fixed;bottom:0;left:0;right:0;text-align:center;font-size:.7rem;color:#999;padding:10px;border-top:1px solid #e0e0e0">Association Haïtienne de Hamilton · 231 Fernwood Crescent, Hamilton, ON L8T 3L7 · contact@ahhamilton.ca · 905-818-8269</div>' +
+      '</body></html>');
+    w.document.close();
+  } catch(e) { toast('Erreur: ' + e.message, true); }
+}
+
+function openVolunteerLetterForm() {
+  var members = window._carteMembers || [];
+  openModal('📝 Lettre de bénévolat', '<div class="form-group"><label class="form-label">Membre</label>' +
+    '<input type="text" id="vlSearch" class="form-input" placeholder="🔍 Rechercher un membre..." oninput="_vlFilterMembers()"/>' +
+    '<select id="vlUser" class="form-input" size="6" style="margin-top:8px">' +
+    members.map(function(m) { return '<option value="' + m.id + '">' + escHtml(m.prenom + ' ' + m.nom) + ' — ' + escHtml(m.email||'') + '</option>'; }).join('') +
+    '</select></div>' +
+    '<div class="form-group"><label class="form-label">Langue</label>' +
+    '<select id="vlLang" class="form-input"><option value="fr">🇫🇷 Français</option><option value="en">🇬🇧 English</option></select></div>' +
+    '<div style="display:flex;gap:10px;margin-top:16px">' +
+    '<button class="btn btn-primary" onclick="_vlGenerate()">📝 Générer la lettre</button>' +
+    '<button class="btn btn-ghost" onclick="closeModal()">Annuler</button></div>');
+}
+function _vlFilterMembers() {
+  var q = (document.getElementById('vlSearch')?.value || '').toLowerCase();
+  var sel = document.getElementById('vlUser');
+  if (!sel) return;
+  Array.from(sel.options).forEach(function(o) { o.style.display = (!q || o.text.toLowerCase().includes(q)) ? '' : 'none'; });
+}
+function _vlGenerate() {
+  var uid = document.getElementById('vlUser')?.value;
+  var lang = document.getElementById('vlLang')?.value || 'fr';
+  if (!uid) return toast('Sélectionnez un membre', true);
+  closeModal();
+  generateVolunteerLetter(parseInt(uid), lang);
+}
+
 function printLetter(contenu, nom) {
   const w = window.open('','_blank');
   w.document.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/><title>Lettre – ${nom}</title>
@@ -11061,7 +11153,7 @@ async function carteGestionView() {
   setContent(`
     <div class="page-header">
       <div><h2>🪪 Gestion des cartes membres</h2><p>Photos · Expirations · Connexions · Profils</p></div>
-      <div class="page-actions"><button class="btn btn-outline" onclick="carteGestionView()">↻ Actualiser</button></div>
+      <div class="page-actions" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-outline" onclick="openVolunteerLetterForm()">📝 Lettre bénévolat</button><button class="btn btn-outline" onclick="carteGestionView()">↻ Actualiser</button></div>
     </div>
     <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
       <input type="text" id="cgSearch" placeholder="🔍 Rechercher nom, email, rôle..." oninput="_cgFilter()" style="flex:1;min-width:200px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:.84rem"/>
@@ -11213,6 +11305,8 @@ async function _cgOpenProfile(id) {
         (!m.photo_url ? '<label style="cursor:pointer"><span class="btn btn-primary btn-sm">📷 Ajouter photo</span><input type="file" accept="image/*" capture="environment" style="display:none" onchange="_cgUploadPhoto(' + m.id + ',this.files[0])"/></label>' : '') +
         (m.photo_url && !m.carte_photo_approuvee ? '<button class="btn btn-primary btn-sm" onclick="_cgApprovePhoto(' + m.id + ')">✅ Approuver photo</button>' : '') +
         '<button class="btn btn-outline btn-sm" onclick="carteRenouveler(' + m.id + ',\'' + escHtml(m.prenom + ' ' + m.nom).replace(/'/g,"\\'") + '\')">🔄 Renouveler</button>' +
+        '<button class="btn btn-outline btn-sm" onclick="closeModal();generateVolunteerLetter(' + m.id + ',\'fr\')" title="Lettre FR">📝 Lettre FR</button>' +
+        '<button class="btn btn-outline btn-sm" onclick="closeModal();generateVolunteerLetter(' + m.id + ',\'en\')" title="Lettre EN">📝 EN</button>' +
       '</div>' +
     '</div>');
   } catch(e) { toast(e.message, true); }
