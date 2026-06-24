@@ -85,7 +85,8 @@
 
   // ── NAV HTML ─────────────────────────────────────────────────────────────
   var navHTML = `
-  <header class="navbar" id="navbar">
+  <a href="#main-content" class="skip-link" style="position:absolute;top:-40px;left:0;background:#1b5e20;color:#fff;padding:8px 16px;z-index:10000;font-size:.85rem;transition:top .2s;border-radius:0 0 8px 0" onfocus="this.style.top='0'" onblur="this.style.top='-40px'">Aller au contenu principal</a>
+  <header class="navbar" id="navbar" role="banner">
     <div class="container nav-inner">
 
       <!-- Logo -->
@@ -100,7 +101,7 @@
       <div class="nav-overlay" id="navOverlay"></div>
 
       <!-- Navigation principale -->
-      <nav class="nav-links" id="navLinks">
+      <nav class="nav-links" id="navLinks" role="navigation" aria-label="Menu principal">
         <!-- Header mobile -->
         <div class="nav-mobile-header">
           <img src="${pre}Public/logo1.png" alt="AHH" class="logo-img" style="width:32px;height:32px"/>
@@ -116,8 +117,9 @@
             <span data-i18n="Association">Association</span> <span class="dropdown-caret">▾</span>
           </button>
           <div class="dropdown-menu">
-            <a href="${pre}equipe.html"   class="${active('equipe.html')}"   data-i18n="Notre équipe">Notre équipe</a>
-            <a href="${pre}adhesion.html" class="${active('adhesion.html')}" data-i18n="Devenir membre">Devenir membre</a>
+            <a href="${pre}equipe.html"       class="${active('equipe.html')}"       data-i18n="Notre équipe">Notre équipe</a>
+            <a href="${pre}realisations.html" class="${active('realisations.html')}" data-i18n="Nos réalisations">Nos réalisations</a>
+            <a href="${pre}adhesion.html"     class="${active('adhesion.html')}"     data-i18n="Devenir membre">Devenir membre</a>
           </div>
         </div>
 
@@ -168,7 +170,7 @@
 
   // ── FOOTER ────────────────────────────────────────────────────────────────
   var footerHTML = `
-  <footer class="footer">
+  <footer class="footer" role="contentinfo">
     <div class="container footer-inner">
       <div class="footer-brand">
         <div style="display:flex;align-items:center;gap:16px;margin-bottom:8px">

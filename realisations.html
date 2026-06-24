@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Nos r&eacute;alisations | AHH</title>
+<meta name="description" content="Parcourez l'histoire et les r&eacute;alisations de l'Association Ha&iuml;tienne de Hamilton depuis sa fondation."/>
+<meta property="og:title" content="Nos r&eacute;alisations — AHH"/>
+<meta property="og:description" content="Timeline des accomplissements de l'Association Ha&iuml;tienne de Hamilton."/>
+<meta property="og:image" content="https://ahhamilton.ca/Public/logo1.png"/>
+<link rel="icon" type="image/jpeg" href="Public/logo1.png"/>
+<link rel="stylesheet" href="style.css"/>
+<style>
+  .tl-hero{background:linear-gradient(135deg,#1b5e20 0%,#2e7d32 60%,#388e3c 100%);color:#fff;text-align:center;padding:80px 20px 60px}
+  .tl-hero h1{font-size:2.4rem;font-weight:900;margin-bottom:12px}
+  .tl-hero p{font-size:1.1rem;opacity:.85;max-width:600px;margin:0 auto}
+
+  .tl-section{max-width:900px;margin:0 auto;padding:60px 20px}
+  .tl-stats{display:flex;gap:20px;justify-content:center;flex-wrap:wrap;margin:40px 0}
+  .tl-stat{background:#fff;border-radius:16px;padding:24px 32px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.06);min-width:140px}
+  .tl-stat .num{font-size:2.2rem;font-weight:900;color:#1b5e20}
+  .tl-stat .lbl{font-size:.82rem;color:#777;margin-top:4px}
+
+  .timeline{position:relative;padding:20px 0}
+  .timeline::before{content:'';position:absolute;left:50%;top:0;bottom:0;width:3px;background:linear-gradient(to bottom,#1b5e20,#a5d6a7,#1b5e20);transform:translateX(-50%)}
+
+  .tl-item{position:relative;margin-bottom:50px;display:flex;align-items:flex-start}
+  .tl-item:nth-child(odd){flex-direction:row-reverse}
+  .tl-item:nth-child(odd) .tl-content{text-align:right;margin-right:40px;margin-left:0}
+  .tl-item:nth-child(even) .tl-content{margin-left:40px}
+
+  .tl-dot{position:absolute;left:50%;transform:translateX(-50%);width:18px;height:18px;border-radius:50%;background:#1b5e20;border:4px solid #e8f5e9;z-index:2;box-shadow:0 2px 8px rgba(27,94,32,.3)}
+  .tl-content{width:calc(50% - 30px);background:#fff;border-radius:16px;padding:24px 28px;box-shadow:0 4px 24px rgba(0,0,0,.06);transition:transform .3s,box-shadow .3s}
+  .tl-content:hover{transform:translateY(-4px);box-shadow:0 8px 32px rgba(27,94,32,.12)}
+  .tl-year{display:inline-block;background:#1b5e20;color:#fff;padding:4px 14px;border-radius:20px;font-size:.78rem;font-weight:700;margin-bottom:10px}
+  .tl-title{font-size:1.1rem;font-weight:800;color:#1a2e1a;margin-bottom:6px}
+  .tl-desc{font-size:.88rem;color:#555;line-height:1.7}
+  .tl-icon{font-size:1.4rem;margin-bottom:8px}
+
+  @media(max-width:700px){
+    .timeline::before{left:20px}
+    .tl-item,.tl-item:nth-child(odd){flex-direction:column;align-items:flex-start;padding-left:50px}
+    .tl-item:nth-child(odd) .tl-content,.tl-item:nth-child(even) .tl-content{width:100%;margin:0;text-align:left}
+    .tl-dot{left:20px}
+  }
+
+  .tl-cta{text-align:center;padding:60px 20px;background:var(--off,#f4f8f4);border-radius:24px;margin:40px 0}
+  .tl-cta h2{font-size:1.6rem;font-weight:800;color:#1b5e20;margin-bottom:12px}
+  .tl-cta p{color:#555;max-width:500px;margin:0 auto 24px}
+  .tl-cta a{display:inline-block;background:#1b5e20;color:#fff;padding:14px 36px;border-radius:12px;text-decoration:none;font-weight:700;font-size:1rem}
+  .tl-cta a:hover{background:#145216}
+</style>
+</head>
+<body>
+<script src="_lang.js"></script>
+<script src="_nav.js"></script>
+
+<div class="tl-hero">
+  <h1>Nos r&eacute;alisations</h1>
+  <p>Depuis notre fondation, l'AHH construit une communaut&eacute; forte, unie et engag&eacute;e &agrave; Hamilton.</p>
+</div>
+
+<div class="tl-section">
+  <div class="tl-stats" id="tlStats">
+    <div class="tl-stat"><div class="num" id="tlMembers">-</div><div class="lbl">Membres actifs</div></div>
+    <div class="tl-stat"><div class="num" id="tlActivities">-</div><div class="lbl">Activit&eacute;s organis&eacute;es</div></div>
+    <div class="tl-stat"><div class="num" id="tlVolunteer">-</div><div class="lbl">Heures de b&eacute;n&eacute;volat</div></div>
+    <div class="tl-stat"><div class="num" id="tlYears">-</div><div class="lbl">Ann&eacute;es d'histoire</div></div>
+  </div>
+
+  <div class="timeline" id="timelineList"></div>
+
+  <div class="tl-cta">
+    <h2>Faites partie de l'histoire</h2>
+    <p>Rejoignez l'Association Ha&iuml;tienne de Hamilton et contribuez &agrave; b&acirc;tir notre communaut&eacute;.</p>
+    <a href="/adhesion.html">Devenir membre</a>
+  </div>
+</div>
+
+<script>
+(async function() {
+  // Charger les stats publiques
+  try {
+    var r = await fetch('/api/stats/public');
+    var s = await r.json();
+    document.getElementById('tlMembers').textContent = s.membres || '50+';
+    document.getElementById('tlActivities').textContent = s.activites || '20+';
+    document.getElementById('tlVolunteer').textContent = (s.benevoles || '100') + 'h';
+    var founded = 2024;
+    document.getElementById('tlYears').textContent = new Date().getFullYear() - founded;
+  } catch(e) {}
+
+  // Timeline statique (le comite peut la modifier via le dashboard plus tard)
+  var events = [
+    { year:'2024', icon:'🌱', title:'Fondation de l\'AHH', desc:'Création officielle de l\'Association Haïtienne de Hamilton par un groupe de citoyens engagés de la communauté haïtienne.' },
+    { year:'2024', icon:'🤝', title:'Premiers membres', desc:'Recrutement des premiers membres fondateurs et mise en place du comité exécutif (président, secrétaire, trésorière, délégués).' },
+    { year:'2025', icon:'🎉', title:'Premiers événements communautaires', desc:'Organisation des premières activités culturelles et sociales pour rassembler la communauté haïtienne de Hamilton.' },
+    { year:'2025', icon:'💻', title:'Lancement de la plateforme numérique', desc:'Mise en ligne du site web ahhamilton.ca avec tableau de bord, billetterie, carte de membre numérique et outils de gestion.' },
+    { year:'2025', icon:'🪪', title:'Cartes de membre numériques', desc:'Déploiement des cartes de membre avec QR code, validation par photo et scanner unifié pour les événements.' },
+    { year:'2026', icon:'💼', title:'Portail emplois et stages', desc:'Intégration automatique des offres d\'emploi à Hamilton via Adzuna, avec approbation par le comité avant publication.' },
+    { year:'2026', icon:'📱', title:'Application mobile PWA', desc:'Lancement de l\'application mobile progressive (PWA) permettant l\'accès hors ligne, les notifications et le scanner depuis le téléphone.' },
+    { year:'2026', icon:'🌍', title:'Croissance communautaire', desc:'L\'AHH atteint 50+ membres actifs et organise régulièrement des événements culturels, des ateliers et des activités de réseautage.' },
+  ];
+
+  var html = events.map(function(e) {
+    return '<div class="tl-item"><div class="tl-dot"></div><div class="tl-content">' +
+      '<span class="tl-year">' + e.year + '</span>' +
+      '<div class="tl-icon">' + e.icon + '</div>' +
+      '<div class="tl-title">' + e.title + '</div>' +
+      '<div class="tl-desc">' + e.desc + '</div>' +
+    '</div></div>';
+  }).join('');
+  document.getElementById('timelineList').innerHTML = html;
+})();
+</script>
+</body>
+</html>

@@ -1207,6 +1207,21 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS shop_order_items (
 try { db.exec("ALTER TABLE activities ADD COLUMN stream_url TEXT"); } catch {}
 try { db.exec("ALTER TABLE activities ADD COLUMN stream_actif INTEGER DEFAULT 0"); } catch {}
 
+// ── Feedback post-activité ────────────────────────────────────────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS activity_feedback (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  activity_id INTEGER REFERENCES activities(id),
+  user_id INTEGER REFERENCES users(id),
+  note INTEGER CHECK(note BETWEEN 1 AND 5),
+  commentaire TEXT,
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
+// ── Transfert de billets ──────────────────────────────────────────────────
+try { db.exec('ALTER TABLE tickets ADD COLUMN transferred_to INTEGER REFERENCES users(id)'); } catch {}
+try { db.exec('ALTER TABLE tickets ADD COLUMN transferred_at TEXT'); } catch {}
+try { db.exec('ALTER TABLE tickets ADD COLUMN original_owner_id INTEGER'); } catch {}
+
 init();
 
 module.exports = db;

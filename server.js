@@ -5785,6 +5785,14 @@ cron.schedule('0 8 1 * *', async () => {
   } catch(e) { console.error('[RAPPORT MENSUEL]', e.message); }
 }, { timezone: 'America/Toronto' });
 
+// Archive activities finished more than 30 days ago
+cron.schedule('0 3 * * *', () => {
+  try {
+    const archived = db.prepare("UPDATE activities SET statut='archivee' WHERE statut IN ('planifiee','en_cours','terminee') AND date_debut IS NOT NULL AND date_debut < datetime('now', '-30 days')").run();
+    if (archived.changes > 0) console.log('[CRON] ' + archived.changes + ' activités archivées automatiquement');
+  } catch(e) { console.error('[CRON-ARCHIVE]', e.message); }
+}, { timezone: 'America/Toronto' });
+
 // Notification de nouvelle activité publiée (appelé depuis POST /api/activities)
 async function notifyNewActivity(act) {
   try {
@@ -8560,6 +8568,189 @@ app.post('/api/scan/unified', authMiddleware, (req, res) => {
   db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details) VALUES (?,?,?,?,?)")
     .run(activity_id || null, req.user.id, qr_data, 'introuvable', 'QR non reconnu (ni billet ni carte)');
   return res.json({ ok: false, type: 'error', status: 'introuvable', nom: 'Inconnu', message: 'QR non reconnu — ni billet ni carte membre' });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FEATURE: Post-event feedback (surveys tied to activities)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Submit feedback for an activity (any authenticated member)
+app.post('/api/activities/:id/feedback', authMiddleware, (req, res) => {
+  try {
+    const { note, commentaire } = req.body;
+    if (!note || note < 1 || note > 5) return res.status(400).json({ error: 'Note requise (1-5)' });
+    const activity = db.prepare('SELECT id FROM activities WHERE id = ?').get(req.params.id);
+    if (!activity) return res.status(404).json({ error: 'Activité introuvable' });
+    // Check if user already submitted feedback
+    const existing = db.prepare('SELECT id FROM activity_feedback WHERE activity_id = ? AND user_id = ?').get(req.params.id, req.user.id);
+    if (existing) return res.status(409).json({ error: 'Vous avez déjà soumis un avis pour cette activité' });
+    db.prepare('INSERT INTO activity_feedback (activity_id, user_id, note, commentaire) VALUES (?, ?, ?, ?)').run(req.params.id, req.user.id, note, commentaire || null);
+    res.json({ message: 'Merci pour votre avis !' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Get all feedback for an activity (EXEC roles only)
+app.get('/api/activities/:id/feedback', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  try {
+    const rows = db.prepare(`SELECT af.*, u.prenom, u.nom FROM activity_feedback af LEFT JOIN users u ON u.id = af.user_id WHERE af.activity_id = ? ORDER BY af.date_creation DESC`).all(req.params.id);
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Get feedback summary for an activity (any authenticated member)
+app.get('/api/activities/:id/feedback/summary', authMiddleware, (req, res) => {
+  try {
+    const summary = db.prepare('SELECT AVG(note) AS moyenne, COUNT(*) AS total FROM activity_feedback WHERE activity_id = ?').get(req.params.id);
+    const mine = db.prepare('SELECT id, note, commentaire FROM activity_feedback WHERE activity_id = ? AND user_id = ?').get(req.params.id, req.user.id);
+    res.json({ moyenne: summary.moyenne ? Math.round(summary.moyenne * 10) / 10 : null, total: summary.total, mon_avis: mine || null });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FEATURE: Transferable tickets
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.post('/api/tickets/:id/transfer', authMiddleware, (req, res) => {
+  try {
+    const { to_email } = req.body;
+    if (!to_email) return res.status(400).json({ error: 'Email du destinataire requis' });
+    const ticket = db.prepare('SELECT * FROM tickets WHERE id = ?').get(req.params.id);
+    if (!ticket) return res.status(404).json({ error: 'Billet introuvable' });
+    if (ticket.user_id !== req.user.id) return res.status(403).json({ error: 'Ce billet ne vous appartient pas' });
+    if (ticket.statut !== 'actif') return res.status(400).json({ error: 'Ce billet n\'est plus actif' });
+    if (ticket.checked_in) return res.status(400).json({ error: 'Ce billet a déjà été scanné' });
+    const target = db.prepare('SELECT id, prenom, nom, email FROM users WHERE email = ? AND actif = 1').get(to_email);
+    if (!target) return res.status(404).json({ error: 'Membre destinataire introuvable' });
+    if (target.id === req.user.id) return res.status(400).json({ error: 'Vous ne pouvez pas transférer un billet à vous-même' });
+    const originalOwner = ticket.original_owner_id || ticket.user_id;
+    db.prepare('UPDATE tickets SET user_id = ?, transferred_to = ?, transferred_at = CURRENT_TIMESTAMP, original_owner_id = ?, acheteur_nom = ?, acheteur_email = ? WHERE id = ?')
+      .run(target.id, target.id, originalOwner, target.prenom + ' ' + target.nom, target.email, ticket.id);
+    res.json({ message: 'Billet transféré avec succès à ' + target.prenom + ' ' + target.nom });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FEATURE: CSV import members
+// ══════════════════════════════════════════════════════════════════════════════
+
+const uploadCsv = multer({ dest: path.join(__dirname, 'uploads'), limits: { fileSize: 5 * 1024 * 1024 } });
+
+app.post('/api/admin/import-csv', authMiddleware, requireRole('admin','secretaire'), uploadCsv.single('csv'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Fichier CSV requis' });
+    const csvContent = fs.readFileSync(req.file.path, 'utf-8');
+    const lines = csvContent.split('\n').map(l => l.trim()).filter(Boolean);
+    if (lines.length < 2) return res.status(400).json({ error: 'Le fichier CSV doit contenir au moins un en-tête et une ligne de données' });
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+    const requiredFields = ['prenom', 'nom', 'email'];
+    for (const f of requiredFields) {
+      if (!headers.includes(f)) return res.status(400).json({ error: 'Colonne manquante: ' + f });
+    }
+
+    let imported = 0, skipped = 0;
+    const errors = [];
+    const siteUrl = process.env.SITE_URL || 'http://localhost:' + PORT;
+
+    for (let i = 1; i < lines.length; i++) {
+      try {
+        const values = lines[i].split(',').map(v => v.trim());
+        const row = {};
+        headers.forEach((h, idx) => { row[h] = values[idx] || ''; });
+        if (!row.email) { errors.push('Ligne ' + (i + 1) + ': email manquant'); continue; }
+
+        // Check if email already exists
+        const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(row.email);
+        if (existing) { skipped++; continue; }
+
+        // Generate random password
+        const randomPwd = crypto2.randomBytes(8).toString('hex');
+        const hash = bcrypt.hashSync(randomPwd, 10);
+
+        const result = db.prepare('INSERT INTO users (prenom, nom, email, telephone, password_hash, role, plan) VALUES (?,?,?,?,?,?,?)')
+          .run(row.prenom, row.nom, row.email, row.telephone || '', hash, 'member', row.plan || 'gratuit');
+
+        // Generate password reset token for welcome email
+        const token = crypto2.randomBytes(32).toString('hex');
+        const expires = new Date(Date.now() + 7 * 24 * 3600000).toISOString();
+        db.prepare('INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)').run(result.lastInsertRowid, token, expires);
+        const resetLink = siteUrl + '/dashboard/reset-password.html?token=' + token;
+
+        // Send welcome email
+        try {
+          await mailer.sendBienvenue({ prenom: row.prenom, nom: row.nom, email: row.email }, resetLink);
+        } catch (emailErr) { console.error('[CSV-IMPORT] Email erreur pour ' + row.email + ':', emailErr.message); }
+
+        // Add to general chat room
+        const generalRoom = db.prepare("SELECT id FROM chat_rooms WHERE type='general'").get();
+        if (generalRoom) db.prepare('INSERT OR IGNORE INTO chat_room_members (room_id, user_id) VALUES (?,?)').run(generalRoom.id, result.lastInsertRowid);
+
+        imported++;
+      } catch (rowErr) { errors.push('Ligne ' + (i + 1) + ': ' + rowErr.message); }
+    }
+
+    // Clean up uploaded file
+    try { fs.unlinkSync(req.file.path); } catch (_) {}
+
+    res.json({ imported, skipped, errors });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FEATURE: Health check + monitoring
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.get('/api/health', (req, res) => {
+  let db_ok = false;
+  try { db.prepare('SELECT 1').get(); db_ok = true; } catch (_) {}
+  res.json({
+    status: 'ok',
+    uptime: process.uptime(),
+    version: '3.1',
+    timestamp: new Date().toISOString(),
+    db_ok,
+    memory: process.memoryUsage()
+  });
+});
+
+app.get('/api/admin/monitoring', authMiddleware, requireRole('admin'), (req, res) => {
+  try {
+    const totalUsers = db.prepare('SELECT COUNT(*) AS c FROM users WHERE actif = 1 AND (phantom IS NULL OR phantom = 0)').get().c;
+    const totalActivities = db.prepare('SELECT COUNT(*) AS c FROM activities').get().c;
+
+    // DB file size
+    let dbSize = 0;
+    try {
+      const dbPath = process.env.DB_PATH || path.join(process.env.LOCALAPPDATA || process.env.HOME || __dirname, 'ahh-hamilton', 'ahh.db');
+      const stat = fs.statSync(dbPath);
+      dbSize = stat.size;
+    } catch (_) {}
+
+    // Last backup date
+    let lastBackup = null;
+    try {
+      const dbPath = process.env.DB_PATH || path.join(process.env.LOCALAPPDATA || process.env.HOME || __dirname, 'ahh-hamilton', 'ahh.db');
+      const backupDir = path.join(path.dirname(dbPath), 'backups');
+      if (fs.existsSync(backupDir)) {
+        const files = fs.readdirSync(backupDir).filter(f => f.startsWith('ahh_') && f.endsWith('.db')).sort();
+        if (files.length > 0) lastBackup = files[files.length - 1].replace('ahh_', '').replace('.db', '');
+      }
+    } catch (_) {}
+
+    // Active SSE connections
+    let activeConnections = 0;
+    sseClients.forEach(set => { activeConnections += set.size; });
+
+    res.json({
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      cpu: process.cpuUsage(),
+      db_size: dbSize,
+      total_users: totalUsers,
+      total_activities: totalActivities,
+      last_backup: lastBackup,
+      active_connections: activeConnections
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
