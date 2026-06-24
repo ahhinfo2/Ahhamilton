@@ -1295,6 +1295,22 @@ try { db.exec('ALTER TABLE users ADD COLUMN stripe_customer_id TEXT'); } catch {
 try { db.exec('ALTER TABLE users ADD COLUMN stripe_subscription_id TEXT'); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN subscription_status TEXT'); } catch {}
 
+// ── Places assises (seating) pour activités ───────────────────────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS activity_seats (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  activity_id INTEGER REFERENCES activities(id) ON DELETE CASCADE,
+  section TEXT DEFAULT 'General',
+  rangee TEXT,
+  numero TEXT NOT NULL,
+  prix REAL,
+  statut TEXT DEFAULT 'disponible',
+  ticket_id INTEGER REFERENCES tickets(id),
+  user_id INTEGER REFERENCES users(id),
+  date_reservation TEXT
+)`); } catch {}
+try { db.exec('ALTER TABLE activities ADD COLUMN seating_enabled INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE activities ADD COLUMN seating_config TEXT'); } catch {}
+
 init();
 
 module.exports = db;

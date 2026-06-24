@@ -9347,6 +9347,117 @@ app.post('/api/admin/roles/:id/assign/:userId', authMiddleware, requireRole('adm
   res.json({ message: 'Rôle assigné' });
 });
 
+// ── Carte membre — image wallet & vCard ─────────────────────────────────────
+app.get('/api/carte/:id/wallet-image', authMiddleware, async (req, res) => {
+  try {
+    const qrcode = require('qrcode');
+    const userId = parseInt(req.params.id);
+    if (req.user.id !== userId && !['admin','secretaire','tresoriere','delegue'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Accès refusé' });
+    }
+    const user = db.prepare('SELECT id, prenom, nom, email, plan, photo_url, date_inscription FROM users WHERE id=?').get(userId);
+    if (!user) return res.status(404).json({ error: 'Membre introuvable' });
+
+    const siteUrl = process.env.SITE_URL || 'https://ahhamilton.ca';
+    const qrData = 'AHH-' + String(user.id).padStart(5, '0') + '-' + require('crypto').createHash('md5').update('ahh-' + user.id).digest('hex').substring(0, 8).toUpperCase();
+    const qrDataUrl = await qrcode.toDataURL(qrData, { width: 200, margin: 1 });
+
+    const expiration = new Date(new Date(user.date_inscription || Date.now()).getTime() + 2*365*24*60*60*1000).toISOString().substring(0,10);
+    res.json({
+      qr_data_url: qrDataUrl,
+      qr_text: qrData,
+      prenom: user.prenom,
+      nom: user.nom,
+      email: user.email,
+      plan: user.plan || 'gratuit',
+      numero: '#' + String(user.id).padStart(5, '0'),
+      expiration: expiration,
+      photo_url: user.photo_url ? siteUrl + user.photo_url : '',
+      site_url: siteUrl
+    });
+  } catch (err) {
+    console.error('wallet-image error:', err);
+    res.status(500).json({ error: 'Erreur génération carte' });
+  }
+});
+
+app.get('/api/carte/:id/vcard', authMiddleware, (req, res) => {
+  const userId = parseInt(req.params.id);
+  if (req.user.id !== userId && !['admin','secretaire','tresoriere','delegue'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Accès refusé' });
+  }
+  const user = db.prepare('SELECT prenom, nom, email, telephone FROM users WHERE id=?').get(userId);
+  if (!user) return res.status(404).json({ error: 'Membre introuvable' });
+
+  const vcard = [
+    'BEGIN:VCARD', 'VERSION:3.0',
+    'N:' + (user.nom||'') + ';' + (user.prenom||''),
+    'FN:' + (user.prenom||'') + ' ' + (user.nom||''),
+    user.email ? 'EMAIL:' + user.email : '',
+    user.telephone ? 'TEL:' + user.telephone : '',
+    'ORG:Association Haïtienne de Hamilton',
+    'URL:https://ahhamilton.ca',
+    'END:VCARD'
+  ].filter(Boolean).join('\r\n');
+
+  res.setHeader('Content-Type', 'text/vcard; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="AHH-' + (user.prenom||'') + '-' + (user.nom||'') + '.vcf"');
+  res.send(vcard);
+});
+
+// ── Places assises (seating) pour activités ─────────────────────────────────
+app.get('/api/activities/:id/seats', authMiddleware, (req, res) => {
+  const seats = db.prepare('SELECT s.*, u.prenom, u.nom FROM activity_seats s LEFT JOIN users u ON u.id=s.user_id WHERE s.activity_id=? ORDER BY s.section, s.rangee, s.numero').all(req.params.id);
+  const act = db.prepare('SELECT seating_enabled, seating_config FROM activities WHERE id=?').get(req.params.id);
+  res.json({ seats, seating_enabled: act?.seating_enabled || 0, config: act?.seating_config ? JSON.parse(act.seating_config) : null });
+});
+
+app.post('/api/activities/:id/seats/generate', authMiddleware, requireRole('admin','secretaire','tresoriere','delegue'), (req, res) => {
+  const { sections } = req.body;
+  if (!sections || !sections.length) return res.status(400).json({ error: 'Sections requises' });
+
+  const actId = parseInt(req.params.id);
+  db.prepare('DELETE FROM activity_seats WHERE activity_id=?').run(actId);
+
+  let total = 0;
+  for (const sec of sections) {
+    const rowStart = sec.rows_start || 'A';
+    const rowEnd = sec.rows_end || 'E';
+    const seatsPerRow = parseInt(sec.seats_per_row) || 10;
+    for (let r = rowStart.charCodeAt(0); r <= rowEnd.charCodeAt(0); r++) {
+      const row = String.fromCharCode(r);
+      for (let s = 1; s <= seatsPerRow; s++) {
+        db.prepare('INSERT INTO activity_seats (activity_id, section, rangee, numero, prix) VALUES (?,?,?,?,?)')
+          .run(actId, sec.name || 'Général', row, String(s), sec.prix || 0);
+        total++;
+      }
+    }
+  }
+
+  db.prepare("UPDATE activities SET seating_enabled=1 WHERE id=?").run(actId);
+  res.json({ ok: true, total_seats: total });
+});
+
+app.post('/api/activities/:id/seats/:seatId/reserve', authMiddleware, (req, res) => {
+  const seat = db.prepare('SELECT * FROM activity_seats WHERE id=? AND activity_id=?').get(req.params.seatId, req.params.id);
+  if (!seat) return res.status(404).json({ error: 'Place introuvable' });
+  if (seat.statut !== 'disponible') return res.status(400).json({ error: 'Place déjà réservée' });
+
+  db.prepare("UPDATE activity_seats SET statut='reserve', user_id=?, date_reservation=CURRENT_TIMESTAMP WHERE id=?")
+    .run(req.user.id, seat.id);
+  res.json({ ok: true });
+});
+
+app.post('/api/activities/:id/seats/:seatId/release', authMiddleware, (req, res) => {
+  const seat = db.prepare('SELECT * FROM activity_seats WHERE id=? AND activity_id=?').get(req.params.seatId, req.params.id);
+  if (!seat) return res.status(404).json({ error: 'Place introuvable' });
+  const isExec = ['admin','secretaire','tresoriere','delegue'].includes(req.user.role);
+  if (seat.user_id !== req.user.id && !isExec) return res.status(403).json({ error: 'Accès refusé' });
+
+  db.prepare("UPDATE activity_seats SET statut='disponible', user_id=NULL, ticket_id=NULL, date_reservation=NULL WHERE id=?").run(seat.id);
+  res.json({ ok: true });
+});
+
 // ══════════════════════════════════════════════════════════════════════════════
 
 app.use((req, res) => {
