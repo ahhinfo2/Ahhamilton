@@ -96,7 +96,7 @@ async function sendMail({ to, subject, html, text, from, replyTo, attachments })
   }
   // Version texte brut automatique si absente (améliore la délivrabilité et réduit le spam)
   const plainText = text || (html ? html.replace(/<style[\s\S]*?<\/style>/gi,'').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim() : '');
-  await t.sendMail({ from: from || FROM, to, subject, html, text: plainText, replyTo, attachments });
+  await t.sendMail({ from: from || FROM, to, subject, html, text: plainText, replyTo, attachments, encoding: 'utf-8', textEncoding: 'base64' });
   console.log(`✉️  Email envoyé → ${to} | ${subject}`);
 }
 
@@ -447,7 +447,7 @@ async function sendExternalEmail({ to, subject, bodyHtml, senderName, senderEmai
         await t.verify();
         const from = `"${senderName} | AHH" <${orgEmail}>`;
         const plainText = html.replace(/<style[\s\S]*?<\/style>/gi,'').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim();
-        await t.sendMail({ from, to, subject, html, text: plainText, attachments: attachments || [] });
+        await t.sendMail({ from, to, subject, html, text: plainText, attachments: attachments || [], encoding: 'utf-8', textEncoding: 'base64' });
         console.log(`✉️  Email envoyé (org ${orgEmail} port ${port}) → ${to} | ${subject}`);
         return;
       } catch(e) {
@@ -466,7 +466,7 @@ async function sendExternalEmail({ to, subject, bodyHtml, senderName, senderEmai
   const replyTo = orgEmail    ? `"${senderName}" <${orgEmail}>` :
                   senderEmail ? `"${senderName}" <${senderEmail}>` : FROM;
   const plainText = html.replace(/<style[\s\S]*?<\/style>/gi,'').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim();
-  await t.sendMail({ from, to, replyTo, subject, html, text: plainText, attachments: attachments || [] });
+  await t.sendMail({ from, to, replyTo, subject, html, text: plainText, attachments: attachments || [], encoding: 'utf-8', textEncoding: 'base64' });
   console.log(`✉️  Email envoyé (fallback ${SMTP_USER}) → ${to} | ${subject}`);
 }
 
