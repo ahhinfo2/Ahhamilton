@@ -21,7 +21,7 @@ const Stripe   = require('stripe');
 
 // Créer les dossiers uploads au démarrage
 ['uploads','uploads/gallery','uploads/profiles','uploads/invoices',
- 'uploads/payments','uploads/talents','uploads/annonces','uploads/attachments','uploads/activities','uploads/qr','uploads/forms','uploads/shop']
+ 'uploads/payments','uploads/talents','uploads/annonces','uploads/attachments','uploads/activities','uploads/qr','uploads/forms','uploads/shop','uploads/member-photos']
   .forEach(d => { const p = path.join(__dirname, d); if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true }); });
 
 const db = require('./db/database');
@@ -5746,8 +5746,34 @@ cron.schedule('0 2 * * *', () => {
     const files = fs.readdirSync(backupDir).filter(f => f.startsWith('ahh_') && f.endsWith('.db')).sort();
     while (files.length > 30) fs.unlinkSync(path.join(backupDir, files.shift()));
     console.log(`[BACKUP] ${dst}`);
+    // Copie vers chemin distant si configuré
+    const remotePath = process.env.BACKUP_REMOTE_PATH;
+    if (remotePath) {
+      try {
+        fs.mkdirSync(remotePath, { recursive: true });
+        fs.copyFileSync(dbSrc, path.join(remotePath, `ahh_${date}.db`));
+        console.log(`[BACKUP-REMOTE] ${path.join(remotePath, `ahh_${date}.db`)}`);
+      } catch(re) { console.error('[BACKUP-REMOTE ERROR]', re.message); }
+    }
   } catch(e) { console.error('[BACKUP ERROR]', e.message); }
 });
+
+// ── Backup cloud quotidien à 4h du matin ────────────────────────────────────
+cron.schedule('0 4 * * *', () => {
+  const remotePath = process.env.BACKUP_REMOTE_PATH;
+  if (!remotePath) return;
+  try {
+    const dbSrc = process.env.DB_PATH || path.join(process.env.LOCALAPPDATA || process.env.HOME || __dirname, 'ahh-hamilton', 'ahh.db');
+    fs.mkdirSync(remotePath, { recursive: true });
+    const date = new Date().toISOString().substring(0, 10);
+    const filename = `ahh_cloud_${date}.db`;
+    fs.copyFileSync(dbSrc, path.join(remotePath, filename));
+    // Nettoyer les anciens backups cloud (garder 30)
+    const files = fs.readdirSync(remotePath).filter(f => f.startsWith('ahh_cloud_') && f.endsWith('.db')).sort();
+    while (files.length > 30) fs.unlinkSync(path.join(remotePath, files.shift()));
+    console.log(`[BACKUP-CLOUD] ${path.join(remotePath, filename)}`);
+  } catch(e) { console.error('[BACKUP-CLOUD ERROR]', e.message); }
+}, { timezone: 'America/Toronto' });
 
 // Fetch emplois Adzuna toutes les 6h (0h, 6h, 12h, 18h Toronto)
 cron.schedule('0 0,6,12,18 * * *', async () => {
@@ -8750,6 +8776,256 @@ app.get('/api/admin/monitoring', authMiddleware, requireRole('admin'), (req, res
       last_backup: lastBackup,
       active_connections: activeConnections
     });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FEATURE 1 : Photos d'activité soumises par les membres (avec approbation)
+// ══════════════════════════════════════════════════════════════════════════════
+
+const memberPhotoStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, 'uploads', 'member-photos', String(req.params.id || 'tmp'));
+    fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
+});
+const uploadMemberPhoto = multer({ storage: memberPhotoStorage, limits: { fileSize: 15 * 1024 * 1024 } });
+
+// Upload photo — member submits, status = en_attente
+app.post('/api/activities/:id/member-photos', authMiddleware, uploadMemberPhoto.single('photo'), async (req, res) => {
+  try {
+    const activityId = parseInt(req.params.id);
+    const act = db.prepare('SELECT id FROM activities WHERE id=?').get(activityId);
+    if (!act) return res.status(404).json({ error: 'Activité introuvable' });
+    if (!req.file) return res.status(400).json({ error: 'Photo requise' });
+    await compressImage(req.file.path, 1200);
+    const relPath = 'uploads/member-photos/' + (req.params.id || 'tmp') + '/' + req.file.filename;
+    const caption = req.body.caption || '';
+    const result = db.prepare(`INSERT INTO member_activity_photos (activity_id, user_id, photo_path, caption)
+      VALUES (?,?,?,?)`).run(activityId, req.user.id, relPath, caption);
+    res.json({ id: result.lastInsertRowid, photo_path: relPath, statut: 'en_attente' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// List photos — EXEC sees all, members see only approved
+app.get('/api/activities/:id/member-photos', authMiddleware, (req, res) => {
+  try {
+    const activityId = parseInt(req.params.id);
+    const isExec = ['admin','tresoriere','secretaire','delegue'].includes(req.user.role);
+    let photos;
+    if (isExec) {
+      photos = db.prepare(`SELECT mp.*, u.prenom, u.nom FROM member_activity_photos mp
+        LEFT JOIN users u ON u.id=mp.user_id WHERE mp.activity_id=? ORDER BY mp.date_creation DESC`).all(activityId);
+    } else {
+      photos = db.prepare(`SELECT mp.*, u.prenom, u.nom FROM member_activity_photos mp
+        LEFT JOIN users u ON u.id=mp.user_id WHERE mp.activity_id=? AND (mp.statut='approuve' OR mp.user_id=?)
+        ORDER BY mp.date_creation DESC`).all(activityId, req.user.id);
+    }
+    res.json(photos);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Approve photo — EXEC only
+app.post('/api/activities/:id/member-photos/:photoId/approve', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  try {
+    const photo = db.prepare('SELECT id FROM member_activity_photos WHERE id=? AND activity_id=?').get(req.params.photoId, req.params.id);
+    if (!photo) return res.status(404).json({ error: 'Photo introuvable' });
+    db.prepare("UPDATE member_activity_photos SET statut='approuve', approuve_par=? WHERE id=?").run(req.user.id, req.params.photoId);
+    res.json({ ok: true, statut: 'approuve' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Reject photo — EXEC only, deletes file
+app.post('/api/activities/:id/member-photos/:photoId/reject', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  try {
+    const photo = db.prepare('SELECT id, photo_path FROM member_activity_photos WHERE id=? AND activity_id=?').get(req.params.photoId, req.params.id);
+    if (!photo) return res.status(404).json({ error: 'Photo introuvable' });
+    // Delete file from disk
+    const fullPath = path.join(__dirname, photo.photo_path);
+    if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
+    db.prepare('DELETE FROM member_activity_photos WHERE id=?').run(req.params.photoId);
+    res.json({ ok: true, statut: 'rejete' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FEATURE 2 : Check-in par géolocalisation
+// ══════════════════════════════════════════════════════════════════════════════
+
+function haversineDistance(lat1, lon1, lat2, lon2) {
+  var R = 6371000;
+  var dLat = (lat2-lat1) * Math.PI/180;
+  var dLon = (lon2-lon1) * Math.PI/180;
+  var a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+app.post('/api/activities/:id/geo-checkin', authMiddleware, (req, res) => {
+  try {
+    const activityId = parseInt(req.params.id);
+    const { latitude, longitude } = req.body;
+    if (latitude == null || longitude == null) return res.status(400).json({ error: 'latitude et longitude requis' });
+
+    const act = db.prepare('SELECT id, titre, latitude, longitude, geo_radius FROM activities WHERE id=?').get(activityId);
+    if (!act) return res.status(404).json({ error: 'Activité introuvable' });
+    if (act.latitude == null || act.longitude == null) return res.status(400).json({ error: 'Aucune position GPS configurée pour cette activité' });
+
+    const distance = haversineDistance(latitude, longitude, act.latitude, act.longitude);
+    const radius = act.geo_radius || 200;
+
+    if (distance > radius) {
+      return res.json({ ok: false, result: 'too_far', distance: Math.round(distance), radius });
+    }
+
+    // Mark presence
+    const existing = db.prepare('SELECT id, checked_in FROM activity_registrations WHERE activity_id=? AND user_id=?').get(activityId, req.user.id);
+    if (existing) {
+      if (existing.checked_in) return res.json({ ok: true, result: 'already_checked_in', distance: Math.round(distance) });
+      db.prepare("UPDATE activity_registrations SET statut='present', checked_in=1, date_checkin=CURRENT_TIMESTAMP WHERE id=?").run(existing.id);
+    } else {
+      db.prepare("INSERT INTO activity_registrations (activity_id, user_id, statut, checked_in, date_checkin) VALUES (?,?,'present',1,CURRENT_TIMESTAMP)").run(activityId, req.user.id);
+    }
+    logAdmin(req.user.id, 'geo_checkin', `Geo check-in activité ${act.titre} (${Math.round(distance)}m)`, activityId, 'activity', null);
+    res.json({ ok: true, result: 'checked_in', distance: Math.round(distance), radius });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FEATURE 3 : Paiement en versements (split payment)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Create a payment plan
+app.post('/api/payment-plans', authMiddleware, (req, res) => {
+  try {
+    const { ticket_id, nb_versements } = req.body;
+    if (!ticket_id) return res.status(400).json({ error: 'ticket_id requis' });
+    if (![2, 3, 4].includes(nb_versements)) return res.status(400).json({ error: 'nb_versements doit être 2, 3 ou 4' });
+
+    const ticket = db.prepare('SELECT id, prix, user_id, statut FROM tickets WHERE id=?').get(ticket_id);
+    if (!ticket) return res.status(404).json({ error: 'Billet introuvable' });
+    if (ticket.user_id !== req.user.id) return res.status(403).json({ error: 'Ce billet ne vous appartient pas' });
+
+    // Check no existing active plan for this ticket
+    const existingPlan = db.prepare("SELECT id FROM payment_plans WHERE ticket_id=? AND statut='actif'").get(ticket_id);
+    if (existingPlan) return res.status(400).json({ error: 'Un plan de versements actif existe déjà pour ce billet' });
+
+    const totalAmount = ticket.prix;
+    if (!totalAmount || totalAmount <= 0) return res.status(400).json({ error: 'Ce billet n\'a pas de montant à payer' });
+
+    const montantVersement = Math.round((totalAmount / nb_versements) * 100) / 100;
+
+    const result = db.prepare(`INSERT INTO payment_plans (user_id, ticket_id, total_amount, nb_versements, montant_versement)
+      VALUES (?,?,?,?,?)`).run(req.user.id, ticket_id, totalAmount, nb_versements, montantVersement);
+    const planId = result.lastInsertRowid;
+
+    // Create versement rows
+    const insVers = db.prepare('INSERT INTO payment_plan_versements (plan_id, numero, montant) VALUES (?,?,?)');
+    for (let i = 1; i <= nb_versements; i++) {
+      // Last versement gets the remainder to handle rounding
+      const montant = (i === nb_versements) ? Math.round((totalAmount - montantVersement * (nb_versements - 1)) * 100) / 100 : montantVersement;
+      insVers.run(planId, i, montant);
+    }
+
+    res.json({ id: planId, total_amount: totalAmount, nb_versements, montant_versement: montantVersement });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// List user's payment plans with versements
+app.get('/api/payment-plans/my', authMiddleware, (req, res) => {
+  try {
+    const plans = db.prepare(`SELECT pp.*, t.acheteur_nom, a.titre AS activite_titre
+      FROM payment_plans pp
+      LEFT JOIN tickets t ON t.id=pp.ticket_id
+      LEFT JOIN activities a ON a.id=t.activity_id
+      WHERE pp.user_id=? ORDER BY pp.date_creation DESC`).all(req.user.id);
+    for (const plan of plans) {
+      plan.versements = db.prepare('SELECT * FROM payment_plan_versements WHERE plan_id=? ORDER BY numero').all(plan.id);
+    }
+    res.json(plans);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Pay next versement
+app.post('/api/payment-plans/:id/pay-next', authMiddleware, (req, res) => {
+  try {
+    const planId = parseInt(req.params.id);
+    const plan = db.prepare("SELECT * FROM payment_plans WHERE id=? AND user_id=?").get(planId, req.user.id);
+    if (!plan) return res.status(404).json({ error: 'Plan introuvable' });
+    if (plan.statut !== 'actif') return res.status(400).json({ error: 'Ce plan n\'est plus actif' });
+
+    // Find next unpaid versement
+    const nextVersement = db.prepare("SELECT * FROM payment_plan_versements WHERE plan_id=? AND statut='en_attente' ORDER BY numero LIMIT 1").get(planId);
+    if (!nextVersement) return res.status(400).json({ error: 'Tous les versements ont déjà été payés' });
+
+    // Mark as paid
+    db.prepare("UPDATE payment_plan_versements SET statut='paye', date_paiement=CURRENT_TIMESTAMP WHERE id=?").run(nextVersement.id);
+    const newCount = plan.versements_payes + 1;
+    const newStatut = (newCount >= plan.nb_versements) ? 'complete' : 'actif';
+    db.prepare('UPDATE payment_plans SET versements_payes=?, statut=? WHERE id=?').run(newCount, newStatut, planId);
+
+    res.json({
+      ok: true,
+      versement_numero: nextVersement.numero,
+      montant: nextVersement.montant,
+      versements_payes: newCount,
+      plan_statut: newStatut
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FEATURE 4 : Sauvegarde cloud (copie vers chemin distant) + téléchargement
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Sauvegarde vers chemin distant (BACKUP_REMOTE_PATH)
+app.post('/api/admin/backup-cloud', authMiddleware, requireRole('admin'), (req, res) => {
+  try {
+    const remotePath = process.env.BACKUP_REMOTE_PATH;
+    if (!remotePath) return res.status(400).json({ error: 'BACKUP_REMOTE_PATH non configuré dans les variables d\'environnement' });
+
+    const dbPath = process.env.DB_PATH || path.join(process.env.LOCALAPPDATA || process.env.HOME || __dirname, 'ahh-hamilton', 'ahh.db');
+    const now = new Date();
+    const ts = now.getFullYear() + '-' +
+      String(now.getMonth()+1).padStart(2,'0') + '-' +
+      String(now.getDate()).padStart(2,'0') + '-' +
+      String(now.getHours()).padStart(2,'0') +
+      String(now.getMinutes()).padStart(2,'0') +
+      String(now.getSeconds()).padStart(2,'0');
+    const filename = `ahh-${ts}.db`;
+
+    // Local backup
+    const localBackupDir = path.join(__dirname, 'backups');
+    if (!fs.existsSync(localBackupDir)) fs.mkdirSync(localBackupDir, { recursive: true });
+    const localDest = path.join(localBackupDir, filename);
+    fs.copyFileSync(dbPath, localDest);
+
+    // Remote backup
+    if (!fs.existsSync(remotePath)) fs.mkdirSync(remotePath, { recursive: true });
+    const remoteDest = path.join(remotePath, filename);
+    fs.copyFileSync(dbPath, remoteDest);
+
+    logAudit(req.user.id, 'backup_cloud', 'backup', null, `Sauvegarde cloud: ${filename} → ${remotePath}`, req.ip);
+    res.json({ message: 'Sauvegarde locale et distante créée', filename, remote_path: remoteDest });
+  } catch (e) {
+    console.error('Erreur backup cloud:', e.message);
+    res.status(500).json({ error: 'Erreur lors de la sauvegarde: ' + e.message });
+  }
+});
+
+// Download a backup file
+app.get('/api/admin/backups/:filename', authMiddleware, requireRole('admin'), (req, res) => {
+  try {
+    const filename = req.params.filename;
+    // Prevent path traversal
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return res.status(400).json({ error: 'Nom de fichier invalide' });
+    }
+    const backupDir = path.join(__dirname, 'backups');
+    const filePath = path.join(backupDir, filename);
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Fichier introuvable' });
+    res.download(filePath, filename);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

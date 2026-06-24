@@ -1222,6 +1222,45 @@ try { db.exec('ALTER TABLE tickets ADD COLUMN transferred_to INTEGER REFERENCES 
 try { db.exec('ALTER TABLE tickets ADD COLUMN transferred_at TEXT'); } catch {}
 try { db.exec('ALTER TABLE tickets ADD COLUMN original_owner_id INTEGER'); } catch {}
 
+// ── Photos d'activité soumises par les membres (avec approbation) ────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS member_activity_photos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  activity_id INTEGER REFERENCES activities(id),
+  user_id INTEGER REFERENCES users(id),
+  photo_path TEXT NOT NULL,
+  caption TEXT,
+  statut TEXT DEFAULT 'en_attente',
+  approuve_par INTEGER REFERENCES users(id),
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
+// ── Check-in par géolocalisation ─────────────────────────────────────────
+try { db.exec('ALTER TABLE activities ADD COLUMN latitude REAL'); } catch {}
+try { db.exec('ALTER TABLE activities ADD COLUMN longitude REAL'); } catch {}
+try { db.exec('ALTER TABLE activities ADD COLUMN geo_radius INTEGER DEFAULT 200'); } catch {}
+
+// ── Paiement en versements (split payment) ──────────────────────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS payment_plans (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER REFERENCES users(id),
+  ticket_id INTEGER REFERENCES tickets(id),
+  total_amount REAL NOT NULL,
+  nb_versements INTEGER NOT NULL,
+  montant_versement REAL NOT NULL,
+  versements_payes INTEGER DEFAULT 0,
+  statut TEXT DEFAULT 'actif',
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+try { db.exec(`CREATE TABLE IF NOT EXISTS payment_plan_versements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  plan_id INTEGER REFERENCES payment_plans(id),
+  numero INTEGER NOT NULL,
+  montant REAL NOT NULL,
+  statut TEXT DEFAULT 'en_attente',
+  date_paiement TEXT,
+  stripe_payment_id TEXT
+)`); } catch {}
+
 init();
 
 module.exports = db;
