@@ -5586,14 +5586,14 @@ async function gmSend() {
     }
 
     // Envoi SMTP externe : non-membres + membres avec email hors @ahhamilton.ca
-    const attachment = fileEl?.files?.[0];
+    var extFiles = fileEl ? fileEl.files : [];
     for (const c of smtpRecips) {
-      if (attachment) {
+      if (extFiles.length) {
         var fd2 = new FormData();
         fd2.append('to', c.email);
         fd2.append('subject', subject);
         fd2.append('body', body);
-        fd2.append('attachments', attachment);
+        for (var fi = 0; fi < extFiles.length; fi++) fd2.append('attachments', extFiles[fi]);
         await fetch(API + '/email/send', { method:'POST', headers:{ Authorization:'Bearer '+TOKEN }, body:fd2 });
       } else {
         await api('/email/send', { method: 'POST', body: JSON.stringify({ to: c.email, subject, body }) });
