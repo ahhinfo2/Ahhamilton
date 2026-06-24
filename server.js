@@ -7218,6 +7218,54 @@ app.delete('/api/tasks/:id', authMiddleware, requireRole(...EXEC_ROLES), (req, r
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
+// SOUS-TÂCHES & COMMENTAIRES (Enhanced Kanban)
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.get('/api/tasks/:id/subtasks', authMiddleware, (req, res) => {
+  const rows = db.prepare('SELECT * FROM task_subtasks WHERE task_id=? ORDER BY date_creation ASC').all(req.params.id);
+  res.json(rows);
+});
+
+app.post('/api/tasks/:id/subtasks', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const { titre } = req.body;
+  if (!titre) return res.status(400).json({ error: 'Titre requis' });
+  const task = db.prepare('SELECT id FROM tasks WHERE id=?').get(req.params.id);
+  if (!task) return res.status(404).json({ error: 'Tâche introuvable' });
+  const r = db.prepare('INSERT INTO task_subtasks (task_id, titre) VALUES (?,?)').run(req.params.id, titre);
+  res.status(201).json({ id: r.lastInsertRowid });
+});
+
+app.put('/api/tasks/subtasks/:id/toggle', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const sub = db.prepare('SELECT * FROM task_subtasks WHERE id=?').get(req.params.id);
+  if (!sub) return res.status(404).json({ error: 'Sous-tâche introuvable' });
+  db.prepare('UPDATE task_subtasks SET termine=? WHERE id=?').run(sub.termine ? 0 : 1, req.params.id);
+  res.json({ message: 'Sous-tâche mise à jour', termine: sub.termine ? 0 : 1 });
+});
+
+app.delete('/api/tasks/subtasks/:id', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const sub = db.prepare('SELECT id FROM task_subtasks WHERE id=?').get(req.params.id);
+  if (!sub) return res.status(404).json({ error: 'Sous-tâche introuvable' });
+  db.prepare('DELETE FROM task_subtasks WHERE id=?').run(req.params.id);
+  res.json({ message: 'Sous-tâche supprimée' });
+});
+
+app.get('/api/tasks/:id/comments', authMiddleware, (req, res) => {
+  const rows = db.prepare(`SELECT tc.*, u.prenom || ' ' || u.nom AS auteur_nom
+    FROM task_comments tc LEFT JOIN users u ON u.id = tc.user_id
+    WHERE tc.task_id=? ORDER BY tc.date_creation ASC`).all(req.params.id);
+  res.json(rows);
+});
+
+app.post('/api/tasks/:id/comments', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const { contenu } = req.body;
+  if (!contenu) return res.status(400).json({ error: 'Contenu requis' });
+  const task = db.prepare('SELECT id FROM tasks WHERE id=?').get(req.params.id);
+  if (!task) return res.status(404).json({ error: 'Tâche introuvable' });
+  const r = db.prepare('INSERT INTO task_comments (task_id, user_id, contenu) VALUES (?,?,?)').run(req.params.id, req.user.id, contenu);
+  res.status(201).json({ id: r.lastInsertRowid });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
 // ORDRE DU JOUR (AGENDAS)
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -9027,6 +9075,59 @@ app.get('/api/admin/backups/:filename', authMiddleware, requireRole('admin'), (r
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Fichier introuvable' });
     res.download(filePath, filename);
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// RÔLES PERSONNALISÉS
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.get('/api/admin/roles', authMiddleware, requireRole('admin'), (req, res) => {
+  const rows = db.prepare('SELECT * FROM custom_roles ORDER BY nom ASC').all();
+  res.json(rows);
+});
+
+app.post('/api/admin/roles', authMiddleware, requireRole('admin'), (req, res) => {
+  const { nom, label, permissions_json, couleur } = req.body;
+  if (!nom || !label) return res.status(400).json({ error: 'Nom et label requis' });
+  try {
+    const r = db.prepare('INSERT INTO custom_roles (nom, label, permissions_json, couleur) VALUES (?,?,?,?)')
+      .run(nom, label, permissions_json || '{}', couleur || '#555');
+    res.status(201).json({ id: r.lastInsertRowid });
+  } catch (e) {
+    if (e.message && e.message.includes('UNIQUE')) return res.status(409).json({ error: 'Ce nom de rôle existe déjà' });
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/admin/roles/:id', authMiddleware, requireRole('admin'), (req, res) => {
+  const { nom, label, permissions_json, couleur } = req.body;
+  const existing = db.prepare('SELECT id FROM custom_roles WHERE id=?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Rôle introuvable' });
+  try {
+    db.prepare('UPDATE custom_roles SET nom=?, label=?, permissions_json=?, couleur=? WHERE id=?')
+      .run(nom, label, permissions_json || '{}', couleur || '#555', req.params.id);
+    res.json({ message: 'Rôle mis à jour' });
+  } catch (e) {
+    if (e.message && e.message.includes('UNIQUE')) return res.status(409).json({ error: 'Ce nom de rôle existe déjà' });
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/admin/roles/:id', authMiddleware, requireRole('admin'), (req, res) => {
+  const existing = db.prepare('SELECT id FROM custom_roles WHERE id=?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Rôle introuvable' });
+  db.prepare('UPDATE users SET custom_role_id=NULL WHERE custom_role_id=?').run(req.params.id);
+  db.prepare('DELETE FROM custom_roles WHERE id=?').run(req.params.id);
+  res.json({ message: 'Rôle supprimé' });
+});
+
+app.post('/api/admin/roles/:id/assign/:userId', authMiddleware, requireRole('admin'), (req, res) => {
+  const role = db.prepare('SELECT id FROM custom_roles WHERE id=?').get(req.params.id);
+  if (!role) return res.status(404).json({ error: 'Rôle introuvable' });
+  const user = db.prepare('SELECT id FROM users WHERE id=?').get(req.params.userId);
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  db.prepare('UPDATE users SET custom_role_id=? WHERE id=?').run(req.params.id, req.params.userId);
+  res.json({ message: 'Rôle assigné' });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════

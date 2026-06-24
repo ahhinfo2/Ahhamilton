@@ -1178,6 +1178,60 @@ async function home() {
   // Charger météo Hamilton en arrière-plan
   fetchWeather();
   if (can.executive()) _loadCountdownControl();
+  setTimeout(initWidgetSort, 500);
+}
+
+function initWidgetSort() {
+  var container = document.getElementById('mainContent');
+  if (!container) return;
+  var widgets = container.querySelectorAll('.table-card, .cards-grid, [class*="stat"]');
+  if (widgets.length < 2) return;
+
+  // Restaurer l'ordre sauvegardé
+  var saved = localStorage.getItem('ahh_widget_order');
+  if (saved) {
+    try {
+      var order = JSON.parse(saved);
+      var allW = Array.from(widgets);
+      var parent = allW[0].parentNode;
+      order.forEach(function(idx) {
+        var el = allW[parseInt(idx)];
+        if (el) parent.appendChild(el);
+      });
+    } catch (e) { /* ignore */ }
+  }
+
+  // Re-query after possible reorder
+  widgets = container.querySelectorAll('.table-card, .cards-grid, [class*="stat"]');
+
+  // Add drag handles to each widget
+  widgets.forEach(function(w, i) {
+    w.dataset.widgetIdx = i;
+    w.setAttribute('draggable', 'true');
+    var handle = document.createElement('div');
+    handle.style.cssText = 'text-align:center;cursor:grab;padding:4px;color:var(--muted);font-size:.7rem;opacity:.4;user-select:none';
+    handle.textContent = '⋮⋮⋮ glisser pour réorganiser';
+    handle.className = 'widget-handle';
+    w.insertBefore(handle, w.firstChild);
+
+    w.addEventListener('dragstart', function(e) { e.dataTransfer.setData('text/plain', i); w.style.opacity = '.5'; });
+    w.addEventListener('dragend', function() { w.style.opacity = '1'; });
+    w.addEventListener('dragover', function(e) { e.preventDefault(); w.style.borderTop = '3px solid #1b5e20'; });
+    w.addEventListener('dragleave', function() { w.style.borderTop = ''; });
+    w.addEventListener('drop', function(e) {
+      e.preventDefault(); w.style.borderTop = '';
+      var fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
+      var toIdx = parseInt(w.dataset.widgetIdx);
+      if (fromIdx === toIdx) return;
+      var allW = Array.from(container.querySelectorAll('[data-widget-idx]'));
+      var fromEl = allW[fromIdx];
+      if (fromEl && toIdx < fromIdx) w.parentNode.insertBefore(fromEl, w);
+      else if (fromEl) w.parentNode.insertBefore(fromEl, w.nextSibling);
+      // Save order
+      var order = Array.from(container.querySelectorAll('[data-widget-idx]')).map(function(el) { return el.dataset.widgetIdx; });
+      localStorage.setItem('ahh_widget_order', JSON.stringify(order));
+    });
+  });
 }
 
 async function fetchWeather() {

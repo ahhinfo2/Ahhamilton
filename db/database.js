@@ -1261,6 +1261,35 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS payment_plan_versements (
   stripe_payment_id TEXT
 )`); } catch {}
 
+// ── Sous-tâches & commentaires (Enhanced Kanban) ────────────────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS task_subtasks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
+  titre TEXT NOT NULL,
+  termine INTEGER DEFAULT 0,
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+try { db.exec(`CREATE TABLE IF NOT EXISTS task_comments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
+  user_id INTEGER REFERENCES users(id),
+  contenu TEXT NOT NULL,
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+try { db.exec('ALTER TABLE tasks ADD COLUMN fichier_path TEXT'); } catch {}
+try { db.exec('ALTER TABLE tasks ADD COLUMN fichier_nom TEXT'); } catch {}
+
+// ── Rôles personnalisés ─────────────────────────────────────────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS custom_roles (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nom TEXT NOT NULL UNIQUE,
+  label TEXT NOT NULL,
+  permissions_json TEXT DEFAULT '{}',
+  couleur TEXT DEFAULT '#555',
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN custom_role_id INTEGER REFERENCES custom_roles(id)'); } catch {}
+
 init();
 
 module.exports = db;
