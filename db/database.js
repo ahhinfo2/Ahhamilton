@@ -1290,6 +1290,11 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS custom_roles (
 )`); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN custom_role_id INTEGER REFERENCES custom_roles(id)'); } catch {}
 
+// ── Stripe abonnements récurrents ──────────────────────────────────────────
+try { db.exec('ALTER TABLE users ADD COLUMN stripe_customer_id TEXT'); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN stripe_subscription_id TEXT'); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN subscription_status TEXT'); } catch {}
+
 init();
 
 module.exports = db;

@@ -209,6 +209,31 @@ app.post('/api/stripe/webhook', express.raw({ type: '*/*' }), async (req, res) =
 
     console.log(`✅ Stripe don enregistré : ${email} — $${montant}`);
   }
+
+  // ── Abonnement créé/mis à jour ──────────────────────────────────────────
+  if (event.type === 'customer.subscription.created' || event.type === 'customer.subscription.updated') {
+    const sub = event.data.object;
+    const customerId = sub.customer;
+    const subStatus = sub.status; // active, past_due, canceled, etc.
+    const userRow = db.prepare('SELECT id FROM users WHERE stripe_customer_id=?').get(customerId);
+    if (userRow) {
+      db.prepare('UPDATE users SET stripe_subscription_id=?, subscription_status=? WHERE id=?')
+        .run(sub.id, subStatus, userRow.id);
+      console.log(`[STRIPE-SUB] ${event.type} — user ${userRow.id} — status ${subStatus}`);
+    }
+  }
+
+  // ── Abonnement annulé ──────────────────────────────────────────────────
+  if (event.type === 'customer.subscription.deleted') {
+    const sub = event.data.object;
+    const customerId = sub.customer;
+    const userRow = db.prepare('SELECT id FROM users WHERE stripe_customer_id=?').get(customerId);
+    if (userRow) {
+      db.prepare("UPDATE users SET stripe_subscription_id=NULL, subscription_status='cancelled' WHERE id=?")
+        .run(userRow.id);
+      console.log(`[STRIPE-SUB] Abonnement annulé — user ${userRow.id}`);
+    }
+  }
 });
 
 // ── Middleware ──────────────────────────────────────────────────────────────
@@ -2258,7 +2283,7 @@ app.get('/api/chat/rooms/:id/messages', authMiddleware, (req, res) => {
   res.json(msgs);
 });
 
-// POST message to a room
+// POST message to a room (+ SSE push temps réel)
 app.post('/api/chat/rooms/:id/messages', authMiddleware, (req, res) => {
   const member = db.prepare('SELECT * FROM chat_room_members WHERE room_id = ? AND user_id = ?')
     .get(req.params.id, req.user.id);
@@ -2272,6 +2297,22 @@ app.post('/api/chat/rooms/:id/messages', authMiddleware, (req, res) => {
 
   db.prepare('UPDATE chat_room_members SET last_read_at = CURRENT_TIMESTAMP WHERE room_id = ? AND user_id = ?')
     .run(req.params.id, req.user.id);
+
+  // SSE push temps réel — notifier tous les membres du salon
+  const sender = db.prepare('SELECT prenom, nom, photo_url FROM users WHERE id=?').get(req.user.id);
+  const roomMembers = db.prepare('SELECT user_id FROM chat_room_members WHERE room_id = ?').all(req.params.id);
+  const memberIds = roomMembers.map(function(m) { return m.user_id; });
+  sseNotify(memberIds, {
+    type: 'chat_message',
+    id: r.lastInsertRowid,
+    room_id: parseInt(req.params.id),
+    sender_id: req.user.id,
+    prenom: sender?.prenom || '',
+    nom: sender?.nom || '',
+    photo_url: sender?.photo_url || '',
+    content: content.trim(),
+    created_at: new Date().toISOString()
+  });
 
   res.status(201).json({ id: r.lastInsertRowid });
 });
@@ -2364,6 +2405,94 @@ app.get('/api/chat/unread', authMiddleware, (req, res) => {
     ) sub
   `).get(req.user.id, req.user.id);
   res.json({ count: count || 0 });
+});
+
+// ── Chat SSE stream (dédié au chat — alternative au SSE global) ──────────
+const chatSseClients = new Map(); // clientId → { res, userId }
+
+app.get('/api/chat/stream', authMiddleware, (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  res.write('data: ' + JSON.stringify({ type: 'connected' }) + '\n\n');
+  const clientId = req.user.id + '_' + Date.now();
+  chatSseClients.set(clientId, { res: res, userId: req.user.id });
+
+  const heartbeat = setInterval(function() {
+    try { res.write(':ping\n\n'); } catch(_) {}
+  }, 25000);
+
+  req.on('close', function() {
+    clearInterval(heartbeat);
+    chatSseClients.delete(clientId);
+  });
+});
+
+// POST chat message via simple endpoint (alternative au /api/chat/rooms/:id/messages)
+app.post('/api/chat/send', authMiddleware, (req, res) => {
+  const { message, room_id } = req.body;
+  if (!message || !message.trim()) return res.status(400).json({ error: 'Message vide' });
+
+  const roomId = room_id || null;
+  if (!roomId) return res.status(400).json({ error: 'room_id requis' });
+
+  // Vérifier accès au salon
+  const member = db.prepare('SELECT * FROM chat_room_members WHERE room_id = ? AND user_id = ?')
+    .get(roomId, req.user.id);
+  if (!member) return res.status(403).json({ error: 'Accès refusé' });
+
+  const r = db.prepare('INSERT INTO chat_messages (room_id, sender_id, content) VALUES (?,?,?)')
+    .run(roomId, req.user.id, message.trim());
+
+  db.prepare('UPDATE chat_room_members SET last_read_at = CURRENT_TIMESTAMP WHERE room_id = ? AND user_id = ?')
+    .run(roomId, req.user.id);
+
+  const user = db.prepare('SELECT prenom, nom, photo_url FROM users WHERE id=?').get(req.user.id);
+  var msg = {
+    type: 'chat_message',
+    id: r.lastInsertRowid,
+    room_id: roomId,
+    sender_id: req.user.id,
+    prenom: user?.prenom || '',
+    nom: user?.nom || '',
+    photo_url: user?.photo_url || '',
+    content: message.trim(),
+    created_at: new Date().toISOString()
+  };
+
+  // Notifier via SSE global (tous les membres du salon)
+  var roomMembers = db.prepare('SELECT user_id FROM chat_room_members WHERE room_id = ?').all(roomId);
+  var memberIds = roomMembers.map(function(m) { return m.user_id; });
+  sseNotify(memberIds, msg);
+
+  // Notifier via chat SSE dédié
+  chatSseClients.forEach(function(client) {
+    if (memberIds.includes(client.userId)) {
+      try { client.res.write('data: ' + JSON.stringify(msg) + '\n\n'); } catch(_) {}
+    }
+  });
+
+  res.json({ ok: true, id: r.lastInsertRowid });
+});
+
+// GET chat messages (endpoint simplifié)
+app.get('/api/chat/messages', authMiddleware, (req, res) => {
+  var roomId = req.query.room;
+  if (!roomId) return res.status(400).json({ error: 'Paramètre room requis' });
+
+  // Vérifier accès au salon
+  var member = db.prepare('SELECT * FROM chat_room_members WHERE room_id = ? AND user_id = ?')
+    .get(roomId, req.user.id);
+  if (!member) return res.status(403).json({ error: 'Accès refusé' });
+
+  var limit = Math.min(parseInt(req.query.limit) || 50, 200);
+  var msgs = db.prepare(
+    'SELECT cm.*, u.prenom, u.nom, u.photo_url FROM chat_messages cm LEFT JOIN users u ON u.id=cm.sender_id WHERE cm.room_id=? ORDER BY cm.created_at DESC LIMIT ?'
+  ).all(roomId, limit);
+  res.json(msgs.reverse());
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -8178,6 +8307,94 @@ app.post('/api/sponsoring/checkout', async (req, res) => {
     console.error('Stripe sponsoring checkout error:', err.message);
     res.status(500).json({ error: 'Erreur Stripe: ' + err.message });
   }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── STRIPE ABONNEMENTS COTISATION (SUBSCRIPTIONS) ──────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Créer un abonnement Stripe pour la cotisation
+app.post('/api/stripe/subscribe', authMiddleware, async (req, res) => {
+  const stripeKey = (process.env.STRIPE_SECRET_KEY || '').trim();
+  if (!stripeKey) return res.status(500).json({ error: 'Stripe non configuré' });
+
+  const user = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.id);
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  if (user.plan === 'gratuit') return res.status(400).json({ error: 'Plan gratuit — aucun abonnement requis' });
+
+  try {
+    const stripe = Stripe(stripeKey);
+
+    // Créer ou récupérer le client Stripe
+    var customerId = user.stripe_customer_id;
+    if (!customerId) {
+      var customer = await stripe.customers.create({
+        email: user.email,
+        name: (user.prenom || '') + ' ' + (user.nom || ''),
+        metadata: { user_id: String(user.id) }
+      });
+      customerId = customer.id;
+      db.prepare('UPDATE users SET stripe_customer_id=? WHERE id=?').run(customerId, user.id);
+    }
+
+    // Prix selon le plan (en cents CAD)
+    var prices = { bienfaiteur: 1000, partenaire: 2000 };
+    var amount = prices[user.plan];
+    if (!amount) return res.status(400).json({ error: 'Plan inconnu: ' + user.plan });
+
+    // Créer une session Stripe Checkout en mode abonnement
+    var siteBase = process.env.SITE_URL || 'https://ahhamilton.ca';
+    var session = await stripe.checkout.sessions.create({
+      customer: customerId,
+      mode: 'subscription',
+      line_items: [{
+        price_data: {
+          currency: 'cad',
+          product_data: { name: 'Cotisation AHH — ' + user.plan.charAt(0).toUpperCase() + user.plan.slice(1) },
+          recurring: { interval: 'month' },
+          unit_amount: amount
+        },
+        quantity: 1
+      }],
+      success_url: siteBase + '/dashboard/app.html?sub=success',
+      cancel_url: siteBase + '/dashboard/app.html?sub=cancel',
+      metadata: { user_id: String(user.id), plan: user.plan }
+    });
+
+    res.json({ checkout_url: session.url });
+  } catch (e) {
+    console.error('[STRIPE-SUB]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Annuler un abonnement Stripe
+app.post('/api/stripe/cancel-subscription', authMiddleware, async (req, res) => {
+  const stripeKey = (process.env.STRIPE_SECRET_KEY || '').trim();
+  if (!stripeKey) return res.status(500).json({ error: 'Stripe non configuré' });
+
+  const user = db.prepare('SELECT stripe_subscription_id FROM users WHERE id=?').get(req.user.id);
+  if (!user?.stripe_subscription_id) return res.status(400).json({ error: 'Aucun abonnement actif' });
+
+  try {
+    const stripe = Stripe(stripeKey);
+    await stripe.subscriptions.cancel(user.stripe_subscription_id);
+    db.prepare("UPDATE users SET stripe_subscription_id=NULL, subscription_status='cancelled' WHERE id=?").run(req.user.id);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[STRIPE-SUB-CANCEL]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Statut de l'abonnement
+app.get('/api/stripe/subscription-status', authMiddleware, (req, res) => {
+  const user = db.prepare('SELECT plan, stripe_subscription_id, subscription_status FROM users WHERE id=?').get(req.user.id);
+  res.json({
+    plan: user?.plan || 'gratuit',
+    has_subscription: !!user?.stripe_subscription_id,
+    status: user?.subscription_status || 'none'
+  });
 });
 
 
