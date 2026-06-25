@@ -257,6 +257,10 @@ try { db.exec('ALTER TABLE projects ADD COLUMN notes TEXT'); } catch {}
 // Email organisationnel par membre du comité
 try { db.exec('ALTER TABLE users ADD COLUMN email_org TEXT'); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN smtp_pass_org TEXT'); } catch {}
+// Vérification email + invalidation sessions
+try { db.exec('ALTER TABLE pending_registrations ADD COLUMN email_verified INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE pending_registrations ADD COLUMN email_token TEXT'); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN password_changed_at TEXT'); } catch {}
 // Notifications SMS
 try { db.exec("ALTER TABLE users ADD COLUMN operateur TEXT DEFAULT NULL"); } catch {}
 try { db.exec("ALTER TABLE users ADD COLUMN sms_notifs INTEGER DEFAULT 1"); } catch {}

@@ -259,7 +259,24 @@ app.use(cors({
   },
   credentials: true
 }));
-app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false, crossOriginOpenerPolicy: false, crossOriginResourcePolicy: false }));
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdn.jsdelivr.net", "https://unpkg.com", "https://js.stripe.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "blob:", "https:"],
+      frameSrc: ["'self'", "https://www.youtube-nocookie.com", "https://www.youtube.com", "https://www.google.com", "https://js.stripe.com"],
+      connectSrc: ["'self'", "https://api.open-meteo.com", "https://api.stripe.com"],
+      mediaSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+    }
+  },
+  crossOriginEmbedderPolicy: false, crossOriginOpenerPolicy: false, crossOriginResourcePolicy: false
+}));
 app.use(compression());
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
@@ -305,6 +322,19 @@ function safeFilename(file) { return `${Date.now()}-${_crypto.randomBytes(8).toS
 function imageFilter(req, file, cb) { cb(ALLOWED_IMAGE_MIMES.includes(file.mimetype) ? null : new Error('Type de fichier non autorisé'), ALLOWED_IMAGE_MIMES.includes(file.mimetype)); }
 function docFilter(req, file, cb) { cb(ALLOWED_DOC_MIMES.includes(file.mimetype) ? null : new Error('Type de fichier non autorisé'), ALLOWED_DOC_MIMES.includes(file.mimetype)); }
 function escHtmlServer(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+const SMTP_CIPHER_KEY = process.env.SMTP_CIPHER_KEY || _crypto.createHash('sha256').update(JWT_SECRET).digest();
+function encryptSmtpPass(text) {
+  const iv = _crypto.randomBytes(16);
+  const cipher = _crypto.createCipheriv('aes-256-cbc', SMTP_CIPHER_KEY, iv);
+  return iv.toString('hex') + ':' + Buffer.concat([cipher.update(text,'utf8'), cipher.final()]).toString('hex');
+}
+function decryptSmtpPass(encrypted) {
+  if (!encrypted || !encrypted.includes(':')) return encrypted;
+  const [ivHex, data] = encrypted.split(':');
+  const decipher = _crypto.createDecipheriv('aes-256-cbc', SMTP_CIPHER_KEY, Buffer.from(ivHex,'hex'));
+  return Buffer.concat([decipher.update(Buffer.from(data,'hex')), decipher.final()]).toString('utf8');
+}
 
 // ── Multer : invoice photos ─────────────────────────────────────────────────
 const invoiceStorage = multer.diskStorage({
@@ -443,11 +473,16 @@ app.post('/api/auth/register', (req, res) => {
     return res.status(409).json({ error: 'Une demande est déjà en cours pour cet email' });
 
   const hash = bcrypt.hashSync(effectivePassword, 10);
+  const emailToken = _crypto.randomBytes(32).toString('hex');
   db.prepare(`INSERT INTO pending_registrations
-    (prenom, nom, email, telephone, adresse, date_naissance, password_hash, plan, message, source)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    (prenom, nom, email, telephone, adresse, date_naissance, password_hash, plan, message, source, email_token)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .run(prenom, nom, email, telephone||'', adresse||'', date_naissance||'', hash,
-         plan||'gratuit', message||'', source||'');
+         plan||'gratuit', message||'', source||'', emailToken);
+
+  const siteUrl = process.env.SITE_URL || `http://localhost:${PORT}`;
+  const verifyLink = `${siteUrl}/api/auth/verify-email?token=${emailToken}`;
+  mailer.sendVerificationEmail({ email, prenom }, verifyLink).catch(e => console.error('Verify email error:', e.message));
 
   // Notifier tous les exécutifs (message interne + email externe)
   const staff = db.prepare("SELECT * FROM users WHERE role IN ('admin','tresoriere','secretaire','delegue') AND actif=1").all();
@@ -473,6 +508,16 @@ app.post('/api/auth/register', (req, res) => {
     if (extraEmails.length) mailer.sendNouvelleAdhesion(extraEmails, candidat).catch(e => console.error(`sendNouvelleAdhesion:`, e.message));
   }
   res.status(201).json({ message: 'Demande envoyée. Vous recevrez un courriel après approbation.' });
+});
+
+// ── Vérification email ──────────────────────────────────────────────────────
+app.get('/api/auth/verify-email', (req, res) => {
+  const { token } = req.query;
+  if (!token) return res.status(400).send('Token manquant');
+  const row = db.prepare("SELECT id FROM pending_registrations WHERE email_token = ? AND statut = 'en_attente'").get(token);
+  if (!row) return res.redirect('/?verified=invalid');
+  db.prepare('UPDATE pending_registrations SET email_verified = 1 WHERE id = ?').run(row.id);
+  res.redirect('/?verified=ok');
 });
 
 // ── Gestion des inscriptions en attente (admin) ────────────────────────────
@@ -671,7 +716,7 @@ app.put('/api/users/:id', authMiddleware, (req, res) => {
   if (isAdmin && role !== undefined)          { updates.push('role = ?');          vals.push(role); }
   if (isAdmin && actif !== undefined)         { updates.push('actif = ?');         vals.push(actif); }
   if (isAdmin && req.body.email_org !== undefined)    { updates.push('email_org = ?');    vals.push(req.body.email_org || null); }
-  if (isAdmin && req.body.smtp_pass_org !== undefined && req.body.smtp_pass_org !== '') { updates.push('smtp_pass_org = ?'); vals.push(req.body.smtp_pass_org); }
+  if (isAdmin && req.body.smtp_pass_org !== undefined && req.body.smtp_pass_org !== '') { updates.push('smtp_pass_org = ?'); vals.push(encryptSmtpPass(req.body.smtp_pass_org)); }
 
   if (!updates.length) return res.status(400).json({ error: 'Rien à mettre à jour' });
   vals.push(req.params.id);
@@ -1915,7 +1960,7 @@ app.get('/api/email/test-smtp', authMiddleware, requireRole(...COMITE_ROLES), as
   const nodemailer = require('nodemailer');
   const user = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.id);
   const orgEmail   = user?.email_org || null;
-  const orgPass    = user?.smtp_pass_org || process.env.ORG_SMTP_PASS || '';
+  const orgPass    = getUserImapPass(user);
   const smtpHost   = process.env.SMTP_HOST || '';
   const results    = [];
 
@@ -1959,7 +2004,7 @@ app.post('/api/email/send', authMiddleware, requireRole(...COMITE_ROLES), upload
   const senderName  = sender ? sender.prenom + ' ' + sender.nom : 'Comité AHH';
   const senderEmail = sender?.email || '';
   const orgEmail    = sender?.email_org || (senderEmail.endsWith('@ahhamilton.ca') ? senderEmail : null);
-  const orgSmtpPass = sender?.smtp_pass_org || null;
+  const orgSmtpPass = getUserImapPass(sender);
   const bodyHtml = body.replace(/\n/g, '<br/>');
   const attachments = (req.files || []).map(f => ({ filename: f.originalname, path: f.path }));
   try {
@@ -1993,7 +2038,9 @@ function getUserImapEmail(user) {
 }
 
 function getUserImapPass(user) {
-  return user?.smtp_pass_org || process.env.ORG_SMTP_PASS || '';
+  const raw = user?.smtp_pass_org;
+  if (!raw) return process.env.ORG_SMTP_PASS || '';
+  try { return decryptSmtpPass(raw); } catch { return raw; }
 }
 
 app.get('/api/email/inbox', authMiddleware, requireRole(...COMITE_ROLES), async (req, res) => {
@@ -2020,7 +2067,7 @@ app.get('/api/email/inbox/:uid', authMiddleware, requireRole(...COMITE_ROLES), a
   if (!uid) return res.status(400).json({ error: 'UID invalide' });
   try {
     const parsed = await imap.fetchEmailBody(orgEmail, orgPass, uid);
-    res.json({ body: parsed.text, html: parsed.html });
+    res.json({ body: parsed.text || '', html: parsed.html || '', subject: parsed.subject || '', from: parsed.from || '', date: parsed.date || '' });
   } catch(e) {
     console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' });
   }
@@ -2606,7 +2653,7 @@ app.post('/api/auth/reset-password', authLimiter, (req, res) => {
   if (new Date(row.expires_at) < new Date()) return res.status(400).json({ error: 'Lien expiré' });
 
   const hash = bcrypt.hashSync(new_password, 10);
-  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, row.user_id);
+  db.prepare("UPDATE users SET password_hash = ?, password_changed_at = datetime('now') WHERE id = ?").run(hash, row.user_id);
   db.prepare('UPDATE password_reset_tokens SET used = 1 WHERE id = ?').run(row.id);
 
   res.json({ message: 'Mot de passe réinitialisé avec succès' });

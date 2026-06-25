@@ -135,6 +135,23 @@ async function sendBienvenue(user, resetLink) {
   });
 }
 
+async function sendVerificationEmail(user, verifyLink) {
+  await sendMail({
+    to: user.email,
+    subject: 'Confirmez votre adresse courriel | AHH',
+    html: wrap('Vérification de votre courriel', `
+      <p>Bonjour <strong>${esc(user.prenom)}</strong>,</p>
+      <p>Merci pour votre demande d'adhésion ! Veuillez confirmer votre adresse courriel en cliquant sur le bouton ci-dessous :</p>
+      <div style="text-align:center;margin:24px 0">
+        <a href="${verifyLink}" style="display:inline-block;background:#2e7d32;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:700;font-size:.95rem;font-family:Arial,sans-serif">
+          Confirmer mon courriel
+        </a>
+      </div>
+      <p style="font-size:.82rem;color:#888">Si vous n'avez pas fait cette demande, ignorez cet email.</p>
+    `)
+  });
+}
+
 async function sendInscriptionRefusee(user, raison) {
   await sendMail({
     to: user.email,
@@ -563,7 +580,7 @@ async function sendAnniversaire(user) {
 }
 
 module.exports = {
-  sendMail, sendSMS, sendBienvenue, sendInscriptionRefusee, sendResetPassword,
+  sendMail, sendSMS, sendBienvenue, sendInscriptionRefusee, sendResetPassword, sendVerificationEmail,
   sendContact, sendRappelPaiement, sendPaiementApprouve, sendRappelAdhesion,
   sendRecuFiscal, sendRecuFiscalAuto, sendRappelExpiration,
   sendInscriptionActivite, sendNouvelleAdhesion, sendInvitation, sendHeuresBenevolat,
