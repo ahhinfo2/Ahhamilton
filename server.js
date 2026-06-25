@@ -2602,6 +2602,7 @@ app.get('/api/activities/public', (req, res) => {
     (SELECT COUNT(*) FROM activity_registrations WHERE activity_id = activities.id) AS nb_inscrits,
     (SELECT photo_path FROM activity_photos WHERE activity_id = activities.id ORDER BY ordre ASC, id ASC LIMIT 1) AS thumbnail
     FROM activities WHERE statut IN ('planifiee','en_cours')
+      AND (date_fin >= datetime('now') OR (date_fin IS NULL AND date_debut >= datetime('now', '-1 day')))
     ORDER BY date_debut ASC
   `).all();
   res.json(rows);
@@ -2612,7 +2613,10 @@ app.get('/api/activities/public/past', (req, res) => {
     SELECT id, titre, description, type, date_debut, date_fin, lieu, max_participants, statut,
     (SELECT COUNT(*) FROM activity_registrations WHERE activity_id = activities.id) AS nb_inscrits,
     (SELECT photo_path FROM activity_photos WHERE activity_id = activities.id ORDER BY ordre ASC, id ASC LIMIT 1) AS thumbnail
-    FROM activities WHERE statut = 'terminee'
+    FROM activities
+    WHERE statut = 'terminee'
+      OR (statut IN ('planifiee','en_cours') AND date_fin IS NOT NULL AND date_fin < datetime('now'))
+      OR (statut IN ('planifiee','en_cours') AND date_fin IS NULL AND date_debut IS NOT NULL AND date_debut < datetime('now', '-1 day'))
     ORDER BY date_debut DESC LIMIT 12
   `).all();
   res.json(rows);
@@ -5940,10 +5944,13 @@ cron.schedule('0 8 1 * *', async () => {
   } catch(e) { console.error('[RAPPORT MENSUEL]', e.message); }
 }, { timezone: 'America/Toronto' });
 
-// Archive activities finished more than 30 days ago
+// Mark past activities as 'terminee', archive after 30 days
 cron.schedule('0 3 * * *', () => {
   try {
-    const archived = db.prepare("UPDATE activities SET statut='archivee' WHERE statut IN ('planifiee','en_cours','terminee') AND date_debut IS NOT NULL AND date_debut < datetime('now', '-30 days')").run();
+    const ended = db.prepare("UPDATE activities SET statut='terminee' WHERE statut IN ('planifiee','en_cours') AND date_fin IS NOT NULL AND date_fin < datetime('now')").run();
+    const endedNoFin = db.prepare("UPDATE activities SET statut='terminee' WHERE statut IN ('planifiee','en_cours') AND date_fin IS NULL AND date_debut IS NOT NULL AND date_debut < datetime('now', '-1 day')").run();
+    if (ended.changes + endedNoFin.changes > 0) console.log('[CRON] ' + (ended.changes + endedNoFin.changes) + ' activités marquées terminées');
+    const archived = db.prepare("UPDATE activities SET statut='archivee' WHERE statut = 'terminee' AND date_debut IS NOT NULL AND date_debut < datetime('now', '-30 days')").run();
     if (archived.changes > 0) console.log('[CRON] ' + archived.changes + ' activités archivées automatiquement');
   } catch(e) { console.error('[CRON-ARCHIVE]', e.message); }
 }, { timezone: 'America/Toronto' });
