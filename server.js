@@ -535,7 +535,7 @@ app.post('/api/admin/invite', authMiddleware, requireRole('admin','tresoriere','
     res.json({ message: `Invitation envoyée à ${email}` });
   } catch(e) {
     console.error('sendInvitation:', e.message);
-    console.error('[ERR]', e.message); res.status(500).json({ error: 'Échec d\'envoi' });
+    res.status(500).json({ error: 'Échec d\'envoi' });
   }
 });
 
@@ -806,7 +806,7 @@ app.delete('/api/users/:id', authMiddleware, requireRole('admin','secretaire','d
   } catch(e) {
     try { db.prepare('ROLLBACK').run(); } catch {}
     console.error('Erreur suppression membre:', e.message);
-    console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur lors de la suppression' });
+    res.status(500).json({ error: 'Erreur lors de la suppression' });
   }
 });
 
@@ -1940,7 +1940,7 @@ app.delete('/api/projects/:id', authMiddleware, requireRole('admin'), (req, res)
     res.json({ message: 'Projet supprimé' });
   } catch(e) {
     console.error('deleteProject:', e.message);
-    console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' });
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -2049,7 +2049,7 @@ app.get('/api/email/inbox', authMiddleware, requireRole(...COMITE_ROLES), async 
     res.json(emails);
   } catch(e) {
     console.error(`[inbox] ERREUR pour ${orgEmail}:`, e.message);
-    console.error('[IMAP]', e.message); res.status(500).json({ error: 'Connexion IMAP échouée' });
+    res.status(500).json({ error: 'Connexion IMAP échouée' });
   }
 });
 
@@ -4820,7 +4820,7 @@ app.post('/api/orders/:orderToken/activate', async (req, res) => {
     res.json({ ok: true, email, nb_billets: activated.length });
   } catch(e) {
     console.error('Activate order error:', e.message);
-    console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' });
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -8087,7 +8087,7 @@ app.post('/api/test/create-scan-simulation', authMiddleware, requireRole('admin'
     res.json({ ok:true, actId, total: all.length, categories: categories.map(c => ({ cat:c, count: all.filter(t=>t.cat===c).length })) });
   } catch(e) {
     console.error('[TEST SCAN V2]', e.message);
-    console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' });
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -8518,7 +8518,7 @@ app.post('/api/stripe/subscribe', authMiddleware, async (req, res) => {
     res.json({ checkout_url: session.url });
   } catch (e) {
     console.error('[STRIPE-SUB]', e.message);
-    console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' });
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -8537,7 +8537,7 @@ app.post('/api/stripe/cancel-subscription', authMiddleware, async (req, res) => 
     res.json({ ok: true });
   } catch (e) {
     console.error('[STRIPE-SUB-CANCEL]', e.message);
-    console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' });
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
