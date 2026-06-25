@@ -259,24 +259,19 @@ app.use(cors({
   },
   credentials: true
 }));
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdn.jsdelivr.net", "https://unpkg.com", "https://js.stripe.com"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:", "blob:", "https:"],
-      frameSrc: ["'self'", "https://www.youtube-nocookie.com", "https://www.youtube.com", "https://www.google.com", "https://js.stripe.com"],
-      connectSrc: ["'self'", "https://api.open-meteo.com", "https://api.stripe.com"],
-      mediaSrc: ["'self'"],
-      objectSrc: ["'none'"],
-      baseUri: ["'self'"],
-      formAction: ["'self'"],
-    }
-  },
-  crossOriginEmbedderPolicy: false, crossOriginOpenerPolicy: false, crossOriginResourcePolicy: false
-}));
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false, crossOriginOpenerPolicy: false, crossOriginResourcePolicy: false }));
+// CSP uniquement sur les pages publiques (le dashboard utilise trop d'inline scripts)
+const cspMiddleware = (req, res, next) => {
+  if (!req.path.startsWith('/dashboard')) {
+    res.setHeader('Content-Security-Policy',
+      "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://js.stripe.com; " +
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; " +
+      "img-src 'self' data: blob: https:; frame-src 'self' https://www.youtube-nocookie.com https://www.youtube.com https://www.google.com https://js.stripe.com; " +
+      "connect-src 'self' https://api.open-meteo.com https://api.stripe.com; object-src 'none'; base-uri 'self'");
+  }
+  next();
+};
+app.use(cspMiddleware);
 app.use(compression());
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
