@@ -248,7 +248,17 @@ app.post('/api/stripe/webhook', express.raw({ type: '*/*' }), async (req, res) =
 });
 
 // ── Middleware ──────────────────────────────────────────────────────────────
-app.use(cors());
+const allowedOrigins = [
+  'https://ahhamilton.ca', 'https://www.ahhamilton.ca',
+  'http://localhost:3001', 'http://localhost:3000', 'http://127.0.0.1:3001'
+];
+app.use(cors({
+  origin: function(origin, cb) {
+    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    cb(null, false);
+  },
+  credentials: true
+}));
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false, crossOriginOpenerPolicy: false, crossOriginResourcePolicy: false }));
 app.use(compression());
 app.use(express.json({ limit: '15mb' }));
