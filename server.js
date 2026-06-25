@@ -24,6 +24,10 @@ const Stripe   = require('stripe');
  'uploads/payments','uploads/talents','uploads/annonces','uploads/attachments','uploads/activities','uploads/qr','uploads/forms','uploads/shop','uploads/member-photos']
   .forEach(d => { const p = path.join(__dirname, d); if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true }); });
 
+const helmet      = require('helmet');
+const compression = require('compression');
+const rateLimit   = require('express-rate-limit');
+
 const db = require('./db/database');
 const { authMiddleware, requireRole, JWT_SECRET } = require('./middleware/auth');
 const mailer = require('./mailer');
@@ -56,31 +60,38 @@ app.post('/api/stripe/webhook', express.raw({ type: '*/*' }), async (req, res) =
   console.log('=== STRIPE WEBHOOK REÇU ===');
 
   const stripeKey = (process.env.STRIPE_SECRET_KEY || '').trim();
-  console.log('STRIPE_KEY défini:', !!stripeKey, 'longueur:', stripeKey.length);
+  const webhookSecret = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
 
   let event;
   try {
-    const bodyStr = req.body ? req.body.toString('utf8') : '{}';
-    console.log('Body (200 chars):', bodyStr.substring(0, 200));
-    const parsed = JSON.parse(bodyStr);
-    console.log('Event ID:', parsed.id, '| Type:', parsed.type, '| Has data.object:', !!(parsed.data && parsed.data.object));
-
-    if (stripeKey && parsed.id && (!parsed.data || !parsed.data.object)) {
-      console.log('Thin event — récupération via API Stripe...');
+    if (stripeKey && webhookSecret) {
+      const stripe = Stripe(stripeKey);
+      const sig = req.headers['stripe-signature'];
       try {
-        const stripe = Stripe(stripeKey);
-        event = await stripe.events.retrieve(parsed.id);
-        console.log('Event récupéré:', event.type, '| Session ID:', event.data?.object?.id);
-      } catch (e) {
-        console.error('Erreur retrieve:', e.message);
+        event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+        console.log('Webhook signature vérifiée ✓ | Type:', event.type);
+      } catch (err) {
+        console.error('⚠ Signature webhook invalide:', err.message);
         return;
       }
-    } else if (parsed.data && parsed.data.object) {
-      console.log('Event complet reçu directement');
-      event = parsed;
     } else {
-      console.error('Event invalide — ni thin ni complet, STRIPE_KEY manquant?');
-      return;
+      const bodyStr = req.body ? req.body.toString('utf8') : '{}';
+      const parsed = JSON.parse(bodyStr);
+      if (stripeKey && parsed.id && (!parsed.data || !parsed.data.object)) {
+        console.log('Thin event — récupération via API Stripe...');
+        try {
+          const stripe = Stripe(stripeKey);
+          event = await stripe.events.retrieve(parsed.id);
+        } catch (e) {
+          console.error('Erreur retrieve:', e.message);
+          return;
+        }
+      } else if (parsed.data && parsed.data.object) {
+        event = parsed;
+      } else {
+        console.error('Event invalide — STRIPE_WEBHOOK_SECRET non configuré');
+        return;
+      }
     }
   } catch (err) {
     console.error('Parse error:', err.message);
@@ -238,8 +249,16 @@ app.post('/api/stripe/webhook', express.raw({ type: '*/*' }), async (req, res) =
 
 // ── Middleware ──────────────────────────────────────────────────────────────
 app.use(cors());
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+app.use(compression());
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+
+// ── Rate limiting ──────────────────────────────────────────────────────────
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 15, message: { error: 'Trop de tentatives. Réessayez dans 15 minutes.' }, standardHeaders: true, legacyHeaders: false });
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/dashboard', express.static(path.join(__dirname, 'dashboard')));
 
@@ -549,11 +568,15 @@ app.put('/api/auth/password', authMiddleware, (req, res) => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 app.get('/api/users', authMiddleware, (req, res) => {
+  const page  = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 200));
+  const offset = (page - 1) * limit;
+  const total = db.prepare("SELECT COUNT(*) AS c FROM users WHERE (phantom IS NULL OR phantom = 0)").get().c;
   const rows = db.prepare(`SELECT id, prenom, nom, email, telephone, adresse, role, actif,
     plan, plan_paid_month, plan_unpaid_count,
     date_inscription, date_naissance, bio, photo_url, email_org FROM users
-    WHERE (phantom IS NULL OR phantom = 0) ORDER BY nom, prenom`).all();
-  res.json(rows);
+    WHERE (phantom IS NULL OR phantom = 0) ORDER BY nom, prenom LIMIT ? OFFSET ?`).all(limit, offset);
+  res.json(req.query.page ? { data: rows, total, page, pages: Math.ceil(total / limit) } : rows);
 });
 
 app.get('/api/users/:id', authMiddleware, (req, res) => {
@@ -2045,13 +2068,17 @@ app.get('/api/reports/members', authMiddleware, requireRole('admin', 'secretaire
   res.json(members);
 });
 
-// ── Stats publiques (pour la page d'accueil) ─────────────────────────────────
+// ── Stats publiques (pour la page d'accueil) — cache 10 min ──────────────────
+let _statsCache = null;
+let _statsCacheTime = 0;
 app.get('/api/stats/public', (req, res) => {
+  const now = Date.now();
+  if (_statsCache && now - _statsCacheTime < 10 * 60 * 1000) return res.json(_statsCache);
   const cfg = db.prepare('SELECT * FROM stats_config WHERE id=1').get() || {};
   const membres_reel    = db.prepare("SELECT COUNT(*) AS c FROM users WHERE actif=1 AND (phantom IS NULL OR phantom=0)").get().c;
   const benevoles_reel  = db.prepare("SELECT COALESCE(SUM(heures),0) AS c FROM volunteer_hours WHERE statut='approuve'").get().c;
   const activites_reel  = db.prepare("SELECT COUNT(*) AS c FROM activities WHERE statut NOT IN ('annulee','archivee')").get().c;
-  res.json({
+  _statsCache = {
     membres:           cfg.membres_global  ?? membres_reel,
     membres_reel,
     benevoles:         cfg.benevoles_global ?? benevoles_reel,
@@ -2060,7 +2087,9 @@ app.get('/api/stats/public', (req, res) => {
     annees:            cfg.annees_service ?? 18,
     show_membres:      cfg.show_membres  ?? 1,
     show_benevoles:    cfg.show_benevoles ?? 1,
-  });
+  };
+  _statsCacheTime = now;
+  res.json(_statsCache);
 });
 
 // ── Configuration des stats (comité) ─────────────────────────────────────────
@@ -5955,6 +5984,16 @@ cron.schedule('0 3 * * *', () => {
   } catch(e) { console.error('[CRON-ARCHIVE]', e.message); }
 }, { timezone: 'America/Toronto' });
 
+// Nettoyage quotidien : tokens expirés, fichiers temporaires, audit ancien
+cron.schedule('30 3 * * *', () => {
+  try {
+    const tokens = db.prepare("DELETE FROM password_reset_tokens WHERE used = 1 OR expires_at < datetime('now', '-7 days')").run();
+    if (tokens.changes > 0) console.log('[CRON-CLEAN] ' + tokens.changes + ' tokens de reset nettoyés');
+    const oldAudit = db.prepare("DELETE FROM admin_audit_log WHERE created_at < datetime('now', '-90 days')").run();
+    if (oldAudit.changes > 0) console.log('[CRON-CLEAN] ' + oldAudit.changes + ' entrées audit >90j supprimées');
+  } catch(e) { console.error('[CRON-CLEAN]', e.message); }
+}, { timezone: 'America/Toronto' });
+
 // Notification de nouvelle activité publiée (appelé depuis POST /api/activities)
 async function notifyNewActivity(act) {
   try {
@@ -6652,8 +6691,16 @@ function toCSV(rows, cols) {
 }
 
 app.get('/api/export/membres.csv', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
-  const rows = db.prepare(`SELECT prenom,nom,email,telephone,role,plan,actif,
-    date_inscription FROM users WHERE (phantom IS NULL OR phantom=0) ORDER BY nom`).all();
+  let sql = `SELECT prenom,nom,email,telephone,role,plan,actif,
+    date_inscription FROM users WHERE (phantom IS NULL OR phantom=0)`;
+  const params = [];
+  if (req.query.role) { sql += ' AND role = ?'; params.push(req.query.role); }
+  if (req.query.plan) { sql += ' AND plan = ?'; params.push(req.query.plan); }
+  if (req.query.actif !== undefined) { sql += ' AND actif = ?'; params.push(parseInt(req.query.actif)); }
+  if (req.query.from) { sql += ' AND date_inscription >= ?'; params.push(req.query.from); }
+  if (req.query.to) { sql += ' AND date_inscription <= ?'; params.push(req.query.to); }
+  sql += ' ORDER BY nom';
+  const rows = db.prepare(sql).all(...params);
   const csv = toCSV(rows, [
     {key:'prenom',label:'Prénom'},{key:'nom',label:'Nom'},{key:'email',label:'Courriel'},
     {key:'telephone',label:'Téléphone'},{key:'role',label:'Rôle'},{key:'plan',label:'Plan'},
@@ -6666,9 +6713,16 @@ app.get('/api/export/membres.csv', authMiddleware, requireRole('admin','secretai
 });
 
 app.get('/api/export/paiements.csv', authMiddleware, requireRole('admin','tresoriere','secretaire'), (req, res) => {
-  const rows = db.prepare(`SELECT p.id, u.prenom, u.nom, u.email, p.montant, p.type, p.mois,
+  let sql = `SELECT p.id, u.prenom, u.nom, u.email, p.montant, p.type, p.mois,
     p.methode, p.reference, p.statut, p.date_soumission
-    FROM payments p LEFT JOIN users u ON u.id=p.user_id ORDER BY p.date_soumission DESC`).all();
+    FROM payments p LEFT JOIN users u ON u.id=p.user_id WHERE 1=1`;
+  const params = [];
+  if (req.query.statut) { sql += ' AND p.statut = ?'; params.push(req.query.statut); }
+  if (req.query.type) { sql += ' AND p.type = ?'; params.push(req.query.type); }
+  if (req.query.from) { sql += ' AND p.date_soumission >= ?'; params.push(req.query.from); }
+  if (req.query.to) { sql += ' AND p.date_soumission <= ?'; params.push(req.query.to); }
+  sql += ' ORDER BY p.date_soumission DESC';
+  const rows = db.prepare(sql).all(...params);
   const csv = toCSV(rows, [
     {key:'id',label:'ID'},{key:'prenom',label:'Prénom'},{key:'nom',label:'Nom'},
     {key:'email',label:'Courriel'},{key:'montant',label:'Montant ($)'},

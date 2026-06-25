@@ -1,4 +1,31 @@
 // ══════════════════════════════════════════════════════════
+// BANNIÈRE HORS-LIGNE + NOTIFICATION MISE À JOUR PWA
+// ══════════════════════════════════════════════════════════
+(function() {
+  var offlineBanner = document.createElement('div');
+  offlineBanner.id = 'offlineBanner';
+  offlineBanner.textContent = 'Vous êtes hors ligne — certaines fonctions sont limitées.';
+  offlineBanner.style.cssText = 'display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#e65100;color:#fff;text-align:center;padding:10px 16px;font-size:14px;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.3)';
+  document.body.prepend(offlineBanner);
+  function checkOnline() { offlineBanner.style.display = navigator.onLine ? 'none' : 'block'; }
+  window.addEventListener('online', checkOnline);
+  window.addEventListener('offline', checkOnline);
+  checkOnline();
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', function(e) {
+      if (e.data && e.data.type === 'SW_UPDATED') {
+        var bar = document.createElement('div');
+        bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:99999;background:#1b5e20;color:#fff;text-align:center;padding:12px 16px;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 -2px 8px rgba(0,0,0,.3)';
+        bar.innerHTML = 'Nouvelle version disponible — <u>cliquez pour recharger</u>';
+        bar.onclick = function() { location.reload(); };
+        document.body.appendChild(bar);
+      }
+    });
+  }
+})();
+
+// ══════════════════════════════════════════════════════════
 // PAGE TRANSITION – fondu à l'entrée
 // ══════════════════════════════════════════════════════════
 document.documentElement.style.opacity = '0';

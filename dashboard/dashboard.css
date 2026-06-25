@@ -455,7 +455,7 @@ tr:hover td{background:#f8fdf8}
   .site-nav-user   { border-left:none; padding-left:0; gap:6px; margin-left:auto; }
   /* Cacher boutons non essentiels sur mobile */
   #langSelectorWrap { display:none !important }
-  #darkToggle       { display:none !important }
+  #darkToggle       { display:inline-flex !important; width:36px !important; height:36px !important; font-size:1rem !important; }
   #msgBtn           { display:none !important }
   #alertBtn         { display:none !important }
   .site-nav-logout  { display:none !important }
@@ -863,6 +863,18 @@ html.dark .gm-shell,.html.dark .gm-sidebar,.html.dark .gm-main { background: var
 html.dark .gm-list { background: var(--white); }
 html.dark .gm-row { border-color: var(--border); }
 html.dark .gm-row:hover { background: var(--off); }
+html.dark .sidebar { background: var(--white); border-color: var(--border); }
+html.dark .sidebar .nav-item:hover { background: var(--off); }
+html.dark .sidebar .nav-item.active { background: var(--g1); }
+html.dark .card, html.dark .widget { background: var(--white); border-color: var(--border); }
+html.dark .badge, html.dark .pill { opacity: .9; }
+html.dark .dropdown-menu { background: var(--white); border-color: var(--border); }
+html.dark .dropdown-item:hover { background: var(--off); }
+html.dark .btn-outline { border-color: var(--border); color: var(--text); }
+html.dark .loading-screen { background: var(--bg); }
+html.dark .chat-panel { background: var(--white); border-color: var(--border); }
+html.dark .chat-msg { background: var(--off); }
+html.dark .toast { background: var(--white); color: var(--text); border-color: var(--border); }
 
 /* ── TOPBAR SEARCH ─────────────────────────────────────────────────────── */
 .search-wrap {
@@ -1725,3 +1737,33 @@ html.dark #searchWrap input { background: #243024; color: #e0f2e0; }
 html.dark #searchResults { background: #1e2e1e; }
 html.dark .sr-section { background: #243024; color: #a5d6a7; }
 html.dark .sr-item:hover { background: #2a3e2a; }
+
+/* ── SKELETON LOADER ──────────────────────────────────────────────────── */
+@keyframes skeleton-pulse { 0%{opacity:.6} 50%{opacity:.3} 100%{opacity:.6} }
+.skeleton{border-radius:var(--radius);animation:skeleton-pulse 1.4s ease-in-out infinite}
+.skeleton-line{height:14px;background:var(--border);margin-bottom:10px;border-radius:4px}
+.skeleton-line.w75{width:75%}.skeleton-line.w50{width:50%}.skeleton-line.w90{width:90%}
+.skeleton-circle{width:40px;height:40px;border-radius:50%;background:var(--border)}
+.skeleton-card{background:var(--white);border-radius:var(--radius);padding:20px;border:1px solid var(--border)}
+.skeleton-row{display:flex;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)}
+html.dark .skeleton-line,html.dark .skeleton-circle{background:var(--border)}
+
+/* ── TABLEAUX RESPONSIFS MOBILE ──────────────────────────────────────── */
+@media (max-width:640px) {
+  .table-card table, .table-card thead, .table-card tbody, .table-card tr, .table-card th, .table-card td {
+    display: block; width: 100%;
+  }
+  .table-card thead { display: none; }
+  .table-card tr { border-bottom: 2px solid var(--border); padding: 10px 12px; position: relative; }
+  .table-card td { padding: 4px 12px; border-bottom: none; font-size: .82rem; text-align: right; white-space: normal; }
+  .table-card td::before { content: attr(data-label); float: left; font-weight: 700; font-size: .72rem; color: var(--muted); text-transform: uppercase; }
+  .table-card td:first-child { padding-top: 10px; font-weight: 600; text-align: left; }
+  .table-card td:first-child::before { display: none; }
+}
+
+/* ── VALIDATION FORMULAIRE TEMPS RÉEL ─────────────────────────────────── */
+input.field-error, select.field-error, textarea.field-error { border-color: var(--red) !important; box-shadow: 0 0 0 3px rgba(229,57,53,.12) !important; }
+input.field-ok, select.field-ok, textarea.field-ok { border-color: var(--g3) !important; }
+.field-msg { font-size: .72rem; margin-top: 2px; }
+.field-msg.error { color: var(--red); }
+.field-msg.ok { color: var(--g2); }

@@ -245,6 +245,35 @@ function fmt(dateStr) {
 function fmtMoney(n) { return '$' + (+n || 0).toFixed(2); }
 
 function pill(label, cls) { return `<span class="badge-pill ${cls}">${label}</span>`; }
+
+function skeletonRows(n = 5) {
+  let html = '<div class="skeleton-card skeleton">';
+  for (let i = 0; i < n; i++) {
+    const w = ['w90','w75','w50'][i % 3];
+    html += `<div class="skeleton-row"><div class="skeleton-circle skeleton"></div><div style="flex:1"><div class="skeleton-line ${w} skeleton"></div><div class="skeleton-line w50 skeleton"></div></div></div>`;
+  }
+  return html + '</div>';
+}
+
+function validateField(input) {
+  if (!input || !input.checkValidity) return;
+  input.classList.remove('field-error', 'field-ok');
+  const msg = input.parentElement?.querySelector('.field-msg');
+  if (msg) msg.remove();
+  if (!input.value && !input.required) return;
+  if (input.checkValidity()) {
+    input.classList.add('field-ok');
+  } else {
+    input.classList.add('field-error');
+    const el = document.createElement('div');
+    el.className = 'field-msg error';
+    el.textContent = input.validationMessage;
+    input.parentElement?.appendChild(el);
+  }
+}
+document.addEventListener('input', function(e) {
+  if (e.target.matches('input,select,textarea')) validateField(e.target);
+});
 function statusPill(s) {
   const m = { planifiee:'bp-blue', en_cours:'bp-green', terminee:'bp-gray', annulee:'bp-red',
     archivee:'bp-gray', planifie:'bp-blue', termine:'bp-gray', suspendu:'bp-orange',
@@ -916,7 +945,7 @@ async function showView(viewId) {
     window._carteScanner = null;
   }
   setActiveNav(viewId);
-  setContent('<div class="loading-screen"><div class="spinner"></div><p>Chargement...</p></div>');
+  setContent(skeletonRows(6));
   const views = {
     home, activities, members, subcommittees,
     finance, invoices, messages, volunteer,
@@ -6589,7 +6618,7 @@ const CAL_TYPE_COLORS = {
 function calColor(type) { return CAL_TYPE_COLORS[type] || CAL_TYPE_COLORS.general; }
 
 async function activityCalendar() {
-  setContent('<div class="loading-screen"><div class="spinner"></div><p>Chargement...</p></div>');
+  setContent(skeletonRows(6));
   _calAllActivities = await api('/activities');
   renderCalendar(_calAllActivities);
 }
