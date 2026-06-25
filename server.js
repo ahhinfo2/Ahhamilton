@@ -75,10 +75,10 @@ app.post('/api/stripe/webhook', express.raw({ type: '*/*' }), async (req, res) =
         return;
       }
     } else {
+      console.warn('⚠ STRIPE_WEBHOOK_SECRET non configuré — webhook non vérifié');
       const bodyStr = req.body ? req.body.toString('utf8') : '{}';
       const parsed = JSON.parse(bodyStr);
       if (stripeKey && parsed.id && (!parsed.data || !parsed.data.object)) {
-        console.log('Thin event — récupération via API Stripe...');
         try {
           const stripe = Stripe(stripeKey);
           event = await stripe.events.retrieve(parsed.id);
@@ -89,7 +89,7 @@ app.post('/api/stripe/webhook', express.raw({ type: '*/*' }), async (req, res) =
       } else if (parsed.data && parsed.data.object) {
         event = parsed;
       } else {
-        console.error('Event invalide — STRIPE_WEBHOOK_SECRET non configuré');
+        console.error('Event invalide');
         return;
       }
     }
@@ -297,37 +297,47 @@ app.use('/', express.static(path.join(__dirname), { maxAge: 86400000, setHeaders
   if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
 } }));
 
+// ── Helpers sécurité uploads ────────────────────────────────────────────────
+const _crypto = require('crypto');
+const ALLOWED_IMAGE_MIMES = ['image/jpeg','image/png','image/gif','image/webp'];
+const ALLOWED_DOC_MIMES = [...ALLOWED_IMAGE_MIMES,'application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','text/csv','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+function safeFilename(file) { return `${Date.now()}-${_crypto.randomBytes(8).toString('hex')}${path.extname(file.originalname).toLowerCase()}`; }
+function imageFilter(req, file, cb) { cb(ALLOWED_IMAGE_MIMES.includes(file.mimetype) ? null : new Error('Type de fichier non autorisé'), ALLOWED_IMAGE_MIMES.includes(file.mimetype)); }
+function docFilter(req, file, cb) { cb(ALLOWED_DOC_MIMES.includes(file.mimetype) ? null : new Error('Type de fichier non autorisé'), ALLOWED_DOC_MIMES.includes(file.mimetype)); }
+function escHtmlServer(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
 // ── Multer : invoice photos ─────────────────────────────────────────────────
 const invoiceStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, path.join(__dirname, 'uploads', 'invoices')),
-  filename:    (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
+  filename:    (req, file, cb) => cb(null, safeFilename(file))
 });
-const upload = multer({ storage: invoiceStorage, limits: { fileSize: 10 * 1024 * 1024 } });
+const upload = multer({ storage: invoiceStorage, limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: imageFilter });
 
 // ── Multer : gallery photos ─────────────────────────────────────────────────
 const galleryStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, path.join(__dirname, 'uploads', 'gallery')),
-  filename:    (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
+  filename:    (req, file, cb) => cb(null, safeFilename(file))
 });
-const uploadGallery = multer({ storage: galleryStorage, limits: { fileSize: 15 * 1024 * 1024 } });
+const uploadGallery = multer({ storage: galleryStorage, limits: { fileSize: 15 * 1024 * 1024 }, fileFilter: imageFilter });
 
 // ── Multer : activity photos ─────────────────────────────────────────────────
 const activityPhotoStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const dir = path.join(__dirname, 'uploads', 'activities', String(req.params.id || 'tmp'));
+    const safeId = String(req.params.id || 'tmp').replace(/[^a-zA-Z0-9_-]/g, '');
+    const dir = path.join(__dirname, 'uploads', 'activities', safeId);
     require('fs').mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
-  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
+  filename: (req, file, cb) => cb(null, safeFilename(file))
 });
-const uploadActivityPhoto = multer({ storage: activityPhotoStorage, limits: { fileSize: 15 * 1024 * 1024 } });
+const uploadActivityPhoto = multer({ storage: activityPhotoStorage, limits: { fileSize: 15 * 1024 * 1024 }, fileFilter: imageFilter });
 
 // ── Multer : documents officiels ─────────────────────────────────────────────
 const docsStorage = multer.diskStorage({
   destination: (req, file, cb) => { const d = path.join(__dirname,'uploads','documents'); fs.mkdirSync(d,{recursive:true}); cb(null,d); },
-  filename:    (req, file, cb) => cb(null, `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g,'_')}`)
+  filename:    (req, file, cb) => cb(null, safeFilename(file))
 });
-const uploadDoc = multer({ storage: docsStorage, limits: { fileSize: 50 * 1024 * 1024 } });
+const uploadDoc = multer({ storage: docsStorage, limits: { fileSize: 50 * 1024 * 1024 }, fileFilter: docFilter });
 
 // ── Helper ──────────────────────────────────────────────────────────────────
 function createAlert(destinataireId, type, titre, contenu, sourceId = null) {
@@ -383,19 +393,37 @@ function getAdminsAndRole(role) {
 // AUTH
 // ══════════════════════════════════════════════════════════════════════════════
 
+const _loginAttempts = new Map();
+function checkLockout(email) {
+  const rec = _loginAttempts.get(email);
+  if (!rec) return false;
+  if (Date.now() - rec.first > 15 * 60 * 1000) { _loginAttempts.delete(email); return false; }
+  return rec.count >= 5;
+}
+function recordFailedLogin(email) {
+  const rec = _loginAttempts.get(email) || { count: 0, first: Date.now() };
+  rec.count++;
+  _loginAttempts.set(email, rec);
+}
+
 app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Champs requis' });
 
-  const user = db.prepare('SELECT * FROM users WHERE email = ? AND actif = 1').get(email);
-  if (!user || !bcrypt.compareSync(password, user.password_hash))
-    return res.status(401).json({ error: 'Email ou mot de passe invalide' });
+  if (checkLockout(email)) return res.status(429).json({ error: 'Compte temporairement verrouillé. Réessayez dans 15 minutes.' });
 
+  const user = db.prepare('SELECT * FROM users WHERE email = ? AND actif = 1').get(email);
+  if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+    recordFailedLogin(email);
+    return res.status(401).json({ error: 'Email ou mot de passe invalide' });
+  }
+
+  _loginAttempts.delete(email);
   db.prepare("UPDATE users SET nb_connexions = nb_connexions + 1, derniere_connexion = datetime('now') WHERE id = ?").run(user.id);
 
   const token = jwt.sign(
-    { id: user.id, email: user.email, role: user.role, prenom: user.prenom, nom: user.nom, date_naissance: user.date_naissance },
-    JWT_SECRET, { expiresIn: '24h' }
+    { id: user.id, email: user.email, role: user.role, prenom: user.prenom, nom: user.nom },
+    JWT_SECRET, { expiresIn: '8h' }
   );
   logAudit(user.id, 'login', 'user', user.id, `Connexion réussie — ${user.email}`, req.ip);
   const { password_hash, ...safeUser } = user;
@@ -467,7 +495,7 @@ app.post('/api/admin/invite', authMiddleware, requireRole('admin','tresoriere','
     res.json({ message: `Invitation envoyée à ${email}` });
   } catch(e) {
     console.error('sendInvitation:', e.message);
-    res.status(500).json({ error: 'Échec d\'envoi : ' + e.message });
+    console.error('[ERR]', e.message); res.status(500).json({ error: 'Échec d\'envoi' });
   }
 });
 
@@ -565,10 +593,13 @@ app.get('/api/activities/my-calendar', authMiddleware, (req, res) => {
 
 app.put('/api/auth/password', authMiddleware, (req, res) => {
   const { current_password, new_password } = req.body;
+  if (!new_password || new_password.length < 8) return res.status(400).json({ error: 'Mot de passe trop court (min. 8 caractères)' });
+  if (!/[A-Z]/.test(new_password)) return res.status(400).json({ error: 'Le mot de passe doit contenir au moins une majuscule' });
+  if (!/[0-9]/.test(new_password)) return res.status(400).json({ error: 'Le mot de passe doit contenir au moins un chiffre' });
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   if (!bcrypt.compareSync(current_password, user.password_hash))
     return res.status(401).json({ error: 'Mot de passe actuel incorrect' });
-  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+  db.prepare('UPDATE users SET password_hash = ?, password_changed_at = datetime(\'now\') WHERE id = ?')
     .run(bcrypt.hashSync(new_password, 10), req.user.id);
   res.json({ message: 'Mot de passe mis à jour' });
 });
@@ -630,7 +661,7 @@ app.put('/api/users/:id', authMiddleware, (req, res) => {
   const updates = []; const vals = [];
   if (prenom)        { updates.push('prenom = ?');        vals.push(prenom); }
   if (nom)           { updates.push('nom = ?');           vals.push(nom); }
-  if (email)         { updates.push('email = ?');         vals.push(email); }
+  if (email && (isAdmin || isSelf)) { updates.push('email = ?'); vals.push(email); }
   if (telephone !== undefined) { updates.push('telephone = ?'); vals.push(telephone); }
   if (adresse !== undefined)   { updates.push('adresse = ?');   vals.push(adresse); }
   if (date_naissance !== undefined) { updates.push('date_naissance = ?'); vals.push(date_naissance); }
@@ -735,7 +766,7 @@ app.delete('/api/users/:id', authMiddleware, requireRole('admin','secretaire','d
   } catch(e) {
     try { db.prepare('ROLLBACK').run(); } catch {}
     console.error('Erreur suppression membre:', e.message);
-    res.status(500).json({ error: 'Erreur lors de la suppression : ' + e.message });
+    console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur lors de la suppression' });
   }
 });
 
@@ -787,7 +818,8 @@ async function generateBarcode(data, opts = {}) {
 function newBarcodeData() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = 'AHH-';
-  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  const bytes = _crypto.randomBytes(8);
+  for (let i = 0; i < 8; i++) code += chars[bytes[i] % chars.length];
   return code;
 }
 
@@ -1278,7 +1310,7 @@ app.post('/api/messages', authMiddleware, (req, res) => {
   }
 
   const r = db.prepare('INSERT INTO messages (expediteur_id, sujet, contenu, type) VALUES (?, ?, ?, ?)')
-    .run(req.user.id, sujet||'', contenu, targets.length > 1 ? 'rafale' : 'individuel');
+    .run(req.user.id, escHtmlServer(sujet||''), escHtmlServer(contenu), targets.length > 1 ? 'rafale' : 'individuel');
 
   const ins = db.prepare('INSERT INTO message_recipients (message_id, destinataire_id) VALUES (?, ?)');
   targets.forEach(id => ins.run(r.lastInsertRowid, id));
@@ -1436,7 +1468,7 @@ app.post('/api/notes/:id/sign', authMiddleware, (req, res) => {
     if (cnt >= 2) db.prepare('UPDATE meeting_notes SET verrouille=1 WHERE id=?').run(note.id);
     logAdmin(req.user.id, 'signature_note', `note ${note.id} — ${note.titre}`, note.id, 'note', req.ip);
     res.json({ ok: true, verrouille: cnt >= 2, nb_signatures: cnt });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
 // Lister les signatures d'une note
@@ -1691,7 +1723,7 @@ Retourne UNIQUEMENT le texte corrigé, sans explication ni commentaire.\n\nTexte
     });
     res.json({ corrige: response.content[0].text });
   } catch (e) {
-    res.status(500).json({ error: 'Erreur API: ' + e.message });
+    console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -1734,7 +1766,7 @@ La lettre doit être formelle, chaleureuse et mettre en valeur les contributions
       });
       contenu = response.content[0].text;
     } catch (e) {
-      return res.status(500).json({ error: 'Erreur API: ' + e.message });
+      return console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' });
     }
   }
 
@@ -1868,7 +1900,7 @@ app.delete('/api/projects/:id', authMiddleware, requireRole('admin'), (req, res)
     res.json({ message: 'Projet supprimé' });
   } catch(e) {
     console.error('deleteProject:', e.message);
-    res.status(500).json({ error: e.message });
+    console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -1940,7 +1972,7 @@ app.post('/api/email/send', authMiddleware, requireRole(...COMITE_ROLES), upload
     db.prepare(`INSERT INTO emails_externes (expediteur_id, expediteur_nom, expediteur_email, destinataire, sujet, corps, statut)
       VALUES (?, ?, ?, ?, ?, ?, 'erreur')`)
       .run(req.user.id, senderName, senderEmail, to, subject, body);
-    res.status(500).json({ error: 'Échec d\'envoi: ' + e.message });
+    console.error('[ERR]', e.message); res.status(500).json({ error: 'Échec d\'envoi' });
   } finally {
     for (const f of (req.files || [])) { try { require('fs').unlinkSync(f.path); } catch {} }
   }
@@ -1975,7 +2007,7 @@ app.get('/api/email/inbox', authMiddleware, requireRole(...COMITE_ROLES), async 
     res.json(emails);
   } catch(e) {
     console.error(`[inbox] ERREUR pour ${orgEmail}:`, e.message);
-    res.status(500).json({ error: `Connexion IMAP échouée pour ${orgEmail} : ${e.message}` });
+    console.error('[IMAP]', e.message); res.status(500).json({ error: 'Connexion IMAP échouée' });
   }
 });
 
@@ -1990,7 +2022,7 @@ app.get('/api/email/inbox/:uid', authMiddleware, requireRole(...COMITE_ROLES), a
     const parsed = await imap.fetchEmailBody(orgEmail, orgPass, uid);
     res.json({ body: parsed.text, html: parsed.html });
   } catch(e) {
-    res.status(500).json({ error: e.message });
+    console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -2005,7 +2037,7 @@ app.put('/api/email/inbox/:uid/read', authMiddleware, requireRole(...COMITE_ROLE
     await imap.markAsRead(orgEmail, orgPass, uid);
     res.json({ ok: true });
   } catch(e) {
-    res.status(500).json({ error: e.message });
+    console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -2020,7 +2052,7 @@ app.delete('/api/email/inbox/:uid', authMiddleware, requireRole(...COMITE_ROLES)
     await imap.deleteEmail(orgEmail, orgPass, uid);
     res.json({ ok: true });
   } catch(e) {
-    res.status(500).json({ error: e.message });
+    console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -2035,7 +2067,7 @@ app.delete('/api/email/inbox', authMiddleware, requireRole(...COMITE_ROLES), asy
     const deleted = await imap.deleteBulk(orgEmail, orgPass, uids);
     res.json({ ok: true, deleted });
   } catch(e) {
-    res.status(500).json({ error: e.message });
+    console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -2558,15 +2590,16 @@ app.post('/api/auth/forgot-password', (req, res) => {
   const resetLink = `${siteUrl}/dashboard/reset-password.html?token=${token}`;
 
   mailer.sendResetPassword(user, resetLink).catch(e => console.error('Email error:', e.message));
-  console.log(`\n🔑 RESET LINK: ${resetLink}\n`);
 
   res.json({ message: 'Si cet email existe, un lien a été envoyé.' });
 });
 
-app.post('/api/auth/reset-password', (req, res) => {
+app.post('/api/auth/reset-password', authLimiter, (req, res) => {
   const { token, new_password } = req.body;
   if (!token || !new_password) return res.status(400).json({ error: 'Données manquantes' });
-  if (new_password.length < 6) return res.status(400).json({ error: 'Mot de passe trop court (min. 6 caractères)' });
+  if (new_password.length < 8) return res.status(400).json({ error: 'Mot de passe trop court (min. 8 caractères)' });
+  if (!/[A-Z]/.test(new_password)) return res.status(400).json({ error: 'Le mot de passe doit contenir au moins une majuscule' });
+  if (!/[0-9]/.test(new_password)) return res.status(400).json({ error: 'Le mot de passe doit contenir au moins un chiffre' });
 
   const row = db.prepare(`SELECT * FROM password_reset_tokens WHERE token = ? AND used = 0`).get(token);
   if (!row) return res.status(400).json({ error: 'Lien invalide ou déjà utilisé' });
@@ -3984,7 +4017,7 @@ app.post('/api/activities/:id/scan-public', (req, res) => {
 
   // Générer un JWT pour connecter automatiquement le membre
   const { password_hash, ...safeUser } = user;
-  const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
+  const token = jwt.sign({ id: user.id, email: user.email, role: user.role, prenom: user.prenom, nom: user.nom }, JWT_SECRET, { expiresIn: '8h' });
   res.json({
     token, user: safeUser,
     activite: act.titre, paiement_requis: act.paiement_requis, prix: act.prix
@@ -4022,7 +4055,7 @@ app.post('/api/activities/:id/pay-stripe', authMiddleware, async (req, res) => {
       cancel_url: `${siteBase}/activity-checkout.html?actid=${act.id}&token=${qr_token}`,
     });
     res.json({ checkout_url: session.url });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
 // POST — valider présence via QR (scan)
@@ -4745,7 +4778,7 @@ app.post('/api/orders/:orderToken/activate', async (req, res) => {
     res.json({ ok: true, email, nb_billets: activated.length });
   } catch(e) {
     console.error('Activate order error:', e.message);
-    res.status(500).json({ error: e.message });
+    console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -5647,7 +5680,7 @@ app.post('/api/cotisations/checkout', authMiddleware, async (req, res) => {
       cancel_url:  `${siteUrl}/dashboard/app.html?cotis=cancel`,
     });
     res.json({ url: session.url });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
 // ── Sondages ─────────────────────────────────────────────────────────────────
@@ -6001,6 +6034,14 @@ cron.schedule('30 3 * * *', () => {
     if (tokens.changes > 0) console.log('[CRON-CLEAN] ' + tokens.changes + ' tokens de reset nettoyés');
     const oldAudit = db.prepare("DELETE FROM admin_audit_log WHERE created_at < datetime('now', '-90 days')").run();
     if (oldAudit.changes > 0) console.log('[CRON-CLEAN] ' + oldAudit.changes + ' entrées audit >90j supprimées');
+    const tempDir = path.join(__dirname, 'uploads', 'email-temp');
+    if (fs.existsSync(tempDir)) {
+      const now = Date.now();
+      fs.readdirSync(tempDir).forEach(f => {
+        const fp = path.join(tempDir, f);
+        try { if (now - fs.statSync(fp).mtimeMs > 24*60*60*1000) fs.unlinkSync(fp); } catch {}
+      });
+    }
   } catch(e) { console.error('[CRON-CLEAN]', e.message); }
 }, { timezone: 'America/Toronto' });
 
@@ -6565,14 +6606,14 @@ app.get('/api/sponsors', (req, res) => {
   try {
     const rows = db.prepare('SELECT * FROM sponsors WHERE actif=1 ORDER BY ordre ASC, date_creation ASC').all();
     res.json(rows);
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
 app.get('/api/sponsors/all', authMiddleware, requireRole('admin','secretaire','tresoriere','delegue'), (req, res) => {
   try {
     const rows = db.prepare('SELECT * FROM sponsors ORDER BY ordre ASC, date_creation DESC').all();
     res.json(rows);
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
 app.post('/api/sponsors', authMiddleware, requireRole('admin','secretaire'), uploadSponsor.single('photo'), (req, res) => {
@@ -6584,7 +6625,7 @@ app.post('/api/sponsors', authMiddleware, requireRole('admin','secretaire'), upl
     const r = db.prepare('INSERT INTO sponsors (nom, description, site_web, photo_url, categorie, cree_par, ordre) VALUES (?,?,?,?,?,?,?)')
       .run(nom, description||'', site_web||'', photo_url, categorie||'or', req.user.id, maxOrdre + 1);
     res.status(201).json({ id: r.lastInsertRowid });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
 app.put('/api/sponsors/:id', authMiddleware, requireRole('admin','secretaire'), uploadSponsor.single('photo'), (req, res) => {
@@ -6598,14 +6639,14 @@ app.put('/api/sponsors/:id', authMiddleware, requireRole('admin','secretaire'), 
            photo_url, categorie||existing.categorie,
            actif!=null?parseInt(actif):existing.actif, ordre!=null?parseInt(ordre):existing.ordre, req.params.id);
     res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
 app.delete('/api/sponsors/:id', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
   try {
     db.prepare('DELETE FROM sponsors WHERE id=?').run(req.params.id);
     res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
 app.patch('/api/sponsors/:id/ordre', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
@@ -6621,7 +6662,7 @@ app.patch('/api/sponsors/:id/ordre', authMiddleware, requireRole('admin','secret
       db.prepare('UPDATE sponsors SET ordre=? WHERE id=?').run(current.ordre, target.id);
     }
     res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
 // ── Fermeture propre de la DB à l'arrêt ────────────────────────────────────
@@ -6889,7 +6930,7 @@ app.post('/api/documents/:id/sign', authMiddleware, (req, res) => {
       VALUES (?,?,?,?)`).run(doc.id, req.user.id, signature_data, req.ip);
     logAdmin(req.user.id, 'signature_document', `doc ${doc.id} — ${doc.nom}`, doc.id, 'document', req.ip);
     res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
 app.get('/api/documents/:id/signatures', authMiddleware, (req, res) => {
@@ -6972,7 +7013,7 @@ app.get('/api/ambassador', (req, res) => {
     const row = db.prepare('SELECT * FROM ambassador WHERE id=1').get();
     if (!row || !row.nom) return res.json(null);
     res.json(row);
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
 app.post('/api/ambassador/photo', authMiddleware, requireRole('admin'), uploadAmbassador.single('photo'), async (req, res) => {
@@ -6991,7 +7032,7 @@ app.put('/api/ambassador', authMiddleware, requireRole('admin'), (req, res) => {
       WHERE id=1`).run(nom||null, prenom||null, role_description||'', citation||'', photo_url||null, user_id||null);
     logAdmin(req.user.userId, 'ambassador_update', `${prenom} ${nom}`, null, null, req.ip);
     res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
 // ── Guide d'accueil PDF ──────────────────────────────────────────────────────
@@ -7163,7 +7204,7 @@ app.post('/api/forms', authMiddleware, requireRole(...FORM_EXEC), (req, res) => 
   const { titre, description, activity_id, allow_anonymous, message_fin, redirect_adhesion } = req.body;
   if (!titre) return res.status(400).json({ error: 'Titre requis' });
   const crypto = require('crypto');
-  const share_token = crypto.randomBytes(12).toString('hex');
+  const share_token = crypto.randomBytes(24).toString('hex');
   const r = db.prepare(`INSERT INTO forms (titre, description, share_token, activity_id, allow_anonymous, message_fin, redirect_adhesion, cree_par)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
     titre, description || null, share_token, activity_id || null,
@@ -8004,7 +8045,7 @@ app.post('/api/test/create-scan-simulation', authMiddleware, requireRole('admin'
     res.json({ ok:true, actId, total: all.length, categories: categories.map(c => ({ cat:c, count: all.filter(t=>t.cat===c).length })) });
   } catch(e) {
     console.error('[TEST SCAN V2]', e.message);
-    res.status(500).json({ error: e.message });
+    console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -8435,7 +8476,7 @@ app.post('/api/stripe/subscribe', authMiddleware, async (req, res) => {
     res.json({ checkout_url: session.url });
   } catch (e) {
     console.error('[STRIPE-SUB]', e.message);
-    res.status(500).json({ error: e.message });
+    console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -8454,7 +8495,7 @@ app.post('/api/stripe/cancel-subscription', authMiddleware, async (req, res) => 
     res.json({ ok: true });
   } catch (e) {
     console.error('[STRIPE-SUB-CANCEL]', e.message);
-    res.status(500).json({ error: e.message });
+    console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -8948,7 +8989,7 @@ app.post('/api/activities/:id/feedback', authMiddleware, (req, res) => {
     if (existing) return res.status(409).json({ error: 'Vous avez déjà soumis un avis pour cette activité' });
     db.prepare('INSERT INTO activity_feedback (activity_id, user_id, note, commentaire) VALUES (?, ?, ?, ?)').run(req.params.id, req.user.id, note, commentaire || null);
     res.json({ message: 'Merci pour votre avis !' });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
 // Get all feedback for an activity (EXEC roles only)
@@ -8956,7 +8997,7 @@ app.get('/api/activities/:id/feedback', authMiddleware, requireRole('admin','tre
   try {
     const rows = db.prepare(`SELECT af.*, u.prenom, u.nom FROM activity_feedback af LEFT JOIN users u ON u.id = af.user_id WHERE af.activity_id = ? ORDER BY af.date_creation DESC`).all(req.params.id);
     res.json(rows);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
 // Get feedback summary for an activity (any authenticated member)
@@ -8965,7 +9006,7 @@ app.get('/api/activities/:id/feedback/summary', authMiddleware, (req, res) => {
     const summary = db.prepare('SELECT AVG(note) AS moyenne, COUNT(*) AS total FROM activity_feedback WHERE activity_id = ?').get(req.params.id);
     const mine = db.prepare('SELECT id, note, commentaire FROM activity_feedback WHERE activity_id = ? AND user_id = ?').get(req.params.id, req.user.id);
     res.json({ moyenne: summary.moyenne ? Math.round(summary.moyenne * 10) / 10 : null, total: summary.total, mon_avis: mine || null });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -8988,7 +9029,7 @@ app.post('/api/tickets/:id/transfer', authMiddleware, (req, res) => {
     db.prepare('UPDATE tickets SET user_id = ?, transferred_to = ?, transferred_at = CURRENT_TIMESTAMP, original_owner_id = ?, acheteur_nom = ?, acheteur_email = ? WHERE id = ?')
       .run(target.id, target.id, originalOwner, target.prenom + ' ' + target.nom, target.email, ticket.id);
     res.json({ message: 'Billet transféré avec succès à ' + target.prenom + ' ' + target.nom });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -9054,7 +9095,7 @@ app.post('/api/admin/import-csv', authMiddleware, requireRole('admin','secretair
     try { fs.unlinkSync(req.file.path); } catch (_) {}
 
     res.json({ imported, skipped, errors });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -9112,7 +9153,7 @@ app.get('/api/admin/monitoring', authMiddleware, requireRole('admin'), (req, res
       last_backup: lastBackup,
       active_connections: activeConnections
     });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -9142,7 +9183,7 @@ app.post('/api/activities/:id/member-photos', authMiddleware, uploadMemberPhoto.
     const result = db.prepare(`INSERT INTO member_activity_photos (activity_id, user_id, photo_path, caption)
       VALUES (?,?,?,?)`).run(activityId, req.user.id, relPath, caption);
     res.json({ id: result.lastInsertRowid, photo_path: relPath, statut: 'en_attente' });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
 // List photos — EXEC sees all, members see only approved
@@ -9160,7 +9201,7 @@ app.get('/api/activities/:id/member-photos', authMiddleware, (req, res) => {
         ORDER BY mp.date_creation DESC`).all(activityId, req.user.id);
     }
     res.json(photos);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
 // Approve photo — EXEC only
@@ -9170,7 +9211,7 @@ app.post('/api/activities/:id/member-photos/:photoId/approve', authMiddleware, r
     if (!photo) return res.status(404).json({ error: 'Photo introuvable' });
     db.prepare("UPDATE member_activity_photos SET statut='approuve', approuve_par=? WHERE id=?").run(req.user.id, req.params.photoId);
     res.json({ ok: true, statut: 'approuve' });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
 // Reject photo — EXEC only, deletes file
@@ -9183,7 +9224,7 @@ app.post('/api/activities/:id/member-photos/:photoId/reject', authMiddleware, re
     if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
     db.prepare('DELETE FROM member_activity_photos WHERE id=?').run(req.params.photoId);
     res.json({ ok: true, statut: 'rejete' });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -9225,7 +9266,7 @@ app.post('/api/activities/:id/geo-checkin', authMiddleware, (req, res) => {
     }
     logAdmin(req.user.id, 'geo_checkin', `Geo check-in activité ${act.titre} (${Math.round(distance)}m)`, activityId, 'activity', null);
     res.json({ ok: true, result: 'checked_in', distance: Math.round(distance), radius });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -9265,7 +9306,7 @@ app.post('/api/payment-plans', authMiddleware, (req, res) => {
     }
 
     res.json({ id: planId, total_amount: totalAmount, nb_versements, montant_versement: montantVersement });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
 // List user's payment plans with versements
@@ -9280,7 +9321,7 @@ app.get('/api/payment-plans/my', authMiddleware, (req, res) => {
       plan.versements = db.prepare('SELECT * FROM payment_plan_versements WHERE plan_id=? ORDER BY numero').all(plan.id);
     }
     res.json(plans);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
 // Pay next versement
@@ -9308,7 +9349,7 @@ app.post('/api/payment-plans/:id/pay-next', authMiddleware, (req, res) => {
       versements_payes: newCount,
       plan_statut: newStatut
     });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -9362,7 +9403,7 @@ app.get('/api/admin/backups/:filename', authMiddleware, requireRole('admin'), (r
     const filePath = path.join(backupDir, filename);
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Fichier introuvable' });
     res.download(filePath, filename);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -9383,7 +9424,7 @@ app.post('/api/admin/roles', authMiddleware, requireRole('admin'), (req, res) =>
     res.status(201).json({ id: r.lastInsertRowid });
   } catch (e) {
     if (e.message && e.message.includes('UNIQUE')) return res.status(409).json({ error: 'Ce nom de rôle existe déjà' });
-    res.status(500).json({ error: e.message });
+    console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -9397,7 +9438,7 @@ app.put('/api/admin/roles/:id', authMiddleware, requireRole('admin'), (req, res)
     res.json({ message: 'Rôle mis à jour' });
   } catch (e) {
     if (e.message && e.message.includes('UNIQUE')) return res.status(409).json({ error: 'Ce nom de rôle existe déjà' });
-    res.status(500).json({ error: e.message });
+    console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 

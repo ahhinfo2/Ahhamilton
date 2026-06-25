@@ -14,12 +14,14 @@ function getTransporter() {
     port: parseInt(SMTP_PORT) || 587,
     secure: false,       // STARTTLS sur 587
     auth: { user: SMTP_USER, pass: SMTP_PASS },
-    tls: { rejectUnauthorized: false }
+    tls: { rejectUnauthorized: process.env.SMTP_TLS_VERIFY !== '0' }
   });
   return _transporter;
 }
 
 const FROM = `"Association Haïtienne de Hamilton" <${SMTP_USER}>`;
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 // ── Passerelles SMS canadiennes ───────────────────────────────────────────
 const SMS_GATEWAYS = {
@@ -140,7 +142,7 @@ async function sendInscriptionRefusee(user, raison) {
     html: wrap('Demande d\'adhésion', `
       <p>Bonjour <strong>${user.prenom} ${user.nom}</strong>,</p>
       <p>Nous avons bien reçu votre demande d'adhésion. Malheureusement, nous ne pouvons pas y donner suite pour le moment.</p>
-      ${raison ? `<p>Motif : ${raison}</p>` : ''}
+      ${raison ? `<p>Motif : ${esc(raison)}</p>` : ''}
       <p>N'hésitez pas à nous contacter pour plus d'informations.</p>
       <div style="text-align:center;margin:20px 0"><a href="mailto:contact@ahhamilton.ca" style="display:inline-block;background:#2e7d32;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:.9rem;font-family:Arial,sans-serif">Nous contacter</a></div>
     `)
@@ -171,10 +173,10 @@ async function sendContact({ nom, email, sujet, message, toList = null }) {
   const targets = toList && toList.length ? toList : (defaultDest ? [defaultDest] : []);
   const unique = [...new Set(targets.filter(Boolean))];
   const html = wrap('Nouveau message de contact', `
-      <p><strong>De :</strong> ${nom} (${email})</p>
-      <p><strong>Sujet :</strong> ${sujet}</p>
+      <p><strong>De :</strong> ${esc(nom)} (${esc(email)})</p>
+      <p><strong>Sujet :</strong> ${esc(sujet)}</p>
       <hr class="divider"/>
-      <p>${message.replace(/\n/g, '<br/>')}</p>
+      <p>${esc(message).replace(/\n/g, '<br/>')}</p>
     `);
   if (unique.length) {
     await sendMail({ to: unique.join(', '), subject: `[Contact AHH] ${sujet}`, html });
@@ -441,7 +443,7 @@ async function sendExternalEmail({ to, subject, bodyHtml, senderName, senderEmai
         const t = nodemailer.createTransport({
           host: SMTP_HOST, port, secure,
           auth: { user: orgEmail, pass: effectivePass },
-          tls: { rejectUnauthorized: false },
+          tls: { rejectUnauthorized: process.env.SMTP_TLS_VERIFY !== '0' },
           connectionTimeout: 10000, socketTimeout: 15000
         });
         await t.verify();
