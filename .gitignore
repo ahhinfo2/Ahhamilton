@@ -15,3 +15,4 @@ _fix_lightbox.js
 _gal_replace.js
 desktop-app/node_modules/
 desktop-app/dist/
+mobile-app/.expo/

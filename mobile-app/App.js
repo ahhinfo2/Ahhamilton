@@ -3,10 +3,12 @@ import { StyleSheet, View, StatusBar, BackHandler, Platform, Alert, Linking, Act
 import { WebView } from 'react-native-webview';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import * as Haptics from 'expo-haptics';
+import Hero from './components/Hero';
 
 const SITE_URL = 'https://ahhamilton.ca';
 const DASHBOARD_URL = SITE_URL + '/dashboard/app.html';
-const SCANNER_URL = SITE_URL + '/scan.html';
+
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({ shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: true }),
@@ -18,15 +20,34 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [currentUrl, setCurrentUrl] = useState(DASHBOARD_URL);
   const [activeTab, setActiveTab] = useState('home');
+  const [showHero, setShowHero] = useState(true);
+  const [stats, setStats] = useState([
+    { value: '150+', label: 'Membres' },
+    { value: '50+',  label: 'Activités' },
+    { value: '17+',  label: 'Années' },
+  ]);
 
   useEffect(() => {
     registerForPush();
+    fetchStats();
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
       if (canGoBack && webViewRef.current) { webViewRef.current.goBack(); return true; }
       return false;
     });
     return () => backHandler.remove();
   }, [canGoBack]);
+
+  async function fetchStats() {
+    try {
+      const res = await fetch(SITE_URL + '/api/stats/public');
+      const data = await res.json();
+      setStats([
+        { value: `${data.membres}+`, label: 'Membres' },
+        { value: `${data.activites}+`, label: 'Activités' },
+        { value: `${data.annees}+`, label: 'Années' },
+      ]);
+    } catch (e) {}
+  }
 
   async function registerForPush() {
     if (!Device.isDevice) return;
@@ -49,7 +70,9 @@ export default function App() {
   function onMessage(event) {
     try {
       const data = JSON.parse(event.nativeEvent.data);
-      if (data.type === 'notification') {
+      if (data.type === 'auth-status') {
+        setShowHero(!data.loggedIn);
+      } else if (data.type === 'notification') {
         Notifications.scheduleNotificationAsync({
           content: { title: data.title || 'AHH', body: data.body || '', sound: true },
           trigger: null,
@@ -60,10 +83,25 @@ export default function App() {
 
   const injectedJS = `
     (function() {
-      // Injecter le token push dans la page
       window.EXPO_PUSH_TOKEN = true;
-      // Intercepter les notifications pour les pousser en natif
       if (window.ReactNativeWebView) {
+        // Signaler l'état d'authentification à React Native
+        var token = localStorage.getItem('ahh_token');
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'auth-status',
+          loggedIn: !!token
+        }));
+
+        // Intercepter logout pour signaler la déconnexion
+        var origLogout = window.logout;
+        window.logout = function() {
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'auth-status', loggedIn: false
+          }));
+          if (origLogout) origLogout();
+        };
+
+        // Intercepter les notifications pour les pousser en natif
         var origToast = window.toast;
         if (origToast) {
           window.toast = function(msg, isError) {
@@ -86,7 +124,35 @@ export default function App() {
     <View style={styles.container}>
       <StatusBar backgroundColor="#1b5e20" barStyle="light-content" />
 
-      {loading && (
+      {/* ── Hero natif (affiché avant connexion) ── */}
+      {showHero && (
+        <Hero
+          badge="Communauté Haïtienne · Hamilton, ON"
+          title="Notre communauté, unie et solidaire"
+          titleHighlight="unie"
+          subtitle="Rejoignez l'Association Haïtienne de Hamilton — culture, entraide et solidarité depuis 2008."
+          backgroundImage={require('./assets/hero-bg.jpg')}
+          cta={{
+            label:   'Devenir membre',
+            icon:    '🤝',
+            onPress: () => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              setShowHero(false);
+              navigate(SITE_URL + '/adhesion.html', 'home');
+            },
+          }}
+          ctaSecondary={{
+            label:   'Explorer le site',
+            onPress: () => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setShowHero(false);
+            },
+          }}
+          stats={stats}
+        />
+      )}
+
+      {loading && !showHero && (
         <View style={styles.splash}>
           <ActivityIndicator size="large" color="#fff" />
           <Text style={styles.splashText}>AHH Hamilton</Text>
@@ -102,6 +168,7 @@ export default function App() {
         onNavigationStateChange={(navState) => {
           setCanGoBack(navState.canGoBack);
           setCurrentUrl(navState.url);
+          if (navState.url.includes('login.html')) setShowHero(true);
         }}
         onMessage={onMessage}
         injectedJavaScript={injectedJS}
@@ -131,13 +198,7 @@ export default function App() {
           <Text style={[styles.tabIcon, activeTab === 'events' && styles.tabActive]}>🎉</Text>
           <Text style={[styles.tabLabel, activeTab === 'events' && styles.tabLabelActive]}>Activités</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.tabCenter} onPress={() => navigate(SCANNER_URL, 'scan')}>
-          <View style={styles.scanBtn}>
-            <Text style={styles.scanIcon}>📷</Text>
-          </View>
-          <Text style={[styles.tabLabel, { color: '#1b5e20', fontWeight: '700' }]}>Scanner</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tab} onPress={() => navigate(DASHBOARD_URL + '#annuaire', 'mail')}>
+<TouchableOpacity style={styles.tab} onPress={() => navigate(DASHBOARD_URL + '#annuaire', 'mail')}>
           <Text style={[styles.tabIcon, activeTab === 'mail' && styles.tabActive]}>✉️</Text>
           <Text style={[styles.tabLabel, activeTab === 'mail' && styles.tabLabelActive]}>Courriel</Text>
         </TouchableOpacity>
@@ -158,9 +219,6 @@ const styles = StyleSheet.create({
   splashSub: { color: 'rgba(255,255,255,.6)', fontSize: 14, marginTop: 6 },
   tabBar: { flexDirection: 'row', backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#e0e0e0', paddingBottom: Platform.OS === 'ios' ? 20 : 4, paddingTop: 6, alignItems: 'center', justifyContent: 'space-around' },
   tab: { alignItems: 'center', flex: 1, paddingVertical: 2 },
-  tabCenter: { alignItems: 'center', flex: 1, marginTop: -18 },
-  scanBtn: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#1b5e20', justifyContent: 'center', alignItems: 'center', elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4 },
-  scanIcon: { fontSize: 24 },
   tabIcon: { fontSize: 20, color: '#999' },
   tabActive: { color: '#1b5e20' },
   tabLabel: { fontSize: 10, color: '#999', marginTop: 2 },
