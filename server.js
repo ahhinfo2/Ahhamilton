@@ -480,7 +480,7 @@ app.post('/api/auth/register', (req, res) => {
   mailer.sendVerificationEmail({ email, prenom }, verifyLink).catch(e => console.error('Verify email error:', e.message));
 
   // Notifier tous les exécutifs (message interne + email externe)
-  const staff = db.prepare("SELECT * FROM users WHERE role IN ('admin','tresoriere','secretaire','delegue') AND actif=1").all();
+  const staff = db.prepare("SELECT * FROM users WHERE role IN ('admin','tresoriere','secretaire','delegue') AND actif=1 AND (phantom IS NULL OR phantom=0)").all();
   const candidat = { prenom, nom, email, telephone, plan, message };
   if (staff.length) {
     const adminId = staff[0].id;
@@ -2779,7 +2779,7 @@ app.post('/api/contact', (req, res) => {
   if (!nom || !email || !message) return res.status(400).json({ error: 'Champs requis manquants' });
 
   // Notify all committee members (internal message + alert)
-  const staff = db.prepare("SELECT * FROM users WHERE role IN ('admin','tresoriere','secretaire','delegue') AND actif=1").all();
+  const staff = db.prepare("SELECT * FROM users WHERE role IN ('admin','tresoriere','secretaire','delegue') AND actif=1 AND (phantom IS NULL OR phantom=0)").all();
   if (staff.length) {
     const r = db.prepare("INSERT INTO messages (expediteur_id, sujet, contenu, type) VALUES (?, ?, ?, 'individuel')")
       .run(staff[0].id, `[Site public] ${sujet || 'Contact'} – ${nom}`, `De: ${nom} <${email}>\n\n${message}`);
@@ -5935,7 +5935,7 @@ cron.schedule('0 9 * * *', async () => {
       }
     }
   } catch(e) { console.error('[CRON]', e.message); }
-});
+}, { timezone: 'America/Toronto' });
 
 // ── Anniversaires — cron 8h Toronto ──────────────────────────────────────────
 cron.schedule('0 8 * * *', async () => {
@@ -6003,7 +6003,7 @@ cron.schedule('0 2 * * *', () => {
       } catch(re) { console.error('[BACKUP-REMOTE ERROR]', re.message); }
     }
   } catch(e) { console.error('[BACKUP ERROR]', e.message); }
-});
+}, { timezone: 'America/Toronto' });
 
 // ── Backup cloud quotidien à 4h du matin ────────────────────────────────────
 cron.schedule('0 4 * * *', () => {
@@ -9637,7 +9637,7 @@ app.post('/api/committee-meetings', authMiddleware, requireRole(...CM_ROLES), (r
   const r = db.prepare('INSERT INTO committee_meetings (date_heure, lieu, notes, cree_par) VALUES (?,?,?,?)')
     .run(date_heure, lieu || '', notes || '', req.user.id);
   const meetingId = r.lastInsertRowid;
-  const exec = db.prepare("SELECT id FROM users WHERE role IN ('admin','tresoriere','secretaire','delegue') AND actif=1").all();
+  const exec = db.prepare("SELECT id FROM users WHERE role IN ('admin','tresoriere','secretaire','delegue') AND actif=1 AND (phantom IS NULL OR phantom=0)").all();
   const ins = db.prepare('INSERT OR IGNORE INTO committee_meeting_attendance (meeting_id, user_id, statut) VALUES (?,?,?)');
   exec.forEach(u => ins.run(meetingId, u.id, 'absent'));
   logAdmin(req.user.id, 'committee_meeting_create', `Rencontre comité créée`, meetingId, 'committee_meeting', req.ip);
@@ -9647,7 +9647,7 @@ app.post('/api/committee-meetings', authMiddleware, requireRole(...CM_ROLES), (r
 app.get('/api/committee-meetings/:id', authMiddleware, requireRole(...CM_ROLES), (req, res) => {
   const m = db.prepare(`SELECT cm.*, u.prenom||' '||u.nom AS createur_nom FROM committee_meetings cm LEFT JOIN users u ON u.id=cm.cree_par WHERE cm.id=?`).get(req.params.id);
   if (!m) return res.status(404).json({ error: 'Rencontre introuvable' });
-  const exec = db.prepare("SELECT id, prenom, nom, role FROM users WHERE role IN ('admin','tresoriere','secretaire','delegue') AND actif=1 ORDER BY CASE role WHEN 'admin' THEN 1 WHEN 'tresoriere' THEN 2 WHEN 'secretaire' THEN 3 WHEN 'delegue' THEN 4 END").all();
+  const exec = db.prepare("SELECT id, prenom, nom, role FROM users WHERE role IN ('admin','tresoriere','secretaire','delegue') AND actif=1 AND (phantom IS NULL OR phantom=0) ORDER BY CASE role WHEN 'admin' THEN 1 WHEN 'tresoriere' THEN 2 WHEN 'secretaire' THEN 3 WHEN 'delegue' THEN 4 END").all();
   const att = db.prepare('SELECT user_id, statut FROM committee_meeting_attendance WHERE meeting_id=?').all(m.id);
   const attMap = {};
   att.forEach(a => { attMap[a.user_id] = a.statut; });
@@ -9714,7 +9714,7 @@ app.post('/api/committee-meetings/:id/sign', authMiddleware, requireRole(...CM_R
 app.get('/api/committee-meetings/:id/download', authMiddleware, requireRole(...CM_ROLES), (req, res) => {
   const m = db.prepare('SELECT cm.*, u.prenom||" "||u.nom AS createur_nom FROM committee_meetings cm LEFT JOIN users u ON u.id=cm.cree_par WHERE cm.id=?').get(req.params.id);
   if (!m) return res.status(404).send('Rencontre introuvable');
-  const exec = db.prepare("SELECT id, prenom, nom, role FROM users WHERE role IN ('admin','tresoriere','secretaire','delegue') AND actif=1 ORDER BY CASE role WHEN 'admin' THEN 1 WHEN 'tresoriere' THEN 2 WHEN 'secretaire' THEN 3 WHEN 'delegue' THEN 4 END").all();
+  const exec = db.prepare("SELECT id, prenom, nom, role FROM users WHERE role IN ('admin','tresoriere','secretaire','delegue') AND actif=1 AND (phantom IS NULL OR phantom=0) ORDER BY CASE role WHEN 'admin' THEN 1 WHEN 'tresoriere' THEN 2 WHEN 'secretaire' THEN 3 WHEN 'delegue' THEN 4 END").all();
   const att = db.prepare('SELECT user_id, statut FROM committee_meeting_attendance WHERE meeting_id=?').all(m.id);
   const attMap = {}; att.forEach(a => { attMap[a.user_id] = a.statut; });
   const sigs = db.prepare('SELECT s.*, u.prenom||" "||u.nom AS nom_signataire, u.role FROM committee_meeting_signatures s JOIN users u ON u.id=s.user_id WHERE s.meeting_id=? ORDER BY s.date_signature').all(m.id);
