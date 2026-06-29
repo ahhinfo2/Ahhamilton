@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Documentation — Billets & Cartes Membres | AHH</title>
+<title>Documentation : Billets & Cartes Membres | AHH</title>
 <style>
   @page { size: letter; margin: 2cm; }
   @media print {
@@ -50,19 +50,19 @@
 <div class="doc-header">
   <img src="/Public/logo1.png" alt="AHH" onerror="this.style.display='none'"/>
   <h1>Système de Billetterie & Cartes Membres</h1>
-  <p>Association Haïtienne de Hamilton — Documentation technique et opérationnelle</p>
-  <p style="font-size:.75rem;color:#999;margin-top:8px">Version 2.0 — Juin 2026</p>
+  <p>Association Haïtienne de Hamilton : Documentation technique et opérationnelle</p>
+  <p style="font-size:.75rem;color:#999;margin-top:8px">Version 2.0, Juin 2026</p>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════ -->
-<h2>1. Système de Billetterie — Activités</h2>
+<h2>1. Système de Billetterie : Activités</h2>
 
 <h3>1.1 Types de billets</h3>
 <table>
   <thead><tr><th>Type</th><th>Description</th><th>Méthode</th><th>QR Code</th></tr></thead>
   <tbody>
     <tr><td><strong>Stripe (en ligne)</strong></td><td>Achat par carte de crédit via le site</td><td>Paiement Stripe sécurisé</td><td>Envoyé par courriel automatiquement</td></tr>
-    <tr><td><strong>Interac</strong></td><td>Virement bancaire — activation après confirmation</td><td>Virement + confirmation manuelle</td><td>Envoyé après activation</td></tr>
+    <tr><td><strong>Interac</strong></td><td>Virement bancaire, activation après confirmation</td><td>Virement + confirmation manuelle</td><td>Envoyé après activation</td></tr>
     <tr><td><strong>Cash (en personne)</strong></td><td>Vendu par un membre du comité sur place</td><td>Espèces / comptant</td><td>Imprimé sur place ou envoyé</td></tr>
     <tr><td><strong>Pré-imprimé</strong></td><td>Billet généré avant l'événement (talon)</td><td>Marqué « vendu » à l'encaissement</td><td>Pré-généré, activé à la vente</td></tr>
   </tbody>
@@ -114,10 +114,10 @@
 
 <h3>2.2 Ajouter une photo (rendre la carte valide)</h3>
 <ol>
-  <li>Scanner la carte du membre</li>
+  <li>Numériser la carte du membre</li>
   <li>Si pas de photo → bouton <strong>« 📷 Prendre / Ajouter photo »</strong> apparaît</li>
   <li>La caméra du téléphone s'ouvre pour prendre la photo</li>
-  <li>La photo est uploadée ET approuvée automatiquement</li>
+  <li>La photo est téléversée ET approuvée automatiquement</li>
   <li>La carte est immédiatement <strong>valide</strong></li>
 </ol>
 
@@ -126,7 +126,7 @@
 <p><em>Cartes membres → sélectionner le membre → Renouveler</em></p>
 
 <!-- ═══════════════════════════════════════════════════════════════ -->
-<h2 class="page-break">3. Check-in croisé — Carte ↔ Billet</h2>
+<h2 class="page-break">3. Check-in croisé : Carte ↔ Billet</h2>
 
 <h3>3.1 Principe</h3>
 <p>Un membre qui a payé peut entrer avec <strong>n'importe lequel</strong> de ses deux QR codes. Le système synchronise :</p>
@@ -142,18 +142,18 @@
 <h3>3.2 Scénarios détaillés</h3>
 
 <div class="scenario">
-  <div class="scenario-title">Scénario 1 : Membre avec billet — scan carte</div>
+  <div class="scenario-title">Scénario 1 : Membre avec billet : scan carte</div>
   <p>Marie a acheté 3 billets (elle + 2 enfants). Son QR carte est scanné → le système trouve ses 3 billets, en valide 1, affiche « 2 billets restants ». Les enfants entrent en rescannant la carte.</p>
 </div>
 
 <div class="scenario">
-  <div class="scenario-title">Scénario 2 : Membre du comité — activité payante</div>
+  <div class="scenario-title">Scénario 2 : Membre du comité : activité payante</div>
   <p>Pierre (secrétaire) scanne sa carte → entrée VIP gratuite, compté comme présent. Aucun billet requis.</p>
 </div>
 
 <div class="scenario">
-  <div class="scenario-title">Scénario 3 : Membre sans billet — activité payante</div>
-  <p>Jean scanne sa carte → « ❌ Pas de billet — activité payante (5.00 $). Achat requis. » Entrée refusée.</p>
+  <div class="scenario-title">Scénario 3 : Membre sans billet : activité payante</div>
+  <p>Jean scanne sa carte → « ❌ Pas de billet, activité payante (5.00 $). Achat requis. » Entrée refusée.</p>
 </div>
 
 <div class="scenario">
@@ -163,39 +163,39 @@
 
 <div class="scenario">
   <div class="scenario-title">Scénario 5 : Carte sans photo</div>
-  <p>Nouveau membre scanne sa carte → « ⚠️ CARTE INVALIDE — aucune photo ». Le comité peut prendre la photo sur place.</p>
+  <p>Nouveau membre scanne sa carte → « ⚠️ CARTE INVALIDE, aucune photo ». Le comité peut prendre la photo sur place.</p>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <h2 class="page-break">4. Délégation de scan</h2>
 
 <h3>4.1 Principe</h3>
-<p>Le comité peut donner temporairement à un membre régulier le droit de scanner des billets et/ou des cartes lors d'un événement.</p>
+<p>Le comité peut donner temporairement à un membre régulier le droit de numériser des billets et/ou des cartes lors d'un événement.</p>
 
 <table>
-  <thead><tr><th>Type</th><th>Le membre peut scanner</th><th>Visible dans son sidebar</th></tr></thead>
+  <thead><tr><th>Type</th><th>Le membre peut numériser</th><th>Visible dans son menu</th></tr></thead>
   <tbody>
-    <tr><td><strong>Billets</strong></td><td>QR billets d'activité uniquement</td><td>Scanner billets</td></tr>
-    <tr><td><strong>Cartes</strong></td><td>QR cartes membres uniquement</td><td>Scanner cartes</td></tr>
-    <tr><td><strong>Tous</strong></td><td>Billets + Cartes</td><td>Les deux scanners</td></tr>
+    <tr><td><strong>Billets</strong></td><td>QR billets d'activité uniquement</td><td>Lecteur QR</td></tr>
+    <tr><td><strong>Cartes</strong></td><td>QR cartes membres uniquement</td><td>Lecteur QR</td></tr>
+    <tr><td><strong>Tous</strong></td><td>Billets + Cartes</td><td>Lecteur QR</td></tr>
   </tbody>
 </table>
 
 <h3>4.2 Créer une délégation</h3>
 <ol>
-  <li>Sidebar → <strong>Scanners → Déléguer un scanner</strong></li>
+  <li>Menu → <strong>Lecteurs QR → Déléguer un lecteur</strong></li>
   <li>Rechercher le membre par nom</li>
   <li>Choisir l'activité (ou toutes)</li>
   <li>Choisir le type (Billets / Cartes / Tous)</li>
   <li>Définir la date d'expiration</li>
-  <li>Le membre voit le scanner dans son sidebar <strong>automatiquement</strong> (refresh 30s)</li>
+  <li>Le membre voit le lecteur QR dans son menu <strong>automatiquement</strong> (refresh 30s)</li>
 </ol>
 
 <h3>4.3 Révoquer</h3>
-<p>Sidebar → Scanners → Déléguer un scanner → bouton <strong>Révoquer</strong> sur la délégation. Le scanner disparaît du sidebar du membre au prochain refresh.</p>
+<p>Menu → Lecteurs QR → Déléguer un lecteur → bouton <strong>Révoquer</strong> sur la délégation. Le lecteur QR disparaît du menu du membre au prochain refresh.</p>
 
 <!-- ═══════════════════════════════════════════════════════════════ -->
-<h2 class="page-break">5. Résultats du scan — Codes couleur</h2>
+<h2 class="page-break">5. Résultats du scan : Codes couleur</h2>
 
 <table>
   <thead><tr><th>Couleur</th><th>Statut</th><th>Signification</th><th>Action</th></tr></thead>
@@ -231,7 +231,7 @@
 </ul>
 
 <div style="margin-top:40px;padding-top:16px;border-top:2px solid #1b5e20;text-align:center;font-size:.78rem;color:#888">
-  <p>Association Haïtienne de Hamilton — Hamilton, Ontario, Canada</p>
+  <p>Association Haïtienne de Hamilton, Hamilton, Ontario, Canada</p>
   <p>Document généré le <script>document.write(new Date().toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'}))</script></p>
 </div>
 

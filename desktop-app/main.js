@@ -65,7 +65,7 @@ app.on('ready', function() {
         { label: 'Tableau de bord', click: function() { mainWindow.loadURL(DASHBOARD_URL); } },
         { label: 'Site public', click: function() { mainWindow.loadURL(SITE_URL); } },
         { type: 'separator' },
-        { label: 'Scanner billets', click: function() { mainWindow.loadURL(SITE_URL + '/scan.html'); } },
+        { label: 'Numériser billets', click: function() { mainWindow.loadURL(SITE_URL + '/scan.html'); } },
         { type: 'separator' },
         { label: 'Rafraîchir', accelerator: 'F5', click: function() { mainWindow.reload(); } },
         { label: 'Zoom +', accelerator: 'CmdOrCtrl+=', click: function() { mainWindow.webContents.setZoomLevel(mainWindow.webContents.getZoomLevel() + 0.5); } },

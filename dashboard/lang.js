@@ -9,7 +9,7 @@ window.AHH_LANG = (function() {
     'Bénévolat':         { en:'Volunteer',          ht:'Bènevolat' },
     'Heures bénévolat':  { en:'Volunteer Hours',    ht:'Èdtan bènevolat' },
     'Cartes membres':    { en:'Member Cards',       ht:'Kat manm' },
-    'Scanner cartes':    { en:'Scan Cards',         ht:'Eskane kat' },
+    'Lecteur de cartes': { en:'Scan Cards',         ht:'Eskane kat' },
     'Calendrier':        { en:'Calendar',           ht:'Kalandriye' },
     'Sous-comités':      { en:'Sub-Committees',     ht:'Sou-komite' },
     'Projets':           { en:'Projects',           ht:'Pwojè' },
@@ -53,12 +53,12 @@ window.AHH_LANG = (function() {
     'Parrainage':        { en:'Referral',            ht:'Parennaj' },
     'Billetterie':       { en:'Ticketing',           ht:'Bilteri' },
     'Vendre (cash)':     { en:'Sell (Cash)',         ht:'Vann (kach)' },
-    'Scanner billets':   { en:'Scan Tickets',        ht:'Eskane bilè' },
+    'Numériser billets': { en:'Scan Tickets',        ht:'Eskane bilè' },
     'Commandes en attente': { en:'Pending Orders',   ht:'Kòmand annatant' },
 
     // ── Espace Jeunes ────────────────────────────────────────────
     'Espace Jeunes':     { en:'Youth Space',         ht:'Espas Jèn' },
-    'Tableau jeunes':    { en:'Youth Dashboard',     ht:'Tablo jèn' },
+    'Tableau jeunes':    { en:'Youth Board',         ht:'Tablo jèn' },
     'Stages & emplois':  { en:'Internships & Jobs',  ht:'Estaj & travay' },
     'Formations':        { en:'Training',            ht:'Fòmasyon' },
     'Sondages':          { en:'Surveys',             ht:'Sondaj' },

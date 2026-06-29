@@ -221,7 +221,7 @@
           body: JSON.stringify({ email: document.getElementById('email').value, password: document.getElementById('password').value })
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Email ou mot de passe invalide');
+        if (!res.ok) throw new Error(data.error || 'Courriel ou mot de passe invalide');
         localStorage.setItem('ahh_token', data.token);
         localStorage.setItem('ahh_user', JSON.stringify(data.user));
         location.href = 'app.html';

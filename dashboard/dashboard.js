@@ -376,13 +376,14 @@ async function buildSidebar() {
       { id:'meeting-calendar',  icon:'📅', label:'Calendrier réunions', roles:EXEC },
       { id:'meeting-agendas',   icon:'📝', label:'Ordres du jour',      roles:EXEC },
       { id:'notes',             icon:'◇', label:'Notes réunion',       roles:EXEC },
+      { id:'committee-meetings',icon:'🤝', label:'Rencontre comité',   roles:EXEC },
       { id:'reports',           icon:'◆', label:'Rapports',            roles:EXEC },
       { id:'stats-growth',      icon:'📈', label:'Statistiques',       roles:EXEC },
       { id:'alerts',            icon:'◇', label:'Alertes',             roles:EXEC },
       { id:'audit-log',         icon:'📋', label:'Journal d\'audit',   roles:EXEC },
       { id:'votes',             icon:'🗳️', label:'Votes & Élections', roles:EXEC },
       { id:'parrainage',        icon:'🤝', label:'Parrainage',         roles: ALL },
-      { id:'export-data',       icon:'📦', label:'Export / Backup',    roles:['admin','secretaire','tresoriere'] },
+      { id:'export-data',       icon:'📦', label:'Export / Sauvegarde', roles:['admin','secretaire','tresoriere'] },
       { id:'forms-mgmt',        icon:'📋', label:'Formulaires',        roles:EXEC },
     ]},
 
@@ -411,10 +412,10 @@ async function buildSidebar() {
       ]
     },
 
-    // ── Scanners ──────────────────────────────────────────────────
-    { label: 'Scanners', items: [
-      { id:'scanner-unified',   icon:'📷', label:'Scanner',             roles:EXEC },
-      { id:'scan-delegations',  icon:'📱', label:'Déléguer un scanner', roles:EXEC },
+    // ── Lecteurs QR ──────────────────────────────────────────────────
+    { label: 'Lecteurs QR', items: [
+      { id:'scanner-unified',   icon:'📷', label:'Lecteur QR',          roles:EXEC },
+      { id:'scan-delegations',  icon:'📱', label:'Déléguer un lecteur', roles:EXEC },
     ]},
 
     // ── Billetterie ───────────────────────────────────────────────
@@ -471,7 +472,7 @@ async function buildSidebar() {
         const showBillets = types.has('billets') || types.has('tous');
         const showCartes  = types.has('cartes')  || types.has('tous');
         const scanItems = [];
-        if (showBillets || showCartes) scanItems.push({ id:'scanner-unified', icon:'📷', label:'Scanner', _section: '📱 Scanners' });
+        if (showBillets || showCartes) scanItems.push({ id:'scanner-unified', icon:'📷', label:'Lecteur QR', _section: '📱 Lecteurs QR' });
         // Insert before mes-badges
         const badgeIdx = memberItems.findIndex(i => i.id === 'mes-badges');
         memberItems.splice(badgeIdx >= 0 ? badgeIdx : memberItems.length, 0, ...scanItems);
@@ -537,7 +538,7 @@ function setActiveNav(viewId) {
     'young-trainings':'Formations', 'young-polls':'Sondages', 'young-stories':'Success Stories',
     'votes':'Votes & Élections', 'parrainage':'Parrainage', 'stats-growth':'Statistiques',
     'carte-membre':'Ma carte membre', 'actualites':'Actualités', 'notif-prefs':'Notifications',
-    'carte-gestion':'Gestion des cartes', 'carte-scanner':'Scanner cartes', 'scanner-unified':'Scanner',
+    'carte-gestion':'Gestion des cartes', 'carte-scanner':'Lecteur de cartes', 'scanner-unified':'Lecteur QR',
     'journal-admin':'Journal d\'activité', 'mes-badges':'Mes badges', 'ambassadeur-admin':'Ambassadeur du mois',
     'abonnes-newsletter':'Abonnés newsletter',
     'tasks':'Tâches',
@@ -549,11 +550,12 @@ function setActiveNav(viewId) {
     'email-templates':'Modèles de courriels',
     'export-data':'Export données',
     'annual-report':'Rapport annuel',
-    'scan-delegations':'Déléguer un scanner',
+    'scan-delegations':'Déléguer un lecteur',
     'forms-mgmt':'Formulaires',
-    'shop-mgmt':'Boutique en ligne'
+    'shop-mgmt':'Boutique en ligne',
+    'committee-meetings':'Rencontre comité'
   };
-  const raw = labels[viewId] || 'Dashboard';
+  const raw = labels[viewId] || 'Tableau de bord';
   document.getElementById('topbarTitle').textContent = window.AHH_LANG ? AHH_LANG.get(raw) : raw;
 }
 
@@ -883,7 +885,7 @@ function initFAB() {
   if (!canScan) return;
   const btn = document.createElement('button');
   btn.className = 'fab-scanner';
-  btn.title = 'Scanner une carte';
+  btn.title = 'Numériser une carte';
   btn.innerHTML = '📷';
   btn.onclick = () => showView('carte-scanner');
   document.body.appendChild(btn);
@@ -988,6 +990,7 @@ async function showView(viewId) {
     'scan-delegations': scanDelegationsListView,
     'forms-mgmt': formsMgmtView,
     'shop-mgmt': shopMgmtView,
+    'committee-meetings': committeeMeetingsView,
   };
   if (extViews[viewId]) {
     try { await extViews[viewId](); } catch(e) { setContent(`<div class="empty-state"><div class="es-icon">⚠️</div><p>${e.message}</p></div>`); }
@@ -1088,7 +1091,7 @@ async function home() {
             </button>`).join('')}
         </div>
         <div style="border-top:1px solid var(--border);margin-top:8px;padding:10px 16px;display:flex;gap:10px;flex-wrap:wrap">
-          <button class="btn btn-ghost btn-sm" onclick="showView('carte-scanner')">📷 Scanner cartes</button>
+          <button class="btn btn-ghost btn-sm" onclick="showView('carte-scanner')">📷 Lecteur de cartes</button>
           <button class="btn btn-ghost btn-sm" onclick="showView('inscriptions')">📝 Inscriptions</button>
           <button class="btn btn-ghost btn-sm" onclick="showView('tasks')">✓ Tâches</button>
         </div>
@@ -1676,7 +1679,7 @@ function renderActivitiesTable(data) {
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:nowrap">
         ${canCreateActivity() ? `
           <button class="btn btn-sm btn-outline" onclick="openActivityForm(window._actById[${a.id}])" title="Modifier">✏️ Modifier</button>
-          <button class="btn btn-sm btn-ghost" title="Scanner billets" onclick="openScanner(${a.id})">📷 Scanner</button>
+          <button class="btn btn-sm btn-ghost" title="Numériser billets" onclick="openScanner(${a.id})">📷 Numériser</button>
           <button class="btn btn-sm btn-ghost" onclick="showActivityReport(${a.id})" title="Rapport">📊 Rapport</button>
           <button class="btn btn-sm ${a.featured ? 'btn-accent' : 'btn-ghost'}" onclick="toggleFeatured(${a.id},${a.featured?1:0})" title="${a.featured ? 'Retirer de la une' : 'Mettre à la une'}" style="${a.featured?'background:#f9a825;color:#000':''}">⭐${a.featured?' À LA UNE':''}</button>
           <div style="position:relative">
@@ -1692,7 +1695,7 @@ function renderActivitiesTable(data) {
               <div class="act-menu-item" onclick="closeActMenus();manageActivityPhotos(${a.id},'${a.titre.replace(/'/g,"\\'")}')">🖼 Photos</div>
               <div class="act-menu-item" onclick="closeActMenus();openActivityDetail(${a.id})">🚗 Covoiturage</div>
               <div style="border-top:1px solid var(--border);margin:4px 0"></div>
-              <div class="act-menu-item" onclick="closeActMenus();openScanDelegation(${a.id},'${a.titre.replace(/'/g,"\\'")}')">📱 Déléguer un scanner</div>
+              <div class="act-menu-item" onclick="closeActMenus();openScanDelegation(${a.id},'${a.titre.replace(/'/g,"\\'")}')">📱 Déléguer un lecteur</div>
               <div class="act-menu-item" onclick="closeActMenus();viewScanLogs(${a.id},'${a.titre.replace(/'/g,"\\'")}')">📋 Journal des scans</div>
               <div style="border-top:1px solid var(--border);margin:4px 0"></div>
               <div class="act-menu-item"><a href="${API}/activities/${a.id}/ical" download style="color:inherit;text-decoration:none;display:block">📅 Exporter iCal</a></div>
@@ -1849,7 +1852,7 @@ async function _uploadActivityImage(actId, file) {
       headers: { Authorization: 'Bearer ' + TOKEN },
       body: fd
     });
-    if (!r.ok) throw new Error('Erreur upload');
+    if (!r.ok) throw new Error('Erreur téléversement');
     const data = await r.json();
     toast('Image ajoutée');
     const acts = window._activitiesData || [];
@@ -2256,7 +2259,7 @@ async function viewRegistrations(id, titre) {
   const data = await api(`/activities/${id}/registrations`);
   openModal(`Inscriptions – ${titre}`, `
     <div class="table-wrapper"><table>
-      <thead><tr><th>Nom</th><th>Email</th><th>Téléphone</th><th>Statut</th><th>Date</th></tr></thead>
+      <thead><tr><th>Nom</th><th>Courriel</th><th>Téléphone</th><th>Statut</th><th>Date</th></tr></thead>
       <tbody>
         ${data.length ? data.map(r => `<tr><td>${escHtml(r.prenom)} ${escHtml(r.nom)}</td><td>${escHtml(r.email)}</td><td>${escHtml(r.telephone||'–')}</td><td>${statusPill(r.statut)}</td><td>${fmt(r.date_inscription)}</td></tr>`).join('') : '<tr><td colspan="5" style="text-align:center">Aucune inscription</td></tr>'}
       </tbody>
@@ -2322,7 +2325,7 @@ async function members() {
         <table id="membersTable">
           <thead><tr>
             <th class="th-sort" onclick="sortMembers('nom')">Nom <span id="si-nom" class="sort-ind">↕</span></th>
-            <th class="th-sort" onclick="sortMembers('email')">Email <span id="si-email" class="sort-ind">↕</span></th>
+            <th class="th-sort" onclick="sortMembers('email')">Courriel <span id="si-email" class="sort-ind">↕</span></th>
             <th>Téléphone</th>
             <th class="th-sort" onclick="sortMembers('role')">Rôle <span id="si-role" class="sort-ind">↕</span></th>
             <th class="th-sort" onclick="sortMembers('plan')">Plan <span id="si-plan" class="sort-ind">↕</span></th>
@@ -2441,7 +2444,7 @@ function openMemberForm(u = null) {
         <div class="form-group"><label>Prénom *</label><input id="m_prenom" value="${u?.prenom||''}" required/></div>
         <div class="form-group"><label>Nom *</label><input id="m_nom" value="${u?.nom||''}" required/></div>
       </div>
-      <div class="form-group"><label>Email *</label><input type="email" id="m_email" value="${u?.email||''}" required/></div>
+      <div class="form-group"><label>Courriel *</label><input type="email" id="m_email" value="${u?.email||''}" required/></div>
       <div class="form-row">
         <div class="form-group"><label>Téléphone</label><input id="m_tel" value="${u?.telephone||''}"/></div>
         <div class="form-group"><label>Date naissance</label><input type="date" id="m_dob" value="${u?.date_naissance||''}"/></div>
@@ -2456,9 +2459,9 @@ function openMemberForm(u = null) {
           <option value="admin" ${u?.role==='admin'?'selected':''}>Admin</option>
         </select></div>
         <div style="background:var(--off);border-radius:10px;padding:14px;margin-top:6px">
-          <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">📤 Email organisationnel (envoi externe)</div>
+          <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">📤 Courriel organisationnel (envoi externe)</div>
           <div class="form-row">
-            <div class="form-group"><label>Email @ahhamilton.ca</label><input type="email" id="m_email_org" value="${u?.email_org||''}" placeholder="vp@ahhamilton.ca"/></div>
+            <div class="form-group"><label>Courriel @ahhamilton.ca</label><input type="email" id="m_email_org" value="${u?.email_org||''}" placeholder="vp@ahhamilton.ca"/></div>
             <div class="form-group"><label>Mot de passe Hostinger</label><input type="password" id="m_smtp_pass" placeholder="Laisser vide = inchangé"/></div>
           </div>
         </div>` : ''}
@@ -4128,7 +4131,7 @@ async function printVolReport() {
   const userId = document.getElementById('rep_user')?.value;
   const data = await api('/reports/volunteer' + (userId ? `?user_id=${userId}` : ''));
   const tableHtml = `<table>
-    <thead><tr><th>Membre</th><th>Email</th><th>Activité</th><th>Heures</th><th>Date</th></tr></thead>
+    <thead><tr><th>Membre</th><th>Courriel</th><th>Activité</th><th>Heures</th><th>Date</th></tr></thead>
     <tbody>${data.rows.map(r=>`<tr><td>${r.prenom} ${r.nom}</td><td>${r.email}</td><td>${r.activite||'–'}</td><td>${r.heures}h</td><td>${fmt(r.date_service)}</td></tr>`).join('') || '<tr><td colspan="5" style="text-align:center">Aucun résultat</td></tr>'}</tbody>
   </table>`;
   printAHHReport(`Rapport bénévolat — ${data.total_heures}h approuvées`, tableHtml);
@@ -4138,7 +4141,7 @@ async function genVolReport() {
   const userId = document.getElementById('rep_user')?.value;
   const data = await api('/reports/volunteer' + (userId ? `?user_id=${userId}` : ''));
   const tableHtml = `<table>
-    <thead><tr><th>Membre</th><th>Email</th><th>Activité</th><th>Heures</th><th>Date</th></tr></thead>
+    <thead><tr><th>Membre</th><th>Courriel</th><th>Activité</th><th>Heures</th><th>Date</th></tr></thead>
     <tbody>${data.rows.map(r=>`<tr><td>${r.prenom} ${r.nom}</td><td>${r.email}</td><td>${r.activite||'–'}</td><td>${r.heures}h</td><td>${fmt(r.date_service)}</td></tr>`).join('') || '<tr><td colspan="5" style="text-align:center">Aucun résultat</td></tr>'}</tbody>
   </table>`;
   document.getElementById('reportResult').innerHTML = `
@@ -5182,10 +5185,10 @@ async function gmExtDeleteAll() {
 }
 
 async function gmExtDeleteOne(uid) {
-  if (!confirm('Supprimer cet email définitivement ?')) return;
+  if (!confirm('Supprimer ce courriel définitivement ?')) return;
   try {
     await api(`/email/inbox/${uid}`, { method:'DELETE', timeout:25000 });
-    toast('Email supprimé');
+    toast('Courriel supprimé');
     gmNav('external');
   } catch(err) { toast('Erreur suppression : ' + err.message, 'error'); }
 }
@@ -5263,10 +5266,10 @@ function gmExtForward() {
 }
 
 async function gmExtDelete(uid) {
-  if (!confirm('Supprimer cet email définitivement ?')) return;
+  if (!confirm('Supprimer ce courriel définitivement ?')) return;
   try {
     await api(`/email/inbox/${uid}`, { method:'DELETE', timeout:25000 });
-    toast('Email supprimé');
+    toast('Courriel supprimé');
     _extCurrent = null;
     gmNav('external');
   } catch(err) { toast('Erreur suppression : ' + err.message, 'error'); }
@@ -6292,7 +6295,7 @@ async function profile() {
         ${u.role === 'member' ? `<span class="role-tag" style="background:${u.plan==='partenaire'?'#1b5e20':u.plan==='bienfaiteur'?'#e65100':'#37474f'};margin-left:6px">${{gratuit:'Gratuit',bienfaiteur:'Bienfaiteur',partenaire:'Partenaire'}[u.plan]||'Gratuit'}</span>` : ''}
         <div class="info-grid">
           ${u.role === 'member' ? `<div class="info-item"><label>Type d'adhésion</label><span><strong>${{gratuit:'Membre Gratuit',bienfaiteur:'Bienfaiteur',partenaire:'Partenaire'}[u.plan]||'Gratuit'}</strong></span></div>` : ''}
-          <div class="info-item"><label>Email</label><span>${u.email}</span></div>
+          <div class="info-item"><label>Courriel</label><span>${u.email}</span></div>
           <div class="info-item"><label>Téléphone</label><span>${u.telephone||'–'}</span></div>
           <div class="info-item"><label>Adresse</label><span>${u.adresse||'–'}</span></div>
           <div class="info-item"><label>Date naissance</label><span>${u.date_naissance||'–'}</span></div>
@@ -6358,7 +6361,7 @@ async function profile() {
       const res = await fetch(`${BASE}/api/users/${u.id}/photo`, {
         method: 'POST', headers: { Authorization: `Bearer ${TOKEN}` }, body: fd
       });
-      if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Upload échoué'); }
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Téléversement échoué'); }
       const data = await res.json();
       USER.photo_url = data.photo_url;
       localStorage.setItem('ahh_user', JSON.stringify(USER));
@@ -7583,7 +7586,7 @@ async function inscriptions() {
 
     '<div class="table-card"><div class="table-card-header"><h3>Historique (' + processed.length + ')</h3></div>' +
     '<div class="table-wrapper"><table>' +
-    '<thead><tr><th>Nom</th><th>Email</th><th>Plan</th><th>Statut</th><th>Soumis</th><th>Traité</th><th></th></tr></thead><tbody>' +
+    '<thead><tr><th>Nom</th><th>Courriel</th><th>Plan</th><th>Statut</th><th>Soumis</th><th>Traité</th><th></th></tr></thead><tbody>' +
     (processed.map(p =>
       '<tr><td>' + p.prenom + ' ' + p.nom + '</td><td>' + p.email + '</td><td>' + (p.plan||'gratuit') + '</td>' +
       '<td>' + statutPill(p.statut) + '</td><td>' + fmt(p.date_soumission) + '</td><td>' + fmt(p.date_traitement) + '</td>' +
@@ -8266,7 +8269,7 @@ async function rappDetailCotisationsAnnee(year, allCotis, allPayments) {
 
   window._rappCSV = {
     filename: 'cotisations_' + year + '.csv',
-    headers: ['Mois', 'Membre', 'Email', 'Plan', 'Montant', 'Statut'],
+    headers: ['Mois', 'Membre', 'Courriel', 'Plan', 'Montant', 'Statut'],
     rows: cotisPeriode.map(c => {
       const [yr, mo] = (c.periode || '').split('-');
       return [MOIS_FR[parseInt(mo)] + ' ' + yr, (c.prenom||'')+' '+(c.nom||''), c.email||'', c.plan||c.user_plan||'', c.montant_attendu||0, c.statut||''];
@@ -8336,7 +8339,7 @@ async function rappDetailDons(allPayments) {
 
   window._rappCSV = {
     filename: 'dons.csv',
-    headers: ['Donateur', 'Email', 'Montant', 'Méthode', 'Date', 'Statut'],
+    headers: ['Donateur', 'Courriel', 'Montant', 'Méthode', 'Date', 'Statut'],
     rows: dons.map(p => [(p.prenom||'')+' '+(p.nom||''), p.email||'', p.montant||0, p.methode||'', (p.date_soumission||'').substring(0,10), p.statut||'']),
   };
 
@@ -8381,7 +8384,7 @@ async function rappDetailActivite(act, allPayments) {
 
   window._rappCSV = {
     filename: 'activite_' + act.id + '.csv',
-    headers: ['Participant', 'Email', 'Statut membre', 'A payé', 'Montant payé', 'Montant dû', 'Date inscription'],
+    headers: ['Participant', 'Courriel', 'Statut membre', 'A payé', 'Montant payé', 'Montant dû', 'Date inscription'],
     rows: inscrits.map(i => [
       (i.prenom||'')+' '+(i.nom||''), i.email||'',
       (i.plan && i.plan !== 'gratuit') ? i.plan : 'Visiteur',
@@ -8531,7 +8534,7 @@ async function rappModalEnRetard(allCotis) {
 
   window._rappCSV = {
     filename: 'membres_en_retard.csv',
-    headers: ['Membre', 'Email', 'Plan', 'Mois en retard', 'Montant dû', 'Périodes'],
+    headers: ['Membre', 'Courriel', 'Plan', 'Mois en retard', 'Montant dû', 'Périodes'],
     rows: retards.map(m => [m.nom, m.email, m.plan || '', m.periodes.length, m.total.toFixed(2), m.periodes.join(' | ')]),
   };
 
@@ -8955,7 +8958,7 @@ async function rappModalFiscal(allPayments) {
 
   window._rappCSV = {
     filename: 'rapport_fiscal_' + annee + '.csv',
-    headers: ['Membre', 'Email', 'Année', 'Montant total', 'Date génération', 'Archivé'],
+    headers: ['Membre', 'Courriel', 'Année', 'Montant total', 'Date génération', 'Archivé'],
     rows: recusAnn.map(r => [r.prenom + ' ' + r.nom, r.email || '', r.annee, r.montant_total, r.date_generation || '', r.archived ? 'Oui' : 'Non']),
   };
 
@@ -10453,7 +10456,7 @@ async function reports() {
         '<div class="tc-actions"><button class="btn btn-ghost btn-sm" onclick="printSection(\'Liste membres\')">🖨️</button></div>' +
       '</div>' +
       '<div class="table-wrapper"><table>' +
-        '<thead><tr><th>Nom</th><th>Email</th><th>Rôle</th><th>Plan</th><th>Activités</th><th>Total payé</th><th>Inscription</th></tr></thead>' +
+        '<thead><tr><th>Nom</th><th>Courriel</th><th>Rôle</th><th>Plan</th><th>Activités</th><th>Total payé</th><th>Inscription</th></tr></thead>' +
         '<tbody>' + membresRpt.map(m =>
           '<tr><td><strong>' + m.prenom + ' ' + m.nom + '</strong></td>' +
           '<td>' + m.email + '</td>' +
@@ -10495,7 +10498,7 @@ async function scanner() {
   const upcoming = acts.filter(a => a.statut !== 'annulee').slice(0, 10);
   setContent(`
     <div class="page-header">
-      <div><h2>📷 Scanner les billets</h2><p>Ouvrez la page de scan sur une tablette pour accueillir les participants</p></div>
+      <div><h2>📷 Numériser les billets</h2><p>Ouvrez la page de scan sur une tablette pour accueillir les participants</p></div>
     </div>
     <div style="max-width:560px;margin:0 auto;text-align:center">
       <div style="background:var(--off);border:1px solid var(--border);border-radius:20px;padding:40px 32px;margin-bottom:24px">
@@ -10503,15 +10506,15 @@ async function scanner() {
         <h3 style="font-size:1.2rem;margin-bottom:10px">Page de scan tablette</h3>
         <p style="color:var(--muted);font-size:.88rem;margin-bottom:24px;line-height:1.7">
           La page de scan s'ouvre en plein écran sur la tablette.<br>
-          Plusieurs membres du comité peuvent scanner simultanément<br>
+          Plusieurs membres du comité peuvent numériser simultanément<br>
           depuis leur propre appareil.
         </p>
         <a href="../scan.html" target="_blank" class="btn btn-primary" style="font-size:1rem;padding:14px 32px">
-          📷 Ouvrir le scanner
+          📷 Ouvrir le lecteur QR
         </a>
       </div>
       <div style="background:#fff;border:1px solid var(--border);border-radius:16px;padding:24px 20px">
-        <h4 style="font-size:.95rem;margin-bottom:14px;text-align:left">Ouvrir le scanner pour une activité</h4>
+        <h4 style="font-size:.95rem;margin-bottom:14px;text-align:left">Ouvrir le lecteur QR pour une activité</h4>
         <div style="display:flex;flex-direction:column;gap:10px">
           ${upcoming.map(a => `
             <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--off);border-radius:10px">
@@ -10521,7 +10524,7 @@ async function scanner() {
               </div>
               <div style="display:flex;gap:6px;flex-shrink:0">
                 <button class="btn btn-sm btn-ghost" onclick="cacheTicketsOffline(${a.id},'${a.titre.replace(/'/g,"\\'")}')">📥 Hors-ligne</button>
-                <a href="../scan.html?activity_id=${a.id}" target="_blank" class="btn btn-sm btn-outline">📷 Scanner</a>
+                <a href="../scan.html?activity_id=${a.id}" target="_blank" class="btn btn-sm btn-outline">📷 Numériser</a>
               </div>
             </div>
           `).join('') || '<p style="color:var(--muted);font-size:.85rem">Aucune activité disponible</p>'}
@@ -10559,7 +10562,7 @@ async function manageActivityPhotos(actId, actTitre) {
   const photos = await api(`/activities/${actId}/photos`);
 
   function renderPhotos(list) {
-    if (!list.length) return '<p style="color:var(--muted);font-size:.85rem;text-align:center;padding:20px 0">Aucune photo — uploadez votre première photo ci-dessous.</p>';
+    if (!list.length) return '<p style="color:var(--muted);font-size:.85rem;text-align:center;padding:20px 0">Aucune photo — téléversez votre première photo ci-dessous.</p>';
     return '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:20px">' +
       list.map(p => `
         <div style="position:relative;border-radius:10px;overflow:hidden;aspect-ratio:1;background:#f0f0f0">
@@ -10577,7 +10580,7 @@ async function manageActivityPhotos(actId, actTitre) {
       <input type="file" id="actPhotoInput" accept="image/*" multiple style="display:none"/>
       <label for="actPhotoInput" class="btn btn-outline" style="cursor:pointer">📁 Choisir des photos</label>
       <div id="actPhotoPreview" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;justify-content:center"></div>
-      <button id="actPhotoUploadBtn" class="btn btn-primary" style="margin-top:14px;display:none" onclick="uploadActivityPhotos(${actId},'${actTitre.replace(/'/g,"\\'")}')">⬆ Uploader</button>
+      <button id="actPhotoUploadBtn" class="btn btn-primary" style="margin-top:14px;display:none" onclick="uploadActivityPhotos(${actId},'${actTitre.replace(/'/g,"\\'")}')">⬆ Téléverser</button>
     </div>
   `);
 
@@ -10599,7 +10602,7 @@ async function uploadActivityPhotos(actId, actTitre) {
   const input = document.getElementById('actPhotoInput');
   const btn = document.getElementById('actPhotoUploadBtn');
   if (!input.files.length) return;
-  btn.disabled = true; btn.textContent = 'Upload en cours…';
+  btn.disabled = true; btn.textContent = 'Téléversement en cours…';
   const fd = new FormData();
   Array.from(input.files).forEach(f => fd.append('photos', f));
   try {
@@ -10608,11 +10611,11 @@ async function uploadActivityPhotos(actId, actTitre) {
       headers: { Authorization: `Bearer ${TOKEN}` },
       body: fd
     });
-    toast('Photos uploadées !');
+    toast('Photos téléversées !');
     manageActivityPhotos(actId, actTitre);
   } catch(e) {
-    toast('Erreur lors de l\'upload', true);
-    btn.disabled = false; btn.textContent = '⬆ Uploader';
+    toast('Erreur lors du téléversement', true);
+    btn.disabled = false; btn.textContent = '⬆ Téléverser';
   }
 }
 
@@ -11560,7 +11563,7 @@ async function carteScannerView() {
   if (window._carteAnimFrame) { cancelAnimationFrame(window._carteAnimFrame); window._carteAnimFrame = null; }
 
   setContent(`
-    <div class="page-header"><div><h2>📷 Scanner de cartes membres</h2><p>Pointez la caméra vers le QR code de la carte</p></div></div>
+    <div class="page-header"><div><h2>📷 Lecteur de cartes membres</h2><p>Pointez la caméra vers le code QR de la carte</p></div></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;max-width:920px">
 
       <div class="table-card" style="padding:14px">
@@ -12074,7 +12077,7 @@ async function youngJobForm() {
     <div class="form-group"><label class="form-label">Lieu</label><input id="yj_lieu" class="form-input" placeholder="Hamilton, ON"/></div>
     <div class="form-group"><label class="form-label">Date limite</label><input id="yj_date" class="form-input" type="date"/></div>
     <div class="form-group"><label class="form-label">Description</label><textarea id="yj_desc" class="form-input" rows="4" placeholder="Détails de l'offre..."></textarea></div>
-    <div class="form-group"><label class="form-label">Contact / Email</label><input id="yj_contact" class="form-input" placeholder="recrutement@exemple.com"/></div>
+    <div class="form-group"><label class="form-label">Contact / Courriel</label><input id="yj_contact" class="form-input" placeholder="recrutement@exemple.com"/></div>
     <div class="form-group"><label class="form-label">Lien externe (optionnel)</label><input id="yj_lien" class="form-input" placeholder="https://..."/></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <button class="btn btn-primary" onclick="youngSaveJob(false)">Publier</button>
@@ -14096,7 +14099,7 @@ async function _sdCreate() {
   if (!userId) { toast('Sélectionnez un membre', true); return; }
   try {
     await api('/scan-delegations', { method:'POST', body: JSON.stringify({ user_id: parseInt(userId), activity_id: actId ? parseInt(actId) : null, type, date_expiration: expiration }) });
-    toast('✅ Scanner délégué');
+    toast('✅ Lecteur délégué');
     scanDelegationsListView();
   } catch(e) { toast(e.message, true); }
 }
@@ -14479,7 +14482,7 @@ function _renderScanLogs() {
       <table class="data-table">
         <thead><tr>
           <th>Date/Heure</th>
-          <th>Scanner</th>
+          <th>Scanné par</th>
           <th>Code scanné</th>
           <th>Résultat</th>
           <th>Détails / Acheteur</th>
@@ -14691,7 +14694,7 @@ function _renderFieldsList() {
   const fields = window._formBuilderFields || [];
   if (fields.length === 0) return '<p style="color:var(--muted);font-size:.85rem;padding:12px">Aucun champ ajouté</p>';
   return fields.map((f, idx) => {
-    const typeLabels = {text:'Texte',email:'Email',telephone:'Téléphone',textarea:'Zone de texte',select:'Liste déroulante',radio:'Choix unique',checkbox:'Cases à cocher',number:'Nombre',date:'Date'};
+    const typeLabels = {text:'Texte',email:'Courriel',telephone:'Téléphone',textarea:'Zone de texte',select:'Liste déroulante',radio:'Choix unique',checkbox:'Cases à cocher',number:'Nombre',date:'Date'};
     const typePill = '<span style="background:#e3f2fd;color:#1565c0;padding:2px 8px;border-radius:6px;font-size:.72rem;font-weight:600">' + (typeLabels[f.type] || f.type) + '</span>';
     const reqBadge = f.obligatoire ? ' <span style="color:#d32f2f;font-size:.72rem;font-weight:600">obligatoire</span>' : '';
     return `<div style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:#fff;border:1px solid var(--border);border-radius:8px;margin-bottom:6px" data-field-idx="${idx}">
@@ -14730,7 +14733,7 @@ function _editFieldInline(idx) {
 
 function _fieldFormHtml(field, saveFn) {
   const types = [
-    {v:'text',l:'Texte'},{v:'email',l:'Email'},{v:'telephone',l:'Téléphone'},{v:'textarea',l:'Zone de texte'},
+    {v:'text',l:'Texte'},{v:'email',l:'Courriel'},{v:'telephone',l:'Téléphone'},{v:'textarea',l:'Zone de texte'},
     {v:'select',l:'Liste déroulante'},{v:'radio',l:'Choix unique'},{v:'checkbox',l:'Cases à cocher'},
     {v:'number',l:'Nombre'},{v:'date',l:'Date'}
   ];
@@ -14991,7 +14994,7 @@ async function viewFormResults(formId) {
           <thead><tr>
             <th style="font-size:.78rem;cursor:pointer" onclick="_sortFormResults('date')">Date ▼</th>
             <th style="font-size:.78rem;cursor:pointer" onclick="_sortFormResults('nom')">Nom</th>
-            <th style="font-size:.78rem;cursor:pointer" onclick="_sortFormResults('email')">Email</th>
+            <th style="font-size:.78rem;cursor:pointer" onclick="_sortFormResults('email')">Courriel</th>
             <th style="font-size:.78rem;cursor:pointer" onclick="_sortFormResults('tel')">Téléphone</th>
             ${thFields}
           </tr></thead>
@@ -15264,4 +15267,218 @@ function showSocialShareModal(act) {
 
     '<div class="form-actions"><button class="btn btn-ghost" onclick="closeModal()">Fermer</button></div>'
   );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── RENCONTRE COMITÉ (présences + signatures) ────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+const ROLE_LABELS_CM = { admin:'Administrateur', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Délégué' };
+
+function _fmtToronto(d) {
+  try { return new Date(d).toLocaleString('fr-CA', { timeZone:'America/Toronto', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' }); }
+  catch { return d || ''; }
+}
+
+async function committeeMeetingsView() {
+  const meetings = await api('/committee-meetings');
+  if (!meetings) return;
+  setContent(`
+    <div class="page-header">
+      <div><h2>🤝 Rencontres du comité</h2><p>Procès-verbaux de présence des réunions du comité exécutif</p></div>
+      <div class="page-actions"><button class="btn btn-primary" onclick="committeeMeetingCreate()">+ Nouvelle rencontre</button></div>
+    </div>
+    <div class="table-card">
+      <div class="table-wrapper">
+        <table>
+          <thead><tr><th>Date et heure</th><th>Lieu</th><th>Créé par</th><th>Présences</th><th>Signatures</th><th></th></tr></thead>
+          <tbody>
+            ${meetings.length ? meetings.map(m => `<tr>
+              <td><strong>${_fmtToronto(m.date_heure)}</strong></td>
+              <td>${escHtml(m.lieu || '')}</td>
+              <td>${escHtml(m.createur_nom || '')}</td>
+              <td>${m.nb_presents}/${m.nb_total} présent(s)</td>
+              <td>
+                ${m.verrouille ? '<span style="color:#1b5e20;font-weight:700">🔒 Verrouillée</span>' : `<span style="color:var(--muted)">${m.nb_signatures}/2</span>`}
+                ${m.date_ma_signature ? ' <span style="color:#1b5e20;font-size:.78rem">✅ Signé</span>' : ''}
+              </td>
+              <td>
+                <button class="btn btn-sm btn-outline" onclick="committeeMeetingDetail(${m.id})">Ouvrir</button>
+                ${!m.verrouille && can.admin() ? `<button class="btn btn-sm btn-ghost" style="color:var(--red)" onclick="committeeMeetingDelete(${m.id})">🗑</button>` : ''}
+              </td>
+            </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Aucune rencontre enregistrée</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `);
+}
+
+function committeeMeetingCreate() {
+  const now = new Date();
+  const tzOffset = now.toLocaleString('en-CA', { timeZone:'America/Toronto', hour12:false, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+  const parts = tzOffset.match(/(\d{4})-(\d{2})-(\d{2}),?\s*(\d{2}):(\d{2})/);
+  const defaultVal = parts ? `${parts[1]}-${parts[2]}-${parts[3]}T${parts[4]}:${parts[5]}` : '';
+  openModal('🤝 Nouvelle rencontre comité', `
+    <div class="form-group"><label>Date et heure *</label><input type="datetime-local" id="cm_date" value="${defaultVal}" required/></div>
+    <div class="form-group"><label>Lieu</label><input id="cm_lieu" placeholder="Ex: Bureau AHH, Zoom, etc."/></div>
+    <div class="form-group"><label>Notes</label><textarea id="cm_notes" rows="3" placeholder="Ordre du jour, remarques..."></textarea></div>
+    <div class="form-actions">
+      <button class="btn btn-primary" onclick="_saveCommitteeMeeting()">Créer la rencontre</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+    </div>
+  `);
+}
+
+async function _saveCommitteeMeeting() {
+  const date_heure = document.getElementById('cm_date')?.value;
+  if (!date_heure) return toast('Veuillez indiquer la date et l\'heure', true);
+  try {
+    const r = await api('/committee-meetings', { method:'POST', body: JSON.stringify({
+      date_heure, lieu: document.getElementById('cm_lieu')?.value || '', notes: document.getElementById('cm_notes')?.value || ''
+    })});
+    closeModal();
+    toast('✅ Rencontre créée');
+    committeeMeetingDetail(r.id);
+  } catch(e) { toast(e.message, true); }
+}
+
+async function committeeMeetingDetail(id) {
+  const data = await api('/committee-meetings/' + id);
+  if (!data) return;
+  const locked = data.verrouille;
+
+  let membresHtml = data.membres.map(u => {
+    const checked = s => data.membres.find(m => m.id === u.id)?.statut === s ? 'checked' : '';
+    return `<tr>
+      <td><strong>${escHtml(u.prenom)} ${escHtml(u.nom)}</strong></td>
+      <td>${ROLE_LABELS_CM[u.role] || u.role}</td>
+      <td style="text-align:center"><input type="radio" name="att_${u.id}" value="present" ${u.statut==='present'?'checked':''} ${locked?'disabled':''}></td>
+      <td style="text-align:center"><input type="radio" name="att_${u.id}" value="absent" ${u.statut==='absent'?'checked':''} ${locked?'disabled':''}></td>
+      <td style="text-align:center"><input type="radio" name="att_${u.id}" value="excuse" ${u.statut==='excuse'?'checked':''} ${locked?'disabled':''}></td>
+    </tr>`;
+  }).join('');
+
+  let sigsHtml = data.signatures.length ? data.signatures.map(s => `
+    <div style="display:flex;align-items:center;gap:14px;background:var(--off);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
+      <img src="${s.signature_data}" style="width:160px;height:60px;object-fit:contain;border:1px solid var(--border);border-radius:6px;background:#fff"/>
+      <div>
+        <div style="font-weight:700">${escHtml(s.nom_signataire)}</div>
+        <div style="font-size:.78rem;color:var(--muted)">${ROLE_LABELS_CM[s.role]||s.role}</div>
+        <div style="font-size:.78rem;color:#1b5e20">Signé le ${_fmtToronto(s.date_signature)}</div>
+      </div>
+    </div>
+  `).join('') : '<p style="color:var(--muted);font-size:.85rem">Aucune signature pour le moment</p>';
+
+  setContent(`
+    <div class="page-header">
+      <div>
+        <h2>🤝 Rencontre du comité</h2>
+        <p>${_fmtToronto(data.date_heure)}${data.lieu ? ' · ' + escHtml(data.lieu) : ''}</p>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-ghost" onclick="committeeMeetingsView()">← Retour</button>
+        <a href="${API}/committee-meetings/${id}/download?token=${TOKEN}" target="_blank" class="btn btn-outline">🖨 Télécharger PDF</a>
+      </div>
+    </div>
+
+    ${locked ? '<div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px"><span style="font-size:1.2rem">🔒</span><strong style="color:#1b5e20">Cette rencontre est verrouillée (${data.nb_signatures} signatures)</strong></div>' : ''}
+
+    ${data.notes ? `<div class="table-card" style="margin-bottom:16px"><div style="padding:16px"><strong>Notes :</strong> ${escHtml(data.notes)}</div></div>` : ''}
+
+    <div class="table-card" style="margin-bottom:16px">
+      <div class="table-card-header"><h3>📋 Présences</h3></div>
+      <div class="table-wrapper">
+        <table>
+          <thead><tr><th>Membre</th><th>Rôle</th><th style="text-align:center">Présent</th><th style="text-align:center">Absent</th><th style="text-align:center">Excusé</th></tr></thead>
+          <tbody>${membresHtml}</tbody>
+        </table>
+      </div>
+      ${!locked ? '<div style="padding:12px 16px;border-top:1px solid var(--border)"><button class="btn btn-primary" onclick="_saveCmAttendance(' + id + ')">Enregistrer les présences</button></div>' : ''}
+    </div>
+
+    <div class="table-card">
+      <div class="table-card-header">
+        <h3>✍️ Signatures (${data.nb_signatures}/2)</h3>
+        ${!locked ? '<div class="tc-actions"><button class="btn btn-primary btn-sm" onclick="openCmSignModal(' + id + ')">✍️ Signer</button></div>' : ''}
+      </div>
+      <div style="padding:16px">${sigsHtml}</div>
+    </div>
+  `);
+}
+
+async function _saveCmAttendance(meetingId) {
+  const rows = document.querySelectorAll('input[type=radio][name^="att_"]:checked');
+  const attendance = [];
+  rows.forEach(r => {
+    const uid = parseInt(r.name.replace('att_', ''));
+    attendance.push({ user_id: uid, statut: r.value });
+  });
+  try {
+    const r = await api('/committee-meetings/' + meetingId + '/attendance', { method:'PUT', body: JSON.stringify({ attendance }) });
+    if (r.signatures_annulees) toast('⚠️ Les signatures ont été annulées suite à la modification', true);
+    else toast('✅ Présences enregistrées');
+    committeeMeetingDetail(meetingId);
+  } catch(e) { toast(e.message, true); }
+}
+
+function openCmSignModal(meetingId) {
+  openModal('✍️ Signer la rencontre comité', `
+    <p style="font-size:.85rem;color:var(--muted);margin-bottom:12px">Dessinez votre signature dans la zone ci-dessous. Elle sera horodatée et liée à votre compte.<br>
+    <strong style="color:#1b5e20">⚠️ Après 2 signatures, la rencontre sera verrouillée et ne pourra plus être modifiée.</strong></p>
+    <canvas id="cmSigCanvas" width="540" height="160" style="border:1px solid #ccc;border-radius:8px;cursor:crosshair;display:block;width:100%;touch-action:none"></canvas>
+    <div style="margin-top:8px;display:flex;gap:8px">
+      <button class="btn btn-sm btn-ghost" onclick="_clearCmCanvas()">🗑 Effacer</button>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="_saveCmSignature(${meetingId})">✅ Signer le document</button>
+      <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+    </div>
+  `);
+  setTimeout(() => {
+    const canvas = document.getElementById('cmSigCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let drawing = false;
+    const getPos = e => {
+      const r = canvas.getBoundingClientRect();
+      const src = e.touches ? e.touches[0] : e;
+      return { x: (src.clientX - r.left) * (canvas.width / r.width), y: (src.clientY - r.top) * (canvas.height / r.height) };
+    };
+    canvas.addEventListener('mousedown', e => { drawing = true; const p = getPos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); });
+    canvas.addEventListener('mousemove', e => { if (!drawing) return; const p = getPos(e); ctx.lineWidth = 2.5; ctx.strokeStyle = '#1b5e20'; ctx.lineCap = 'round'; ctx.lineTo(p.x, p.y); ctx.stroke(); });
+    canvas.addEventListener('mouseup', () => { drawing = false; });
+    canvas.addEventListener('touchstart', e => { e.preventDefault(); drawing = true; const p = getPos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); }, { passive: false });
+    canvas.addEventListener('touchmove', e => { e.preventDefault(); if (!drawing) return; const p = getPos(e); ctx.lineWidth = 2.5; ctx.strokeStyle = '#1b5e20'; ctx.lineCap = 'round'; ctx.lineTo(p.x, p.y); ctx.stroke(); }, { passive: false });
+    canvas.addEventListener('touchend', () => { drawing = false; });
+  }, 50);
+}
+
+function _clearCmCanvas() {
+  const c = document.getElementById('cmSigCanvas');
+  if (c) c.getContext('2d').clearRect(0, 0, c.width, c.height);
+}
+
+async function _saveCmSignature(meetingId) {
+  const canvas = document.getElementById('cmSigCanvas');
+  if (!canvas) return;
+  const blank = document.createElement('canvas'); blank.width = canvas.width; blank.height = canvas.height;
+  if (canvas.toDataURL() === blank.toDataURL()) return toast('Veuillez dessiner votre signature', true);
+  const signature_data = canvas.toDataURL('image/png');
+  try {
+    const r = await api('/committee-meetings/' + meetingId + '/sign', { method:'POST', body: JSON.stringify({ signature_data }) });
+    closeModal();
+    if (r.verrouille) toast('🔒 Rencontre verrouillée : ' + r.nb_signatures + ' signatures collectées');
+    else toast('✅ Signature enregistrée (' + r.nb_signatures + '/2 pour verrouiller)');
+    committeeMeetingDetail(meetingId);
+  } catch(e) { toast(e.message, true); }
+}
+
+async function committeeMeetingDelete(id) {
+  if (!confirm('Supprimer cette rencontre définitivement ?')) return;
+  try {
+    await api('/committee-meetings/' + id, { method:'DELETE' });
+    toast('Rencontre supprimée');
+    committeeMeetingsView();
+  } catch(e) { toast(e.message, true); }
 }

@@ -1005,6 +1005,36 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS note_signatures (
 )`); } catch {}
 try { db.exec("ALTER TABLE meeting_notes ADD COLUMN verrouille INTEGER DEFAULT 0"); } catch {}
 
+// ── Rencontres comité (présences + signatures) ────────────────────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS committee_meetings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  date_heure TEXT NOT NULL,
+  lieu TEXT DEFAULT '',
+  notes TEXT DEFAULT '',
+  cree_par INTEGER REFERENCES users(id),
+  verrouille INTEGER DEFAULT 0,
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
+try { db.exec(`CREATE TABLE IF NOT EXISTS committee_meeting_attendance (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  meeting_id INTEGER NOT NULL REFERENCES committee_meetings(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  statut TEXT NOT NULL DEFAULT 'absent',
+  date_modification TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(meeting_id, user_id)
+)`); } catch {}
+
+try { db.exec(`CREATE TABLE IF NOT EXISTS committee_meeting_signatures (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  meeting_id INTEGER NOT NULL REFERENCES committee_meetings(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  signature_data TEXT NOT NULL,
+  date_signature TEXT DEFAULT CURRENT_TIMESTAMP,
+  ip TEXT,
+  UNIQUE(meeting_id, user_id)
+)`); } catch {}
+
 // ── Token iCal personnel par membre ───────────────────────────────────────
 try { db.exec("ALTER TABLE users ADD COLUMN ical_token TEXT"); } catch {}
 

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
-<title>Scanner AHH</title>
+<title>Lecteur QR AHH</title>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -249,7 +249,7 @@
   <div class="hdr-logo">
     <img src="Public/logo1.png" alt="AHH"/>
     <div>
-      <div class="hdr-title">Scanner AHH</div>
+      <div class="hdr-title">Lecteur QR AHH</div>
       <div class="hdr-sub">Association Haïtienne de Hamilton</div>
     </div>
   </div>
@@ -307,7 +307,7 @@
 <div id="histFullPage" style="display:none;position:fixed;inset:0;z-index:600;background:#111;overflow-y:auto">
   <div style="background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:1">
     <div style="color:#fff;font-weight:700;font-size:.95rem">📋 Historique complet</div>
-    <button onclick="document.getElementById('histFullPage').style.display='none'" style="background:rgba(255,255,255,.2);border:none;color:#fff;padding:6px 14px;border-radius:8px;cursor:pointer;font-size:.82rem">← Retour au scanner</button>
+    <button onclick="document.getElementById('histFullPage').style.display='none'" style="background:rgba(255,255,255,.2);border:none;color:#fff;padding:6px 14px;border-radius:8px;cursor:pointer;font-size:.82rem">← Retour au lecteur QR</button>
   </div>
   <div id="histFullList" style="padding:12px"></div>
 </div>
@@ -346,7 +346,7 @@ let myDelegations = [];
         if (dr.ok) myDelegations = await dr.json();
       } catch {}
       if (!myDelegations || myDelegations.length === 0) {
-        document.body.innerHTML = '<div style="color:#fff;text-align:center;padding:40px"><h2>Accès refusé</h2><p>Vous n\'avez pas l\'autorisation de scanner.<br>Demandez à un membre du comité de vous déléguer l\'accès.</p></div>';
+        document.body.innerHTML = '<div style="color:#fff;text-align:center;padding:40px"><h2>Accès refusé</h2><p>Vous n\'avez pas l\'autorisation de numériser.<br>Demandez à un membre du comité de vous déléguer l\'accès.</p></div>';
         return;
       }
     }
@@ -354,10 +354,10 @@ let myDelegations = [];
     var scanLabel = USER.role;
     if (!isExec) {
       var delegTypes = new Set(myDelegations.map(function(d) { return d.type; }));
-      if (delegTypes.has('tous')) scanLabel = 'délégué(e) — billets + cartes';
-      else if (delegTypes.has('billets') && delegTypes.has('cartes')) scanLabel = 'délégué(e) — billets + cartes';
-      else if (delegTypes.has('billets')) scanLabel = 'délégué(e) — billets';
-      else if (delegTypes.has('cartes')) scanLabel = 'délégué(e) — cartes';
+      if (delegTypes.has('tous')) scanLabel = 'délégué(e) : billets + cartes';
+      else if (delegTypes.has('billets') && delegTypes.has('cartes')) scanLabel = 'délégué(e) : billets + cartes';
+      else if (delegTypes.has('billets')) scanLabel = 'délégué(e) : billets';
+      else if (delegTypes.has('cartes')) scanLabel = 'délégué(e) : cartes';
       else scanLabel = 'délégué(e)';
     }
     document.getElementById('hdUser').textContent = USER.prenom + ' ' + USER.nom + ' · ' + scanLabel;
@@ -501,8 +501,8 @@ async function onQRDetected(rawText) {
         var actCls = data.is_today ? 'ok' : 'warn';
         showResultUnified(actCls, data.is_today ? '🎉' : '📅', data.is_today ? 'ACTIVITÉ DU JOUR' : 'INFO ACTIVITÉ', data);
         playBeep(data.is_today);
-        var actMeta = (data.lieu ? data.lieu + ' — ' : '') + (data.paiement_requis && data.prix > 0 ? data.prix.toFixed(2) + ' $' : 'Gratuit');
-        if (data.presences > 0) actMeta += ' — ' + data.presences + ' présent(s)';
+        var actMeta = (data.lieu ? data.lieu + ' : ' : '') + (data.paiement_requis && data.prix > 0 ? data.prix.toFixed(2) + ' $' : 'Gratuit');
+        if (data.presences > 0) actMeta += ' : ' + data.presences + ' présent(s)';
         addHistory(data.is_today ? 'ok' : 'warn', data.activite || 'Activité', actMeta, data);
       }
     } else if (data.type === 'ticket') {
@@ -522,15 +522,15 @@ async function onQRDetected(rawText) {
       } else if (!data.ok && data.status === 'invalide') {
         showResultUnified('warn', '⚠️', data.message || 'BILLET INVALIDE', data);
         playBeep(false);
-        addHistory('err', data.nom || 'Inconnu', (data.activite ? data.activite + ' — ' : '') + (data.message || 'Invalide'), data);
+        addHistory('err', data.nom || 'Inconnu', (data.activite ? data.activite + ' : ' : '') + (data.message || 'Invalide'), data);
       } else if (data.status === 'deja_scanne') {
         showResultUnified('dup', '🔄', 'DÉJÀ ENTRÉ', data);
         playBeep(false);
-        addHistory('dup', data.nom, (data.activite ? data.activite + ' — ' : '') + 'Déjà scanné' + (data.table_numero ? ', table ' + data.table_numero : ''), data);
+        addHistory('dup', data.nom, (data.activite ? data.activite + ' : ' : '') + 'Déjà scanné' + (data.table_numero ? ', table ' + data.table_numero : ''), data);
       } else if (data.ok) {
         showResultUnified('ok', '✅', 'BIENVENUE', data);
         playBeep(true);
-        addHistory('ok', data.nom, (data.activite ? data.activite + ' — ' : '') + (data.table_numero ? 'Table ' + data.table_numero + ', ' : '') + (data.vendu_en_ligne ? 'En ligne' : 'Vendu par ' + (data.vendeur_nom || '?')), data);
+        addHistory('ok', data.nom, (data.activite ? data.activite + ' : ' : '') + (data.table_numero ? 'Table ' + data.table_numero + ', ' : '') + (data.vendu_en_ligne ? 'En ligne' : 'Vendu par ' + (data.vendeur_nom || '?')), data);
       } else {
         showResultUnified('err', '❌', data.message || 'ERREUR', data);
         playBeep(false);
@@ -539,19 +539,19 @@ async function onQRDetected(rawText) {
     } else if (data.type === 'carte') {
       // ── Card result ──
       if (data.status === 'vip') {
-        showResultUnified('vip', '👑', 'VIP — COMITÉ', data);
+        showResultUnified('vip', '👑', 'VIP : COMITÉ', data);
         playBeep(true);
-        addHistory('vip', data.nom, (data.activite ? data.activite + ' — ' : '') + 'Comité VIP', data);
+        addHistory('vip', data.nom, (data.activite ? data.activite + ' : ' : '') + 'Comité VIP', data);
       } else if (data.status === 'deja_scanne') {
         showResultUnified('dup', '🔄', 'DÉJÀ ENTRÉ(E)', data);
         playBeep(false);
-        addHistory('dup', data.nom, (data.activite ? data.activite + ' — ' : '') + 'Déjà entré(e)', data);
+        addHistory('dup', data.nom, (data.activite ? data.activite + ' : ' : '') + 'Déjà entré(e)', data);
       } else if (data.ok) {
         showResultUnified('ok', '✅', 'BIENVENUE', data);
         playBeep(true);
         var histMeta = data.plan ? (data.plan.charAt(0).toUpperCase() + data.plan.slice(1)) : 'Membre';
         if (data.total_billets > 0) histMeta += ', ' + data.billets_restants + '/' + data.total_billets + ' billets';
-        if (data.activite) histMeta = data.activite + ' — ' + histMeta;
+        if (data.activite) histMeta = data.activite + ' : ' + histMeta;
         addHistory('ok', data.nom, histMeta, data);
       } else {
         showResultUnified(data.status === 'invalide' ? 'warn' : 'err', '⚠️', data.message || 'INVALIDE', data);
@@ -656,7 +656,7 @@ function showResultUnified(cls, icon, statusText, data) {
     var billetsHtml = '';
     if (typeof data.total_billets === 'number' && data.total_billets > 0)
       billetsHtml = '<div class="result-badge">🎟 ' + data.billets_restants + ' billet(s) restant(s) sur ' + data.total_billets + '</div>';
-    var vipBadge = data.is_comite ? '<div class="result-badge" style="background:rgba(26,35,126,.3);color:#90caf9">⭐ Comité — VIP</div>' : '';
+    var vipBadge = data.is_comite ? '<div class="result-badge" style="background:rgba(26,35,126,.3);color:#90caf9">⭐ Comité : VIP</div>' : '';
     // Activités du membre
     var actsHtml = '';
     if (data.activities && data.activities.length) {
@@ -810,7 +810,7 @@ function _replayHistory(idx) {
   var cls = h.type === 'vip' ? 'vip' : h.type;
   o.className = 'visible ' + cls;
   document.getElementById('ovIcon').textContent = cls === 'ok' ? '✅' : cls === 'dup' ? '🔄' : cls === 'vip' ? '👑' : '❌';
-  document.getElementById('ovStatus').textContent = d.status === 'vip' ? 'VIP — COMITÉ' : d.status === 'valide' ? 'VALIDE' : d.status === 'deja_scanne' ? 'DÉJÀ SCANNÉ' : d.status || 'ERREUR';
+  document.getElementById('ovStatus').textContent = d.status === 'vip' ? 'VIP : COMITÉ' : d.status === 'valide' ? 'VALIDE' : d.status === 'deja_scanne' ? 'DÉJÀ SCANNÉ' : d.status || 'ERREUR';
   document.getElementById('ovName').textContent = d.nom || h.nom || '';
 
   var rows = [];

@@ -440,7 +440,7 @@ app.post('/api/auth/login', (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE email = ? AND actif = 1').get(email);
   if (!user || !bcrypt.compareSync(password, user.password_hash)) {
     recordFailedLogin(email);
-    return res.status(401).json({ error: 'Email ou mot de passe invalide' });
+    return res.status(401).json({ error: 'Courriel ou mot de passe invalide' });
   }
 
   _loginAttempts.delete(email);
@@ -486,7 +486,7 @@ app.post('/api/auth/register', (req, res) => {
     const adminId = staff[0].id;
     const msgR = db.prepare("INSERT INTO messages (expediteur_id, sujet, contenu, type) VALUES (?,?,?,'individuel')")
       .run(adminId, `📋 Nouvelle demande d'adhésion — ${prenom} ${nom}`,
-        `Nouvelle demande reçue.\n\nNom : ${prenom} ${nom}\nCourriel : ${email}\nTél : ${telephone||'–'}\nPlan : ${plan||'gratuit'}\nMessage : ${message||'–'}\n\nDashboard → Inscriptions pour approuver ou refuser.`);
+        `Nouvelle demande reçue.\n\nNom : ${prenom} ${nom}\nCourriel : ${email}\nTél : ${telephone||'–'}\nPlan : ${plan||'gratuit'}\nMessage : ${message||'–'}\n\nTableau de bord → Inscriptions pour approuver ou refuser.`);
     const ins = db.prepare('INSERT INTO message_recipients (message_id, destinataire_id) VALUES (?,?)');
     staff.forEach(s => {
       ins.run(msgR.lastInsertRowid, s.id);
@@ -523,11 +523,11 @@ app.get('/api/inscriptions', authMiddleware, requireRole('admin','tresoriere','s
 // ── Invitation par email (comité → futur membre) ────────────────────────────
 app.post('/api/admin/invite', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), async (req, res) => {
   const { email } = req.body;
-  if (!email || !email.includes('@')) return res.status(400).json({ error: 'Email invalide' });
+  if (!email || !email.includes('@')) return res.status(400).json({ error: 'Courriel invalide' });
   if (db.prepare('SELECT id FROM users WHERE email = ?').get(email))
     return res.status(409).json({ error: 'Cette personne est déjà membre' });
   if (db.prepare("SELECT id FROM pending_registrations WHERE email = ? AND statut = 'en_attente'").get(email))
-    return res.status(409).json({ error: 'Une demande est déjà en attente pour cet email' });
+    return res.status(409).json({ error: 'Une demande est déjà en attente pour ce courriel' });
   const siteUrl = process.env.SITE_URL || `http://localhost:${PORT}`;
   const inviteLink = `${siteUrl}/adhesion.html?email=${encodeURIComponent(email)}`;
   try {
@@ -683,7 +683,7 @@ app.post('/api/users', authMiddleware, requireRole('admin'), (req, res) => {
   if (!prenom || !nom || !email || !password)
     return res.status(400).json({ error: 'Champs requis manquants' });
   if (db.prepare('SELECT id FROM users WHERE email = ?').get(email))
-    return res.status(409).json({ error: 'Email déjà utilisé' });
+    return res.status(409).json({ error: 'Courriel déjà utilisé' });
   const hash = bcrypt.hashSync(password, 10);
   const r = db.prepare(`INSERT INTO users (prenom, nom, email, telephone, adresse, date_naissance, password_hash, role)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(prenom, nom, email, telephone||'', adresse||'', date_naissance||'', hash, role||'member');
@@ -2616,10 +2616,10 @@ const crypto = require('crypto');
 
 app.post('/api/auth/forgot-password', (req, res) => {
   const { email } = req.body;
-  if (!email) return res.status(400).json({ error: 'Email requis' });
+  if (!email) return res.status(400).json({ error: 'Courriel requis' });
 
   const user = db.prepare('SELECT id, prenom, nom, email FROM users WHERE email = ? AND actif = 1').get(email);
-  if (!user) return res.json({ message: 'Si cet email existe, un lien a été envoyé.' }); // security: don't reveal
+  if (!user) return res.json({ message: 'Si ce courriel existe, un lien a été envoyé.' }); // security: don't reveal
 
   // Expire old tokens
   db.prepare('UPDATE password_reset_tokens SET used = 1 WHERE user_id = ? AND used = 0').run(user.id);
@@ -3074,7 +3074,7 @@ app.post('/api/payments', authMiddleware, uploadPayment.single('proof'), (req, r
   const finance = db.prepare("SELECT id FROM users WHERE role IN ('admin','tresoriere') AND actif=1").all();
   const u = db.prepare('SELECT prenom, nom, plan FROM users WHERE id = ?').get(req.user.id);
   const typeLabel = type === 'don' ? 'Don' : 'Mensualité';
-  const contenu = `${typeLabel} reçu — ${u.prenom} ${u.nom}\n\nMontant : $${montant}\nMois : ${mois||'–'}\nMéthode : ${methode||'–'}\nRéférence : ${reference||'–'}\nNote : ${note||'–'}\n\nDashboard → Paiements pour approuver.`;
+  const contenu = `${typeLabel} reçu — ${u.prenom} ${u.nom}\n\nMontant : $${montant}\nMois : ${mois||'–'}\nMéthode : ${methode||'–'}\nRéférence : ${reference||'–'}\nNote : ${note||'–'}\n\nTableau de bord → Paiements pour approuver.`;
   const adminId = finance[0]?.id || 1;
   const msgR = db.prepare("INSERT INTO messages (expediteur_id, sujet, contenu, type) VALUES (?,?,?,'individuel')")
     .run(req.user.id, `💳 ${typeLabel} à valider — ${u.prenom} ${u.nom} ($${montant})`, contenu);
@@ -3595,7 +3595,7 @@ app.post('/api/talents', authMiddleware, uploadTalent.single('photo'), async (re
     const admins = db.prepare("SELECT id FROM users WHERE role IN ('admin','secretaire') AND actif = 1").all();
     const msgR = db.prepare("INSERT INTO messages (expediteur_id, sujet, contenu, type) VALUES (?,?,?,'individuel')")
       .run(req.user.id, `📋 Nouvelle fiche talent à valider — ${nom}`,
-        `${req.user.prenom} ${req.user.nom} a soumis une fiche talent.\n\nNom : ${nom}\nCatégorie : ${categorie}\nSpécialité : ${specialite||'–'}\n\nConnectez-vous au dashboard → Nos talents pour approuver ou rejeter.`);
+        `${req.user.prenom} ${req.user.nom} a soumis une fiche talent.\n\nNom : ${nom}\nCatégorie : ${categorie}\nSpécialité : ${specialite||'–'}\n\nConnectez-vous au tableau de bord → Nos talents pour approuver ou rejeter.`);
     const ins = db.prepare('INSERT INTO message_recipients (message_id, destinataire_id) VALUES (?,?)');
     admins.forEach(a => { ins.run(msgR.lastInsertRowid, a.id); createAlert(a.id,'talent',`Fiche talent à valider : ${nom}`,`Soumise par ${req.user.prenom} ${req.user.nom}`,r.lastInsertRowid); });
   }
@@ -3696,7 +3696,7 @@ app.put('/api/talents/:id/modifier', authMiddleware, uploadTalent.single('photo'
   const admins = db.prepare("SELECT id FROM users WHERE role IN ('admin','secretaire') AND actif=1").all();
   const rMsg = db.prepare("INSERT INTO messages (expediteur_id, sujet, contenu, type) VALUES (?,?,?,'individuel')")
     .run(req.user.id, `✏️ Fiche talent modifiée — validation requise : ${nom||t.nom}`,
-      `${req.user.prenom} ${req.user.nom} a modifié sa fiche talent « ${nom||t.nom} ». Veuillez la valider dans le dashboard.`);
+      `${req.user.prenom} ${req.user.nom} a modifié sa fiche talent « ${nom||t.nom} ». Veuillez la valider dans le tableau de bord.`);
   admins.forEach(a => {
     db.prepare('INSERT INTO message_recipients (message_id, destinataire_id) VALUES (?,?)').run(rMsg.lastInsertRowid, a.id);
     createAlert(a.id, 'talent', `✏️ Fiche modifiée à valider : ${nom||t.nom}`, `Modifiée par ${req.user.prenom} ${req.user.nom}`);
@@ -3819,7 +3819,7 @@ app.post('/api/annonces', authMiddleware, uploadAnnonce.array('photos', 5), asyn
     const admins = db.prepare("SELECT id FROM users WHERE role IN ('admin','secretaire') AND actif = 1").all();
     const msgR = db.prepare("INSERT INTO messages (expediteur_id, sujet, contenu, type) VALUES (?,?,?,'individuel')")
       .run(req.user.id, `📌 Nouvelle annonce à valider — ${titre}`,
-        `${req.user.prenom} ${req.user.nom} a soumis une annonce.\n\nTitre : ${titre}\nType : ${type}\nPrix : ${gratuit==='1'?'Gratuit':(prix?'$'+prix:'À discuter')}\n\nConnectez-vous au dashboard → Petites annonces pour approuver ou rejeter.`);
+        `${req.user.prenom} ${req.user.nom} a soumis une annonce.\n\nTitre : ${titre}\nType : ${type}\nPrix : ${gratuit==='1'?'Gratuit':(prix?'$'+prix:'À discuter')}\n\nConnectez-vous au tableau de bord → Petites annonces pour approuver ou rejeter.`);
     const ins2 = db.prepare('INSERT INTO message_recipients (message_id, destinataire_id) VALUES (?,?)');
     admins.forEach(a => { ins2.run(msgR.lastInsertRowid, a.id); createAlert(a.id,'annonce',`Annonce à valider : ${titre}`,`Soumise par ${req.user.prenom} ${req.user.nom}`,annonceId); });
   }
@@ -6284,7 +6284,7 @@ app.get('/api/reports/fiscal-annuel/:annee', authMiddleware, requireRole('admin'
   </div>
   <p>Ce rapport résume tous les reçus fiscaux émis pour l'année ${annee}.</p>
   <table>
-    <thead><tr><th>#</th><th>Membre</th><th>Email</th><th>Montant</th><th>Date</th></tr></thead>
+    <thead><tr><th>#</th><th>Membre</th><th>Courriel</th><th>Montant</th><th>Date</th></tr></thead>
     <tbody>
     ${reçus.map((r,i) => `<tr><td>${i+1}</td><td>${r.prenom} ${r.nom}</td><td>${r.email}</td><td>$${(r.montant_total||0).toFixed(2)}</td><td>${r.date_generation||''}</td></tr>`).join('')}
     </tbody>
@@ -7332,7 +7332,7 @@ app.get('/api/forms/:id/export', authMiddleware, requireRole(...FORM_EXEC), (req
   const responses = db.prepare('SELECT * FROM form_responses WHERE form_id = ? ORDER BY date_reponse DESC').all(form.id);
 
   // Build CSV
-  const cols = ['Date', 'Nom', 'Email', 'Téléphone'];
+  const cols = ['Date', 'Nom', 'Courriel', 'Téléphone'];
   fields.forEach(f => cols.push(f.label));
 
   const escCsv = v => `"${String(v || '').replace(/"/g, '""')}"`;
@@ -9058,7 +9058,7 @@ app.get('/api/activities/:id/feedback/summary', authMiddleware, (req, res) => {
 app.post('/api/tickets/:id/transfer', authMiddleware, (req, res) => {
   try {
     const { to_email } = req.body;
-    if (!to_email) return res.status(400).json({ error: 'Email du destinataire requis' });
+    if (!to_email) return res.status(400).json({ error: 'Courriel du destinataire requis' });
     const ticket = db.prepare('SELECT * FROM tickets WHERE id = ?').get(req.params.id);
     if (!ticket) return res.status(404).json({ error: 'Billet introuvable' });
     if (ticket.user_id !== req.user.id) return res.status(403).json({ error: 'Ce billet ne vous appartient pas' });
@@ -9613,6 +9613,182 @@ app.post('/api/activities/:id/seats/:seatId/release', authMiddleware, (req, res)
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
+// ── Rencontres comité (présences + signatures) ──────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+const CM_ROLES = ['admin','tresoriere','secretaire','delegue'];
+
+app.get('/api/committee-meetings', authMiddleware, requireRole(...CM_ROLES), (req, res) => {
+  const rows = db.prepare(`SELECT cm.*,
+    u.prenom || ' ' || u.nom AS createur_nom,
+    (SELECT COUNT(*) FROM committee_meeting_signatures s WHERE s.meeting_id = cm.id) AS nb_signatures,
+    (SELECT COUNT(*) FROM committee_meeting_attendance a WHERE a.meeting_id = cm.id AND a.statut = 'present') AS nb_presents,
+    (SELECT COUNT(*) FROM committee_meeting_attendance a WHERE a.meeting_id = cm.id) AS nb_total,
+    (SELECT date_signature FROM committee_meeting_signatures WHERE meeting_id = cm.id AND user_id = ?) AS date_ma_signature
+    FROM committee_meetings cm
+    LEFT JOIN users u ON u.id = cm.cree_par
+    ORDER BY cm.date_heure DESC`).all(req.user.id);
+  res.json(rows);
+});
+
+app.post('/api/committee-meetings', authMiddleware, requireRole(...CM_ROLES), (req, res) => {
+  const { date_heure, lieu, notes } = req.body;
+  if (!date_heure) return res.status(400).json({ error: 'Date et heure requises' });
+  const r = db.prepare('INSERT INTO committee_meetings (date_heure, lieu, notes, cree_par) VALUES (?,?,?,?)')
+    .run(date_heure, lieu || '', notes || '', req.user.id);
+  const meetingId = r.lastInsertRowid;
+  const exec = db.prepare("SELECT id FROM users WHERE role IN ('admin','tresoriere','secretaire','delegue') AND actif=1").all();
+  const ins = db.prepare('INSERT OR IGNORE INTO committee_meeting_attendance (meeting_id, user_id, statut) VALUES (?,?,?)');
+  exec.forEach(u => ins.run(meetingId, u.id, 'absent'));
+  logAdmin(req.user.id, 'committee_meeting_create', `Rencontre comité créée`, meetingId, 'committee_meeting', req.ip);
+  res.status(201).json({ id: meetingId });
+});
+
+app.get('/api/committee-meetings/:id', authMiddleware, requireRole(...CM_ROLES), (req, res) => {
+  const m = db.prepare(`SELECT cm.*, u.prenom||' '||u.nom AS createur_nom FROM committee_meetings cm LEFT JOIN users u ON u.id=cm.cree_par WHERE cm.id=?`).get(req.params.id);
+  if (!m) return res.status(404).json({ error: 'Rencontre introuvable' });
+  const exec = db.prepare("SELECT id, prenom, nom, role FROM users WHERE role IN ('admin','tresoriere','secretaire','delegue') AND actif=1 ORDER BY CASE role WHEN 'admin' THEN 1 WHEN 'tresoriere' THEN 2 WHEN 'secretaire' THEN 3 WHEN 'delegue' THEN 4 END").all();
+  const att = db.prepare('SELECT user_id, statut FROM committee_meeting_attendance WHERE meeting_id=?').all(m.id);
+  const attMap = {};
+  att.forEach(a => { attMap[a.user_id] = a.statut; });
+  m.membres = exec.map(u => ({ ...u, statut: attMap[u.id] || 'absent' }));
+  m.signatures = db.prepare(`SELECT s.*, u.prenom||' '||u.nom AS nom_signataire, u.role FROM committee_meeting_signatures s JOIN users u ON u.id=s.user_id WHERE s.meeting_id=? ORDER BY s.date_signature`).all(m.id);
+  m.nb_signatures = m.signatures.length;
+  res.json(m);
+});
+
+app.put('/api/committee-meetings/:id', authMiddleware, requireRole(...CM_ROLES), (req, res) => {
+  const m = db.prepare('SELECT * FROM committee_meetings WHERE id=?').get(req.params.id);
+  if (!m) return res.status(404).json({ error: 'Rencontre introuvable' });
+  if (m.verrouille) return res.status(403).json({ error: 'Rencontre verrouillée' });
+  const { date_heure, lieu, notes } = req.body;
+  db.prepare('UPDATE committee_meetings SET date_heure=COALESCE(?,date_heure), lieu=COALESCE(?,lieu), notes=COALESCE(?,notes) WHERE id=?')
+    .run(date_heure || null, lieu !== undefined ? lieu : null, notes !== undefined ? notes : null, m.id);
+  res.json({ ok: true });
+});
+
+app.delete('/api/committee-meetings/:id', authMiddleware, requireRole('admin'), (req, res) => {
+  const m = db.prepare('SELECT * FROM committee_meetings WHERE id=?').get(req.params.id);
+  if (!m) return res.status(404).json({ error: 'Rencontre introuvable' });
+  if (m.verrouille) return res.status(403).json({ error: 'Rencontre verrouillée, suppression impossible' });
+  db.prepare('DELETE FROM committee_meetings WHERE id=?').run(m.id);
+  logAdmin(req.user.id, 'committee_meeting_delete', `Rencontre comité supprimée`, m.id, 'committee_meeting', req.ip);
+  res.json({ ok: true });
+});
+
+app.put('/api/committee-meetings/:id/attendance', authMiddleware, requireRole(...CM_ROLES), (req, res) => {
+  const m = db.prepare('SELECT * FROM committee_meetings WHERE id=?').get(req.params.id);
+  if (!m) return res.status(404).json({ error: 'Rencontre introuvable' });
+  if (m.verrouille) return res.status(403).json({ error: 'Rencontre verrouillée' });
+  const { attendance } = req.body;
+  if (!Array.isArray(attendance)) return res.status(400).json({ error: 'Format invalide' });
+  const valid = ['present', 'absent', 'excuse'];
+  const ins = db.prepare('INSERT OR REPLACE INTO committee_meeting_attendance (meeting_id, user_id, statut, date_modification) VALUES (?,?,?,datetime("now"))');
+  attendance.forEach(a => {
+    if (a.user_id && valid.includes(a.statut)) ins.run(m.id, a.user_id, a.statut);
+  });
+  const { cnt } = db.prepare('SELECT COUNT(*) AS cnt FROM committee_meeting_signatures WHERE meeting_id=?').get(m.id);
+  if (cnt > 0) {
+    db.prepare('DELETE FROM committee_meeting_signatures WHERE meeting_id=?').run(m.id);
+    db.prepare('UPDATE committee_meetings SET verrouille=0 WHERE id=?').run(m.id);
+  }
+  res.json({ ok: true, signatures_annulees: cnt > 0 });
+});
+
+app.post('/api/committee-meetings/:id/sign', authMiddleware, requireRole(...CM_ROLES), (req, res) => {
+  const { signature_data } = req.body;
+  if (!signature_data) return res.status(400).json({ error: 'Signature requise' });
+  const m = db.prepare('SELECT * FROM committee_meetings WHERE id=?').get(req.params.id);
+  if (!m) return res.status(404).json({ error: 'Rencontre introuvable' });
+  if (m.verrouille) return res.status(403).json({ error: 'Rencontre déjà verrouillée' });
+  try {
+    db.prepare('INSERT OR REPLACE INTO committee_meeting_signatures (meeting_id, user_id, signature_data, ip) VALUES (?,?,?,?)')
+      .run(m.id, req.user.id, signature_data, req.ip);
+    const { cnt } = db.prepare('SELECT COUNT(*) AS cnt FROM committee_meeting_signatures WHERE meeting_id=?').get(m.id);
+    if (cnt >= 2) db.prepare('UPDATE committee_meetings SET verrouille=1 WHERE id=?').run(m.id);
+    logAdmin(req.user.id, 'committee_meeting_sign', `Signature rencontre comité #${m.id}`, m.id, 'committee_meeting', req.ip);
+    res.json({ ok: true, verrouille: cnt >= 2, nb_signatures: cnt });
+  } catch(e) { res.status(500).json({ error: 'Erreur serveur' }); }
+});
+
+app.get('/api/committee-meetings/:id/download', authMiddleware, requireRole(...CM_ROLES), (req, res) => {
+  const m = db.prepare('SELECT cm.*, u.prenom||" "||u.nom AS createur_nom FROM committee_meetings cm LEFT JOIN users u ON u.id=cm.cree_par WHERE cm.id=?').get(req.params.id);
+  if (!m) return res.status(404).send('Rencontre introuvable');
+  const exec = db.prepare("SELECT id, prenom, nom, role FROM users WHERE role IN ('admin','tresoriere','secretaire','delegue') AND actif=1 ORDER BY CASE role WHEN 'admin' THEN 1 WHEN 'tresoriere' THEN 2 WHEN 'secretaire' THEN 3 WHEN 'delegue' THEN 4 END").all();
+  const att = db.prepare('SELECT user_id, statut FROM committee_meeting_attendance WHERE meeting_id=?').all(m.id);
+  const attMap = {}; att.forEach(a => { attMap[a.user_id] = a.statut; });
+  const sigs = db.prepare('SELECT s.*, u.prenom||" "||u.nom AS nom_signataire, u.role FROM committee_meeting_signatures s JOIN users u ON u.id=s.user_id WHERE s.meeting_id=? ORDER BY s.date_signature').all(m.id);
+  const ROLE_LABELS = { admin:'Administrateur', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Délégué' };
+  const fmt = d => { try { return new Date(d).toLocaleString('fr-CA', { timeZone:'America/Toronto', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' }); } catch { return d||''; } };
+  const STATUS_LABELS = { present:'✅ Présent(e)', absent:'❌ Absent(e)', excuse:'🟡 Excusé(e)' };
+  const siteUrl2 = process.env.SITE_URL || 'https://ahhamilton.ca';
+  const html = `<!DOCTYPE html><html lang="fr">
+<head><meta charset="UTF-8"><title>Rencontre comité : ${fmt(m.date_heure)}</title>
+<style>
+  @page{size:8.5in 11in;margin:0}
+  *{box-sizing:border-box}
+  body{font-family:'Times New Roman',serif;margin:0;padding:0;color:#000;font-size:12pt;line-height:1.6;background:#fff}
+  .page{width:8.5in;min-height:11in;margin:0 auto;display:flex;flex-direction:column}
+  .ahh-header{border-bottom:3px solid #1a237e;padding:12px 64px 10px;display:flex;align-items:center;gap:14px}
+  .ahh-header img{height:52px;width:52px;object-fit:cover;border-radius:8px;flex-shrink:0}
+  .ahh-header-text{flex:1}
+  .ahh-header-org{font-weight:800;font-size:12pt;color:#1a237e;letter-spacing:.3px}
+  .ahh-header-sub{font-size:9pt;color:#555;margin-top:2px}
+  .ahh-header-date{font-size:9pt;color:#888;text-align:right}
+  .content{flex:1;padding:36px 64px}
+  table{width:100%;border-collapse:collapse;margin:16px 0}
+  th{background:#1a237e;color:#fff;padding:10px 14px;text-align:left;font-size:10pt}
+  td{padding:9px 14px;border-bottom:1px solid #ddd;font-size:10pt}
+  tr:nth-child(even){background:#f5f5f5}
+  .sig-section{border-top:2px solid #1a237e;padding-top:20px;margin-top:32px}
+  .sig-section h2{color:#1a237e;font-size:13pt}
+  .sig-card{display:flex;gap:20px;align-items:center;border:1px solid #ccc;border-radius:6px;padding:12px;margin-bottom:10px;page-break-inside:avoid}
+  .sig-img{width:180px;height:70px;object-fit:contain;border:1px solid #ddd;border-radius:4px;background:#fff;flex-shrink:0}
+  .sig-name{font-weight:bold;font-size:11pt}
+  .sig-role{font-size:9pt;color:#555}
+  .sig-date{font-size:9pt;color:#1a237e;margin-top:2px}
+  .locked{background:#e8eaf6;color:#1a237e;border:1px solid #9fa8da;border-radius:6px;padding:8px 16px;display:inline-block;font-size:9pt;font-weight:bold;margin-bottom:8px}
+  .ahh-footer{border-top:2px solid #1a237e;padding:8px 64px;display:flex;justify-content:space-between;font-size:8pt;color:#888;margin-top:auto}
+  @media print{.no-print{display:none}}
+</style></head>
+<body>
+<div class="page">
+<div class="ahh-header">
+  <img src="${siteUrl2}/Public/logo1.png" onerror="this.style.display='none'">
+  <div class="ahh-header-text">
+    <div class="ahh-header-org">Association Haïtienne de Hamilton (AHH)</div>
+    <div class="ahh-header-sub">Procès-verbal de rencontre comité</div>
+  </div>
+  <div class="ahh-header-date">${fmt(m.date_heure)}</div>
+</div>
+<div class="content">
+  <h2 style="color:#1a237e;margin-bottom:4px">Rencontre du comité exécutif</h2>
+  <p><strong>Date :</strong> ${fmt(m.date_heure)}</p>
+  ${m.lieu ? '<p><strong>Lieu :</strong> ' + m.lieu + '</p>' : ''}
+  ${m.notes ? '<p><strong>Notes :</strong> ' + m.notes + '</p>' : ''}
+  <h3 style="color:#1a237e;margin-top:24px">Présences</h3>
+  ${m.verrouille ? '<div class="locked">🔒 Document verrouillé : ' + sigs.length + ' signature(s)</div>' : ''}
+  <table>
+    <thead><tr><th>Membre</th><th>Rôle</th><th>Statut</th></tr></thead>
+    <tbody>${exec.map(u => '<tr><td>' + u.prenom + ' ' + u.nom + '</td><td>' + (ROLE_LABELS[u.role]||u.role) + '</td><td>' + (STATUS_LABELS[attMap[u.id]||'absent']) + '</td></tr>').join('')}</tbody>
+  </table>
+</div>
+${sigs.length ? `<div class="sig-section" style="padding:0 64px 20px">
+  <h2>Signatures</h2>
+  ${sigs.map(s => '<div class="sig-card"><img class="sig-img" src="' + s.signature_data + '" alt="Signature"><div><div class="sig-name">' + s.nom_signataire + '</div><div class="sig-role">' + (ROLE_LABELS[s.role]||s.role) + '</div><div class="sig-date">Signé le ' + fmt(s.date_signature) + '</div></div></div>').join('')}
+</div>` : ''}
+<div class="ahh-footer">
+  <span>Association Haïtienne de Hamilton, Hamilton, Ontario, Canada</span>
+  <span>Généré le ${fmt(new Date().toISOString())}</span>
+</div>
+</div>
+<div style="text-align:center;margin:16px 0" class="no-print">
+  <button onclick="window.print()" style="padding:10px 24px;background:#1a237e;color:#fff;border:none;border-radius:6px;cursor:pointer">🖨 Imprimer / Sauvegarder PDF</button>
+</div>
+</body></html>`;
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(html);
+});
 
 app.use((req, res) => {
   if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Route introuvable' });
@@ -9622,6 +9798,6 @@ app.use((req, res) => {
 // ── Start ───────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`\n✅ AHH Server démarré sur http://localhost:${PORT}`);
-  console.log(`   Dashboard : http://localhost:${PORT}/dashboard/login.html`);
+  console.log(`   Tableau de bord : http://localhost:${PORT}/dashboard/login.html`);
   console.log(`   API       : http://localhost:${PORT}/api/\n`);
 });
