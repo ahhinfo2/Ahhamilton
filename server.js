@@ -9677,22 +9677,27 @@ app.delete('/api/committee-meetings/:id', authMiddleware, requireRole('admin'), 
 });
 
 app.put('/api/committee-meetings/:id/attendance', authMiddleware, requireRole(...CM_ROLES), (req, res) => {
-  const m = db.prepare('SELECT * FROM committee_meetings WHERE id=?').get(req.params.id);
-  if (!m) return res.status(404).json({ error: 'Rencontre introuvable' });
-  if (m.verrouille) return res.status(403).json({ error: 'Rencontre verrouillée' });
-  const { attendance } = req.body;
-  if (!Array.isArray(attendance)) return res.status(400).json({ error: 'Format invalide' });
-  const valid = ['present', 'absent', 'excuse'];
-  const ins = db.prepare('INSERT OR REPLACE INTO committee_meeting_attendance (meeting_id, user_id, statut, date_modification) VALUES (?,?,?,datetime("now"))');
-  attendance.forEach(a => {
-    if (a.user_id && valid.includes(a.statut)) ins.run(m.id, a.user_id, a.statut);
-  });
-  const { cnt } = db.prepare('SELECT COUNT(*) AS cnt FROM committee_meeting_signatures WHERE meeting_id=?').get(m.id);
-  if (cnt > 0) {
-    db.prepare('DELETE FROM committee_meeting_signatures WHERE meeting_id=?').run(m.id);
-    db.prepare('UPDATE committee_meetings SET verrouille=0 WHERE id=?').run(m.id);
-  }
-  res.json({ ok: true, signatures_annulees: cnt > 0 });
+  try {
+    const m = db.prepare('SELECT * FROM committee_meetings WHERE id=?').get(req.params.id);
+    if (!m) return res.status(404).json({ error: 'Rencontre introuvable' });
+    if (m.verrouille) return res.status(403).json({ error: 'Rencontre verrouillée' });
+    const { attendance } = req.body;
+    if (!Array.isArray(attendance)) return res.status(400).json({ error: 'Format invalide' });
+    const valid = ['present', 'absent', 'excuse'];
+    const now = new Date().toISOString();
+    attendance.forEach(a => {
+      if (a.user_id && valid.includes(a.statut)) {
+        db.prepare('DELETE FROM committee_meeting_attendance WHERE meeting_id=? AND user_id=?').run(m.id, a.user_id);
+        db.prepare('INSERT INTO committee_meeting_attendance (meeting_id, user_id, statut, date_modification) VALUES (?,?,?,?)').run(m.id, a.user_id, a.statut, now);
+      }
+    });
+    const { cnt } = db.prepare('SELECT COUNT(*) AS cnt FROM committee_meeting_signatures WHERE meeting_id=?').get(m.id);
+    if (cnt > 0) {
+      db.prepare('DELETE FROM committee_meeting_signatures WHERE meeting_id=?').run(m.id);
+      db.prepare('UPDATE committee_meetings SET verrouille=0 WHERE id=?').run(m.id);
+    }
+    res.json({ ok: true, signatures_annulees: cnt > 0 });
+  } catch(e) { console.error('[CM-ATTENDANCE]', e.message); res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/committee-meetings/:id/sign', authMiddleware, requireRole(...CM_ROLES), (req, res) => {
