@@ -9717,12 +9717,12 @@ app.post('/api/committee-meetings/:id/sign', authMiddleware, requireRole(...CM_R
 });
 
 app.get('/api/committee-meetings/:id/download', authMiddleware, requireRole(...CM_ROLES), (req, res) => {
-  const m = db.prepare('SELECT cm.*, u.prenom||" "||u.nom AS createur_nom FROM committee_meetings cm LEFT JOIN users u ON u.id=cm.cree_par WHERE cm.id=?').get(req.params.id);
+  const m = db.prepare(`SELECT cm.*, u.prenom||' '||u.nom AS createur_nom FROM committee_meetings cm LEFT JOIN users u ON u.id=cm.cree_par WHERE cm.id=?`).get(req.params.id);
   if (!m) return res.status(404).send('Rencontre introuvable');
   const exec = db.prepare("SELECT id, prenom, nom, role FROM users WHERE role IN ('admin','tresoriere','secretaire','delegue') AND actif=1 AND (phantom IS NULL OR phantom=0) ORDER BY CASE role WHEN 'admin' THEN 1 WHEN 'tresoriere' THEN 2 WHEN 'secretaire' THEN 3 WHEN 'delegue' THEN 4 END").all();
   const att = db.prepare('SELECT user_id, statut FROM committee_meeting_attendance WHERE meeting_id=?').all(m.id);
   const attMap = {}; att.forEach(a => { attMap[a.user_id] = a.statut; });
-  const sigs = db.prepare('SELECT s.*, u.prenom||" "||u.nom AS nom_signataire, u.role FROM committee_meeting_signatures s JOIN users u ON u.id=s.user_id WHERE s.meeting_id=? ORDER BY s.date_signature').all(m.id);
+  const sigs = db.prepare(`SELECT s.*, u.prenom||' '||u.nom AS nom_signataire, u.role FROM committee_meeting_signatures s JOIN users u ON u.id=s.user_id WHERE s.meeting_id=? ORDER BY s.date_signature`).all(m.id);
   const ROLE_LABELS = { admin:'Administrateur', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Délégué' };
   const fmt = d => { try { return new Date(d).toLocaleString('fr-CA', { timeZone:'America/Toronto', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' }); } catch { return d||''; } };
   const STATUS_LABELS = { present:'✅ Présent(e)', absent:'❌ Absent(e)', excuse:'🟡 Excusé(e)' };
