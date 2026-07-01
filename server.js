@@ -9795,6 +9795,76 @@ ${sigs.length ? `<div class="sig-section" style="padding:0 64px 20px">
   res.send(html);
 });
 
+// ══════════════════════════════════════════════════════════════════════════════
+// RELANCE CONNEXION — email aux membres qui ne se sont jamais connectés
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.post('/api/users/:id/relance-connexion', authMiddleware, requireRole('admin','tresoriere','secretaire'), async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    const user = db.prepare('SELECT id, prenom, nom, email, actif FROM users WHERE id = ? AND (phantom IS NULL OR phantom = 0)').get(userId);
+    if (!user) return res.status(404).json({ error: 'Membre introuvable' });
+    if (!user.actif) return res.status(400).json({ error: 'Compte inactif' });
+    if (!user.email) return res.status(400).json({ error: 'Aucun courriel pour ce membre' });
+
+    // Vérifier qu'il ne s'est vraiment jamais connecté
+    const connRow = db.prepare('SELECT COUNT(*) AS c FROM login_history WHERE user_id = ?').get(userId);
+    if (connRow && connRow.c > 0) return res.status(400).json({ error: 'Ce membre s\'est déjà connecté' });
+
+    // Générer un token de réinitialisation valide 7 jours
+    db.prepare('UPDATE password_reset_tokens SET used = 1 WHERE user_id = ? AND used = 0').run(userId);
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + 7 * 24 * 3600000).toISOString();
+    db.prepare('INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)').run(userId, token, expires);
+
+    const siteUrl = process.env.SITE_URL || `http://localhost:${PORT}`;
+    const resetLink = `${siteUrl}/dashboard/reset-password.html?token=${token}`;
+    const prenom = user.prenom || 'Membre';
+
+    const { sendMail } = require('./mailer');
+    await sendMail({
+      to: user.email,
+      subject: 'Votre compte AHH vous attend !',
+      html: `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/></head>
+<body style="font-family:'Segoe UI',Arial,sans-serif;background:#f4f7f4;margin:0;padding:0">
+<div style="max-width:560px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(27,94,32,.1)">
+  <div style="background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:32px 40px;text-align:center">
+    <div style="font-size:2.4rem;margin-bottom:8px">👋</div>
+    <h1 style="color:#fff;margin:0;font-size:1.4rem;font-weight:800">Bonjour ${escHtmlServer(prenom)} !</h1>
+    <p style="color:rgba(255,255,255,.85);margin:8px 0 0;font-size:.92rem">Association Haïtienne de Hamilton</p>
+  </div>
+  <div style="padding:32px 40px">
+    <p style="color:#333;font-size:.97rem;line-height:1.7">Nous avons remarqué que depuis la création de votre compte AHH, vous ne vous êtes pas encore connecté(e) à votre espace membre.</p>
+    <p style="color:#333;font-size:.97rem;line-height:1.7">Votre compte vous donne accès à :</p>
+    <ul style="color:#555;font-size:.92rem;line-height:2">
+      <li>Votre carte de membre numérique</li>
+      <li>Les activités et événements de l'association</li>
+      <li>Les communications du comité</li>
+    </ul>
+    <p style="color:#333;font-size:.97rem;line-height:1.7">Si vous avez un problème de mot de passe, cliquez sur le bouton ci-dessous pour en créer un nouveau :</p>
+    <div style="text-align:center;margin:28px 0">
+      <a href="${resetLink}" style="display:inline-block;background:#1b5e20;color:#fff;padding:14px 36px;border-radius:10px;text-decoration:none;font-weight:700;font-size:1rem">🔑 Accéder à mon compte</a>
+    </div>
+    <p style="color:#777;font-size:.82rem;text-align:center">Ce lien est valide pendant 7 jours.</p>
+    <hr style="border:none;border-top:1px solid #eee;margin:24px 0"/>
+    <p style="color:#555;font-size:.9rem;line-height:1.7">Si vous avez des questions ou besoin d'aide, nous sommes là pour vous. N'hésitez pas à nous écrire :</p>
+    <p style="text-align:center;margin:16px 0"><a href="mailto:contact@ahhamilton.ca" style="color:#1b5e20;font-weight:700;font-size:.97rem">contact@ahhamilton.ca</a></p>
+  </div>
+  <div style="background:#f4f7f4;padding:16px 40px;text-align:center">
+    <p style="color:#999;font-size:.75rem;margin:0">Association Haïtienne de Hamilton · Hamilton, Ontario, Canada</p>
+    <p style="color:#999;font-size:.75rem;margin:4px 0 0"><a href="${siteUrl}" style="color:#999">ahhamilton.ca</a></p>
+  </div>
+</div>
+</body></html>`
+    });
+
+    res.json({ message: `Courriel de relance envoyé à ${user.email}` });
+  } catch (e) {
+    console.error('[RELANCE-CONNEXION]', e.message);
+    res.status(500).json({ error: 'Erreur lors de l\'envoi du courriel' });
+  }
+});
+
 app.use((req, res) => {
   if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Route introuvable' });
   res.status(404).sendFile(path.join(__dirname, '404.html'));

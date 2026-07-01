@@ -11433,6 +11433,9 @@ async function carteGestionView() {
                     ? '<label style="cursor:pointer" title="Ajouter photo"><span class="btn btn-sm btn-outline">📷</span><input type="file" accept="image/*" style="display:none" onchange="_cgUploadPhoto(' + m.id + ',this.files[0])"/></label>'
                     : '') +
                   '<button class="btn btn-sm btn-ghost" onclick="carteRenouveler(' + m.id + ',\'' + escHtml(m.prenom + ' ' + m.nom).replace(/'/g,"\\'") + '\')" title="Renouveler">🔄</button>' +
+                  ((conn.nb_connexions||0) === 0
+                    ? '<button class="btn btn-sm btn-ghost" style="color:#e65100" onclick="_cgRelanceConnexion(' + m.id + ',\'' + escHtml(m.prenom).replace(/'/g,"\\'") + '\')" title="Envoyer courriel de relance">✉️</button>'
+                    : '') +
                 '</div>' +
               '</td>' +
             '</tr>';
@@ -11551,6 +11554,16 @@ async function carteRenouveler(id, nom) {
   var r = await api('/admin/cartes/' + id + '/renouveler', { method:'POST' });
   toast('✅ Carte renouvelée jusqu\'au ' + fmt(r.expiration));
   carteGestionView();
+}
+
+async function _cgRelanceConnexion(id, prenom) {
+  if (!confirm('Envoyer un courriel de relance à ' + prenom + ' ?\n\nCe courriel l\'informera qu\'il ne s\'est jamais connecté et lui fournira un lien pour accéder à son compte.')) return;
+  try {
+    var r = await api('/users/' + id + '/relance-connexion', { method:'POST' });
+    toast('✉️ ' + (r.message || 'Courriel envoyé'));
+  } catch (e) {
+    toast('⚠️ ' + (e.message || 'Erreur lors de l\'envoi'), 'error');
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
