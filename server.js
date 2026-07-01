@@ -9802,14 +9802,11 @@ ${sigs.length ? `<div class="sig-section" style="padding:0 64px 20px">
 app.post('/api/users/:id/relance-connexion', authMiddleware, requireRole('admin','tresoriere','secretaire'), async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
-    const user = db.prepare('SELECT id, prenom, nom, email, actif FROM users WHERE id = ? AND (phantom IS NULL OR phantom = 0)').get(userId);
+    const user = db.prepare('SELECT id, prenom, nom, email, actif, nb_connexions FROM users WHERE id = ? AND (phantom IS NULL OR phantom = 0)').get(userId);
     if (!user) return res.status(404).json({ error: 'Membre introuvable' });
     if (!user.actif) return res.status(400).json({ error: 'Compte inactif' });
     if (!user.email) return res.status(400).json({ error: 'Aucun courriel pour ce membre' });
-
-    // Vérifier qu'il ne s'est vraiment jamais connecté
-    const connRow = db.prepare('SELECT COUNT(*) AS c FROM login_history WHERE user_id = ?').get(userId);
-    if (connRow && connRow.c > 0) return res.status(400).json({ error: 'Ce membre s\'est déjà connecté' });
+    if ((user.nb_connexions || 0) > 0) return res.status(400).json({ error: 'Ce membre s\'est déjà connecté' });
 
     // Générer un token de réinitialisation valide 7 jours
     db.prepare('UPDATE password_reset_tokens SET used = 1 WHERE user_id = ? AND used = 0').run(userId);
