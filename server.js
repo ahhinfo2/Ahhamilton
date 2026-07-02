@@ -6627,9 +6627,67 @@ app.post('/api/admin/cartes/:id/approuver-photo', authMiddleware, requireRole(..
   res.json({ ok: true });
 });
 
+app.post('/api/admin/cartes/:id/desapprouver-photo', authMiddleware, requireRole(...CARTE_ROLES), (req, res) => {
+  db.prepare('UPDATE users SET carte_photo_approuvee=0 WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
 app.post('/api/admin/cartes/:id/rejeter-photo', authMiddleware, requireRole(...CARTE_ROLES), (req, res) => {
   db.prepare('UPDATE users SET carte_photo_approuvee=0, photo_url=NULL WHERE id=?').run(req.params.id);
   res.json({ ok: true });
+});
+
+app.post('/api/admin/cartes/:id/refus-photo', authMiddleware, requireRole(...CARTE_ROLES), async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { raisons = [], message_perso = '', supprimer = true } = req.body;
+    const u = db.prepare('SELECT prenom, nom, email FROM users WHERE id=?').get(id);
+    if (!u) return res.status(404).json({ error: 'Membre introuvable' });
+    if (supprimer) {
+      db.prepare('UPDATE users SET carte_photo_approuvee=0, photo_url=NULL WHERE id=?').run(id);
+    } else {
+      db.prepare('UPDATE users SET carte_photo_approuvee=0 WHERE id=?').run(id);
+    }
+    if (u.email && raisons.length > 0) {
+      const siteUrl = process.env.SITE_URL || `http://localhost:${PORT}`;
+      const { sendMail } = require('./mailer');
+      const raisonsHtml = raisons.map(r => `<li style="margin-bottom:6px">${escHtmlServer(r)}</li>`).join('');
+      const persoHtml = message_perso ? `<p style="color:#555;font-size:.95rem;line-height:1.7;margin-top:16px;padding:14px;background:#f9f9f9;border-left:3px solid #2e7d32;border-radius:4px"><em>${escHtmlServer(message_perso)}</em></p>` : '';
+      await sendMail({
+        to: u.email,
+        subject: '📷 Votre photo de profil AHH — Correction requise',
+        html: `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/></head>
+<body style="font-family:'Segoe UI',Arial,sans-serif;background:#f4f7f4;margin:0;padding:0">
+<div style="max-width:560px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(27,94,32,.1)">
+  <div style="background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:32px 40px;text-align:center">
+    <div style="font-size:2.4rem;margin-bottom:8px">📷</div>
+    <h1 style="color:#fff;margin:0;font-size:1.4rem;font-weight:800">Bonjour ${escHtmlServer(u.prenom)} !</h1>
+    <p style="color:rgba(255,255,255,.85);margin:8px 0 0;font-size:.92rem">Association Haïtienne de Hamilton</p>
+  </div>
+  <div style="padding:32px 40px">
+    <p style="color:#333;font-size:.97rem;line-height:1.7">Merci d'avoir soumis votre photo de profil. Malheureusement, nous ne pouvons pas l'approuver pour les raisons suivantes :</p>
+    <ul style="color:#c62828;font-size:.9rem;line-height:1.8;padding-left:20px">${raisonsHtml}</ul>
+    ${persoHtml}
+    <div style="background:#e8f5e9;border-radius:10px;padding:18px;margin:20px 0">
+      <p style="margin:0;color:#2e7d32;font-size:.9rem;font-weight:700">📌 Comment corriger votre photo :</p>
+      <ul style="color:#555;font-size:.88rem;line-height:1.8;margin:8px 0 0;padding-left:18px">
+        <li>Visage clairement visible, centré et bien éclairé</li>
+        <li>Photo récente, seul(e) sur la photo</li>
+        <li>Fond neutre de préférence</li>
+        <li>Pas de lunettes de soleil ni d'accessoires masquant le visage</li>
+      </ul>
+    </div>
+    <div style="text-align:center;margin:24px 0">
+      <a href="${siteUrl}/dashboard/" style="display:inline-block;background:linear-gradient(135deg,#1b5e20,#2e7d32);color:#fff;padding:13px 30px;border-radius:8px;text-decoration:none;font-weight:700;font-size:.95rem">Mettre à jour ma photo →</a>
+    </div>
+    <p style="color:#888;font-size:.82rem;text-align:center">Des questions ? Répondez à ce courriel ou contactez-nous à <a href="mailto:info@ahhamilton.ca" style="color:#2e7d32">info@ahhamilton.ca</a></p>
+  </div>
+</div>
+</body></html>`
+      });
+    }
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // Upload photo membre (comité prend la photo — NE PAS auto-approuver si même personne)

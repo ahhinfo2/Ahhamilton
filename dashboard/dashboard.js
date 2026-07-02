@@ -11516,8 +11516,11 @@ async function carteGestionView() {
               '<td style="white-space:nowrap">' +
                 '<div style="display:flex;gap:4px;flex-wrap:wrap">' +
                   (m.photo_url && !m.carte_photo_approuvee
-                    ? '<button class="btn btn-sm btn-primary" onclick="_cgApprovePhoto(' + m.id + ')" title="Approuver">✅</button>' +
-                      '<button class="btn btn-sm btn-ghost" style="color:#c62828" onclick="carteRejeterPhoto(' + m.id + ')" title="Rejeter">✗</button>'
+                    ? '<button class="btn btn-sm btn-primary" onclick="_cgApprovePhoto(' + m.id + ')" title="Approuver photo">✅</button>' +
+                      '<button class="btn btn-sm btn-ghost" style="color:#c62828" onclick="_cgRefusPhotoModal(' + m.id + ',\'' + escHtml(m.prenom+' '+m.nom).replace(/'/g,"\\'") + '\')" title="Refuser photo avec message">✉️✗</button>'
+                    : '') +
+                  (m.photo_url && m.carte_photo_approuvee
+                    ? '<button class="btn btn-sm btn-ghost" style="color:#e65100" onclick="_cgDesapprouverPhoto(' + m.id + ')" title="Désapprouver la photo (la photo reste)">↩️</button>'
                     : '') +
                   (!m.photo_url
                     ? '<label style="cursor:pointer" title="Ajouter photo"><span class="btn btn-sm btn-outline">📷</span><input type="file" accept="image/*" style="display:none" onchange="_cgUploadPhoto(' + m.id + ',this.files[0])"/></label>'
@@ -11600,6 +11603,8 @@ async function _cgOpenProfile(id) {
       '<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px">' +
         (!m.photo_url ? '<label style="cursor:pointer"><span class="btn btn-primary btn-sm">📷 Ajouter photo</span><input type="file" accept="image/*" capture="environment" style="display:none" onchange="_cgUploadPhoto(' + m.id + ',this.files[0])"/></label>' : '') +
         (m.photo_url && !m.carte_photo_approuvee ? '<button class="btn btn-primary btn-sm" onclick="_cgApprovePhoto(' + m.id + ')">✅ Approuver photo</button>' : '') +
+        (m.photo_url && !m.carte_photo_approuvee ? '<button class="btn btn-danger btn-sm" onclick="_cgRefusPhotoModal(' + m.id + ',\'' + escHtml(m.prenom+' '+m.nom).replace(/'/g,"\\'") + '\')">✉️ Refuser avec message</button>' : '') +
+        (m.photo_url && m.carte_photo_approuvee ? '<button class="btn btn-outline btn-sm" style="color:#e65100;border-color:#e65100" onclick="_cgDesapprouverPhoto(' + m.id + ')">↩️ Désapprouver</button>' : '') +
         '<button class="btn btn-outline btn-sm" onclick="carteRenouveler(' + m.id + ',\'' + escHtml(m.prenom + ' ' + m.nom).replace(/'/g,"\\'") + '\')">🔄 Renouveler</button>' +
         '<button class="btn btn-outline btn-sm" onclick="closeModal();generateVolunteerLetter(' + m.id + ',\'fr\')" title="Lettre FR">📝 Lettre FR</button>' +
         '<button class="btn btn-outline btn-sm" onclick="closeModal();generateVolunteerLetter(' + m.id + ',\'en\')" title="Lettre EN">📝 EN</button>' +
@@ -11638,6 +11643,57 @@ async function carteRejeterPhoto(id) {
   await api('/admin/cartes/' + id + '/rejeter-photo', { method:'POST' });
   toast('Photo rejetée');
   carteGestionView();
+}
+
+async function _cgDesapprouverPhoto(id) {
+  if (!confirm('Désapprouver cette photo ?\n\nLa photo sera conservée mais devra être approuvée à nouveau.')) return;
+  try {
+    await api('/admin/cartes/' + id + '/desapprouver-photo', { method:'POST' });
+    toast('↩️ Photo désapprouvée — le membre devra la faire valider à nouveau');
+    carteGestionView();
+  } catch(e) { toast(e.message, true); }
+}
+
+function _cgRefusPhotoModal(id, nom) {
+  openModal('✉️ Refus de photo — ' + escHtml(nom), `
+    <p style="margin-bottom:16px;font-size:.9rem;color:var(--muted)">Sélectionnez les raisons du refus. Un courriel sera envoyé automatiquement au membre.</p>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
+      ${[
+        'Visage non visible ou trop petit',
+        'Photo floue ou de mauvaise qualité',
+        'Photo de groupe — une seule personne requise',
+        'Ce n\'est pas une photo de vous (logo, avatar, animal…)',
+        'Lunettes de soleil ou accessoires masquant le visage',
+        'Fond inapproprié ou trop chargé',
+        'Expression ou contenu non approprié'
+      ].map((r,i) => `<label style="display:flex;align-items:center;gap:10px;font-size:.88rem;cursor:pointer;padding:8px 10px;border:1px solid var(--border);border-radius:8px">
+        <input type="checkbox" id="rfr_${i}" value="${escHtml(r)}" style="accent-color:var(--g1);width:16px;height:16px"> ${escHtml(r)}
+      </label>`).join('')}
+    </div>
+    <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:6px">Message personnel (optionnel) :</label>
+    <textarea id="rfr_msg" rows="3" placeholder="Ajoutez un message personnalisé si nécessaire…" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:.85rem;resize:vertical;box-sizing:border-box"></textarea>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:.85rem;cursor:pointer">
+      <input type="checkbox" id="rfr_del" checked style="accent-color:#c62828;width:16px;height:16px">
+      Supprimer la photo en même temps (recommandé)
+    </label>
+    <div style="display:flex;gap:8px;margin-top:20px">
+      <button class="btn btn-danger" onclick="_cgEnvoyerRefus(${id})">✉️ Envoyer le refus</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+    </div>
+  `);
+}
+
+async function _cgEnvoyerRefus(id) {
+  const raisons = Array.from(document.querySelectorAll('[id^="rfr_"]:checked:not(#rfr_del)')).map(cb => cb.value);
+  if (raisons.length === 0) return toast('⚠️ Sélectionnez au moins une raison', true);
+  const message_perso = document.getElementById('rfr_msg')?.value?.trim() || '';
+  const supprimer = document.getElementById('rfr_del')?.checked !== false;
+  try {
+    await api('/admin/cartes/' + id + '/refus-photo', { method:'POST', body: JSON.stringify({ raisons, message_perso, supprimer }) });
+    toast('✉️ Refus envoyé — courriel transmis au membre');
+    closeModal();
+    carteGestionView();
+  } catch(e) { toast(e.message, true); }
 }
 async function carteRenouveler(id, nom) {
   if (!confirm('Renouveler la carte de ' + nom + ' pour 2 ans ?')) return;
