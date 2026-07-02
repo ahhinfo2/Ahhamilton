@@ -21,7 +21,9 @@
     .recipe-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; margin: 32px 0; }
     .recipe-card { background: #fff; border-radius: var(--radius-lg); border: 1px solid var(--border); overflow: hidden; transition: var(--tr); cursor: pointer; }
     .recipe-card:hover { box-shadow: var(--shadow); transform: translateY(-3px); }
-    .recipe-thumb { height: 180px; display: flex; align-items: center; justify-content: center; font-size: 4rem; }
+    .recipe-thumb { height: 200px; overflow: hidden; position: relative; }
+    .recipe-thumb img { width: 100%; height: 100%; object-fit: cover; transition: transform .4s ease; }
+    .recipe-card:hover .recipe-thumb img { transform: scale(1.06); }
     .recipe-body { padding: 20px 22px; }
     .recipe-body h3 { font-size: 1rem; font-weight: 700; color: var(--g1); margin-bottom: 4px; }
     .recipe-ht { font-size: .8rem; color: var(--muted); font-style: italic; margin-bottom: 10px; }
@@ -72,7 +74,7 @@
 
     <div class="recipe-grid">
       <div class="recipe-card" onclick="openRecipe('griot')">
-        <div class="recipe-thumb" style="background:linear-gradient(135deg,#ff8a00,#da1b60)">🥩</div>
+        <div class="recipe-thumb"><img src="AHH/Griyo.jpg" alt="Griot haïtien" loading="lazy"/></div>
         <div class="recipe-body">
           <h3>Griot</h3>
           <div class="recipe-ht">Griyò</div>
@@ -83,7 +85,7 @@
       </div>
 
       <div class="recipe-card" onclick="openRecipe('diri')">
-        <div class="recipe-thumb" style="background:linear-gradient(135deg,#a8edea,#fed6e3)">🍚</div>
+        <div class="recipe-thumb"><img src="AHH/Diri kole ak pwa.jpg" alt="Diri kole ak pwa" loading="lazy"/></div>
         <div class="recipe-body">
           <h3>Diri kole ak pwa</h3>
           <div class="recipe-ht">Riz collé aux haricots</div>
@@ -94,7 +96,7 @@
       </div>
 
       <div class="recipe-card" onclick="openRecipe('soup')">
-        <div class="recipe-thumb" style="background:linear-gradient(135deg,#ffd89b,#19547b)">🥣</div>
+        <div class="recipe-thumb"><img src="AHH/Soup joumou.jpg" alt="Soup joumou" loading="lazy"/></div>
         <div class="recipe-body">
           <h3>Soup joumou</h3>
           <div class="recipe-ht">Soupe giraumon</div>
@@ -105,7 +107,7 @@
       </div>
 
       <div class="recipe-card" onclick="openRecipe('bannann')">
-        <div class="recipe-thumb" style="background:linear-gradient(135deg,#f7971e,#ffd200)">🍌</div>
+        <div class="recipe-thumb"><img src="AHH/Bannan peze.jpg" alt="Bannann peze" loading="lazy"/></div>
         <div class="recipe-body">
           <h3>Bannann peze</h3>
           <div class="recipe-ht">Tostones (plantains écrasés frits)</div>
@@ -116,7 +118,7 @@
       </div>
 
       <div class="recipe-card" onclick="openRecipe('pikliz')">
-        <div class="recipe-thumb" style="background:linear-gradient(135deg,#56ab2f,#a8e063)">🥒</div>
+        <div class="recipe-thumb"><img src="AHH/Pikliz.jpg" alt="Pikliz haïtien" loading="lazy"/></div>
         <div class="recipe-body">
           <h3>Pikliz</h3>
           <div class="recipe-ht">Pickles haïtiens épicés</div>
@@ -127,7 +129,7 @@
       </div>
 
       <div class="recipe-card" onclick="openRecipe('akasan')">
-        <div class="recipe-thumb" style="background:linear-gradient(135deg,#f8f9fa,#e9ecef)">🥛</div>
+        <div class="recipe-thumb"><img src="AHH/Akasan.jpeg" alt="Akasan" loading="lazy"/></div>
         <div class="recipe-body">
           <h3>Akasan</h3>
           <div class="recipe-ht">Boisson de farine de maïs</div>
