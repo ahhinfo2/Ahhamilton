@@ -1770,7 +1770,7 @@ function renderActivitiesTable(data) {
 
 // ── Fiche membre enrichie ────────────────────────────────────────────────────
 async function openMemberDetail(u) {
-  openModal('👤 Fiche membre', '<div style="text-align:center;padding:20px;color:var(--muted)">⏳ Chargement...</div>');
+  openModal('👤 Fiche membre', '<div id="modalBody" style="text-align:center;padding:20px;color:var(--muted)">⏳ Chargement...</div>');
   try {
     const [detail, volunteer, payments] = await Promise.all([
       api('/users/' + u.id),
