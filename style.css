@@ -742,6 +742,7 @@ img   { display: block; max-width: 100%; }
    RESPONSIVE
 ═══════════════════════════════════════════════ */
 @media (max-width: 1024px) {
+  .donation-cards { grid-template-columns: repeat(2,1fr); }
   .stats-grid { grid-template-columns: repeat(2,1fr); }
   .pillars-grid { grid-template-columns: 1fr 1fr; }
   .footer-inner { grid-template-columns: 1fr 1fr; gap: 32px; }
@@ -1247,6 +1248,47 @@ img   { display: block; max-width: 100%; }
 :root.dark .meteo-widget { background: rgba(30,60,30,.8); border-color: rgba(255,255,255,.1); }
 :root.dark .skeleton { background: linear-gradient(90deg,#1a2a1a 25%,#253525 50%,#1a2a1a 75%); }
 
+/* Dark mode — pages secondaires */
+:root.dark .about-section { background: #0f1f0f; }
+:root.dark .about-section.alt { background: #0a1a0a; }
+:root.dark .about-text h2, :root.dark .about-text p { color: var(--text); }
+:root.dark .about-img-placeholder { background: linear-gradient(135deg,#0a2a0a,#152515); color:#81c784; }
+:root.dark .value-card { background: #152515; border-color:#2a3d2a; }
+:root.dark .partner-card { background: #152515; border-color:#2a3d2a; }
+:root.dark .adh-section { background: #0f1f0f; }
+:root.dark .adh-section.alt { background: #0a1a0a; }
+:root.dark .mem-card { background: #152515; border-color:#2a3d2a; }
+:root.dark .adh-form-section { background: #0f1f0f; }
+:root.dark .act-section { background: #0f1f0f; }
+:root.dark .act-section.alt { background: #0a1a0a; }
+:root.dark .filter-btn { background:#152515; border-color:#2a3d2a; color:var(--muted); }
+:root.dark .filter-btn.active, :root.dark .filter-btn:hover { background:var(--g2); color:#fff; }
+:root.dark .event-card { background:#152515; border-color:#2a3d2a; }
+:root.dark .galerie-section { background:#0f1f0f; }
+:root.dark .masonry-item { background:#152515; }
+:root.dark .equipe-section { background:#0f1f0f; }
+:root.dark .team-card-full { background:#152515; border-color:#2a3d2a; }
+:root.dark .tal-section { background:#0f1f0f; }
+:root.dark .tal-card { background:#152515; border-color:#2a3d2a; }
+:root.dark .tal-filter { background:#152515; border-color:#2a3d2a; color:var(--muted); }
+:root.dark .tal-filter.active, :root.dark .tal-filter:hover { background:var(--g2); color:#fff; }
+:root.dark .ann-section { background:#0f1f0f; }
+:root.dark .ann-card { background:#152515; border-color:#2a3d2a; }
+:root.dark .privacy-body h2 { color:var(--text); border-color:#2a3d2a; }
+:root.dark .privacy-body p, :root.dark .privacy-body li { color:var(--muted); }
+:root.dark .last-updated { background:#152515; border-color:#2a3d2a; }
+:root.dark .contact-box { background:#152515; border-color:#2a3d2a; }
+:root.dark .legal-body { background:#0f1f0f; }
+:root.dark .legal-section h2 { color:#81c784; border-color:var(--g2); }
+:root.dark .legal-section p, :root.dark .legal-section li { color:var(--muted); }
+:root.dark .toc { background:#152515; border-color:#2a3d2a; }
+:root.dark .highlight-box { background:#0a2a0a; border-color:#2e7d32; color:#a5d6a7; }
+:root.dark .contact-card { background:#152515; }
+:root.dark .tl-content { background:#152515; box-shadow:0 4px 24px rgba(0,0,0,.3); }
+:root.dark .tl-stat { background:#152515; }
+:root.dark .tl-desc { color:var(--muted); }
+:root.dark .tl-cta { background:#0a1a0a; }
+
 /* Bouton dark mode toggle */
 #darkToggle {
   background: none; border: none; cursor: pointer;
@@ -1590,7 +1632,7 @@ img   { display: block; max-width: 100%; }
 .members-stack .ms-avatar {
   width: 38px; height: 38px; border-radius: 50%;
   border: 2.5px solid #fff;
-  margin-left: -10px; first-child:margin-left:0;
+  margin-left: -10px;
   object-fit: cover;
   box-shadow: 0 2px 6px rgba(0,0,0,.15);
   transition: transform .2s; cursor: pointer;

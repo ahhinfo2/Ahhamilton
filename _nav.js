@@ -79,6 +79,8 @@
     _lang = lang;
     localStorage.setItem('ahh_lang', lang);
     applyTranslations();
+    // Update <html lang=""> for screen readers
+    document.documentElement.lang = lang === 'ht' ? 'ht' : lang === 'en' ? 'en' : 'fr';
     // Also sync dashboard lang if present
     if (window.AHH_LANG) AHH_LANG.set(lang);
   }

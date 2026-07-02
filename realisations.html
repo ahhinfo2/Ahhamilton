@@ -5,10 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Nos r&eacute;alisations | AHH</title>
 <meta name="description" content="Parcourez l'histoire et les r&eacute;alisations de l'Association Ha&iuml;tienne de Hamilton depuis sa fondation."/>
-<meta property="og:title" content="Nos r&eacute;alisations | AHH"/>
-<meta property="og:description" content="Timeline des accomplissements de l'Association Ha&iuml;tienne de Hamilton."/>
+<meta property="og:title" content="Nos réalisations | AHH"/>
+<meta property="og:description" content="Timeline des accomplissements de l'Association Haïtienne de Hamilton depuis sa fondation en 2008."/>
 <meta property="og:image" content="https://ahhamilton.ca/Public/logo1.png"/>
-<link rel="icon" type="image/jpeg" href="Public/logo1.png"/>
+<meta property="og:url" content="https://ahhamilton.ca/realisations.html"/>
+<meta property="og:type" content="website"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<link rel="canonical" href="https://ahhamilton.ca/realisations.html"/>
+<link rel="icon" type="image/png" href="Public/logo1.png"/>
 <link rel="stylesheet" href="style.css"/>
 <style>
   .tl-hero{background:linear-gradient(135deg,#1b5e20 0%,#2e7d32 60%,#388e3c 100%);color:#fff;text-align:center;padding:80px 20px 60px}
@@ -55,11 +59,15 @@
 <script src="_lang.js"></script>
 <script src="_nav.js"></script>
 
-<div class="tl-hero">
-  <h1>Nos r&eacute;alisations</h1>
-  <p>Depuis notre fondation, l'AHH construit une communaut&eacute; forte, unie et engag&eacute;e &agrave; Hamilton.</p>
-</div>
+<section class="page-hero">
+  <div class="container page-hero-content">
+    <div class="breadcrumb"><a href="index.html">Accueil</a><span>›</span><span>Réalisations</span></div>
+    <h1>Nos réalisations</h1>
+    <p>Depuis notre fondation en 2008, l'AHH construit une communauté forte, unie et engagée à Hamilton.</p>
+  </div>
+</section>
 
+<main id="main-content" role="main">
 <div class="tl-section">
   <div class="tl-stats" id="tlStats">
     <div class="tl-stat"><div class="num" id="tlMembers">-</div><div class="lbl">Membres actifs</div></div>
@@ -86,7 +94,7 @@
     document.getElementById('tlMembers').textContent = s.membres || '50+';
     document.getElementById('tlActivities').textContent = s.activites || '20+';
     document.getElementById('tlVolunteer').textContent = (s.benevoles || '100') + 'h';
-    var founded = 2024;
+    var founded = 2008;
     document.getElementById('tlYears').textContent = new Date().getFullYear() - founded;
   } catch(e) {}
 
@@ -113,5 +121,8 @@
   document.getElementById('timelineList').innerHTML = html;
 })();
 </script>
+</main>
+<script src="script.js"></script>
+<script src="casl-consent.js"></script>
 </body>
 </html>
