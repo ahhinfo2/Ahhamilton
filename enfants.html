@@ -19,10 +19,12 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet"/>
   <style>
     .famille-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 22px; margin: 32px 0; }
-    .famille-card { background: #fff; border-radius: var(--radius-lg); border: 1px solid var(--border); padding: 26px 22px; transition: var(--tr); }
+    .famille-card { background: #fff; border-radius: var(--radius-lg); border: 1px solid var(--border); padding: 26px 22px; transition: var(--tr); position: relative; }
     .famille-card:hover { box-shadow: var(--shadow); transform: translateY(-3px); }
     .famille-icon { font-size: 2.2rem; margin-bottom: 14px; }
     .famille-card h3 { font-size: 1rem; font-weight: 700; color: var(--g1); margin-bottom: 8px; }
+    .badge-reflexion { display: inline-flex; align-items: center; gap: 4px; background: #fff8e1; color: #f57f17; border: 1px solid #ffe082; border-radius: 20px; font-size: .68rem; font-weight: 700; padding: 2px 8px; margin-bottom: 10px; }
+    :root.dark .badge-reflexion { background: #1a1500; color: #ffcc02; border-color: #3a3000; }
     .famille-card p { font-size: .85rem; color: var(--muted); line-height: 1.6; }
     .age-tabs { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
     .age-tab { padding: 7px 20px; border-radius: 30px; border: 2px solid var(--border); background: none; font-size: .82rem; font-weight: 600; cursor: pointer; transition: var(--tr); color: var(--text); }
@@ -76,17 +78,20 @@
       <div class="famille-grid">
         <div class="famille-card">
           <div class="famille-icon">📚</div>
-          <h3>Heure du conte en créole</h3>
+          <div class="badge-reflexion">💭 En réflexion</div>
+        <h3>Heure du conte en créole</h3>
           <p>Tous les samedis matin. Histoires haïtiennes lues en créole et en français pour les tout-petits. Un moment de connexion culturelle dès le plus jeune âge.</p>
         </div>
         <div class="famille-card">
           <div class="famille-icon">🎵</div>
-          <h3>Chansons et comptines haïtiennes</h3>
+          <div class="badge-reflexion">💭 En réflexion</div>
+        <h3>Chansons et comptines haïtiennes</h3>
           <p>Sessions musicales mensuelles avec tambours et instruments créoles. Les bébés apprennent les rythmes haïtiens naturellement.</p>
         </div>
         <div class="famille-card">
           <div class="famille-icon">🤱</div>
-          <h3>Groupe de mamans</h3>
+          <div class="badge-reflexion">💭 En réflexion</div>
+        <h3>Groupe de mamans</h3>
           <p>Rencontres bi-mensuelles pour les nouvelles mamans haïtiennes — partage d'expériences, soutien émotionnel et conseils en créole et en français.</p>
         </div>
       </div>
@@ -96,22 +101,26 @@
       <div class="famille-grid">
         <div class="famille-card">
           <div class="famille-icon">✏️</div>
-          <h3>Aide aux devoirs</h3>
+          <div class="badge-reflexion">💭 En réflexion</div>
+        <h3>Aide aux devoirs</h3>
           <p>Chaque mercredi après l'école, des bénévoles membres de l'AHH aident les enfants avec leurs devoirs. Gratuit pour les membres.</p>
         </div>
         <div class="famille-card">
           <div class="famille-icon">🎨</div>
-          <h3>Atelier arts créoles</h3>
+          <div class="badge-reflexion">💭 En réflexion</div>
+        <h3>Atelier arts créoles</h3>
           <p>Peinture, artisanat et expression artistique inspirée de la culture haïtienne. L'art comme pont entre ici et Haïti.</p>
         </div>
         <div class="famille-card">
           <div class="famille-icon">⚽</div>
-          <h3>Mini-tournois sportifs</h3>
+          <div class="badge-reflexion">💭 En réflexion</div>
+        <h3>Mini-tournois sportifs</h3>
           <p>Soccer, basketball et jeux traditionnels haïtiens. Pour faire bouger les enfants et créer des amitiés dans la communauté.</p>
         </div>
         <div class="famille-card">
           <div class="famille-icon">🇭🇹</div>
-          <h3>Club d'histoire haïtienne</h3>
+          <div class="badge-reflexion">💭 En réflexion</div>
+        <h3>Club d'histoire haïtienne</h3>
           <p>Des ateliers mensuels pour que nos enfants connaissent l'histoire de Haïti, de l'indépendance de 1804 à aujourd'hui.</p>
         </div>
       </div>
@@ -121,17 +130,20 @@
       <div class="famille-grid">
         <div class="famille-card">
           <div class="famille-icon">🎓</div>
-          <h3>Mentorat académique</h3>
+          <div class="badge-reflexion">💭 En réflexion</div>
+        <h3>Mentorat académique</h3>
           <p>Jumelage avec des membres adultes professionnels selon les intérêts de l'ado — santé, ingénierie, droit, arts. Pour préparer les choix de carrière.</p>
         </div>
         <div class="famille-card">
           <div class="famille-icon">💼</div>
-          <h3>Atelier CV et entrevue</h3>
+          <div class="badge-reflexion">💭 En réflexion</div>
+        <h3>Atelier CV et entrevue</h3>
           <p>Pour décrocher un premier emploi étudiant. Rédaction de CV, simulation d'entrevue, conseils pratiques adaptés au marché local.</p>
         </div>
         <div class="famille-card">
           <div class="famille-icon">🎤</div>
-          <h3>Espace Jeunes</h3>
+          <div class="badge-reflexion">💭 En réflexion</div>
+        <h3>Espace Jeunes</h3>
           <p>Le groupe pour les 15-30 ans. Sorties culturelles, discussions, leadership communautaire. Un espace pour être jeune et fièrement haïtien à Hamilton.</p>
         </div>
       </div>
@@ -141,22 +153,26 @@
       <div class="famille-grid">
         <div class="famille-card">
           <div class="famille-icon">🏫</div>
-          <h3>Naviguer le système scolaire</h3>
+          <div class="badge-reflexion">💭 En réflexion</div>
+        <h3>Naviguer le système scolaire</h3>
           <p>Comment s'impliquer dans l'école de vos enfants, comprendre les bulletins HWDSB/HWCDSB, parler avec les enseignants, droits des parents.</p>
         </div>
         <div class="famille-card">
           <div class="famille-icon">🌐</div>
-          <h3>Cours de français et d'anglais</h3>
+          <div class="badge-reflexion">💭 En réflexion</div>
+        <h3>Cours de français et d'anglais</h3>
           <p>Des ressources gratuites pour améliorer votre français écrit ou votre anglais au quotidien — pour mieux aider vos enfants et réussir au travail.</p>
         </div>
         <div class="famille-card">
           <div class="famille-icon">💰</div>
-          <h3>Bourses d'études</h3>
+          <div class="badge-reflexion">💭 En réflexion</div>
+        <h3>Bourses d'études</h3>
           <p>L'AHH compile les bourses disponibles pour les enfants de la communauté haïtienne. Contactez-nous pour la liste à jour.</p>
         </div>
         <div class="famille-card">
           <div class="famille-icon">🧠</div>
-          <h3>Santé mentale des jeunes</h3>
+          <div class="badge-reflexion">💭 En réflexion</div>
+        <h3>Santé mentale des jeunes</h3>
           <p>Comment parler à vos enfants nés ici de leur double identité. Ressources en créole, français et anglais pour la santé mentale des jeunes immigrants de 2e génération.</p>
         </div>
       </div>
@@ -260,4 +276,6 @@ function toggleQa(el) {
 <script src="casl-consent.js"></script>
 </body>
 </html>
+
+
 

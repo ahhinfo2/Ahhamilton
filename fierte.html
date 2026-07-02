@@ -85,69 +85,7 @@
     </div>
 
     <div class="pride-grid" id="prideGrid">
-      <div class="pride-card diplome" data-cat="diplome">
-        <div class="pride-avatar">MJ</div>
-        <div class="pride-name">Marie-Josée B.</div>
-        <span class="pride-badge diplome">🎓 Diplôme</span>
-        <div class="pride-text">Vient d'obtenir son baccalauréat en sciences infirmières à l'Université McMaster. Après trois ans de travail acharné, Marie-Josée commence maintenant sa résidence au Hamilton General Hospital.</div>
-        <div class="pride-date">Juin 2025</div>
-      </div>
-
-      <div class="pride-card emploi" data-cat="emploi">
-        <div class="pride-avatar">PL</div>
-        <div class="pride-name">Pierre-Louis M.</div>
-        <span class="pride-badge emploi">💼 Promotion</span>
-        <div class="pride-text">Nommé directeur régional chez une grande entreprise de logistique à Hamilton après 5 ans de progression. Premier Haïtien à ce poste dans leur bureau de l'Ontario.</div>
-        <div class="pride-date">Mai 2025</div>
-      </div>
-
-      <div class="pride-card arts" data-cat="arts">
-        <div class="pride-avatar">CV</div>
-        <div class="pride-name">Claudine V.</div>
-        <span class="pride-badge arts">🎨 Arts</span>
-        <div class="pride-text">Son exposition de peintures inspirées du paysage haïtien a été présentée à la galerie d'art de Hamilton en avril. Ses œuvres ont été vendues à des collectionneurs de trois provinces.</div>
-        <div class="pride-date">Avril 2025</div>
-      </div>
-
-      <div class="pride-card sport" data-cat="sport">
-        <div class="pride-avatar">JR</div>
-        <div class="pride-name">Jean-Robert D.</div>
-        <span class="pride-badge sport">⚽ Sport</span>
-        <div class="pride-text">Sélectionné dans l'équipe All-Star de la ligue de soccer amateur de Hamilton après une saison exceptionnelle. À 17 ans, il est le plus jeune joueur jamais sélectionné dans sa ligue.</div>
-        <div class="pride-date">Octobre 2024</div>
-      </div>
-
-      <div class="pride-card entreprise" data-cat="entreprise">
-        <div class="pride-avatar">RL</div>
-        <div class="pride-name">Rose-Laure A.</div>
-        <span class="pride-badge entreprise">🚀 Entrepreneuriat</span>
-        <div class="pride-text">A lancé « Ti Manman » — une entreprise de traiteur spécialisée en cuisine haïtienne authentique à Hamilton. Déjà réservée pour les 3 prochains mois !</div>
-        <div class="pride-date">Mars 2025</div>
-      </div>
-
-      <div class="pride-card communaute" data-cat="communaute">
-        <div class="pride-avatar">GS</div>
-        <div class="pride-name">Guerda Saint-F.</div>
-        <span class="pride-badge communaute">🤝 Communauté</span>
-        <div class="pride-text">A organisé bénévolement la collecte de fournitures scolaires pour 85 enfants haïtiens dans les écoles de Hamilton. Son initiative a reçu une mention de la Ville de Hamilton.</div>
-        <div class="pride-date">Septembre 2024</div>
-      </div>
-
-      <div class="pride-card diplome" data-cat="diplome">
-        <div class="pride-avatar">KJ</div>
-        <div class="pride-name">Karl-Jean P.</div>
-        <span class="pride-badge diplome">🎓 Maîtrise</span>
-        <div class="pride-text">A complété sa maîtrise en génie civil à l'Université de Toronto. Sa thèse sur les infrastructures résilientes en zones tropicales a déjà été citée dans trois publications scientifiques.</div>
-        <div class="pride-date">Décembre 2024</div>
-      </div>
-
-      <div class="pride-card arts" data-cat="arts">
-        <div class="pride-avatar">MN</div>
-        <div class="pride-name">Mylène N.</div>
-        <span class="pride-badge arts">🎵 Musique</span>
-        <div class="pride-text">A sorti son premier EP de musique fusion créole-R&B disponible sur toutes les plateformes. Ses chansons mêlent le konpa traditionnel à des sons contemporains canadiens.</div>
-        <div class="pride-date">Février 2025</div>
-      </div>
+      <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">⏳ Chargement…</div>
     </div>
 
     <div class="submit-box" style="margin-top:40px">
@@ -179,13 +117,50 @@
 </main>
 
 <script>
+const CAT_LABELS = {
+  diplome:'🎓 Diplôme', emploi:'💼 Emploi', arts:'🎨 Arts',
+  sport:'⚽ Sport', entreprise:'🚀 Entrepreneuriat', communaute:'🤝 Communauté'
+};
+
+let _fierteAll = [];
+let _fierteFilter = 'all';
+
 function filterPride(cat, btn) {
+  _fierteFilter = cat;
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   document.querySelectorAll('.pride-card').forEach(c => {
     c.style.display = (cat === 'all' || c.dataset.cat === cat) ? '' : 'none';
   });
 }
+
+function _renderFierte(entries) {
+  const grid = document.getElementById('prideGrid');
+  if (!entries.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px;color:var(--muted)">Aucune réalisation publiée pour l\'instant.<br/>Contactez-nous pour soumettre la vôtre !</div>';
+    return;
+  }
+  grid.innerHTML = entries.map(e => {
+    const cat = e.categorie || 'autre';
+    const init = e.initiales || (e.nom||'').split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
+    const badge = e.titre_badge || CAT_LABELS[cat] || cat;
+    return `<div class="pride-card ${cat}" data-cat="${cat}" style="display:${(_fierteFilter==='all'||_fierteFilter===cat)?'':'none'}">
+      <div class="pride-avatar">${init}</div>
+      <div class="pride-name">${e.nom}</div>
+      <span class="pride-badge ${cat}">${badge}</span>
+      <div class="pride-text">${e.texte}</div>
+      ${e.date_realisation ? `<div class="pride-date">${e.date_realisation}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+fetch('/api/fierte')
+  .then(r => r.json())
+  .then(data => { _fierteAll = data; _renderFierte(data); })
+  .catch(() => {
+    document.getElementById('prideGrid').innerHTML =
+      '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">Impossible de charger les réalisations.</div>';
+  });
 </script>
 <script src="_lang.js"></script>
 <script src="_nav.js"></script>

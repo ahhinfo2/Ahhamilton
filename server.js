@@ -10088,6 +10088,30 @@ app.post('/api/users/:id/relance-connexion', authMiddleware, requireRole('admin'
   }
 });
 
+// ── Mur de fierté ────────────────────────────────────────────────────────────
+app.get('/api/fierte', (req, res) => {
+  const entries = db.prepare(`
+    SELECT f.*, u.prenom AS cree_prenom, u.nom AS cree_nom
+    FROM fierte_entries f LEFT JOIN users u ON f.cree_par = u.id
+    ORDER BY f.date_creation DESC
+  `).all();
+  res.json(entries);
+});
+
+app.post('/api/fierte', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  const { nom, initiales, categorie, titre_badge, texte, date_realisation } = req.body;
+  if (!nom || !texte || !categorie) return res.status(400).json({ error: 'Nom, texte et catégorie requis' });
+  const r = db.prepare(`INSERT INTO fierte_entries (nom, initiales, categorie, titre_badge, texte, date_realisation, cree_par)
+    VALUES (?,?,?,?,?,?,?)`)
+    .run(nom.trim(), (initiales||'').trim().toUpperCase().substring(0,3), categorie, (titre_badge||'').trim(), texte.trim(), date_realisation||null, req.user.id);
+  res.json({ id: r.lastInsertRowid });
+});
+
+app.delete('/api/fierte/:id', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  db.prepare('DELETE FROM fierte_entries WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
 // ── Alertes urgentes ─────────────────────────────────────────────────────────
 app.get('/api/alertes-urgentes', authMiddleware, (req, res) => {
   const alertes = db.prepare(`

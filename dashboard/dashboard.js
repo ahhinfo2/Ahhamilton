@@ -378,6 +378,7 @@ async function buildSidebar() {
       { id:'notes',             icon:'◇', label:'Notes réunion',       roles:EXEC },
       { id:'committee-meetings',icon:'🤝', label:'Rencontre comité',   roles:EXEC },
       { id:'alertes-urgentes',  icon:'🚨', label:'Alertes urgentes',   roles:EXEC },
+      { id:'fierte-mgmt',       icon:'🏆', label:'Mur de fierté',       roles:EXEC },
       { id:'reports',           icon:'◆', label:'Rapports',            roles:EXEC },
       { id:'stats-growth',      icon:'📈', label:'Statistiques',       roles:EXEC },
       { id:'alerts',            icon:'◇', label:'Alertes',             roles:EXEC },
@@ -601,7 +602,8 @@ function setActiveNav(viewId) {
     'forms-mgmt':'Formulaires',
     'shop-mgmt':'Boutique en ligne',
     'committee-meetings':'Rencontre comité',
-    'alertes-urgentes':'Alertes urgentes'
+    'alertes-urgentes':'Alertes urgentes',
+    'fierte-mgmt':'Mur de fierté'
   };
   const raw = labels[viewId] || 'Tableau de bord';
   document.getElementById('topbarTitle').textContent = window.AHH_LANG ? AHH_LANG.get(raw) : raw;
@@ -1040,6 +1042,7 @@ async function showView(viewId) {
     'shop-mgmt': shopMgmtView,
     'committee-meetings': committeeMeetingsView,
     'alertes-urgentes': alertesUrgentesView,
+    'fierte-mgmt': fierteMgmtView,
   };
   if (extViews[viewId]) {
     try { await extViews[viewId](); } catch(e) { setContent(`<div class="empty-state"><div class="es-icon">⚠️</div><p>${e.message}</p></div>`); }
@@ -15724,5 +15727,96 @@ async function _alerteSupprimer(id) {
     await api('/alertes-urgentes/' + id, { method:'DELETE' });
     toast('Alerte supprimée');
     alertesUrgentesView();
+  } catch(e) { toast(e.message, true); }
+}
+
+// ══ MUR DE FIERTÉ ════════════════════════════════════════════════════════════
+const FIERTE_CATS = {
+  diplome:'🎓 Diplôme', emploi:'💼 Emploi / Promotion',
+  arts:'🎨 Arts & Culture', sport:'⚽ Sport',
+  entreprise:'🚀 Entrepreneuriat', communaute:'🤝 Communauté'
+};
+
+async function fierteMgmtView() {
+  const entries = await api('/fierte');
+  const rows = entries.length ? entries.map(e => `
+    <tr>
+      <td><strong>${escHtml(e.nom)}</strong></td>
+      <td>${escHtml(FIERTE_CATS[e.categorie] || e.categorie)}</td>
+      <td style="max-width:260px;font-size:.82rem;color:var(--muted)">${escHtml(e.texte).substring(0,90)}…</td>
+      <td>${e.date_realisation ? fmt(e.date_realisation) : '—'}</td>
+      <td style="font-size:.78rem;color:var(--muted)">${escHtml(e.cree_prenom||'')} ${escHtml(e.cree_nom||'')}</td>
+      <td><button class="btn btn-sm" style="background:var(--danger);color:#fff" onclick="_fierteSupprimer(${e.id})">🗑</button></td>
+    </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted)">Aucune réalisation publiée</td></tr>';
+
+  setContent(`
+    <div class="view-header">
+      <h1>🏆 Mur de fierté</h1>
+      <div style="display:flex;gap:10px">
+        <a href="/fierte.html" target="_blank" class="btn">Voir la page publique ↗</a>
+        <button class="btn btn-primary" onclick="_fierteNouveau()">+ Ajouter une réalisation</button>
+      </div>
+    </div>
+    <div class="card">
+      <table class="data-table">
+        <thead><tr><th>Membre</th><th>Catégorie</th><th>Texte</th><th>Date</th><th>Publié par</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`);
+}
+
+function _fierteNouveau() {
+  openModal('🏆 Nouvelle réalisation', `
+    <div class="form-group"><label>Nom complet *</label>
+      <input id="fi_nom" class="form-control" placeholder="Ex: Marie-Josée B."/></div>
+    <div class="form-group"><label>Initiales (pour l'avatar)</label>
+      <input id="fi_init" class="form-control" placeholder="Ex: MJ" maxlength="3" style="width:80px"/></div>
+    <div class="form-group"><label>Catégorie *</label>
+      <select id="fi_cat" class="form-control">
+        ${Object.entries(FIERTE_CATS).map(([v,l])=>`<option value="${v}">${l}</option>`).join('')}
+      </select></div>
+    <div class="form-group"><label>Titre du badge</label>
+      <input id="fi_badge" class="form-control" placeholder="Ex: 🎓 Diplôme, 💼 Promotion…"/></div>
+    <div class="form-group"><label>Description de la réalisation *</label>
+      <textarea id="fi_texte" class="form-control" rows="4" placeholder="Décrivez la réalisation de ce membre…"></textarea></div>
+    <div class="form-group"><label>Date de la réalisation</label>
+      <input id="fi_date" class="form-control" type="month"/></div>
+    <button class="btn btn-primary" onclick="_fierteSauver()">Publier sur le mur</button>
+  `);
+}
+
+async function _fierteSauver() {
+  const nom = document.getElementById('fi_nom')?.value.trim();
+  const texte = document.getElementById('fi_texte')?.value.trim();
+  const categorie = document.getElementById('fi_cat')?.value;
+  if (!nom || !texte) return toast('Nom et description requis', true);
+
+  const dateVal = document.getElementById('fi_date')?.value;
+  let date_realisation = null;
+  if (dateVal) {
+    const [y, m] = dateVal.split('-');
+    const months = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+    date_realisation = `${months[parseInt(m)-1]} ${y}`;
+  }
+
+  try {
+    await api('/fierte', { method:'POST', body: JSON.stringify({
+      nom, texte, categorie,
+      initiales: document.getElementById('fi_init')?.value.trim() || nom.split(' ').map(w=>w[0]).join('').substring(0,3).toUpperCase(),
+      titre_badge: document.getElementById('fi_badge')?.value.trim() || FIERTE_CATS[categorie],
+      date_realisation
+    })});
+    toast('Réalisation publiée sur le mur de fierté !');
+    closeModal();
+    fierteMgmtView();
+  } catch(e) { toast(e.message, true); }
+}
+
+async function _fierteSupprimer(id) {
+  if (!confirm('Supprimer cette réalisation du mur ?')) return;
+  try {
+    await api('/fierte/' + id, { method:'DELETE' });
+    toast('Réalisation supprimée');
+    fierteMgmtView();
   } catch(e) { toast(e.message, true); }
 }
