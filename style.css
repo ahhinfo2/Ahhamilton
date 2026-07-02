@@ -870,9 +870,9 @@ img   { display: block; max-width: 100%; }
   white-space: nowrap;
 }
 .dropdown-menu a:hover, .dropdown-menu a.active-link {
-  background: #f1f8f1; color: #2e7d32;
+  background: #f1f8f1; color: #2e7d32 !important;
 }
-.dropdown-menu a.active-link { font-weight: 700; }
+.dropdown-menu a.active-link { font-weight: 700; border-left: 3px solid #2e7d32; padding-left: 17px; }
 
 /* ── SÉLECTEUR DE LANGUE PUBLIC ─────────────────────────────────────────── */
 .pub-lang-selector {
@@ -1232,6 +1232,7 @@ img   { display: block; max-width: 100%; }
 :root.dark .dropdown-menu { background: #1a2a1a; border-color: var(--border); }
 :root.dark .dropdown-menu a { color: var(--text); }
 :root.dark .dropdown-menu a:hover { background: #253525; color: var(--g3); }
+:root.dark .dropdown-menu a.active-link { background: #1a3a1a; color: #81c784 !important; border-left-color: #81c784; }
 :root.dark .form-group input,
 :root.dark .form-group textarea,
 :root.dark .form-group select { background: #1a2a1a; border-color: var(--border); color: var(--text); }
