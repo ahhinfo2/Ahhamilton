@@ -5358,6 +5358,22 @@ app.delete('/api/young/jobs/:id', authMiddleware, requireRole('admin','secretair
   res.json({ ok: true });
 });
 
+app.post('/api/young/jobs/bulk-approve', authMiddleware, requireRole('admin','secretaire','tresoriere','delegue'), (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: 'Aucun identifiant fourni' });
+  const placeholders = ids.map(() => '?').join(',');
+  db.prepare(`UPDATE young_jobs SET statut='approuve' WHERE id IN (${placeholders})`).run(...ids);
+  res.json({ ok: true, count: ids.length });
+});
+
+app.post('/api/young/jobs/bulk-delete', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: 'Aucun identifiant fourni' });
+  const placeholders = ids.map(() => '?').join(',');
+  db.prepare(`UPDATE young_jobs SET actif=0 WHERE id IN (${placeholders})`).run(...ids);
+  res.json({ ok: true, count: ids.length });
+});
+
 // ── Fetch emplois Adzuna (Hamilton) ─────────────────────────────────────────
 async function fetchAdzunaJobs() {
   const ADZUNA_APP_ID = process.env.ADZUNA_APP_ID || '';

@@ -12015,7 +12015,16 @@ async function youngJobs() {
       '<button class="btn btn-sm ' + (window._yjFilter==='pending'?'btn-primary':'btn-ghost') + '" onclick="window._yjFilter=\'pending\';youngJobs()" style="color:#e65100">⏳ En attente (' + pending.length + ')</button>' +
       '<button class="btn btn-sm ' + (window._yjFilter==='approved'?'btn-primary':'btn-ghost') + '" onclick="window._yjFilter=\'approved\';youngJobs()">✅ Approuvées (' + approved.length + ')</button>' +
     '</div>' : ''}
-    <div style="margin-bottom:12px"><input type="text" id="yjSearch" placeholder="🔍 Rechercher titre, entreprise, lieu..." oninput="_yjSearchFilter()" style="width:100%;max-width:400px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:.84rem"/></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+      <input type="text" id="yjSearch" placeholder="🔍 Rechercher titre, entreprise, lieu..." oninput="_yjSearchFilter()" style="flex:1;min-width:200px;max-width:400px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:.84rem"/>
+      ${canManage ? '<label style="display:flex;align-items:center;gap:6px;font-size:.83rem;color:var(--muted);cursor:pointer;white-space:nowrap"><input type="checkbox" id="yjSelectAll" onchange="_yjToggleAll(this.checked)"/> Tout sélectionner</label>' : ''}
+    </div>
+    <div id="yjBulkBar" style="display:none;align-items:center;gap:10px;padding:10px 14px;background:#fff3e0;border:1px solid #ffcc02;border-radius:10px;margin-bottom:12px;flex-wrap:wrap">
+      <span id="yjBulkCount" style="font-size:.85rem;font-weight:700;color:#e65100"></span>
+      <button class="btn btn-sm" style="background:#2e7d32;color:#fff" onclick="_yjBulkApprove()">✅ Valider la sélection</button>
+      <button class="btn btn-sm btn-ghost" style="color:#c62828" onclick="_yjBulkDelete()">🗑 Supprimer la sélection</button>
+      <button class="btn btn-sm btn-ghost" onclick="_yjClearSelection()">✕ Annuler</button>
+    </div>
     <div id="yjList">
       ${(function() {
         var list = window._yjFilter === 'pending' ? pending : window._yjFilter === 'approved' ? approved : jobs;
@@ -12024,33 +12033,84 @@ async function youngJobs() {
           var isPending = j.statut === 'en_attente';
           var srcBadge = j.source === 'adzuna' ? '<span style="font-size:.65rem;background:#fff3e0;color:#e65100;padding:1px 6px;border-radius:4px;font-weight:600">Adzuna</span>' : '<span style="font-size:.65rem;background:#e8f5e9;color:#2e7d32;padding:1px 6px;border-radius:4px;font-weight:600">Manuel</span>';
           var statusBadge = isPending ? '<span style="font-size:.65rem;background:#fff3e0;color:#e65100;padding:1px 8px;border-radius:4px;font-weight:700">⏳ En attente</span>' : '';
-          return '<div class="yj-card" data-search="' + escHtml((j.titre+' '+j.organisation+' '+j.lieu+' '+(j.categorie||'')).toLowerCase()) + '" style="border:1px solid ' + (isPending ? '#ffe0b2' : 'var(--border)') + ';border-radius:12px;padding:16px;margin-bottom:10px;background:' + (isPending ? '#fffbf0' : '#fff') + '">' +
-            '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">' +
+          return '<div class="yj-card" data-id="' + j.id + '" data-pending="' + (isPending?'1':'0') + '" data-search="' + escHtml((j.titre+' '+j.organisation+' '+j.lieu+' '+(j.categorie||'')).toLowerCase()) + '" style="border:1px solid ' + (isPending ? '#ffe0b2' : 'var(--border)') + ';border-radius:12px;padding:16px;margin-bottom:10px;background:' + (isPending ? '#fffbf0' : '#fff') + '">' +
+            '<div style="display:flex;align-items:flex-start;gap:10px">' +
+              (canManage ? '<input type="checkbox" class="yj-check" data-id="' + j.id + '" onchange="_yjUpdateBulkBar()" style="margin-top:4px;flex-shrink:0;width:16px;height:16px;cursor:pointer"/>' : '') +
               '<div style="flex:1;min-width:0">' +
-                '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap">' +
-                  '<span style="background:' + (JOB_COLORS[j.type]||'#555') + ';color:#fff;font-size:.68rem;font-weight:700;padding:2px 10px;border-radius:20px">' + (JOB_TYPES[j.type]||j.type) + '</span>' +
-                  srcBadge + statusBadge +
-                  '<strong style="font-size:.92rem">' + escHtml(j.titre) + '</strong>' +
+                '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">' +
+                  '<div style="flex:1;min-width:0">' +
+                    '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap">' +
+                      '<span style="background:' + (JOB_COLORS[j.type]||'#555') + ';color:#fff;font-size:.68rem;font-weight:700;padding:2px 10px;border-radius:20px">' + (JOB_TYPES[j.type]||j.type) + '</span>' +
+                      srcBadge + statusBadge +
+                      '<strong style="font-size:.92rem">' + escHtml(j.titre) + '</strong>' +
+                    '</div>' +
+                    (j.organisation ? '<div style="font-size:.82rem;color:var(--muted)">🏢 ' + escHtml(j.organisation) + '</div>' : '') +
+                    (j.lieu ? '<div style="font-size:.82rem;color:var(--muted)">📍 ' + escHtml(j.lieu) + '</div>' : '') +
+                    (j.salaire ? '<div style="font-size:.82rem;color:#2e7d32;font-weight:600">💰 ' + escHtml(j.salaire) + '</div>' : '') +
+                    (j.categorie ? '<div style="font-size:.78rem;color:var(--muted)">📂 ' + escHtml(j.categorie) + '</div>' : '') +
+                    (j.date_limite ? '<div style="font-size:.82rem;color:#c62828">⏰ Avant le ' + fmt(j.date_limite) + '</div>' : '') +
+                    (j.description ? '<div style="font-size:.83rem;margin-top:8px;color:var(--text)">' + escHtml(j.description).substring(0,250) + (j.description.length>250?'...':'') + '</div>' : '') +
+                    (j.contact ? '<div style="font-size:.82rem;margin-top:6px">📧 ' + escHtml(j.contact) + '</div>' : '') +
+                    '<div style="font-size:.7rem;color:var(--muted);margin-top:4px">' + (j.date_creation ? j.date_creation.substring(0,10) : '') + '</div>' +
+                  '</div>' +
+                  '<div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;align-items:center">' +
+                    (j.lien_externe ? '<a href="' + j.lien_externe + '" target="_blank" rel="noopener" class="btn btn-primary btn-sm">Postuler →</a>' : '') +
+                    (canManage && isPending ? '<button class="btn btn-sm" style="background:#2e7d32;color:#fff" onclick="_yjApprove(' + j.id + ')">✅</button><button class="btn btn-sm btn-ghost" style="color:#c62828" onclick="_yjReject(' + j.id + ')">✗</button>' : '') +
+                    (canManage && !isPending ? '<button class="btn btn-sm btn-ghost" style="color:#c62828" onclick="youngDeleteJob(' + j.id + ')">🗑</button>' : '') +
+                  '</div>' +
                 '</div>' +
-                (j.organisation ? '<div style="font-size:.82rem;color:var(--muted)">🏢 ' + escHtml(j.organisation) + '</div>' : '') +
-                (j.lieu ? '<div style="font-size:.82rem;color:var(--muted)">📍 ' + escHtml(j.lieu) + '</div>' : '') +
-                (j.salaire ? '<div style="font-size:.82rem;color:#2e7d32;font-weight:600">💰 ' + escHtml(j.salaire) + '</div>' : '') +
-                (j.categorie ? '<div style="font-size:.78rem;color:var(--muted)">📂 ' + escHtml(j.categorie) + '</div>' : '') +
-                (j.date_limite ? '<div style="font-size:.82rem;color:#c62828">⏰ Avant le ' + fmt(j.date_limite) + '</div>' : '') +
-                (j.description ? '<div style="font-size:.83rem;margin-top:8px;color:var(--text)">' + escHtml(j.description).substring(0,250) + (j.description.length>250?'...':'') + '</div>' : '') +
-                (j.contact ? '<div style="font-size:.82rem;margin-top:6px">📧 ' + escHtml(j.contact) + '</div>' : '') +
-                '<div style="font-size:.7rem;color:var(--muted);margin-top:4px">' + (j.date_creation ? j.date_creation.substring(0,10) : '') + '</div>' +
-              '</div>' +
-              '<div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;align-items:center">' +
-                (j.lien_externe ? '<a href="' + j.lien_externe + '" target="_blank" rel="noopener" class="btn btn-primary btn-sm">Postuler →</a>' : '') +
-                (canManage && isPending ? '<button class="btn btn-sm" style="background:#2e7d32;color:#fff" onclick="_yjApprove(' + j.id + ')">✅</button><button class="btn btn-sm btn-ghost" style="color:#c62828" onclick="_yjReject(' + j.id + ')">✗</button>' : '') +
-                (canManage && !isPending ? '<button class="btn btn-sm btn-ghost" style="color:#c62828" onclick="youngDeleteJob(' + j.id + ')">🗑</button>' : '') +
               '</div>' +
             '</div>' +
           '</div>';
         }).join('');
       })()}
     </div>`);
+}
+
+function _yjUpdateBulkBar() {
+  var checked = document.querySelectorAll('.yj-check:checked');
+  var bar = document.getElementById('yjBulkBar');
+  var cnt = document.getElementById('yjBulkCount');
+  if (!bar) return;
+  if (checked.length > 0) {
+    bar.style.display = 'flex';
+    if (cnt) cnt.textContent = checked.length + ' offre(s) sélectionnée(s)';
+  } else {
+    bar.style.display = 'none';
+  }
+}
+function _yjToggleAll(checked) {
+  document.querySelectorAll('.yj-check').forEach(function(c) { c.checked = checked; });
+  _yjUpdateBulkBar();
+}
+function _yjClearSelection() {
+  document.querySelectorAll('.yj-check').forEach(function(c) { c.checked = false; });
+  var sa = document.getElementById('yjSelectAll');
+  if (sa) sa.checked = false;
+  _yjUpdateBulkBar();
+}
+function _yjGetCheckedIds() {
+  return Array.from(document.querySelectorAll('.yj-check:checked')).map(function(c) { return parseInt(c.dataset.id); });
+}
+async function _yjBulkApprove() {
+  var ids = _yjGetCheckedIds();
+  if (!ids.length) return;
+  if (!confirm('Valider ' + ids.length + ' offre(s) ?')) return;
+  try {
+    var r = await api('/young/jobs/bulk-approve', { method:'POST', body:JSON.stringify({ ids }) });
+    toast('✅ ' + r.count + ' offre(s) validée(s)');
+    youngJobs();
+  } catch(e) { toast('❌ ' + e.message, true); }
+}
+async function _yjBulkDelete() {
+  var ids = _yjGetCheckedIds();
+  if (!ids.length) return;
+  if (!confirm('Supprimer ' + ids.length + ' offre(s) ? Cette action est irréversible.')) return;
+  try {
+    var r = await api('/young/jobs/bulk-delete', { method:'POST', body:JSON.stringify({ ids }) });
+    toast('🗑 ' + r.count + ' offre(s) supprimée(s)');
+    youngJobs();
+  } catch(e) { toast('❌ ' + e.message, true); }
 }
 
 async function _yjApprove(id) {
