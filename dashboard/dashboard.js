@@ -11499,7 +11499,7 @@ async function carteGestionView() {
             return '<tr class="cg-row" data-search="' + escHtml(searchData) + '" data-role="' + (m.role||'') + '" data-photo="' + photoStatus + '" data-plan="' + (m.plan||'gratuit') + '" data-nom="' + escHtml(((m.prenom||'')+ ' ' +(m.nom||'')).toLowerCase()) + '" data-connexions="' + (conn.nb_connexions||0) + '" data-derniere="' + (conn.derniere_connexion||'') + '" data-expiration="' + (m.days_left!=null?m.days_left:9999) + '">' +
               '<td><div style="display:flex;align-items:center;gap:8px">' +
                 (m.photo_url
-                  ? '<img src="' + BASE + m.photo_url + '" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid ' + (m.carte_photo_approuvee?'#2e7d32':'#e65100') + '"/>'
+                  ? '<img src="' + BASE + m.photo_url + '" onclick="_cgZoomPhoto(\'' + BASE + m.photo_url + '\',' + m.id + ',' + (m.carte_photo_approuvee?1:0) + ',\'' + escHtml(m.prenom+' '+m.nom).replace(/'/g,"\\'") + '\')" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid ' + (m.carte_photo_approuvee?'#2e7d32':'#e65100') + ';cursor:zoom-in" title="Voir la photo en grand"/>'
                   : '<div style="width:32px;height:32px;border-radius:50%;background:var(--g2);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700">' + initials + '</div>') +
                 '<div>' +
                   '<a href="javascript:void(0)" onclick="_cgOpenProfile(' + m.id + ')" style="font-weight:700;font-size:.85rem;color:inherit;text-decoration:none;border-bottom:1px dashed #ccc;cursor:pointer">' + escHtml(m.prenom) + ' ' + escHtml(m.nom) + '</a>' +
@@ -11695,6 +11695,36 @@ async function _cgEnvoyerRefus(id) {
     carteGestionView();
   } catch(e) { toast(e.message, true); }
 }
+function _cgZoomPhoto(url, id, approuve, nom) {
+  const existing = document.getElementById('_cgPhotoOverlay');
+  if (existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = '_cgPhotoOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;cursor:zoom-out';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  const bordColor = approuve ? '#4caf50' : '#ff9800';
+  const badgeHtml = approuve
+    ? '<span style="background:#4caf50;color:#fff;padding:3px 12px;border-radius:20px;font-size:.78rem;font-weight:700">✅ Approuvée</span>'
+    : '<span style="background:#ff9800;color:#fff;padding:3px 12px;border-radius:20px;font-size:.78rem;font-weight:700">⏳ En attente d\'approbation</span>';
+  const btnsHtml = approuve
+    ? `<button onclick="overlay.remove();_cgDesapprouverPhoto(${id})" style="background:#e65100;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:.88rem;font-weight:700;cursor:pointer">↩️ Désapprouver</button>`
+    : `<button onclick="document.getElementById('_cgPhotoOverlay').remove();_cgApprovePhoto(${id})" style="background:#2e7d32;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:.88rem;font-weight:700;cursor:pointer">✅ Approuver</button>
+       <button onclick="document.getElementById('_cgPhotoOverlay').remove();_cgRefusPhotoModal(${id},'${nom.replace(/'/g,"\\'")}')  " style="background:#c62828;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:.88rem;font-weight:700;cursor:pointer">✉️ Refuser</button>`;
+  overlay.innerHTML = `
+    <div style="background:#1a1a1a;border-radius:16px;padding:24px;max-width:480px;width:100%;text-align:center;position:relative">
+      <button onclick="document.getElementById('_cgPhotoOverlay').remove()" style="position:absolute;top:12px;right:14px;background:rgba(255,255,255,.15);border:none;color:#fff;width:30px;height:30px;border-radius:50%;font-size:1.1rem;cursor:pointer;line-height:1">✕</button>
+      <div style="font-size:.85rem;color:#aaa;margin-bottom:12px;font-weight:600">${escHtml(nom)}</div>
+      <img src="${url}" style="width:220px;height:220px;border-radius:50%;object-fit:cover;border:4px solid ${bordColor};display:block;margin:0 auto 16px"/>
+      <div style="margin-bottom:16px">${badgeHtml}</div>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">${btnsHtml}</div>
+      <div style="margin-top:14px;font-size:.72rem;color:#666">Cliquez en dehors pour fermer</div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.addEventListener('keydown', function esc(e) {
+    if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', esc); }
+  });
+}
+
 async function carteRenouveler(id, nom) {
   if (!confirm('Renouveler la carte de ' + nom + ' pour 2 ans ?')) return;
   var r = await api('/admin/cartes/' + id + '/renouveler', { method:'POST' });
