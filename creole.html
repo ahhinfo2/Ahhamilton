@@ -26,7 +26,7 @@
     .phrase-ht { font-size: 1.05rem; font-weight: 700; color: var(--g1); margin-bottom: 4px; }
     .phrase-fr { font-size: .88rem; color: var(--muted); margin-bottom: 6px; }
     .phrase-prono { font-size: .78rem; color: var(--accent); font-style: italic; }
-.proverbe-list { display: flex; flex-direction: column; gap: 18px; }
+    .proverbe-list { display: flex; flex-direction: column; gap: 18px; }
     .proverbe { background: #fff; border-left: 4px solid var(--accent); border-radius: 0 var(--radius) var(--radius) 0; padding: 18px 22px; }
     .proverbe .ht { font-size: 1rem; font-weight: 700; color: var(--g1); margin-bottom: 6px; font-style: italic; }
     .proverbe .fr { font-size: .85rem; color: var(--muted); margin-bottom: 4px; }
@@ -38,9 +38,19 @@
     .vocab-table th { background: var(--g1); color: #fff; padding: 10px 14px; text-align: left; font-size: .82rem; }
     .vocab-table td { padding: 10px 14px; font-size: .85rem; border-bottom: 1px solid var(--border); }
     .vocab-table tr:hover td { background: var(--off); }
-    .comptine { background: linear-gradient(135deg, #e8f5e9, #f1f8e9); border-radius: var(--radius-lg); padding: 28px 32px; margin: 20px 0; }
-    .comptine-title { font-weight: 800; color: var(--g1); margin-bottom: 14px; font-size: 1.05rem; }
-    .comptine-text { font-size: .9rem; line-height: 2; color: var(--text); white-space: pre-line; }
+    .comptine { background: linear-gradient(135deg, #e8f5e9, #f1f8e9); border-radius: var(--radius-lg); padding: 24px 28px; }
+    .comptine.berceuse { background: linear-gradient(135deg, #e3f2fd, #e8eaf6); }
+    .comptine.chant { background: linear-gradient(135deg, #fce4ec, #fdf3f5); }
+    .comptine-title { font-weight: 800; color: var(--g1); margin-bottom: 6px; font-size: 1rem; }
+    .comptine-type { display: inline-block; font-size: .62rem; font-weight: 700; padding: 2px 8px; border-radius: 10px; margin-bottom: 10px; letter-spacing: .04em; text-transform: uppercase; }
+    .comptine-type.b { background: #bbdefb; color: #0d47a1; }
+    .comptine-type.j { background: #fff9c4; color: #e65100; }
+    .comptine-type.c { background: #f8bbd0; color: #880e4f; }
+    .comptine-type.t { background: #e8f5e9; color: #1b5e20; }
+    .comptine-text { font-size: .875rem; line-height: 2; color: var(--text); white-space: pre-line; }
+    .comptine-trad { font-size: .75rem; color: var(--muted); margin-top: 10px; font-style: italic; padding-top: 8px; border-top: 1px solid rgba(0,0,0,.08); }
+    .chant-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+    .chant-subhead { grid-column: 1/-1; margin-top: 12px; margin-bottom: 4px; font-size: .8rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; border-bottom: 2px solid var(--border); padding-bottom: 6px; }
     .flag-banner { background: linear-gradient(90deg, #003F87 50%, #D21034 50%); height: 6px; border-radius: 4px; margin: 28px 0; }
     :root.dark .phrase-card, :root.dark .proverbe, :root.dark .vocab-table td { background: #152515; border-color: #2a3d2a; }
     :root.dark .creole-section { background: #0f1f0f; }
@@ -294,12 +304,135 @@
   <div class="container">
     <div class="section-header" data-reveal>
       <span class="section-badge">Pour les enfants</span>
-      <h2>Chante pou timoun — Comptines</h2>
+      <h2>Chante pou timoun — Comptines &amp; berceuses</h2>
       <p>Pour que nos enfants nés au Canada grandissent avec leur langue maternelle.</p>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px">
+
+    <div class="chant-grid">
+      <div class="chant-subhead">🌙 Berceuses — Bèsèz</div>
+
+      <div class="comptine berceuse">
+        <div class="comptine-type b">Berceuse classique</div>
+        <div class="comptine-title">Dodo ti pitit manman</div>
+        <div class="comptine-text">Dodo, ti pitit manman,
+Si ou pa dodo,
+Krab la va manje ou.
+
+Dodo, ti pitit manman,
+Si ou pa dodo,
+Malfini va pote ou.</div>
+        <div class="comptine-trad">La berceuse la plus connue d'Haïti. — Dors, petit enfant de maman / Si tu ne dors pas / Le crabe va te manger / ...l'aigle royal va t'emporter.</div>
+      </div>
+
+      <div class="comptine berceuse">
+        <div class="comptine-type b">Berceuse</div>
+        <div class="comptine-title">Dòdò pitit</div>
+        <div class="comptine-text">Dòdò, pitit, dòdò,
+Grann ou ap veye ou,
+Zanj yo ap pwoteje ou,
+Dòmi, pitit, dòmi.
+
+Denmen solèy leve,
+Ou va jwe, ou va ri,
+Men pou kounye a dòmi,
+Nan bra manman ou cheri.</div>
+        <div class="comptine-trad">Dors, petit, dors / Ta grand-mère veille sur toi / Les anges te protègent / Demain le soleil se lèvera et tu joueras.</div>
+      </div>
+
+      <div class="comptine berceuse">
+        <div class="comptine-type b">Berceuse</div>
+        <div class="comptine-title">Dòmi, ti kò dous</div>
+        <div class="comptine-text">Dòmi, ti kò dous,
+Dòmi, ti bèl flè,
+Manman ap chante,
+Pandan ou dòmi.
+
+Lannuit ap pase,
+Jou ap vini dou,
+Reveye ak solèy,
+Ti kè manman mwen.</div>
+        <div class="comptine-trad">Dors, petit corps doux / Dors, belle petite fleur / Maman chante pendant que tu dors.</div>
+      </div>
+
+      <div class="chant-subhead">🎮 Comptines et jeux — Jwèt timoun</div>
+
       <div class="comptine">
-        <div class="comptine-title">🌟 Ti zwazo (Petit oiseau)</div>
+        <div class="comptine-type j">Tradition du conte</div>
+        <div class="comptine-title">Krik ! Krak !</div>
+        <div class="comptine-text">— Krik !
+— Krak !
+— Zwazo !
+— Plim !
+— Manman !
+— Pitit !
+— Ti chat domi…
+— Nan zòrèy li !</div>
+        <div class="comptine-trad">Formule traditionnelle pour débuter et clore les contes créoles. Le conteur crie "Krik !" et l'assistance répond "Krak !" pour signifier qu'elle est prête à écouter.</div>
+      </div>
+
+      <div class="comptine">
+        <div class="comptine-type j">Comptine des animaux</div>
+        <div class="comptine-title">Ti poul la</div>
+        <div class="comptine-text">Ti poul la, ti poul la,
+Kote ou prale konsa ?
+M ap ale chache grenn
+Pou ti pitit mwen yo ka manje.
+
+Kòk la chante, kòk la chante,
+Koukouwoukoun nan maten,
+Leve, timoun, leve vit,
+Jounen an kòmanse deja !</div>
+        <div class="comptine-trad">La petite poule, la petite poule / Où vas-tu comme ça ? / Le coq chante le matin / Lève-toi, enfant, la journée a déjà commencé !</div>
+      </div>
+
+      <div class="comptine">
+        <div class="comptine-type j">Jeu de cercle</div>
+        <div class="comptine-title">Woulo woulo</div>
+        <div class="comptine-text">Woulo, woulo, koulou koulou,
+An n woule yon ti kous.
+Men nou kenbe, pye nou kwaze,
+Woulo woulo, woulo woulo !
+
+Pa kite m tonbe,
+Pa kite m ale,
+Kenbe m, kenbe m,
+Woulo woulo !</div>
+        <div class="comptine-trad">Comptine de jeu de ronde où les enfants se tiennent par la main et tournent en chantant. — Roulons, roulons / Tenons-nous les mains / Ne me laisse pas tomber !</div>
+      </div>
+
+      <div class="comptine">
+        <div class="comptine-type j">Jeu de cache-cache</div>
+        <div class="comptine-title">Kote manman mwen ?</div>
+        <div class="comptine-text">Kote manman mwen ?
+Li pa la !
+Kote papa mwen ?
+Li pa la !
+Tout moun kache,
+Mwen paka jwenn yo.
+
+Youn, de, twa, kat, senk…
+M ap jwenn ou !</div>
+        <div class="comptine-trad">Comptine de cache-cache. — Où est ma maman ? Elle n'est pas là ! Où est mon papa ? Il n'est pas là ! Un, deux, trois, quatre, cinq… Je vais te trouver !</div>
+      </div>
+
+      <div class="comptine">
+        <div class="comptine-type j">Comptine de nature</div>
+        <div class="comptine-title">An n ale lasavann</div>
+        <div class="comptine-text">An n ale, an n ale lasavann,
+An n jwe anba solèy la.
+Pye nou kouri, men nou louvri,
+An n danse nan savann nan.
+
+Zwazo yo ap chante pou nou,
+Flè yo ap fleri bèl,
+An n jwe, an n ri, an n danse,
+Nou lib nan savann nan.</div>
+        <div class="comptine-trad">Allons, allons à la savane / Jouons sous le soleil / Les oiseaux chantent pour nous / Jouons, rions, dansons !</div>
+      </div>
+
+      <div class="comptine">
+        <div class="comptine-type j">Comptine du matin</div>
+        <div class="comptine-title">Ti zwazo nan bwa</div>
         <div class="comptine-text">Ti zwazo ki nan bwa a,
 Chante bèl chante dousman,
 Pale nou de peyi nou,
@@ -309,31 +442,158 @@ Nou renmen ou, nou pa bliye,
 Menm lwen ou, kè nou rele.
 Ti zwazo, kontinye chante,
 Pou tout timoun ka sonje.</div>
+        <div class="comptine-trad">Petit oiseau dans les bois / Chante doucement pour nous / Parle-nous de notre pays / Haïti chérie, beau pays.</div>
       </div>
-      <div class="comptine">
-        <div class="comptine-title">🌺 Flè Ayiti (Fleur d'Haïti)</div>
-        <div class="comptine-text">Flè Ayiti fleri bèl,
-Rouj ak ble, koulè drapo,
-Peyi nou ki bèl anpil,
-Nou fyè de kote nou sòti.
 
-Pitit nou yo ap grandi,
-Isit nan Kanada frèt,
-Men kè yo toujou an Ayiti,
-Ak lanmou ki p ap janm fini.</div>
-      </div>
       <div class="comptine">
-        <div class="comptine-title">🥁 Tanbou</div>
-        <div class="comptine-text">Tanbou a ap bat pam pam,
-Tout moun leve, tout moun danse,
-Rythm Ayiti nan kè nou,
-Nou pa ka bliye kilti nou.
+        <div class="comptine-type j">Comptine des fruits</div>
+        <div class="comptine-title">Pye mango</div>
+        <div class="comptine-text">Pye mango, pye mango,
+Bay nou fwi dous la.
+Solèy cho, lapli dou,
+Fè mango nou yo mi.
 
-Bat tanbou, bat avèk fyète,
-Pale lang manman ou bèl,
-Kreyòl se lang ki pi bèl,
-Pale l toupatou san wont.</div>
+Ti pitit yo ap tann,
+Bouch yo deja dlo.
+Mango mi, mango dous,
+Se richès peyi nou.</div>
+        <div class="comptine-trad">Manguier, manguier / Donne-nous tes fruits doux / Le soleil chaud, la douce pluie / Font mûrir nos mangues.</div>
       </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== CHANTS TRADITIONNELS ===== -->
+<section class="creole-section">
+  <div class="container">
+    <div class="section-header" data-reveal>
+      <span class="section-badge">Patrimoine musical</span>
+      <h2>Chants traditionnels haïtiens</h2>
+      <p>Des mélodies transmises de génération en génération, portant l'âme d'Haïti.</p>
+    </div>
+
+    <div class="chant-grid">
+
+      <div class="comptine chant">
+        <div class="comptine-type c">Chant folklorique — 1883</div>
+        <div class="comptine-title">Choucoune</div>
+        <div class="comptine-text">Si ou te konnen jan mwen renmen ou,
+Choucoune, Choucoune,
+Si ou te konnen jan mwen renmen ou,
+Ou pa ta kite m soufri konsa.
+
+Zwazo yo chante,
+Flè yo fleri bèl,
+Men san ou, Choucoune,
+Kè mwen triste anpil.</div>
+        <div class="comptine-trad">Écrit par le poète Oswald Durand en 1883 — l'un des chants folkloriques les plus célèbres d'Haïti. Sa mélodie a inspiré "Yellow Bird", connue dans le monde entier.</div>
+      </div>
+
+      <div class="comptine chant">
+        <div class="comptine-type c">Chant de pêcheurs</div>
+        <div class="comptine-title">Sou lan mè</div>
+        <div class="comptine-text">Sou lan mè, nan mitan dlo,
+Bato nou an ap navige.
+Soufle van, soufle van,
+Pote nou lakay nou dou.
+
+Ayiti cheri, nou pa bliye ou,
+Menm si nou lwen, ou nan kè nou.
+Van an soufle, dlo a move,
+Men nou la, nou pap janm bliye.</div>
+        <div class="comptine-trad">Sur la mer, au milieu de l'eau / Notre bateau navigue / Souffle vent, souffle / Ramène-nous chez nous. / Haïti chérie, nous ne t'oublions pas.</div>
+      </div>
+
+      <div class="comptine chant">
+        <div class="comptine-type c">Chant de résistance</div>
+        <div class="comptine-title">Twa fèy, twa rasin</div>
+        <div class="comptine-text">Twa fèy, twa rasin,
+Wa la ! Wa la !
+Twa fèy, twa rasin,
+Wa la !
+
+Rasin peyi nou fon,
+Fèy nou yo vèt toujou,
+Menm nan mitan van fò,
+Nou kanpe, nou pa tonbe.</div>
+        <div class="comptine-trad">Trois feuilles, trois racines — symbole de résistance et d'identité haïtienne. Les racines profondes évoquent la force du peuple haïtien face à l'adversité.</div>
+      </div>
+
+      <div class="comptine chant">
+        <div class="comptine-type c">Chant de kanaval</div>
+        <div class="comptine-title">Kanaval !</div>
+        <div class="comptine-text">Kanaval, kanaval !
+Tout moun sou la ri.
+Tanbou yo ap bat,
+Trompèt yo ap jwe.
+
+Ayibobo ! Ayibobo !
+Nou fè fèt ansanm.
+Koulè, mizik, ak dans,
+Se sa Ayiti ye !</div>
+        <div class="comptine-trad">Carnaval, carnaval ! / Tout le monde dans la rue / Les tambours battent, les trompettes jouent / Ayibobo ! (cri d'acclamation haïtien) / Nous faisons la fête ensemble.</div>
+      </div>
+
+      <div class="comptine chant">
+        <div class="comptine-type c">Chant de mémoire</div>
+        <div class="comptine-title">Grann mwen te konn chante</div>
+        <div class="comptine-text">Grann mwen te konn chante,
+Sou galri lakay li.
+Chante yo te dous anpil,
+Yo te pote kè mwen ale.
+
+Kounye a grann pa la ankò,
+Men chante yo toujou nan kè mwen.
+M ap chante pou pitit mwen,
+Pou tradisyon nou pa janm mouri.</div>
+        <div class="comptine-trad">Ma grand-mère chantait / Sur la galerie de sa maison / Ses chansons étaient très douces / Je chante maintenant pour mes enfants / Pour que nos traditions ne meurent jamais.</div>
+      </div>
+
+      <div class="comptine chant">
+        <div class="comptine-type c">Chant de travail — Konbit</div>
+        <div class="comptine-title">An n travay ansanm</div>
+        <div class="comptine-text">An n travay, an n travay ansanm,
+Men anpil, chay pa lou.
+Konbit la reyini nou,
+Zèpòl kole, kè kontan.
+
+Youn pou tout, tout pou youn,
+Se lwa ki gouvène nou.
+An n bati, an n grandi,
+Ansanm nou pi fò.</div>
+        <div class="comptine-trad">Le "Konbit" est la tradition haïtienne d'entraide communautaire. — Travaillons ensemble / À plusieurs mains, le fardeau est plus léger / Un pour tous, tous pour un / Ensemble nous sommes plus forts.</div>
+      </div>
+
+      <div class="comptine chant">
+        <div class="comptine-type t">Chant de nature</div>
+        <div class="comptine-title">Flanbwayan</div>
+        <div class="comptine-text">Flanbwayan wouj, flanbwayan bèl,
+Flè nasyonal peyi nou.
+Rouj tankou san zansèt nou yo,
+Ki te goumen pou libète nou.
+
+Chak fwa m wè ou fleri,
+Kè mwen plen ak fyète.
+Flanbwayan, sonje nou,
+Nou pitit Ayiti.</div>
+        <div class="comptine-trad">Le flamboyant rouge, bel arbre / Fleur nationale de notre pays / Rouge comme le sang de nos ancêtres / Qui ont combattu pour notre liberté.</div>
+      </div>
+
+      <div class="comptine chant">
+        <div class="comptine-type t">Chant identitaire</div>
+        <div class="comptine-title">Kreyòl se lang mwen</div>
+        <div class="comptine-text">Kreyòl se lang mwen,
+Lang ki nan kè mwen.
+Manman mwen te pale l,
+Grann mwen te chante l.
+
+Pale kreyòl san wont,
+Tèt ou wo, kè ou fyè.
+Lang nou se richès nou,
+Pale l toupatou !</div>
+        <div class="comptine-trad">Le créole est ma langue / La langue qui est dans mon cœur / Parle le créole sans honte / La tête haute, le cœur fier / Notre langue est notre richesse.</div>
+      </div>
+
     </div>
   </div>
 </section>
