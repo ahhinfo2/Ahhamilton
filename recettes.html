@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Recettes haïtiennes | AHH Hamilton</title>
+  <meta name="description" content="Découvrez les recettes traditionnelles de la cuisine haïtienne : griot, diri kole, soup joumou, bannann peze et plus encore."/>
+  <meta property="og:title" content="Recettes haïtiennes | AHH Hamilton"/>
+  <meta property="og:description" content="La cuisine haïtienne, notre patrimoine — recettes traditionnelles partagées par la communauté de Hamilton."/>
+  <meta property="og:image" content="https://ahhamilton.ca/Public/logo1.png"/>
+  <meta property="og:url" content="https://ahhamilton.ca/recettes.html"/>
+  <meta property="og:type" content="website"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <link rel="canonical" href="https://ahhamilton.ca/recettes.html"/>
+  <link rel="icon" type="image/png" href="Public/logo1.png"/>
+  <link rel="stylesheet" href="style.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet"/>
+  <style>
+    .recipe-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; margin: 32px 0; }
+    .recipe-card { background: #fff; border-radius: var(--radius-lg); border: 1px solid var(--border); overflow: hidden; transition: var(--tr); cursor: pointer; }
+    .recipe-card:hover { box-shadow: var(--shadow); transform: translateY(-3px); }
+    .recipe-thumb { height: 180px; display: flex; align-items: center; justify-content: center; font-size: 4rem; }
+    .recipe-body { padding: 20px 22px; }
+    .recipe-body h3 { font-size: 1rem; font-weight: 700; color: var(--g1); margin-bottom: 4px; }
+    .recipe-ht { font-size: .8rem; color: var(--muted); font-style: italic; margin-bottom: 10px; }
+    .recipe-meta { display: flex; gap: 14px; font-size: .75rem; color: var(--muted); margin-bottom: 12px; }
+    .recipe-desc { font-size: .85rem; color: var(--text); line-height: 1.6; }
+    .recipe-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+    .recipe-tag { background: var(--g1); color: #fff; border-radius: 20px; padding: 2px 10px; font-size: .7rem; font-weight: 600; }
+    /* Modal recipe */
+    #recipeModal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 9999; overflow-y: auto; padding: 20px; }
+    #recipeModal.open { display: flex; align-items: flex-start; justify-content: center; }
+    .recipe-modal-box { background: #fff; border-radius: var(--radius-lg); max-width: 680px; width: 100%; padding: 36px 32px; position: relative; margin: auto; }
+    .recipe-modal-close { position: absolute; top: 16px; right: 16px; background: none; border: none; font-size: 1.4rem; cursor: pointer; color: var(--muted); }
+    .recipe-modal-emoji { font-size: 3.5rem; margin-bottom: 12px; }
+    .recipe-modal-box h2 { font-size: 1.4rem; color: var(--g1); margin-bottom: 4px; }
+    .recipe-modal-box .subtitle { font-size: .85rem; color: var(--muted); font-style: italic; margin-bottom: 20px; }
+    .recipe-section-title { font-size: .82rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 20px 0 10px; }
+    .ingredient-list { columns: 2; gap: 16px; }
+    .ingredient-list li { font-size: .88rem; color: var(--text); margin-bottom: 6px; }
+    .step-list { counter-reset: step; }
+    .step-list li { font-size: .88rem; color: var(--text); margin-bottom: 10px; padding-left: 32px; position: relative; line-height: 1.6; }
+    .step-list li::before { counter-increment: step; content: counter(step); position: absolute; left: 0; top: 0; background: var(--g1); color: #fff; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: .7rem; font-weight: 700; }
+    .tip-box { background: #f0faf0; border-left: 4px solid var(--g1); border-radius: 0 var(--radius) var(--radius) 0; padding: 14px 18px; margin-top: 20px; font-size: .85rem; }
+    :root.dark .recipe-card, :root.dark .recipe-modal-box { background: #152515; border-color: #2a3d2a; }
+    :root.dark .tip-box { background: #0a2a0a; }
+    :root.dark #recipeModal { background: rgba(0,0,0,.8); }
+    @media(max-width:600px) { .ingredient-list { columns: 1; } .recipe-modal-box { padding: 24px 18px; } }
+  </style>
+</head>
+<body>
+<script src="_lang.js"></script>
+<script src="_nav.js"></script>
+
+<section class="page-hero">
+  <div class="container page-hero-content">
+    <div class="breadcrumb"><a href="index.html">Accueil</a><span>›</span><span>Recettes haïtiennes</span></div>
+    <h1>🍽️ Recettes haïtiennes</h1>
+    <p>Manje ayisyen — notre cuisine, notre mémoire. Les saveurs qui nous ramènent chez nous.</p>
+  </div>
+</section>
+
+<main id="main-content" role="main">
+
+<section style="padding:64px 0">
+  <div class="container">
+    <div class="section-header" data-reveal>
+      <span class="section-badge">Patrimoine culinaire</span>
+      <h2>Nos plats emblématiques</h2>
+      <p>Cliquez sur une recette pour voir les ingrédients et les étapes.</p>
+    </div>
+
+    <div class="recipe-grid">
+      <div class="recipe-card" onclick="openRecipe('griot')">
+        <div class="recipe-thumb" style="background:linear-gradient(135deg,#ff8a00,#da1b60)">🥩</div>
+        <div class="recipe-body">
+          <h3>Griot</h3>
+          <div class="recipe-ht">Griyò</div>
+          <div class="recipe-meta"><span>⏱ 3h</span><span>👥 6 pers.</span><span>🌶 Épicé</span></div>
+          <div class="recipe-desc">Le plat national haïtien par excellence — porc mariné dans l'épice haïtienne (épis), puis frit jusqu'à être croustillant à l'extérieur et tendre à l'intérieur.</div>
+          <div class="recipe-tags"><span class="recipe-tag">Incontournable</span><span class="recipe-tag">Fête</span></div>
+        </div>
+      </div>
+
+      <div class="recipe-card" onclick="openRecipe('diri')">
+        <div class="recipe-thumb" style="background:linear-gradient(135deg,#a8edea,#fed6e3)">🍚</div>
+        <div class="recipe-body">
+          <h3>Diri kole ak pwa</h3>
+          <div class="recipe-ht">Riz collé aux haricots</div>
+          <div class="recipe-meta"><span>⏱ 45 min</span><span>👥 6 pers.</span><span>🌿 Végétarien</span></div>
+          <div class="recipe-desc">Le plat de base de la cuisine haïtienne. Riz et haricots rouges cuits ensemble avec du thym, du piment et des épices créoles.</div>
+          <div class="recipe-tags"><span class="recipe-tag">Quotidien</span><span class="recipe-tag">Végé</span></div>
+        </div>
+      </div>
+
+      <div class="recipe-card" onclick="openRecipe('soup')">
+        <div class="recipe-thumb" style="background:linear-gradient(135deg,#ffd89b,#19547b)">🥣</div>
+        <div class="recipe-body">
+          <h3>Soup joumou</h3>
+          <div class="recipe-ht">Soupe giraumon</div>
+          <div class="recipe-meta"><span>⏱ 2h30</span><span>👥 8 pers.</span><span>🎉 1er janvier</span></div>
+          <div class="recipe-desc">La soupe de l'indépendance haïtienne — servie chaque 1er janvier depuis 1804. Giraumon, bœuf, légumes et pâtes dans un bouillon riche.</div>
+          <div class="recipe-tags"><span class="recipe-tag">Tradition</span><span class="recipe-tag">Indépendance</span></div>
+        </div>
+      </div>
+
+      <div class="recipe-card" onclick="openRecipe('bannann')">
+        <div class="recipe-thumb" style="background:linear-gradient(135deg,#f7971e,#ffd200)">🍌</div>
+        <div class="recipe-body">
+          <h3>Bannann peze</h3>
+          <div class="recipe-ht">Tostones (plantains écrasés frits)</div>
+          <div class="recipe-meta"><span>⏱ 20 min</span><span>👥 4 pers.</span><span>🌿 Végé</span></div>
+          <div class="recipe-desc">Plantains verts frits deux fois — une fois pour les amollir, une fois après les avoir aplatis. Croustillants dehors, moelleux dedans.</div>
+          <div class="recipe-tags"><span class="recipe-tag">Accompagnement</span><span class="recipe-tag">Rapide</span></div>
+        </div>
+      </div>
+
+      <div class="recipe-card" onclick="openRecipe('pikliz')">
+        <div class="recipe-thumb" style="background:linear-gradient(135deg,#56ab2f,#a8e063)">🥒</div>
+        <div class="recipe-body">
+          <h3>Pikliz</h3>
+          <div class="recipe-ht">Pickles haïtiens épicés</div>
+          <div class="recipe-meta"><span>⏱ 20 min + 24h</span><span>👥 pot de 500ml</span><span>🌶 Très épicé</span></div>
+          <div class="recipe-desc">Le condiment incontournable de la cuisine haïtienne — chou, carottes, piment scotch bonnet et vinaigre. Se sert avec tout.</div>
+          <div class="recipe-tags"><span class="recipe-tag">Condiment</span><span class="recipe-tag">Épicé</span></div>
+        </div>
+      </div>
+
+      <div class="recipe-card" onclick="openRecipe('akasan')">
+        <div class="recipe-thumb" style="background:linear-gradient(135deg,#f8f9fa,#e9ecef)">🥛</div>
+        <div class="recipe-body">
+          <h3>Akasan</h3>
+          <div class="recipe-ht">Boisson de farine de maïs</div>
+          <div class="recipe-meta"><span>⏱ 20 min</span><span>👥 4 pers.</span><span>🌿 Sans gluten</span></div>
+          <div class="recipe-desc">Boisson crémeuse à base de farine de maïs, lait de coco, cannelle et vanille. Servie chaude au petit-déjeuner.</div>
+          <div class="recipe-tags"><span class="recipe-tag">Déjeuner</span><span class="recipe-tag">Enfants</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TIPS ÉPIS -->
+<section style="background:var(--off);padding:64px 0">
+  <div class="container" style="max-width:760px">
+    <div class="section-header" data-reveal>
+      <span class="section-badge">Secret de cuisine</span>
+      <h2>L'épis — le cœur de la cuisine haïtienne</h2>
+    </div>
+    <p style="margin-bottom:20px">L'épis (de l'espagnol <em>épices</em>) est le condiment de base de presque tous les plats haïtiens. C'est un mélange mixé de :</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:20px 0">
+      <div style="background:#fff;border-radius:var(--radius);padding:14px;text-align:center;border:1px solid var(--border)"><strong>🧅 Oignons</strong><br/><small>1-2 gros</small></div>
+      <div style="background:#fff;border-radius:var(--radius);padding:14px;text-align:center;border:1px solid var(--border)"><strong>🧄 Ail</strong><br/><small>1 tête entière</small></div>
+      <div style="background:#fff;border-radius:var(--radius);padding:14px;text-align:center;border:1px solid var(--border)"><strong>🫑 Poivrons</strong><br/><small>Rouge + vert</small></div>
+      <div style="background:#fff;border-radius:var(--radius);padding:14px;text-align:center;border:1px solid var(--border)"><strong>🌿 Thym frais</strong><br/><small>Plusieurs tiges</small></div>
+      <div style="background:#fff;border-radius:var(--radius);padding:14px;text-align:center;border:1px solid var(--border)"><strong>🫒 Huile d'olive</strong><br/><small>3-4 c. à soupe</small></div>
+      <div style="background:#fff;border-radius:var(--radius);padding:14px;text-align:center;border:1px solid var(--border)"><strong>🌶 Piment doux</strong><br/><small>1-2 scotch bonnet sans graines</small></div>
+    </div>
+    <p>Mixez tout ensemble jusqu'à obtenir une pâte lisse. Se conserve 2 semaines au frigo, ou congèle en portions dans des bacs à glaçons.</p>
+  </div>
+</section>
+
+<section style="background:linear-gradient(135deg,var(--g1),var(--g2));color:#fff;padding:64px 0;text-align:center">
+  <div class="container" style="max-width:600px">
+    <div style="font-size:2.5rem;margin-bottom:14px">👨‍🍳</div>
+    <h2 style="color:#fff;margin-bottom:12px">Partagez votre recette !</h2>
+    <p style="opacity:.9;margin-bottom:24px">Vous avez une recette de famille à partager avec la communauté ? Contactez-nous — nous l'ajoutons avec votre nom.</p>
+    <a href="index.html#contact" class="btn btn-primary">Nous contacter</a>
+  </div>
+</section>
+
+</main>
+
+<!-- MODAL RECETTE -->
+<div id="recipeModal" role="dialog" aria-modal="true" aria-labelledby="rModalTitle" onclick="if(event.target===this)closeRecipe()">
+  <div class="recipe-modal-box">
+    <button class="recipe-modal-close" onclick="closeRecipe()" aria-label="Fermer">✕</button>
+    <div id="rModalContent"></div>
+  </div>
+</div>
+
+<script>
+const RECIPES = {
+  griot: {
+    emoji:'🥩', name:'Griot', ht:'Griyò',
+    meta:'3 h de marinade + 1h30 de cuisson · 6 personnes · Épicé',
+    desc:'Le plat emblématique des fêtes haïtiennes.',
+    ingredients:['1,5 kg d\'épaule de porc, en cubes','4 c. à soupe d\'épis','Jus de 2 oranges amères (ou citron)','1 c. à café de sel','1 c. à café de poivre noir','Huile pour friture','Pikliz pour servir'],
+    steps:['Mélanger le porc, l\'épis, le jus d\'orange amère, le sel et le poivre. Mariner au frigo au moins 3h (idéal : toute la nuit).','Verser la viande marinée dans une grande casserole. Ajouter ½ verre d\'eau. Couvrir et cuire à feu moyen 45 min jusqu\'à ce que l\'eau s\'évapore.','Quand toute l\'eau est absorbée, la viande doit commencer à frire dans son propre gras. Remuer souvent.','Ajouter de l\'huile et frire les cubes jusqu\'à ce qu\'ils soient dorés et croustillants (10-15 min).','Servir chaud avec diri kole, bannann peze et pikliz.'],
+    tip:'Le secret : ne pas ajouter trop d\'eau au départ. Le porc doit d\'abord braiser, puis frire dans ses propres sucs.'
+  },
+  diri: {
+    emoji:'🍚', name:'Diri kole ak pwa', ht:'Riz collé aux haricots rouges',
+    meta:'45 min · 6 personnes · Végétarien',
+    desc:'Le plat de tous les jours dans les foyers haïtiens.',
+    ingredients:['2 tasses de riz blanc à grain long','1 boîte (400ml) haricots rouges ou kidneybeans','2 c. à soupe d\'épis','1 c. à soupe d\'huile','1 c. à café de sel','2 feuilles de laurier','1 brin de thym','3 tasses d\'eau'],
+    steps:['Dans une grande casserole, chauffer l\'huile à feu moyen. Faire revenir l\'épis 2 min.','Égoutter les haricots (garder le jus). Ajouter les haricots à la casserole, remuer 2 min.','Ajouter l\'eau, le jus des haricots, le sel, le laurier et le thym. Porter à ébullition.','Rincer le riz et l\'ajouter quand ça bout. Mélanger bien. Cuire à découvert 5 min à feu vif.','Quand l\'eau est presque absorbée, couvrir, baisser au minimum. Cuire 20-25 min sans soulever le couvercle.','Égrener avec une fourchette et servir.'],
+    tip:'Pour un riz encore plus savoureux, ajoutez un peu de jus de la boîte de haricots — ça donne une belle couleur dorée-rosée.'
+  },
+  soup: {
+    emoji:'🥣', name:'Soup joumou', ht:'Soupe giraumon de l\'indépendance',
+    meta:'2h30 · 8 personnes · Tradition du 1er janvier',
+    desc:'Chaque 1er janvier depuis 1804, cette soupe rappelle notre liberté.',
+    ingredients:['800g de bœuf (côtes ou jarret)','½ giraumon (courge butternut si indisponible)','2 pommes de terre','2 carottes','1 navet','200g de pâtes (macaroni ou spaghetti cassés)','4 c. à soupe d\'épis','Sel, poivre, thym','2 feuilles de laurier','½ boîte lait de coco (optionnel)'],
+    steps:['Mariner le bœuf avec l\'épis, sel et poivre. Faire revenir dans une grande marmite avec un peu d\'huile jusqu\'à dorure.','Couvrir d\'eau (3-4 litres). Ajouter laurier et thym. Cuire 1h à feu moyen.','Pendant ce temps, éplucher et couper le giraumon en morceaux. Faire bouillir séparément 20 min, puis mixer.','Ajouter la purée de giraumon à la marmite. Mélanger bien.','Couper pommes de terre, carottes et navet en cubes. Ajouter à la soupe. Cuire 20 min.','Ajouter les pâtes et le lait de coco. Cuire encore 10-12 min. Rectifier l\'assaisonnement.','Servir très chaud. Di : Ayiti pap peri !'],
+    tip:'La soupe joumou se sert traditionnellement le matin du 1er janvier à toute la famille. Préparez-la la veille, elle sera encore meilleure réchauffée.'
+  },
+  bannann: {
+    emoji:'🍌', name:'Bannann peze', ht:'Tostones — plantains verts frits et aplatis',
+    meta:'20 min · 4 personnes · Végétarien',
+    desc:'L\'accompagnement universel de la cuisine haïtienne.',
+    ingredients:['3 plantains verts','Huile pour friture (env. 3 cm dans la poêle)','Sel','Ail en poudre (optionnel)','Eau froide avec du sel et de l\'ail'],
+    steps:['Éplucher les plantains et les couper en rondelles épaisses (3-4 cm).','Frire dans l\'huile chaude 5-6 min jusqu\'à coloration légère (pas dorés — juste souples).','Retirer et égoutter. Tremper 30 secondes dans l\'eau salée à l\'ail.','Aplatir chaque rondelle avec la paume, une assiette, ou un tostonera.','Remettre dans l\'huile chaude 3-4 min jusqu\'à dorés et croustillants.','Égoutter sur papier absorbant, saler immédiatement. Servir chaud.'],
+    tip:'Le trempage dans l\'eau à l\'ail entre les deux fritures est le secret ! Ça donne la texture croustillante et infuse l\'arôme d\'ail.'
+  },
+  pikliz: {
+    emoji:'🥒', name:'Pikliz', ht:'Condiment épicé haïtien',
+    meta:'20 min + 24-48h de marinade · Pot de 500 ml · Très épicé',
+    desc:'Sans pikliz, ce n\'est pas un repas haïtien.',
+    ingredients:['½ petit chou blanc, émincé finement','2 carottes, râpées','1 poivron rouge, émincé','3-5 piments scotch bonnet (ajuster selon tolérance)','1 oignon, émincé','½ tasse de vinaigre blanc','Sel au goût','Jus de ½ citron'],
+    steps:['Mélanger chou, carottes, poivron et oignon dans un grand bol. Saler et mélanger bien.','Laisser reposer 10 min pour que les légumes rendent leur eau. Égoutter légèrement.','Couper les piments scotch bonnet en rondelles (garder les graines pour plus de piquant, retirer pour moins).','Mélanger tous les légumes avec les piments dans un bocal stérilisé.','Verser le vinaigre et le jus de citron. Fermer et secouer. Réfrigérer 24-48h minimum.','Se conserve 2-3 semaines au frigo.'],
+    tip:'⚠️ Portez des gants pour couper les scotch bonnet ! Ils sont parmi les piments les plus forts — ne touchez pas vos yeux.'
+  },
+  akasan: {
+    emoji:'🥛', name:'Akasan', ht:'Boisson crémeuse à la farine de maïs',
+    meta:'20 min · 4 personnes · Sans gluten',
+    desc:'Le petit-déjeuner réconfortant de toute l\'enfance haïtienne.',
+    ingredients:['½ tasse de farine de maïs fine (ou maïzena)','1 boîte (400 ml) de lait de coco','2 tasses de lait entier','2 tasses d\'eau','3 c. à soupe de sucre (ajuster)','1 bâton de cannelle','1 c. à café d\'essence de vanille','1 pincée de sel','Cannelle moulue pour garnir'],
+    steps:['Dans une casserole, délayer la farine de maïs dans l\'eau froide jusqu\'à ce qu\'il n\'y ait plus de grumeaux.','Ajouter le lait, le lait de coco, le bâton de cannelle, le sel et le sucre. Mélanger.','Cuire à feu moyen en remuant constamment avec un fouet ou une cuillère en bois.','Quand le mélange épaissit (env. 10-12 min), baisser le feu. Ajouter la vanille.','Cuire encore 5 min en remuant, jusqu\'à la consistance désirée (plus ou moins épais).','Servir dans des bols ou des tasses. Saupoudrer de cannelle moulue.'],
+    tip:'Les enfants adorent l\'akasan moins épais (plus de lait). Les adultes préfèrent souvent plus épais, presque comme une crème. Ajustez en fin de cuisson.'
+  }
+};
+
+function openRecipe(key) {
+  const r = RECIPES[key];
+  if (!r) return;
+  document.getElementById('rModalContent').innerHTML = `
+    <div class="recipe-modal-emoji">${r.emoji}</div>
+    <h2 id="rModalTitle">${r.name}</h2>
+    <div class="subtitle">${r.ht}</div>
+    <div style="font-size:.82rem;color:var(--muted);margin-bottom:16px">⏱ ${r.meta}</div>
+    <p style="font-size:.9rem;margin-bottom:0">${r.desc}</p>
+    <div class="recipe-section-title">Ingrédients</div>
+    <ul class="ingredient-list">${r.ingredients.map(i=>`<li>${i}</li>`).join('')}</ul>
+    <div class="recipe-section-title">Préparation</div>
+    <ol class="step-list">${r.steps.map(s=>`<li>${s}</li>`).join('')}</ol>
+    ${r.tip ? `<div class="tip-box">💡 <strong>Conseil :</strong> ${r.tip}</div>` : ''}
+  `;
+  document.getElementById('recipeModal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeRecipe() {
+  document.getElementById('recipeModal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeRecipe(); });
+</script>
+<script src="script.js"></script>
+<script src="casl-consent.js"></script>
+</body>
+</html>

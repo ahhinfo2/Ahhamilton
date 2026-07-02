@@ -1347,6 +1347,18 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS activity_seats (
 try { db.exec('ALTER TABLE activities ADD COLUMN seating_enabled INTEGER DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE activities ADD COLUMN seating_config TEXT'); } catch {}
 
+try { db.exec(`CREATE TABLE IF NOT EXISTS alertes_urgentes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER REFERENCES users(id),
+  titre TEXT NOT NULL,
+  description TEXT NOT NULL,
+  categorie TEXT DEFAULT 'autre',
+  statut TEXT DEFAULT 'actif',
+  contact TEXT,
+  date_creation TEXT DEFAULT (datetime('now')),
+  date_resolution TEXT
+)`); } catch {}
+
 init();
 
 module.exports = db;

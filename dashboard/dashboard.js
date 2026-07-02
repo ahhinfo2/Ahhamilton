@@ -377,6 +377,7 @@ async function buildSidebar() {
       { id:'meeting-agendas',   icon:'📝', label:'Ordres du jour',      roles:EXEC },
       { id:'notes',             icon:'◇', label:'Notes réunion',       roles:EXEC },
       { id:'committee-meetings',icon:'🤝', label:'Rencontre comité',   roles:EXEC },
+      { id:'alertes-urgentes',  icon:'🚨', label:'Alertes urgentes',   roles:EXEC },
       { id:'reports',           icon:'◆', label:'Rapports',            roles:EXEC },
       { id:'stats-growth',      icon:'📈', label:'Statistiques',       roles:EXEC },
       { id:'alerts',            icon:'◇', label:'Alertes',             roles:EXEC },
@@ -498,28 +499,68 @@ async function buildSidebar() {
     return;
   }
 
-  // Comité & admin → sidebar complète
-  nav.innerHTML = sections.map(section => {
+  // Comité & admin → sidebar complète avec groupes collapsibles
+  const openGroups = JSON.parse(localStorage.getItem('ahh_nav_groups') || '{}');
+  // Par défaut tout est ouvert sauf si l'utilisateur a fermé explicitement
+  nav.innerHTML = sections.map((section, idx) => {
     const visibleItems = section.items.filter(i => {
       if (!i.roles.includes(USER.role)) return false;
       if (i.planMin && !i.planMin.includes(USER.plan || 'gratuit')) return false;
       return true;
     });
     if (!visibleItems.length) return '';
-    const headerHtml = section.label ? `<div class="nav-section" data-i18n="${section.label}">${section.label}</div>` : '';
-    return headerHtml + visibleItems.map(i => `
+    if (!section.label) {
+      return visibleItems.map(i => `
         <div class="nav-item" data-view="${i.id}" onclick="showView('${i.id}')">
           <span class="nav-icon">${i.icon}</span>
-          <span class="nav-label" data-i18n="${i.label}">${i.label}</span>
+          <span class="nav-label">${i.label}</span>
           ${badge(i.id)}
         </div>`).join('');
+    }
+    const gid = 'g' + idx;
+    const isOpen = openGroups[gid] !== false; // ouvert par défaut
+    return `
+      <div class="nav-group-header ${isOpen ? 'open' : ''}" onclick="_navToggleGroup('${gid}',this)">
+        <span>${section.label}</span>
+        <span class="nav-group-chevron">›</span>
+      </div>
+      <div class="nav-group-items ${isOpen ? 'open' : ''}" id="navgrp-${gid}">
+        ${visibleItems.map(i => `
+          <div class="nav-item" data-view="${i.id}" onclick="showView('${i.id}')">
+            <span class="nav-icon">${i.icon}</span>
+            <span class="nav-label">${i.label}</span>
+            ${badge(i.id)}
+          </div>`).join('')}
+      </div>`;
   }).join('');
   if (window.AHH_LANG) AHH_LANG.apply();
 }
 
+function _navToggleGroup(gid, header) {
+  const panel = document.getElementById('navgrp-' + gid);
+  if (!panel) return;
+  const isOpen = panel.classList.toggle('open');
+  header.classList.toggle('open', isOpen);
+  const saved = JSON.parse(localStorage.getItem('ahh_nav_groups') || '{}');
+  saved[gid] = isOpen;
+  localStorage.setItem('ahh_nav_groups', JSON.stringify(saved));
+}
+
 function setActiveNav(viewId) {
   window._activeView = viewId;
-  document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.view === viewId));
+  document.querySelectorAll('.nav-item').forEach(el => {
+    const isActive = el.dataset.view === viewId;
+    el.classList.toggle('active', isActive);
+    // Auto-ouvrir le groupe contenant l'item actif
+    if (isActive) {
+      const panel = el.closest('.nav-group-items');
+      if (panel && !panel.classList.contains('open')) {
+        panel.classList.add('open');
+        const header = panel.previousElementSibling;
+        if (header && header.classList.contains('nav-group-header')) header.classList.add('open');
+      }
+    }
+  });
   // Fermer le sidebar sur mobile après navigation
   if (window.innerWidth < 900) {
     document.getElementById('sidebar')?.classList.remove('open');
@@ -559,7 +600,8 @@ function setActiveNav(viewId) {
     'scan-delegations':'Déléguer un lecteur',
     'forms-mgmt':'Formulaires',
     'shop-mgmt':'Boutique en ligne',
-    'committee-meetings':'Rencontre comité'
+    'committee-meetings':'Rencontre comité',
+    'alertes-urgentes':'Alertes urgentes'
   };
   const raw = labels[viewId] || 'Tableau de bord';
   document.getElementById('topbarTitle').textContent = window.AHH_LANG ? AHH_LANG.get(raw) : raw;
@@ -997,6 +1039,7 @@ async function showView(viewId) {
     'forms-mgmt': formsMgmtView,
     'shop-mgmt': shopMgmtView,
     'committee-meetings': committeeMeetingsView,
+    'alertes-urgentes': alertesUrgentesView,
   };
   if (extViews[viewId]) {
     try { await extViews[viewId](); } catch(e) { setContent(`<div class="empty-state"><div class="es-icon">⚠️</div><p>${e.message}</p></div>`); }
@@ -15597,5 +15640,89 @@ async function committeeMeetingDelete(id) {
     await api('/committee-meetings/' + id, { method:'DELETE' });
     toast('Rencontre supprimée');
     committeeMeetingsView();
+  } catch(e) { toast(e.message, true); }
+}
+
+// ══ ALERTES URGENTES ════════════════════════════════════════════════════════
+async function alertesUrgentesView() {
+  const alertes = await api('/alertes-urgentes');
+  const cats = { transport:'🚗 Transport', logement:'🏠 Logement', alimentaire:'🍽️ Alimentaire', sante:'🏥 Santé', emploi:'💼 Emploi', autre:'📢 Autre' };
+  const rows = alertes.length ? alertes.map(a => `
+    <tr>
+      <td><span style="font-size:1.1rem">${cats[a.categorie]||'📢'}</span></td>
+      <td><strong>${escHtml(a.titre)}</strong><br/><small style="color:var(--muted)">${escHtml(a.description).substring(0,80)}…</small></td>
+      <td>${escHtml(a.prenom||'')} ${escHtml(a.nom||'')}</td>
+      <td>${a.contact ? `<a href="tel:${escHtml(a.contact)}">${escHtml(a.contact)}</a>` : '—'}</td>
+      <td>${fmt(a.date_creation)}</td>
+      <td>
+        ${can.executive() ? `<button class="btn btn-sm" onclick="_alerteResoudre(${a.id})">✅ Résoudre</button>` : ''}
+        <button class="btn btn-sm" style="background:var(--danger);color:#fff" onclick="_alerteSupprimer(${a.id})">🗑</button>
+      </td>
+    </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted)">Aucune alerte active</td></tr>';
+
+  setContent(`
+    <div class="view-header">
+      <h1>🚨 Alertes urgentes</h1>
+      <button class="btn btn-primary" onclick="_alerteNouvelle()">+ Nouvelle alerte</button>
+    </div>
+    <div class="card" style="margin-bottom:16px;background:#fff8e1;border:1px solid #ffe082">
+      <p style="margin:0;font-size:.85rem;color:#5d4037">⚠️ Cet espace permet aux membres d'exprimer un besoin urgent d'entraide (transport, logement, repas, etc.). Soyez bienveillants et discrets.</p>
+    </div>
+    <div class="card">
+      <table class="data-table">
+        <thead><tr><th>Type</th><th>Demande</th><th>Membre</th><th>Contact</th><th>Date</th><th>Actions</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`);
+}
+
+function _alerteNouvelle() {
+  const cats = { transport:'🚗 Transport', logement:'🏠 Logement', alimentaire:'🍽️ Alimentaire', sante:'🏥 Santé', emploi:'💼 Emploi', autre:'📢 Autre' };
+  openModal('🚨 Nouvelle alerte urgente', `
+    <div class="form-group"><label>Titre de la demande *</label>
+      <input id="au_titre" class="form-control" placeholder="Ex: Besoin de transport samedi matin" maxlength="120"/></div>
+    <div class="form-group"><label>Description *</label>
+      <textarea id="au_desc" class="form-control" rows="3" placeholder="Expliquez votre besoin..."></textarea></div>
+    <div class="form-group"><label>Catégorie</label>
+      <select id="au_cat" class="form-control">
+        ${Object.entries(cats).map(([v,l])=>`<option value="${v}">${l}</option>`).join('')}
+      </select></div>
+    <div class="form-group"><label>Contact (téléphone ou info)</label>
+      <input id="au_contact" class="form-control" placeholder="Optionnel"/></div>
+    <button class="btn btn-primary" onclick="_alerteSauver()">Envoyer l'alerte</button>
+  `);
+}
+
+async function _alerteSauver() {
+  const titre = document.getElementById('au_titre')?.value.trim();
+  const description = document.getElementById('au_desc')?.value.trim();
+  if (!titre || !description) return toast('Titre et description requis', true);
+  try {
+    await api('/alertes-urgentes', { method:'POST', body: JSON.stringify({
+      titre, description,
+      categorie: document.getElementById('au_cat')?.value || 'autre',
+      contact: document.getElementById('au_contact')?.value.trim() || ''
+    })});
+    toast('Alerte envoyée — la communauté vous répond !');
+    closeModal();
+    alertesUrgentesView();
+  } catch(e) { toast(e.message, true); }
+}
+
+async function _alerteResoudre(id) {
+  if (!confirm('Marquer cette alerte comme résolue ?')) return;
+  try {
+    await api('/alertes-urgentes/' + id + '/resoudre', { method:'PUT' });
+    toast('Alerte résolue');
+    alertesUrgentesView();
+  } catch(e) { toast(e.message, true); }
+}
+
+async function _alerteSupprimer(id) {
+  if (!confirm('Supprimer cette alerte ?')) return;
+  try {
+    await api('/alertes-urgentes/' + id, { method:'DELETE' });
+    toast('Alerte supprimée');
+    alertesUrgentesView();
   } catch(e) { toast(e.message, true); }
 }

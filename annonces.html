@@ -111,6 +111,7 @@
         <button class="ann-filter" data-type="don" data-i18n="Don">🎁 Don</button>
         <button class="ann-filter" data-type="echange" data-i18n="Échange">🔄 Échange</button>
         <button class="ann-filter" data-type="recherche" data-i18n="Recherche">🔍 Recherche</button>
+        <button class="ann-filter" data-type="entraide" style="background:linear-gradient(90deg,#D21034,#003F87);color:#fff;border-color:transparent" data-i18n="Entraide">🤝 Entraide</button>
       </div>
 
       <div id="annGrid" class="ann-grid">
@@ -152,7 +153,7 @@
     const TYPE_LABEL = { vente:'🏷️ Vente', don:'🎁 Don', echange:'🔄 Échange', recherche:'🔍 Recherche' };
     const TYPE_CSS   = { vente:'type-vente', don:'type-don', echange:'type-echange', recherche:'type-recherche' };
 
-    const CAT_EMOJI  = { electronique:'📱',meubles:'🛋️',vetements:'👗',maison:'🏡',sport:'⚽',vehicule:'🚗',cuisine:'🍽️',bebe:'🧸',services:'🤝',autre:'📦' };
+    const CAT_EMOJI  = { electronique:'📱',meubles:'🛋️',vetements:'👗',maison:'🏡',sport:'⚽',vehicule:'🚗',cuisine:'🍽️',bebe:'🧸',services:'🤝',entraide:'🇭🇹',autre:'📦' };
 
     function annCard(a, idx) {
       const photos = a.photos || [];

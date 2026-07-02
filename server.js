@@ -10088,6 +10088,41 @@ app.post('/api/users/:id/relance-connexion', authMiddleware, requireRole('admin'
   }
 });
 
+// ── Alertes urgentes ─────────────────────────────────────────────────────────
+app.get('/api/alertes-urgentes', authMiddleware, (req, res) => {
+  const alertes = db.prepare(`
+    SELECT a.*, u.prenom, u.nom FROM alertes_urgentes a
+    LEFT JOIN users u ON a.user_id = u.id
+    WHERE a.statut = 'actif'
+    ORDER BY a.date_creation DESC
+  `).all();
+  res.json(alertes);
+});
+
+app.post('/api/alertes-urgentes', authMiddleware, (req, res) => {
+  const { titre, description, categorie, contact } = req.body;
+  if (!titre || !description) return res.status(400).json({ error: 'Titre et description requis' });
+  const r = db.prepare(`INSERT INTO alertes_urgentes (user_id, titre, description, categorie, contact) VALUES (?,?,?,?,?)`)
+    .run(req.user.id, titre.trim(), description.trim(), categorie || 'autre', contact || '');
+  res.json({ id: r.lastInsertRowid });
+});
+
+app.put('/api/alertes-urgentes/:id/resoudre', authMiddleware, requireRole('admin', 'tresoriere', 'secretaire', 'delegue'), (req, res) => {
+  const alerte = db.prepare('SELECT * FROM alertes_urgentes WHERE id=?').get(req.params.id);
+  if (!alerte) return res.status(404).json({ error: 'Alerte introuvable' });
+  db.prepare(`UPDATE alertes_urgentes SET statut='resolu', date_resolution=datetime('now') WHERE id=?`).run(req.params.id);
+  res.json({ ok: true });
+});
+
+app.delete('/api/alertes-urgentes/:id', authMiddleware, (req, res) => {
+  const alerte = db.prepare('SELECT * FROM alertes_urgentes WHERE id=?').get(req.params.id);
+  if (!alerte) return res.status(404).json({ error: 'Alerte introuvable' });
+  const isExec = ['admin','tresoriere','secretaire','delegue'].includes(req.user.role);
+  if (alerte.user_id !== req.user.id && !isExec) return res.status(403).json({ error: 'Non autorisé' });
+  db.prepare('DELETE FROM alertes_urgentes WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
 app.use((req, res) => {
   if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Route introuvable' });
   res.status(404).sendFile(path.join(__dirname, '404.html'));

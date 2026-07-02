@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Apprendre le créole haïtien | AHH Hamilton</title>
+  <meta name="description" content="Apprenez le créole haïtien : phrases essentielles, vocabulaire culturel, proverbes et comptines pour toute la famille."/>
+  <meta property="og:title" content="Apprendre le créole haïtien | AHH"/>
+  <meta property="og:description" content="Phrases, vocabulaire, proverbes et comptines en créole haïtien — pour garder la langue vivante à Hamilton."/>
+  <meta property="og:image" content="https://ahhamilton.ca/Public/logo1.png"/>
+  <meta property="og:url" content="https://ahhamilton.ca/creole.html"/>
+  <meta property="og:type" content="website"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <link rel="canonical" href="https://ahhamilton.ca/creole.html"/>
+  <link rel="icon" type="image/png" href="Public/logo1.png"/>
+  <link rel="stylesheet" href="style.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet"/>
+  <style>
+    .creole-section { padding: 64px 0; }
+    .creole-section.alt { background: var(--off); }
+    .phrase-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin: 28px 0; }
+    .phrase-card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 22px; transition: var(--tr); cursor: pointer; }
+    .phrase-card:hover { box-shadow: var(--shadow); transform: translateY(-2px); }
+    .phrase-ht { font-size: 1.05rem; font-weight: 700; color: var(--g1); margin-bottom: 4px; }
+    .phrase-fr { font-size: .88rem; color: var(--muted); margin-bottom: 6px; }
+    .phrase-prono { font-size: .78rem; color: var(--accent); font-style: italic; }
+    .speak-btn { background: none; border: 1px solid var(--border); border-radius: 20px; padding: 3px 10px; font-size: .72rem; color: var(--muted); cursor: pointer; margin-top: 8px; transition: var(--tr); }
+    .speak-btn:hover { background: var(--g1); color: #fff; border-color: var(--g1); }
+    .proverbe-list { display: flex; flex-direction: column; gap: 18px; }
+    .proverbe { background: #fff; border-left: 4px solid var(--accent); border-radius: 0 var(--radius) var(--radius) 0; padding: 18px 22px; }
+    .proverbe .ht { font-size: 1rem; font-weight: 700; color: var(--g1); margin-bottom: 6px; font-style: italic; }
+    .proverbe .fr { font-size: .85rem; color: var(--muted); margin-bottom: 4px; }
+    .proverbe .sens { font-size: .8rem; color: var(--text); }
+    .alpha-nav { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 24px; }
+    .alpha-btn { padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); background: none; font-size: .78rem; font-weight: 600; color: var(--muted); cursor: pointer; transition: var(--tr); }
+    .alpha-btn:hover, .alpha-btn.active { background: var(--g1); color: #fff; border-color: var(--g1); }
+    .vocab-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+    .vocab-table th { background: var(--g1); color: #fff; padding: 10px 14px; text-align: left; font-size: .82rem; }
+    .vocab-table td { padding: 10px 14px; font-size: .85rem; border-bottom: 1px solid var(--border); }
+    .vocab-table tr:hover td { background: var(--off); }
+    .comptine { background: linear-gradient(135deg, #e8f5e9, #f1f8e9); border-radius: var(--radius-lg); padding: 28px 32px; margin: 20px 0; }
+    .comptine-title { font-weight: 800; color: var(--g1); margin-bottom: 14px; font-size: 1.05rem; }
+    .comptine-text { font-size: .9rem; line-height: 2; color: var(--text); white-space: pre-line; }
+    .flag-banner { background: linear-gradient(90deg, #003F87 50%, #D21034 50%); height: 6px; border-radius: 4px; margin: 28px 0; }
+    :root.dark .phrase-card, :root.dark .proverbe, :root.dark .vocab-table td { background: #152515; border-color: #2a3d2a; }
+    :root.dark .creole-section { background: #0f1f0f; }
+    :root.dark .creole-section.alt { background: #0a1a0a; }
+    :root.dark .comptine { background: linear-gradient(135deg,#0a2a0a,#0d1f0d); }
+    :root.dark .vocab-table tr:hover td { background: #1a2a1a; }
+    @media(max-width:600px) { .phrase-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<script src="_lang.js"></script>
+<script src="_nav.js"></script>
+
+<section class="page-hero">
+  <div class="container page-hero-content">
+    <div class="breadcrumb"><a href="index.html">Accueil</a><span>›</span><span>Créole haïtien</span></div>
+    <h1>🇭🇹 Apprendre le créole haïtien</h1>
+    <p>Kreyòl ayisyen — Notre langue, notre identité. Gardons-la vivante pour nos enfants nés ici.</p>
+  </div>
+</section>
+
+<main id="main-content" role="main">
+
+<!-- ===== PHRASES ESSENTIELLES ===== -->
+<section class="creole-section">
+  <div class="container">
+    <div class="section-header" data-reveal>
+      <span class="section-badge">Niveau débutant</span>
+      <h2>Phrases essentielles</h2>
+      <p>Cliquez sur 🔊 pour entendre la prononciation.</p>
+    </div>
+    <div class="flag-banner"></div>
+
+    <div class="phrase-grid" id="phraseGrid">
+      <!-- Salutations -->
+      <div class="phrase-card">
+        <div class="phrase-ht">Bonjou !</div>
+        <div class="phrase-fr">Bonjour !</div>
+        <div class="phrase-prono">bon-JOU</div>
+        <button class="speak-btn" onclick="speak('Bonjou')">🔊 Écouter</button>
+      </div>
+      <div class="phrase-card">
+        <div class="phrase-ht">Bonswa !</div>
+        <div class="phrase-fr">Bonsoir !</div>
+        <div class="phrase-prono">bon-SWA</div>
+        <button class="speak-btn" onclick="speak('Bonswa')">🔊 Écouter</button>
+      </div>
+      <div class="phrase-card">
+        <div class="phrase-ht">Koman ou rele ?</div>
+        <div class="phrase-fr">Comment tu t'appelles ?</div>
+        <div class="phrase-prono">ko-MAN oo RE-le</div>
+        <button class="speak-btn" onclick="speak('Koman ou rele')">🔊 Écouter</button>
+      </div>
+      <div class="phrase-card">
+        <div class="phrase-ht">Mwen rele… / Mwen se…</div>
+        <div class="phrase-fr">Je m'appelle… / Je suis…</div>
+        <div class="phrase-prono">mwEN RE-le</div>
+        <button class="speak-btn" onclick="speak('Mwen rele')">🔊 Écouter</button>
+      </div>
+      <div class="phrase-card">
+        <div class="phrase-ht">Koman ou ye ?</div>
+        <div class="phrase-fr">Comment vas-tu ?</div>
+        <div class="phrase-prono">ko-MAN oo YEH</div>
+        <button class="speak-btn" onclick="speak('Koman ou ye')">🔊 Écouter</button>
+      </div>
+      <div class="phrase-card">
+        <div class="phrase-ht">Mwen byen, mèsi !</div>
+        <div class="phrase-fr">Je vais bien, merci !</div>
+        <div class="phrase-prono">mwEN byEN, MÈ-si</div>
+        <button class="speak-btn" onclick="speak('Mwen byen, mèsi')">🔊 Écouter</button>
+      </div>
+      <div class="phrase-card">
+        <div class="phrase-ht">Silvouplè</div>
+        <div class="phrase-fr">S'il vous plaît</div>
+        <div class="phrase-prono">sil-voo-PLÈH</div>
+        <button class="speak-btn" onclick="speak('Silvouplè')">🔊 Écouter</button>
+      </div>
+      <div class="phrase-card">
+        <div class="phrase-ht">Mèsi anpil !</div>
+        <div class="phrase-fr">Merci beaucoup !</div>
+        <div class="phrase-prono">MÈ-si an-PIL</div>
+        <button class="speak-btn" onclick="speak('Mèsi anpil')">🔊 Écouter</button>
+      </div>
+      <div class="phrase-card">
+        <div class="phrase-ht">Padone m !</div>
+        <div class="phrase-fr">Excusez-moi !</div>
+        <div class="phrase-prono">pa-DO-ne m</div>
+        <button class="speak-btn" onclick="speak('Padone m')">🔊 Écouter</button>
+      </div>
+      <div class="phrase-card">
+        <div class="phrase-ht">Wi / Non</div>
+        <div class="phrase-fr">Oui / Non</div>
+        <div class="phrase-prono">WI / NON</div>
+        <button class="speak-btn" onclick="speak('Wi. Non.')">🔊 Écouter</button>
+      </div>
+      <div class="phrase-card">
+        <div class="phrase-ht">Mwen pa konprann</div>
+        <div class="phrase-fr">Je ne comprends pas</div>
+        <div class="phrase-prono">mwEN pa kon-PRAN</div>
+        <button class="speak-btn" onclick="speak('Mwen pa konprann')">🔊 Écouter</button>
+      </div>
+      <div class="phrase-card">
+        <div class="phrase-ht">Esplike m ankò</div>
+        <div class="phrase-fr">Expliquez-moi encore</div>
+        <div class="phrase-prono">es-PLI-ke m an-KÒ</div>
+        <button class="speak-btn" onclick="speak('Esplike m ankò')">🔊 Écouter</button>
+      </div>
+      <div class="phrase-card">
+        <div class="phrase-ht">Mwen renmen ou</div>
+        <div class="phrase-fr">Je t'aime</div>
+        <div class="phrase-prono">mwEN ren-MEN oo</div>
+        <button class="speak-btn" onclick="speak('Mwen renmen ou')">🔊 Écouter</button>
+      </div>
+      <div class="phrase-card">
+        <div class="phrase-ht">Bon apeti !</div>
+        <div class="phrase-fr">Bon appétit !</div>
+        <div class="phrase-prono">BON a-pe-TI</div>
+        <button class="speak-btn" onclick="speak('Bon apeti')">🔊 Écouter</button>
+      </div>
+      <div class="phrase-card">
+        <div class="phrase-ht">Bon nwit !</div>
+        <div class="phrase-fr">Bonne nuit !</div>
+        <div class="phrase-prono">BON NWIT</div>
+        <button class="speak-btn" onclick="speak('Bon nwit')">🔊 Écouter</button>
+      </div>
+      <div class="phrase-card">
+        <div class="phrase-ht">Ale avèk Bondye</div>
+        <div class="phrase-fr">Va avec Dieu (au revoir)</div>
+        <div class="phrase-prono">a-LEH a-VEK bon-DYE</div>
+        <button class="speak-btn" onclick="speak('Ale avèk Bondye')">🔊 Écouter</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== VOCABULAIRE THÉMATIQUE ===== -->
+<section class="creole-section alt">
+  <div class="container">
+    <div class="section-header" data-reveal>
+      <span class="section-badge">Vocabulaire</span>
+      <h2>Mots par thème</h2>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:28px">
+      <div>
+        <h3 style="color:var(--g1);margin-bottom:12px">👨‍👩‍👧 Famille — Fanmi</h3>
+        <table class="vocab-table">
+          <thead><tr><th>Créole</th><th>Français</th></tr></thead>
+          <tbody>
+            <tr><td>Manman</td><td>Maman</td></tr>
+            <tr><td>Papa</td><td>Papa</td></tr>
+            <tr><td>Pitit</td><td>Enfant</td></tr>
+            <tr><td>Frè</td><td>Frère</td></tr>
+            <tr><td>Sè</td><td>Sœur</td></tr>
+            <tr><td>Grann</td><td>Grand-mère</td></tr>
+            <tr><td>Granpè</td><td>Grand-père</td></tr>
+            <tr><td>Tonton</td><td>Oncle</td></tr>
+            <tr><td>Matant</td><td>Tante</td></tr>
+            <tr><td>Kouzen / Kouzin</td><td>Cousin / Cousine</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div>
+        <h3 style="color:var(--g1);margin-bottom:12px">🍽️ Nourriture — Manje</h3>
+        <table class="vocab-table">
+          <thead><tr><th>Créole</th><th>Français</th></tr></thead>
+          <tbody>
+            <tr><td>Diri</td><td>Riz</td></tr>
+            <tr><td>Pwa</td><td>Haricots</td></tr>
+            <tr><td>Griot</td><td>Porc frit assaisonné</td></tr>
+            <tr><td>Bannann</td><td>Banane / Plantain</td></tr>
+            <tr><td>Soup joumou</td><td>Soupe au giraumon</td></tr>
+            <tr><td>Djon djon</td><td>Champignon noir haïtien</td></tr>
+            <tr><td>Akasan</td><td>Boisson de farine de maïs</td></tr>
+            <tr><td>Kleren</td><td>Rhum haïtien</td></tr>
+            <tr><td>Pen patat</td><td>Pain de patate douce</td></tr>
+            <tr><td>Tablèt</td><td>Friandise à la noix de coco</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div>
+        <h3 style="color:var(--g1);margin-bottom:12px">🎵 Musique & Culture</h3>
+        <table class="vocab-table">
+          <thead><tr><th>Créole</th><th>Français</th></tr></thead>
+          <tbody>
+            <tr><td>Konpa</td><td>Style musical haïtien</td></tr>
+            <tr><td>Rasin</td><td>Musique roots/racines</td></tr>
+            <tr><td>Rara</td><td>Fête populaire de rue</td></tr>
+            <tr><td>Vodou</td><td>Religion traditionnelle</td></tr>
+            <tr><td>Lakou</td><td>Espace communautaire familial</td></tr>
+            <tr><td>Kanaval</td><td>Carnaval</td></tr>
+            <tr><td>Tambou</td><td>Tambour</td></tr>
+            <tr><td>Chabon</td><td>Danse traditionnelle</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== PROVERBES ===== -->
+<section class="creole-section">
+  <div class="container" style="max-width:780px">
+    <div class="section-header" data-reveal>
+      <span class="section-badge">Sagesse</span>
+      <h2>Pwovèb — Proverbes haïtiens</h2>
+      <p>La sagesse de nos ancêtres en une phrase.</p>
+    </div>
+    <div class="proverbe-list">
+      <div class="proverbe">
+        <div class="ht">« Sèl pa kite fèy pouri. »</div>
+        <div class="fr">Le sel n'abandonne pas la feuille à la pourriture.</div>
+        <div class="sens">💡 Sens : Les amis fidèles protègent ceux qu'ils aiment.</div>
+      </div>
+      <div class="proverbe">
+        <div class="ht">« Dèyè mòn gen mòn. »</div>
+        <div class="fr">Derrière les montagnes, il y a d'autres montagnes.</div>
+        <div class="sens">💡 Sens : Les défis ne finissent jamais — courage et persévérance sont de mise.</div>
+      </div>
+      <div class="proverbe">
+        <div class="ht">« Men anpil, chay pa lou. »</div>
+        <div class="fr">Beaucoup de mains, le fardeau n'est pas lourd.</div>
+        <div class="sens">💡 Sens : La solidarité communautaire allège toutes les peines.</div>
+      </div>
+      <div class="proverbe">
+        <div class="ht">« Bourik travay, chwal galonnen. »</div>
+        <div class="fr">L'âne travaille, le cheval se pavane.</div>
+        <div class="sens">💡 Sens : Critique de l'injustice — le travail doit être reconnu.</div>
+      </div>
+      <div class="proverbe">
+        <div class="ht">« Kay koule twompe solèy, li pa twompe lapli. »</div>
+        <div class="fr">Une maison qui fuit trompe le soleil, mais pas la pluie.</div>
+        <div class="sens">💡 Sens : On peut cacher ses problèmes un temps, mais pas éternellement.</div>
+      </div>
+      <div class="proverbe">
+        <div class="ht">« Pitit tig se tig. »</div>
+        <div class="fr">Le petit du tigre est un tigre.</div>
+        <div class="sens">💡 Sens : Les enfants héritent des qualités de leurs parents — fierté familiale.</div>
+      </div>
+      <div class="proverbe">
+        <div class="ht">« Yon sèl dwèt pa manje kalalou. »</div>
+        <div class="fr">Un seul doigt ne mange pas le gombo.</div>
+        <div class="sens">💡 Sens : Rien de grand ne se fait seul — l'union fait la force.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== COMPTINES ===== -->
+<section class="creole-section alt">
+  <div class="container">
+    <div class="section-header" data-reveal>
+      <span class="section-badge">Pour les enfants</span>
+      <h2>Chante pou timoun — Comptines</h2>
+      <p>Pour que nos enfants nés au Canada grandissent avec leur langue maternelle.</p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px">
+      <div class="comptine">
+        <div class="comptine-title">🌟 Ti zwazo (Petit oiseau)</div>
+        <div class="comptine-text">Ti zwazo ki nan bwa a,
+Chante bèl chante dousman,
+Pale nou de peyi nou,
+Ayiti cheri, bèl peyi.
+
+Nou renmen ou, nou pa bliye,
+Menm lwen ou, kè nou rele.
+Ti zwazo, kontinye chante,
+Pou tout timoun ka sonje.</div>
+      </div>
+      <div class="comptine">
+        <div class="comptine-title">🌺 Flè Ayiti (Fleur d'Haïti)</div>
+        <div class="comptine-text">Flè Ayiti fleri bèl,
+Rouj ak ble, koulè drapo,
+Peyi nou ki bèl anpil,
+Nou fyè de kote nou sòti.
+
+Pitit nou yo ap grandi,
+Isit nan Kanada frèt,
+Men kè yo toujou an Ayiti,
+Ak lanmou ki p ap janm fini.</div>
+      </div>
+      <div class="comptine">
+        <div class="comptine-title">🥁 Tanbou</div>
+        <div class="comptine-text">Tanbou a ap bat pam pam,
+Tout moun leve, tout moun danse,
+Rythm Ayiti nan kè nou,
+Nou pa ka bliye kilti nou.
+
+Bat tanbou, bat avèk fyète,
+Pale lang manman ou bèl,
+Kreyòl se lang ki pi bèl,
+Pale l toupatou san wont.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== APPEL À L'ACTION ===== -->
+<section class="creole-section" style="background:linear-gradient(135deg,var(--g1),var(--g2));color:#fff;text-align:center">
+  <div class="container" style="max-width:660px">
+    <div style="font-size:3rem;margin-bottom:16px">🇭🇹</div>
+    <h2 style="color:#fff;margin-bottom:14px">Parlons créole ensemble !</h2>
+    <p style="opacity:.9;margin-bottom:28px;line-height:1.7">L'AHH organise des activités culturelles et des rencontres où on parle créole. Rejoignez-nous pour garder notre langue et notre identité vivantes à Hamilton.</p>
+    <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap">
+      <a href="adhesion.html" class="btn btn-primary">Devenir membre AHH</a>
+      <a href="actualites.html" class="btn" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)">Voir les activités</a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<script>
+function speak(text) {
+  if (!window.speechSynthesis) return alert('Synthèse vocale non disponible sur ce navigateur.');
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'fr-FR'; // Approximation — pas de voix ht disponible en général
+  u.rate = 0.85;
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(u);
+}
+</script>
+<script src="script.js"></script>
+<script src="casl-consent.js"></script>
+</body>
+</html>

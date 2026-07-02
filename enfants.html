@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Espace familles | AHH Hamilton</title>
+  <meta name="description" content="Ressources, activités et soutien pour les familles haïtiennes de Hamilton — enfants nés au Canada et parents immigrants."/>
+  <meta property="og:title" content="Espace Familles — AHH Hamilton"/>
+  <meta property="og:description" content="Pour les familles haïtiennes de Hamilton : activités pour enfants, aide aux devoirs, ressources culturelles et soutien parental."/>
+  <meta property="og:image" content="https://ahhamilton.ca/Public/logo1.png"/>
+  <meta property="og:url" content="https://ahhamilton.ca/enfants.html"/>
+  <meta property="og:type" content="website"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <link rel="canonical" href="https://ahhamilton.ca/enfants.html"/>
+  <link rel="icon" type="image/png" href="Public/logo1.png"/>
+  <link rel="stylesheet" href="style.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet"/>
+  <style>
+    .famille-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 22px; margin: 32px 0; }
+    .famille-card { background: #fff; border-radius: var(--radius-lg); border: 1px solid var(--border); padding: 26px 22px; transition: var(--tr); }
+    .famille-card:hover { box-shadow: var(--shadow); transform: translateY(-3px); }
+    .famille-icon { font-size: 2.2rem; margin-bottom: 14px; }
+    .famille-card h3 { font-size: 1rem; font-weight: 700; color: var(--g1); margin-bottom: 8px; }
+    .famille-card p { font-size: .85rem; color: var(--muted); line-height: 1.6; }
+    .age-tabs { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+    .age-tab { padding: 7px 20px; border-radius: 30px; border: 2px solid var(--border); background: none; font-size: .82rem; font-weight: 600; cursor: pointer; transition: var(--tr); color: var(--text); }
+    .age-tab.active { background: var(--g1); color: #fff; border-color: var(--g1); }
+    .age-content { display: none; }
+    .age-content.active { display: block; }
+    .resource-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+    .resource-item { background: #fff; border-radius: var(--radius); border: 1px solid var(--border); padding: 18px; display: flex; gap: 14px; }
+    .resource-item .ri-icon { font-size: 1.8rem; flex-shrink: 0; }
+    .resource-item h4 { font-size: .88rem; font-weight: 700; color: var(--g1); margin-bottom: 4px; }
+    .resource-item p { font-size: .78rem; color: var(--muted); margin: 0; }
+    .qa-list { display: flex; flex-direction: column; gap: 14px; }
+    .qa-item { background: #fff; border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; }
+    .qa-q { padding: 16px 20px; font-size: .9rem; font-weight: 600; color: var(--g1); cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+    .qa-a { display: none; padding: 0 20px 16px; font-size: .85rem; color: var(--text); line-height: 1.7; }
+    .qa-item.open .qa-a { display: block; }
+    .qa-item.open .qa-arrow { transform: rotate(90deg); }
+    .qa-arrow { font-size: 1rem; transition: transform .2s; }
+    :root.dark .famille-card, :root.dark .resource-item, :root.dark .qa-item { background: #152515; border-color: #2a3d2a; }
+    @media(max-width:600px) { .famille-grid, .resource-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<script src="_lang.js"></script>
+<script src="_nav.js"></script>
+
+<section class="page-hero">
+  <div class="container page-hero-content">
+    <div class="breadcrumb"><a href="index.html">Accueil</a><span>›</span><span>Espace familles</span></div>
+    <h1>👨‍👩‍👧 Espace Familles</h1>
+    <p>Pour les enfants nés ici et les parents qui bâtissent leur vie à Hamilton — ensemble.</p>
+  </div>
+</section>
+
+<main id="main-content" role="main">
+
+<!-- Activités par âge -->
+<section style="padding:64px 0">
+  <div class="container">
+    <div class="section-header" data-reveal>
+      <span class="section-badge">Activités</span>
+      <h2>Programmes par groupe d'âge</h2>
+    </div>
+
+    <div class="age-tabs">
+      <button class="age-tab active" onclick="showAge('petits',this)">👶 0–5 ans</button>
+      <button class="age-tab" onclick="showAge('enfants',this)">🧒 6–12 ans</button>
+      <button class="age-tab" onclick="showAge('ados',this)">👦 13–17 ans</button>
+      <button class="age-tab" onclick="showAge('parents',this)">👪 Parents</button>
+    </div>
+
+    <div id="age-petits" class="age-content active">
+      <div class="famille-grid">
+        <div class="famille-card">
+          <div class="famille-icon">📚</div>
+          <h3>Heure du conte en créole</h3>
+          <p>Tous les samedis matin. Histoires haïtiennes lues en créole et en français pour les tout-petits. Un moment de connexion culturelle dès le plus jeune âge.</p>
+        </div>
+        <div class="famille-card">
+          <div class="famille-icon">🎵</div>
+          <h3>Chansons et comptines haïtiennes</h3>
+          <p>Sessions musicales mensuelles avec tambours et instruments créoles. Les bébés apprennent les rythmes haïtiens naturellement.</p>
+        </div>
+        <div class="famille-card">
+          <div class="famille-icon">🤱</div>
+          <h3>Groupe de mamans</h3>
+          <p>Rencontres bi-mensuelles pour les nouvelles mamans haïtiennes — partage d'expériences, soutien émotionnel et conseils en créole et en français.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="age-enfants" class="age-content">
+      <div class="famille-grid">
+        <div class="famille-card">
+          <div class="famille-icon">✏️</div>
+          <h3>Aide aux devoirs</h3>
+          <p>Chaque mercredi après l'école, des bénévoles membres de l'AHH aident les enfants avec leurs devoirs. Gratuit pour les membres.</p>
+        </div>
+        <div class="famille-card">
+          <div class="famille-icon">🎨</div>
+          <h3>Atelier arts créoles</h3>
+          <p>Peinture, artisanat et expression artistique inspirée de la culture haïtienne. L'art comme pont entre ici et Haïti.</p>
+        </div>
+        <div class="famille-card">
+          <div class="famille-icon">⚽</div>
+          <h3>Mini-tournois sportifs</h3>
+          <p>Soccer, basketball et jeux traditionnels haïtiens. Pour faire bouger les enfants et créer des amitiés dans la communauté.</p>
+        </div>
+        <div class="famille-card">
+          <div class="famille-icon">🇭🇹</div>
+          <h3>Club d'histoire haïtienne</h3>
+          <p>Des ateliers mensuels pour que nos enfants connaissent l'histoire de Haïti, de l'indépendance de 1804 à aujourd'hui.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="age-ados" class="age-content">
+      <div class="famille-grid">
+        <div class="famille-card">
+          <div class="famille-icon">🎓</div>
+          <h3>Mentorat académique</h3>
+          <p>Jumelage avec des membres adultes professionnels selon les intérêts de l'ado — santé, ingénierie, droit, arts. Pour préparer les choix de carrière.</p>
+        </div>
+        <div class="famille-card">
+          <div class="famille-icon">💼</div>
+          <h3>Atelier CV et entrevue</h3>
+          <p>Pour décrocher un premier emploi étudiant. Rédaction de CV, simulation d'entrevue, conseils pratiques adaptés au marché local.</p>
+        </div>
+        <div class="famille-card">
+          <div class="famille-icon">🎤</div>
+          <h3>Espace Jeunes</h3>
+          <p>Le groupe pour les 15-30 ans. Sorties culturelles, discussions, leadership communautaire. Un espace pour être jeune et fièrement haïtien à Hamilton.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="age-parents" class="age-content">
+      <div class="famille-grid">
+        <div class="famille-card">
+          <div class="famille-icon">🏫</div>
+          <h3>Naviguer le système scolaire</h3>
+          <p>Comment s'impliquer dans l'école de vos enfants, comprendre les bulletins HWDSB/HWCDSB, parler avec les enseignants, droits des parents.</p>
+        </div>
+        <div class="famille-card">
+          <div class="famille-icon">🌐</div>
+          <h3>Cours de français et d'anglais</h3>
+          <p>Des ressources gratuites pour améliorer votre français écrit ou votre anglais au quotidien — pour mieux aider vos enfants et réussir au travail.</p>
+        </div>
+        <div class="famille-card">
+          <div class="famille-icon">💰</div>
+          <h3>Bourses d'études</h3>
+          <p>L'AHH compile les bourses disponibles pour les enfants de la communauté haïtienne. Contactez-nous pour la liste à jour.</p>
+        </div>
+        <div class="famille-card">
+          <div class="famille-icon">🧠</div>
+          <h3>Santé mentale des jeunes</h3>
+          <p>Comment parler à vos enfants nés ici de leur double identité. Ressources en créole, français et anglais pour la santé mentale des jeunes immigrants de 2e génération.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Ressources externes -->
+<section style="background:var(--off);padding:64px 0">
+  <div class="container">
+    <div class="section-header" data-reveal>
+      <span class="section-badge">Ressources</span>
+      <h2>Services pour familles à Hamilton</h2>
+    </div>
+    <div class="resource-grid">
+      <div class="resource-item">
+        <div class="ri-icon">📚</div>
+        <div><h4>Bibliothèque publique de Hamilton</h4><p>Programmes gratuits pour enfants, carte de bibliothèque, cours d'anglais. hamilton.ca/library</p></div>
+      </div>
+      <div class="resource-item">
+        <div class="ri-icon">🏥</div>
+        <div><h4>Good Shepherd Hamilton</h4><p>Services familiaux, aide alimentaire, soutien aux nouveaux arrivants. goodshepherd.ca</p></div>
+      </div>
+      <div class="resource-item">
+        <div class="ri-icon">🎒</div>
+        <div><h4>Settlement & Integration Services</h4><p>Aide à l'intégration, cours de langue, orientation scolaire pour nouveaux arrivants. hamiltonimmigrant.ca</p></div>
+      </div>
+      <div class="resource-item">
+        <div class="ri-icon">👩‍⚕️</div>
+        <div><h4>Centre de santé communautaire</h4><p>Soins pédiatriques, santé maternelle, services en plusieurs langues. hamiltonchs.ca</p></div>
+      </div>
+      <div class="resource-item">
+        <div class="ri-icon">🧸</div>
+        <div><h4>Best Start Hamilton</h4><p>Programmes pour parents d'enfants 0-6 ans : prêts de jouets, visites à domicile, groupes de jeu.</p></div>
+      </div>
+      <div class="resource-item">
+        <div class="ri-icon">🎓</div>
+        <div><h4>HWDSB (conseil scolaire public)</h4><p>Écoles publiques anglophones. hwdsb.on.ca — Services aux familles ELL disponibles.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ Parents -->
+<section style="padding:64px 0">
+  <div class="container" style="max-width:740px">
+    <div class="section-header" data-reveal>
+      <span class="section-badge">Questions fréquentes</span>
+      <h2>Questions de parents</h2>
+    </div>
+    <div class="qa-list">
+      <div class="qa-item">
+        <div class="qa-q" onclick="toggleQa(this)">Mon enfant refuse de parler créole à la maison. Comment l'encourager ?<span class="qa-arrow">›</span></div>
+        <div class="qa-a">C'est très courant chez les enfants de 2e génération — ils veulent s'intégrer et craignent d'être différents. Quelques pistes : rendez le créole amusant (jeux, chansons), impliquez les grands-parents en vidéo, montrez que vous êtes fier de parler créole en public. La page <a href="creole.html">Apprendre le créole</a> a des comptines et phrases à pratiquer ensemble.</div>
+      </div>
+      <div class="qa-item">
+        <div class="qa-q" onclick="toggleQa(this)">Comment inscrire mon enfant dans une école à Hamilton ?<span class="qa-arrow">›</span></div>
+        <div class="qa-a">Rendez-vous sur hwdsb.on.ca (école publique anglophone) ou HWCDSB (catholique). Apportez : preuve d'adresse, certificat de naissance, carnet de vaccination, rapport scolaire précédent si disponible. Le conseil scolaire offre un programme d'accueil pour les nouveaux arrivants. L'AHH peut vous aider à préparer vos documents.</div>
+      </div>
+      <div class="qa-item">
+        <div class="qa-q" onclick="toggleQa(this)">Mon enfant né en Haïti a besoin de faire reconnaître ses acquis scolaires. Comment faire ?<span class="qa-arrow">›</span></div>
+        <div class="qa-a">Le HWDSB offre une évaluation de placement pour déterminer l'année appropriée. Pour les études secondaires, contactez le bureau d'équivalences du ministère de l'Éducation de l'Ontario. Settlement Services peut vous accompagner dans cette démarche gratuitement.</div>
+      </div>
+      <div class="qa-item">
+        <div class="qa-q" onclick="toggleQa(this)">Quelles bourses existent pour les étudiants haïtiens au Canada ?<span class="qa-arrow">›</span></div>
+        <div class="qa-a">Plusieurs organisations offrent des bourses aux enfants de la diaspora : la Fondation Haïti Canada, certaines universités canadiennes ont des fonds pour étudiants racialisés, et le gouvernement fédéral a des programmes pour enfants d'immigrants. Contactez l'AHH — nous maintenons une liste à jour des bourses disponibles et pouvons vous aider à remplir les dossiers.</div>
+      </div>
+      <div class="qa-item">
+        <div class="qa-q" onclick="toggleQa(this)">Mon ado souffre d'identité — ni vraiment haïtien ni vraiment canadien. Quoi faire ?<span class="qa-arrow">›</span></div>
+        <div class="qa-a">Ce déchirement identitaire est très courant et souvent vécu seul. Le groupe Espace Jeunes de l'AHH crée un espace où les jeunes de 15-30 ans partagent exactement ces expériences. Les connexions avec des pairs qui vivent la même réalité sont souvent plus aidantes que n'importe quel conseil parental. N'hésitez pas aussi à consulter un thérapeute formé en enjeux d'immigration — plusieurs offrent des services en français à Hamilton.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section style="background:linear-gradient(135deg,var(--g1),var(--g2));color:#fff;padding:64px 0;text-align:center">
+  <div class="container" style="max-width:600px">
+    <div style="font-size:2.5rem;margin-bottom:14px">👨‍👩‍👧‍👦</div>
+    <h2 style="color:#fff;margin-bottom:12px">Votre famille fait partie de notre famille</h2>
+    <p style="opacity:.9;margin-bottom:24px">Les activités de l'Espace Familles sont gratuites pour les membres AHH. Adhérez aujourd'hui et donnez à vos enfants une communauté.</p>
+    <a href="adhesion.html" class="btn btn-primary">Adhérer — 20 $/an</a>
+  </div>
+</section>
+
+</main>
+
+<script>
+function showAge(id, btn) {
+  document.querySelectorAll('.age-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.age-content').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('age-' + id).classList.add('active');
+}
+function toggleQa(el) {
+  el.closest('.qa-item').classList.toggle('open');
+}
+</script>
+<script src="script.js"></script>
+<script src="casl-consent.js"></script>
+</body>
+</html>

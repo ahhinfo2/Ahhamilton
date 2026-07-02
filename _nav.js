@@ -21,6 +21,8 @@
       'Équipe':'Team', 'Confidentialité':'Privacy', 'Galerie':'Gallery',
       'Espace membre':'Member Area', 'Faire un don':'Donate', 'Nous contacter':'Contact Us',
       'Politique de confidentialité':'Privacy Policy',
+      'Intégration':'Integration', 'Langue créole':'Creole Language', 'Rejoindre':'Join Online',
+      'Recettes haïtiennes':'Haitian Recipes', 'Mur de fierté':'Pride Wall', 'Espace familles':'Family Space',
       'footer-desc':'Haitian Association of Hamilton, a community united in culture and solidarity.',
       'footer-copy':'© 2026 AHH | Association Haïtienne de Hamilton. All rights reserved.',
     },
@@ -34,6 +36,8 @@
       'Équipe':'Ekip', 'Confidentialité':'Konfidansyalite', 'Galerie':'Galri',
       'Espace membre':'Espas manm', 'Faire un don':'Fè yon don', 'Nous contacter':'Kontakte nou',
       'Politique de confidentialité':'Politik konfidansyalite',
+      'Intégration':'Entegrasyon', 'Langue créole':'Lang kreyòl', 'Rejoindre':'Rantre an liy',
+      'Recettes haïtiennes':'Resèt ayisyen', 'Mur de fierté':'Mi fyète', 'Espace familles':'Espas fanmi',
       'footer-desc':'Asosyasyon Ayisyen Hamilton, yon kominote ini nan kilti ak solidarite.',
       'footer-copy':'© 2026 AHH | Asosyasyon Ayisyen Hamilton. Tout dwa rezève.',
     }
@@ -138,12 +142,18 @@
 
         <!-- Dropdown : Communauté -->
         <div class="dropdown">
-          <button class="${activeDrop(['talents.html','annonces.html'])} dropdown-toggle">
+          <button class="${activeDrop(['talents.html','annonces.html','integration.html','creole.html','rejoindre.html','recettes.html','fierte.html','enfants.html'])} dropdown-toggle">
             <span data-i18n="Communauté">Communauté</span> <span class="dropdown-caret">▾</span>
           </button>
           <div class="dropdown-menu">
-            <a href="${pre}talents.html"  class="${active('talents.html')}"  data-i18n="Nos talents">Nos talents</a>
-            <a href="${pre}annonces.html" class="${active('annonces.html')}" data-i18n="Petites annonces">Petites annonces</a>
+            <a href="${pre}talents.html"     class="${active('talents.html')}"     data-i18n="Nos talents">Nos talents</a>
+            <a href="${pre}annonces.html"    class="${active('annonces.html')}"    data-i18n="Petites annonces">Petites annonces</a>
+            <a href="${pre}integration.html" class="${active('integration.html')}" data-i18n="Intégration">Intégration</a>
+            <a href="${pre}creole.html"      class="${active('creole.html')}"      data-i18n="Langue créole">Langue créole</a>
+            <a href="${pre}rejoindre.html"   class="${active('rejoindre.html')}"   data-i18n="Rejoindre">Rejoindre</a>
+            <a href="${pre}recettes.html"    class="${active('recettes.html')}"    data-i18n="Recettes haïtiennes">Recettes haïtiennes</a>
+            <a href="${pre}fierte.html"      class="${active('fierte.html')}"      data-i18n="Mur de fierté">Mur de fierté</a>
+            <a href="${pre}enfants.html"     class="${active('enfants.html')}"     data-i18n="Espace familles">Espace familles</a>
           </div>
         </div>
 
@@ -208,6 +218,12 @@
         <a href="${pre}galerie.html"    data-i18n="Galerie">Galerie</a>
         <a href="${pre}talents.html"    data-i18n="Nos talents">Nos talents</a>
         <a href="${pre}annonces.html"   data-i18n="Petites annonces">Petites annonces</a>
+        <a href="${pre}integration.html" data-i18n="Intégration">Intégration</a>
+        <a href="${pre}creole.html"      data-i18n="Langue créole">Langue créole</a>
+        <a href="${pre}recettes.html"    data-i18n="Recettes haïtiennes">Recettes haïtiennes</a>
+        <a href="${pre}fierte.html"      data-i18n="Mur de fierté">Mur de fierté</a>
+        <a href="${pre}enfants.html"     data-i18n="Espace familles">Espace familles</a>
+        <a href="${pre}rejoindre.html"   data-i18n="Rejoindre">Rejoindre</a>
       </div>
       <div class="footer-links">
         <h5 data-i18n="Membre">Membre</h5>

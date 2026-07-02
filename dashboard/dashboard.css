@@ -141,6 +141,17 @@ img{display:block;max-width:100%}
 .nav-item.active{background:rgba(255,255,255,.2);color:#fff;font-weight:600}
 .nav-item .nav-icon{font-size:1.1rem;width:22px;text-align:center}
 .nav-section{font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.4);padding:10px 10px 4px;margin-top:4px}
+.nav-group-header{
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:rgba(255,255,255,.45);padding:10px 10px 4px;margin-top:4px;
+  cursor:pointer;border-radius:6px;transition:background .18s;user-select:none;
+}
+.nav-group-header:hover{background:rgba(255,255,255,.07);color:rgba(255,255,255,.75)}
+.nav-group-chevron{font-size:.75rem;transition:transform .22s;color:rgba(255,255,255,.4)}
+.nav-group-header.open .nav-group-chevron{transform:rotate(90deg)}
+.nav-group-items{overflow:hidden;transition:max-height .28s ease,opacity .22s ease;max-height:0;opacity:0}
+.nav-group-items.open{max-height:900px;opacity:1}
 
 .sidebar-footer{padding:14px 10px;border-top:1px solid rgba(255,255,255,.12)}
 .btn-logout{

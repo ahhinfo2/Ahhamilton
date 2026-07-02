@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Ressources d'intégration | AHH Hamilton</title>
+  <meta name="description" content="Guide pratique pour les nouveaux arrivants haïtiens à Hamilton : santé, école, travail, logement, services en français et créole."/>
+  <meta property="og:title" content="Ressources d'intégration | AHH"/>
+  <meta property="og:description" content="Tout ce qu'il faut savoir pour s'établir à Hamilton : médecin, école, emploi, logement et services communautaires."/>
+  <meta property="og:image" content="https://ahhamilton.ca/Public/logo1.png"/>
+  <meta property="og:url" content="https://ahhamilton.ca/integration.html"/>
+  <meta property="og:type" content="website"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <link rel="canonical" href="https://ahhamilton.ca/integration.html"/>
+  <link rel="icon" type="image/png" href="Public/logo1.png"/>
+  <link rel="stylesheet" href="style.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet"/>
+  <style>
+    .integ-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; margin: 32px 0; }
+    .integ-card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 28px 24px; transition: var(--tr); }
+    .integ-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-3px); }
+    .integ-icon { font-size: 2.2rem; margin-bottom: 14px; }
+    .integ-card h3 { font-size: 1.05rem; font-weight: 700; color: var(--g1); margin-bottom: 10px; }
+    .integ-card p { font-size: .85rem; color: var(--muted); line-height: 1.7; margin-bottom: 12px; }
+    .integ-links { display: flex; flex-direction: column; gap: 6px; }
+    .integ-link { display: flex; align-items: center; gap: 8px; font-size: .82rem; color: var(--g2); font-weight: 600; text-decoration: none; }
+    .integ-link:hover { color: var(--g1); text-decoration: underline; }
+    .integ-badge { display: inline-block; background: var(--off); border: 1px solid var(--border); color: var(--muted); font-size: .7rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: .05em; }
+    .integ-section { padding: 60px 0; }
+    .integ-section.alt { background: var(--off); }
+    .alert-info { background: #e3f2fd; border-left: 4px solid #1565c0; border-radius: 8px; padding: 14px 18px; font-size: .88rem; color: #0d47a1; margin-bottom: 28px; }
+    .steps-list { counter-reset: steps; list-style: none; padding: 0; display: flex; flex-direction: column; gap: 16px; }
+    .steps-list li { counter-increment: steps; display: flex; gap: 16px; align-items: flex-start; background: #fff; border-radius: var(--radius); padding: 18px 20px; border: 1px solid var(--border); }
+    .steps-list li::before { content: counter(steps); background: var(--g1); color: #fff; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .8rem; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+    .steps-list li .step-content h4 { font-size: .9rem; font-weight: 700; margin-bottom: 4px; color: var(--text); }
+    .steps-list li .step-content p { font-size: .83rem; color: var(--muted); line-height: 1.6; margin: 0; }
+    :root.dark .integ-card { background: #152515; border-color: #2a3d2a; }
+    :root.dark .integ-section { background: #0f1f0f; }
+    :root.dark .integ-section.alt { background: #0a1a0a; }
+    :root.dark .steps-list li { background: #152515; border-color: #2a3d2a; }
+    :root.dark .alert-info { background: #0a1a2a; border-color: #1565c0; color: #90caf9; }
+  </style>
+</head>
+<body>
+<script src="_lang.js"></script>
+<script src="_nav.js"></script>
+
+<section class="page-hero">
+  <div class="container page-hero-content">
+    <div class="breadcrumb"><a href="index.html">Accueil</a><span>›</span><span>Intégration</span></div>
+    <h1>Ressources d'intégration à Hamilton</h1>
+    <p>Tout ce qu'il faut savoir pour bien vous établir. L'AHH est là pour vous accompagner à chaque étape.</p>
+  </div>
+</section>
+
+<main id="main-content" role="main">
+
+<section class="integ-section">
+  <div class="container">
+    <div class="alert-info">
+      💬 <strong>Besoin d'aide ?</strong> L'AHH peut vous accompagner en personne. Écrivez-nous à <a href="mailto:contact@ahhamilton.ca" style="color:inherit;font-weight:700">contact@ahhamilton.ca</a> ou appelez le <a href="tel:9058188269" style="color:inherit;font-weight:700">905-818-8269</a>. Nous parlons français et créole haïtien.
+    </div>
+
+    <div class="section-header" data-reveal>
+      <span class="section-badge">Premiers pas</span>
+      <h2>Bienvenue à Hamilton</h2>
+      <p>Guide étape par étape pour les nouveaux arrivants.</p>
+    </div>
+
+    <ul class="steps-list">
+      <li>
+        <div class="step-content">
+          <h4>Obtenir votre numéro d'assurance sociale (NAS)</h4>
+          <p>Rendez-vous au bureau de Service Canada (1 James St South, Hamilton). Apportez votre permis de travail ou résidence permanente. Gratuit, obtenu sur place en 30 minutes.</p>
+        </div>
+      </li>
+      <li>
+        <div class="step-content">
+          <h4>Ouvrir un compte bancaire</h4>
+          <p>Les grandes banques canadiennes (RBC, TD, BMO, CIBC, Scotiabank) offrent des comptes sans frais pendant 1 an pour les nouveaux arrivants. Apportez 2 pièces d'identité et votre NAS.</p>
+        </div>
+      </li>
+      <li>
+        <div class="step-content">
+          <h4>Carte Santé Ontario (OHIP)</h4>
+          <p>Enregistrez-vous à ServiceOntario (119 King St W, Hamilton) dès votre arrivée. Il y a un délai de 3 mois avant la couverture — conservez une assurance santé privée entre-temps.</p>
+        </div>
+      </li>
+      <li>
+        <div class="step-content">
+          <h4>Trouver un médecin de famille</h4>
+          <p>Utilisez <strong>Health811.ontario.ca</strong> ou le Health Care Connect au <strong>1-800-445-1822</strong>. L'AHH peut vous orienter vers des médecins francophones ou créolophones à Hamilton.</p>
+        </div>
+      </li>
+      <li>
+        <div class="step-content">
+          <h4>Inscrire vos enfants à l'école</h4>
+          <p>Conseil scolaire catholique (HCDSB) : 905-525-2930 · Conseil public anglophone (HWDSB) : 905-527-5092 · Conseil franco-ontarien (CSCNO) : pour l'éducation en français.</p>
+        </div>
+      </li>
+      <li>
+        <div class="step-content">
+          <h4>Permis de conduire de l'Ontario</h4>
+          <p>Votre permis étranger est valide 60 jours après votre établissement. Présentez-vous dans un centre DriveTest pour l'échange ou pour débuter l'apprentissage.</p>
+        </div>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<section class="integ-section alt">
+  <div class="container">
+    <div class="section-header" data-reveal>
+      <span class="section-badge">Ressources locales</span>
+      <h2>Services à Hamilton</h2>
+      <p>Organismes communautaires et services gouvernementaux qui peuvent vous aider.</p>
+    </div>
+
+    <div class="integ-grid">
+      <div class="integ-card">
+        <div class="integ-icon">🏥</div>
+        <h3>Santé</h3>
+        <p>Cliniques sans rendez-vous, hôpitaux, santé mentale et services dentaires accessibles.</p>
+        <div class="integ-links">
+          <a href="https://www.hamiltonhealthsciences.ca" target="_blank" rel="noopener" class="integ-link">→ Hamilton Health Sciences</a>
+          <a href="https://www.stjoes.ca" target="_blank" rel="noopener" class="integ-link">→ St. Joseph's Healthcare</a>
+          <a href="https://www.hamiltoncmhc.ca" target="_blank" rel="noopener" class="integ-link">→ Santé mentale communautaire</a>
+        </div>
+        <br/><span class="integ-badge">Gratuit avec OHIP</span>
+      </div>
+
+      <div class="integ-card">
+        <div class="integ-icon">💼</div>
+        <h3>Emploi</h3>
+        <p>Aide à la recherche d'emploi, reconnaissance des diplômes étrangers, formation professionnelle.</p>
+        <div class="integ-links">
+          <a href="https://www.workinghamilton.ca" target="_blank" rel="noopener" class="integ-link">→ Working Hamilton</a>
+          <a href="https://can.jobbank.gc.ca" target="_blank" rel="noopener" class="integ-link">→ Guichet-Emplois Canada</a>
+          <a href="https://www.mohawkcollege.ca" target="_blank" rel="noopener" class="integ-link">→ Mohawk College (formations)</a>
+        </div>
+        <br/><span class="integ-badge">Service gratuit</span>
+      </div>
+
+      <div class="integ-card">
+        <div class="integ-icon">🏠</div>
+        <h3>Logement</h3>
+        <p>Location, aide au logement, droits des locataires et logements abordables.</p>
+        <div class="integ-links">
+          <a href="https://www.hamilton.ca/residents/housing" target="_blank" rel="noopener" class="integ-link">→ Ville de Hamilton — Logement</a>
+          <a href="https://www.acorn.org/hamilton" target="_blank" rel="noopener" class="integ-link">→ ACORN Hamilton (droits locataires)</a>
+          <a href="https://housinghelphamilton.ca" target="_blank" rel="noopener" class="integ-link">→ Hamilton Community Housing</a>
+        </div>
+      </div>
+
+      <div class="integ-card">
+        <div class="integ-icon">📚</div>
+        <h3>Langue & Éducation</h3>
+        <p>Cours d'anglais gratuits (LINC), éducation des adultes, bibliothèque publique.</p>
+        <div class="integ-links">
+          <a href="https://www.hpl.ca" target="_blank" rel="noopener" class="integ-link">→ Bibliothèque publique de Hamilton</a>
+          <a href="https://www.immigrationhamilton.ca" target="_blank" rel="noopener" class="integ-link">→ Immigration Hamilton (cours LINC)</a>
+          <a href="https://www.mohawkcollege.ca/esl" target="_blank" rel="noopener" class="integ-link">→ Cours d'anglais Mohawk</a>
+        </div>
+        <br/><span class="integ-badge">Gratuit LINC</span>
+      </div>
+
+      <div class="integ-card">
+        <div class="integ-icon">👨‍👩‍👧‍👦</div>
+        <h3>Famille & Enfants</h3>
+        <p>Garde d'enfants, aide financière, services de protection et activités familiales.</p>
+        <div class="integ-links">
+          <a href="https://www.hamilton.ca/residents/children-families" target="_blank" rel="noopener" class="integ-link">→ Services enfance Hamilton</a>
+          <a href="https://www.goodshepherd.ca" target="_blank" rel="noopener" class="integ-link">→ Good Shepherd (aide d'urgence)</a>
+          <a href="https://www.ymcahamilton.ca" target="_blank" rel="noopener" class="integ-link">→ YMCA Hamilton</a>
+        </div>
+      </div>
+
+      <div class="integ-card">
+        <div class="integ-icon">🌍</div>
+        <h3>Immigration</h3>
+        <p>Statut de réfugié, parrainage, naturalisation, aide juridique en immigration.</p>
+        <div class="integ-links">
+          <a href="https://www.immigrationhamilton.ca" target="_blank" rel="noopener" class="integ-link">→ Immigration Hamilton</a>
+          <a href="https://www.ircc.canada.ca" target="_blank" rel="noopener" class="integ-link">→ IRCC Canada (officiel)</a>
+          <a href="https://www.hamiltonlegalaid.ca" target="_blank" rel="noopener" class="integ-link">→ Aide juridique Hamilton</a>
+        </div>
+        <br/><span class="integ-badge">Aide gratuite dispo</span>
+      </div>
+
+      <div class="integ-card">
+        <div class="integ-icon">🚌</div>
+        <h3>Transport</h3>
+        <p>Bus HSR, GO Train vers Toronto, vélos en libre-service SoBi, covoiturage communautaire.</p>
+        <div class="integ-links">
+          <a href="https://www.hamilton.ca/streets-transportation/bus-transit-hsr" target="_blank" rel="noopener" class="integ-link">→ HSR — Bus Hamilton</a>
+          <a href="https://www.gotransit.com" target="_blank" rel="noopener" class="integ-link">→ GO Transit</a>
+          <a href="https://www.sobibikes.ca" target="_blank" rel="noopener" class="integ-link">→ SoBi Bikes (vélos partagés)</a>
+        </div>
+      </div>
+
+      <div class="integ-card">
+        <div class="integ-icon">🤝</div>
+        <h3>Communauté haïtienne AHH</h3>
+        <p>Événements, réseau d'entraide, bénévolat, activités culturelles et programmes jeunesse.</p>
+        <div class="integ-links">
+          <a href="adhesion.html" class="integ-link">→ Devenir membre AHH</a>
+          <a href="index.html#contact" class="integ-link">→ Nous contacter</a>
+          <a href="rejoindre.html" class="integ-link">→ Rejoindre nos groupes en ligne</a>
+        </div>
+        <br/><span class="integ-badge">En français & créole</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="integ-section">
+  <div class="container" style="max-width:760px">
+    <div class="section-header" data-reveal>
+      <span class="section-badge">Numéros utiles</span>
+      <h2>Contacts d'urgence & essentiels</h2>
+    </div>
+    <div class="integ-grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
+      <div class="integ-card" style="text-align:center">
+        <div class="integ-icon">🚨</div>
+        <h3>Urgences</h3>
+        <p style="font-size:1.4rem;font-weight:800;color:var(--g1)">911</p>
+        <p>Police · Ambulance · Pompiers</p>
+      </div>
+      <div class="integ-card" style="text-align:center">
+        <div class="integ-icon">💊</div>
+        <h3>Télésanté Ontario</h3>
+        <p style="font-size:1.4rem;font-weight:800;color:var(--g1)">811</p>
+        <p>Infirmière disponible 24h/7j</p>
+      </div>
+      <div class="integ-card" style="text-align:center">
+        <div class="integ-icon">🆘</div>
+        <h3>Crise & Détresse</h3>
+        <p style="font-size:1.4rem;font-weight:800;color:var(--g1)">988</p>
+        <p>Ligne nationale prévention suicide</p>
+      </div>
+      <div class="integ-card" style="text-align:center">
+        <div class="integ-icon">🏛️</div>
+        <h3>Info Ontario</h3>
+        <p style="font-size:1.4rem;font-weight:800;color:var(--g1)">211</p>
+        <p>Services sociaux, ressources locales</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<script src="script.js"></script>
+<script src="_nav.js"></script>
+<script src="casl-consent.js"></script>
+</body>
+</html>
