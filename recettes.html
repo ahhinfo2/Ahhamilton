@@ -36,7 +36,7 @@
     #recipeModal.open { display: flex; align-items: flex-start; justify-content: center; }
     .recipe-modal-box { background: #fff; border-radius: var(--radius-lg); max-width: 680px; width: 100%; padding: 36px 32px; position: relative; margin: auto; }
     .recipe-modal-close { position: absolute; top: 16px; right: 16px; background: none; border: none; font-size: 1.4rem; cursor: pointer; color: var(--muted); }
-    .recipe-modal-emoji { font-size: 3.5rem; margin-bottom: 12px; }
+    .recipe-modal-img { width: 100%; height: 220px; object-fit: cover; border-radius: 12px; margin-bottom: 16px; }
     .recipe-modal-box h2 { font-size: 1.4rem; color: var(--g1); margin-bottom: 4px; }
     .recipe-modal-box .subtitle { font-size: .85rem; color: var(--muted); font-style: italic; margin-bottom: 20px; }
     .recipe-section-title { font-size: .82rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 20px 0 10px; }
@@ -184,7 +184,7 @@
 <script>
 const RECIPES = {
   griot: {
-    emoji:'🥩', name:'Griot', ht:'Griyò',
+    img:'AHH/Griyo.jpg', name:'Griot', ht:'Griyò',
     meta:'3 h de marinade + 1h30 de cuisson · 6 personnes · Épicé',
     desc:'Le plat emblématique des fêtes haïtiennes.',
     ingredients:['1,5 kg d\'épaule de porc, en cubes','4 c. à soupe d\'épis','Jus de 2 oranges amères (ou citron)','1 c. à café de sel','1 c. à café de poivre noir','Huile pour friture','Pikliz pour servir'],
@@ -192,7 +192,7 @@ const RECIPES = {
     tip:'Le secret : ne pas ajouter trop d\'eau au départ. Le porc doit d\'abord braiser, puis frire dans ses propres sucs.'
   },
   diri: {
-    emoji:'🍚', name:'Diri kole ak pwa', ht:'Riz collé aux haricots rouges',
+    img:'AHH/Diri kole ak pwa.jpg', name:'Diri kole ak pwa', ht:'Riz collé aux haricots rouges',
     meta:'45 min · 6 personnes · Végétarien',
     desc:'Le plat de tous les jours dans les foyers haïtiens.',
     ingredients:['2 tasses de riz blanc à grain long','1 boîte (400ml) haricots rouges ou kidneybeans','2 c. à soupe d\'épis','1 c. à soupe d\'huile','1 c. à café de sel','2 feuilles de laurier','1 brin de thym','3 tasses d\'eau'],
@@ -200,7 +200,7 @@ const RECIPES = {
     tip:'Pour un riz encore plus savoureux, ajoutez un peu de jus de la boîte de haricots — ça donne une belle couleur dorée-rosée.'
   },
   soup: {
-    emoji:'🥣', name:'Soup joumou', ht:'Soupe giraumon de l\'indépendance',
+    img:'AHH/Soup joumou.jpg', name:'Soup joumou', ht:'Soupe giraumon de l\'indépendance',
     meta:'2h30 · 8 personnes · Tradition du 1er janvier',
     desc:'Chaque 1er janvier depuis 1804, cette soupe rappelle notre liberté.',
     ingredients:['800g de bœuf (côtes ou jarret)','½ giraumon (courge butternut si indisponible)','2 pommes de terre','2 carottes','1 navet','200g de pâtes (macaroni ou spaghetti cassés)','4 c. à soupe d\'épis','Sel, poivre, thym','2 feuilles de laurier','½ boîte lait de coco (optionnel)'],
@@ -208,7 +208,7 @@ const RECIPES = {
     tip:'La soupe joumou se sert traditionnellement le matin du 1er janvier à toute la famille. Préparez-la la veille, elle sera encore meilleure réchauffée.'
   },
   bannann: {
-    emoji:'🍌', name:'Bannann peze', ht:'Tostones — plantains verts frits et aplatis',
+    img:'AHH/Bannan peze.jpg', name:'Bannann peze', ht:'Tostones — plantains verts frits et aplatis',
     meta:'20 min · 4 personnes · Végétarien',
     desc:'L\'accompagnement universel de la cuisine haïtienne.',
     ingredients:['3 plantains verts','Huile pour friture (env. 3 cm dans la poêle)','Sel','Ail en poudre (optionnel)','Eau froide avec du sel et de l\'ail'],
@@ -216,7 +216,7 @@ const RECIPES = {
     tip:'Le trempage dans l\'eau à l\'ail entre les deux fritures est le secret ! Ça donne la texture croustillante et infuse l\'arôme d\'ail.'
   },
   pikliz: {
-    emoji:'🥒', name:'Pikliz', ht:'Condiment épicé haïtien',
+    img:'AHH/Pikliz.jpg', name:'Pikliz', ht:'Condiment épicé haïtien',
     meta:'20 min + 24-48h de marinade · Pot de 500 ml · Très épicé',
     desc:'Sans pikliz, ce n\'est pas un repas haïtien.',
     ingredients:['½ petit chou blanc, émincé finement','2 carottes, râpées','1 poivron rouge, émincé','3-5 piments scotch bonnet (ajuster selon tolérance)','1 oignon, émincé','½ tasse de vinaigre blanc','Sel au goût','Jus de ½ citron'],
@@ -224,7 +224,7 @@ const RECIPES = {
     tip:'⚠️ Portez des gants pour couper les scotch bonnet ! Ils sont parmi les piments les plus forts — ne touchez pas vos yeux.'
   },
   akasan: {
-    emoji:'🥛', name:'Akasan', ht:'Boisson crémeuse à la farine de maïs',
+    img:'AHH/Akasan.jpeg', name:'Akasan', ht:'Boisson crémeuse à la farine de maïs',
     meta:'20 min · 4 personnes · Sans gluten',
     desc:'Le petit-déjeuner réconfortant de toute l\'enfance haïtienne.',
     ingredients:['½ tasse de farine de maïs fine (ou maïzena)','1 boîte (400 ml) de lait de coco','2 tasses de lait entier','2 tasses d\'eau','3 c. à soupe de sucre (ajuster)','1 bâton de cannelle','1 c. à café d\'essence de vanille','1 pincée de sel','Cannelle moulue pour garnir'],
@@ -237,7 +237,7 @@ function openRecipe(key) {
   const r = RECIPES[key];
   if (!r) return;
   document.getElementById('rModalContent').innerHTML = `
-    <div class="recipe-modal-emoji">${r.emoji}</div>
+    <img class="recipe-modal-img" src="${r.img}" alt="${r.name}"/>
     <h2 id="rModalTitle">${r.name}</h2>
     <div class="subtitle">${r.ht}</div>
     <div style="font-size:.82rem;color:var(--muted);margin-bottom:16px">⏱ ${r.meta}</div>
