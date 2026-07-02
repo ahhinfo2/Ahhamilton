@@ -5458,9 +5458,24 @@ function gmStar(id) {
 // ── Ouvrir un message ───────────────────────────────────────────────────────
 async function gmOpen(id, type) {
   if (type === 'inbox') { await api(`/messages/${id}/read`,{method:'PUT'}).catch(()=>{}); document.getElementById(`gmr-${id}`)?.classList.remove('gm-unread'); }
-  const { inbox, sent } = await api('/messages');
-  const list = type==='sent' ? sent : inbox;
-  const m = list.find(x => (x.message_id||x.id)===id) || {};
+
+  // Chercher d'abord dans le cache local (couvre les messages externes qui ne sont pas dans /messages)
+  const pool = type === 'sent'
+    ? (_M.all.sent || [])
+    : type === 'trash'
+      ? [...(_M.all.inbox || []), ...(_M.all.sent || [])]
+      : (_M.all.combined || _M.all.inbox || []);
+  // eslint-disable-next-line eqeqeq
+  let m = pool.find(x => (x.message_id || x.id) == id);
+
+  if (!m) {
+    // Fallback : appel frais pour les messages pas encore en cache
+    const { inbox, sent } = await api('/messages');
+    const list = type === 'sent' ? sent : inbox;
+    // eslint-disable-next-line eqeqeq
+    m = list.find(x => (x.message_id || x.id) == id) || {};
+  }
+
   _M.detail = { ...m, _type:type };
   const from = type==='inbox' ? (m.expediteur||'–') : `Moi → ${m.nb_destinataires||1} dest.`;
   const el = document.getElementById('gmMain');
