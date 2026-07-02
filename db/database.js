@@ -1240,6 +1240,8 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS shop_order_items (
 // ── Streaming vidéo sur activités ──────────────────────────────────────────
 try { db.exec("ALTER TABLE activities ADD COLUMN stream_url TEXT"); } catch {}
 try { db.exec("ALTER TABLE activities ADD COLUMN stream_actif INTEGER DEFAULT 0"); } catch {}
+try { db.exec("ALTER TABLE activities ADD COLUMN rabais_jeune INTEGER DEFAULT 0"); } catch {}
+try { db.exec("ALTER TABLE activity_registrations ADD COLUMN rabais_applique INTEGER DEFAULT 0"); } catch {}
 
 // ── Feedback post-activité ────────────────────────────────────────────────
 try { db.exec(`CREATE TABLE IF NOT EXISTS activity_feedback (

@@ -385,6 +385,12 @@ async function buildSidebar() {
       { id:'parrainage',        icon:'🤝', label:'Parrainage',         roles: ALL },
       { id:'export-data',       icon:'📦', label:'Export / Sauvegarde', roles:['admin','secretaire','tresoriere'] },
       { id:'forms-mgmt',        icon:'📋', label:'Formulaires',        roles:EXEC },
+      { id:'decision-registry', icon:'📒', label:'Registre décisions', roles:EXEC },
+      { id:'policies',          icon:'📜', label:'Politiques',         roles:EXEC },
+      { id:'email-templates',   icon:'✉️', label:'Modèles courriel',  roles:EXEC },
+      { id:'annual-report',     icon:'📊', label:'Rapport annuel',    roles:EXEC },
+      { id:'ambassadeur-admin', icon:'🌟', label:'Ambassadeur du mois',roles:['admin','secretaire'] },
+      { id:'abonnes-newsletter',icon:'📧', label:'Abonnés infolettre', roles:EXEC },
     ]},
 
     // ── Opportunités ─────────────────────────────────────────────
@@ -2192,6 +2198,22 @@ function openActivityForm(a = null) {
               </div>
             </div>
           </div>` : `<p style="font-size:.78rem;color:var(--muted)">Seuls VP et Présidente peuvent définir des rabais.</p>`}
+          <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
+            <label style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Rabais Espace Jeunes</label>
+            <div class="form-row" style="margin-top:8px">
+              <div class="form-group">
+                <label style="display:flex;align-items:center;gap:8px">
+                  <input type="checkbox" id="a_rabais_jeune_actif" style="width:auto" ${a?.rabais_jeune>0?'checked':''} onchange="document.getElementById('rabaisJeuneVal').style.display=this.checked?'flex':'none'"/>
+                  Offrir un rabais aux membres Espace Jeunes
+                </label>
+              </div>
+            </div>
+            <div id="rabaisJeuneVal" style="display:${a?.rabais_jeune>0?'flex':'none'};align-items:center;gap:8px;margin-top:6px">
+              <label style="white-space:nowrap;margin:0">Rabais (%) :</label>
+              <input type="number" id="a_rabais_jeune" value="${a?.rabais_jeune||50}" min="1" max="100" style="width:80px"/>
+              <span style="font-size:.85rem;color:var(--muted)">% de réduction sur le prix de l'activité</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -2224,7 +2246,9 @@ function openActivityForm(a = null) {
       recurrence: document.getElementById('a_recurrence').value,
       recurrence_end: document.getElementById('a_recurrence_end').value || null,
       stream_url: document.getElementById('a_stream').value || null,
-      stream_actif: document.getElementById('a_stream_actif').checked ? 1 : 0 };
+      stream_actif: document.getElementById('a_stream_actif').checked ? 1 : 0,
+      rabais_jeune: (payant && document.getElementById('a_rabais_jeune_actif')?.checked)
+        ? (parseInt(document.getElementById('a_rabais_jeune')?.value) || 0) : 0 };
     try {
       if (isEdit) {
         await api(`/activities/${a.id}`, { method:'PUT', body:JSON.stringify(body) });
@@ -4068,18 +4092,23 @@ async function saveNoteEditor(id) {
 }
 
 async function correctNote() {
-  const texte = document.getElementById('n_contenu').value;
-  const langue = document.getElementById('n_lang').value;
+  const editor = document.getElementById('n_editor');
+  const texte = editor ? editor.innerText : '';
+  const langue = document.getElementById('n_lang')?.value || 'fr';
   if (!texte) return toast('Entrez du texte d\'abord','error');
   const btn = document.querySelector('[onclick="correctNote()"]');
   btn.textContent = '⏳ Correction...'; btn.disabled = true;
   try {
     const r = await api('/ai/spellcheck', { method:'POST', body:JSON.stringify({ texte, langue }) });
+    // Afficher dans la zone de résultat si elle existe, sinon proposer de remplacer le contenu de l'éditeur
     const box = document.getElementById('n_corrected');
-    box.textContent = r.corrige;
-    box.style.display = 'block';
+    if (box) { box.textContent = r.corrige; box.style.display = 'block'; }
+    else if (editor && confirm('Remplacer le contenu de l\'éditeur par le texte corrigé ?')) {
+      editor.innerText = r.corrige;
+      if (typeof noteChanged === 'function') noteChanged();
+    }
     if (r.note) toast(r.note, 'info');
-    else toast('Texte corrigé!');
+    else toast('Texte corrigé !');
   } catch(ex) { toast(ex.message,'error'); }
   finally { btn.textContent = '🪄 Corriger automatiquement'; btn.disabled = false; }
 }
@@ -7730,11 +7759,12 @@ async function paiements() {
     // Historique
     '<div class="table-card"><div class="table-card-header">' +
       '<h3>Historique (' + data.length + ')</h3>' +
-      '<div style="display:flex;gap:8px">' +
+      '<div style="display:flex;gap:8px;align-items:center">' +
         '<select id="pay_mois_filter" onchange="filtrerPaiements()" style="font-size:.82rem;padding:4px 8px;border-radius:6px;border:1px solid var(--border)">' +
           '<option value="">Tous les mois</option>' +
           [...new Set(data.map(p=>p.mois).filter(Boolean))].sort().reverse().map(m=>`<option value="${m}">${m}</option>`).join('') +
         '</select>' +
+        '<a id="payExportCsv" href="/api/export/paiements.csv" class="btn btn-ghost btn-sm" style="font-size:.82rem" target="_blank">⬇ CSV</a>' +
       '</div>' +
     '</div>' +
     '<div class="table-wrapper"><table id="pay_table">' +
@@ -7754,6 +7784,11 @@ function filtrerPaiements() {
   document.querySelectorAll('#pay_tbody tr').forEach(tr => {
     tr.style.display = (!mois || tr.dataset.mois === mois) ? '' : 'none';
   });
+  const csvLink = document.getElementById('payExportCsv');
+  if (csvLink) {
+    const params = mois ? `?from=${mois}-01&to=${mois}-31` : '';
+    csvLink.href = `/api/export/paiements.csv${params}`;
+  }
 }
 
 async function genererCotisations() {
@@ -7767,8 +7802,11 @@ async function genererCotisations() {
 }
 
 async function envoyerRappelPaiement(userId) {
-  // Envoie un rappel via l'API courriel existant
-  toast('📧 Rappel envoyé');
+  if (!confirm('Envoyer un rappel de cotisation à ce membre ?')) return;
+  try {
+    const r = await api('/users/' + userId + '/rappel-cotisation', { method: 'POST' });
+    toast('📧 ' + (r.message || 'Rappel envoyé'));
+  } catch(e) { toast('⚠️ ' + (e.message || 'Erreur envoi'), 'error'); }
 }
 
 async function exempterCotisation(cotisationId) {
@@ -11066,7 +11104,13 @@ async function statsGrowthView() {
     </div>`);
 
   setTimeout(() => {
-    if (!window.Chart) return;
+    if (!window.Chart) {
+      const s2 = document.createElement('script');
+      s2.src = 'https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js';
+      s2.onload = () => document.getElementById('chartMembres') && statsGrowthView();
+      document.head.appendChild(s2);
+      return;
+    }
     const months = s.membres?.map(m => m.mois) || [];
     const green = '#2e7d32', lightGreen = 'rgba(46,125,50,.15)', accent = '#f9a825';
 
@@ -11971,7 +12015,7 @@ async function youngHome() {
       <div class="table-card" style="padding:16px">
         <h4 style="margin-bottom:12px;color:var(--g2)">💡 Avantages jeunes</h4>
         <ul style="list-style:none;font-size:.88rem;display:flex;flex-direction:column;gap:8px">
-          <li>🎟️ <strong>50% de rabais</strong> sur toutes les activités payantes</li>
+          <li>🎟️ <strong>Rabais membres jeunes</strong> sur les activités payantes (variable selon l'activité)</li>
           <li>💼 Accès aux <strong>offres de stages & emplois</strong></li>
           <li>📚 Formations et ateliers <strong>gratuits ou réduits</strong></li>
           <li>📊 Participer aux <strong>sondages communautaires</strong></li>

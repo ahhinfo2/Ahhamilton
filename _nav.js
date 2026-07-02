@@ -197,7 +197,8 @@
         <a href="${pre}about.html"    data-i18n="À propos">À propos</a>
         <a href="${pre}equipe.html"   data-i18n="Équipe">Équipe</a>
         <a href="${pre}adhesion.html" data-i18n="Devenir membre">Devenir membre</a>
-        <a href="${pre}privacy.html"  data-i18n="Confidentialité">Confidentialité</a>
+        <a href="${pre}privacy.html"         data-i18n="Confidentialité">Confidentialité</a>
+        <a href="${pre}mentions-legales.html" data-i18n="Mentions légales">Mentions légales</a>
       </div>
       <div class="footer-links">
         <h5 data-i18n="Découvrir">Découvrir</h5>
@@ -223,7 +224,11 @@
     <div class="footer-bottom">
       <div class="container footer-bottom-inner">
         <p data-i18n="footer-copy">© 2026 AHH | Association Haïtienne de Hamilton. Tous droits réservés.</p>
-        <p><a href="${pre}privacy.html" style="color:rgba(255,255,255,.45)" data-i18n="Politique de confidentialité">Politique de confidentialité</a></p>
+        <p>
+          <a href="${pre}privacy.html" style="color:rgba(255,255,255,.45)" data-i18n="Politique de confidentialité">Politique de confidentialité</a>
+          &nbsp;·&nbsp;
+          <a href="${pre}mentions-legales.html" style="color:rgba(255,255,255,.45)" data-i18n="Mentions légales">Mentions légales</a>
+        </p>
       </div>
     </div>
   </footer>`;

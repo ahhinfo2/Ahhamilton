@@ -590,8 +590,34 @@ app.patch('/api/inscriptions/:id/refuser', authMiddleware, requireRole('admin','
   if (!p) return res.status(404).json({ error: 'Demande introuvable' });
   db.prepare(`UPDATE pending_registrations SET statut='refuse', traite_par=?, date_traitement=CURRENT_TIMESTAMP WHERE id=?`)
     .run(req.user.id, p.id);
-  // Log le refus (l'email externe n'est pas possible en local, on le logue)
   console.log(`❌ Inscription refusée: ${p.prenom} ${p.nom} — Raison: ${raison||'–'}`);
+  // Envoyer un email de notification au candidat
+  if (p.email) {
+    const siteUrl = process.env.SITE_URL || 'https://ahhamilton.ca';
+    const { sendMail } = require('./mailer');
+    sendMail({
+      to: p.email,
+      subject: 'Votre demande d\'adhésion à l\'AHH',
+      html: `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/></head>
+<body style="font-family:'Segoe UI',Arial,sans-serif;background:#f4f7f4;margin:0;padding:0">
+<div style="max-width:560px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.1)">
+  <div style="background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:32px 40px;text-align:center">
+    <h1 style="color:#fff;margin:0;font-size:1.3rem;font-weight:800">Association Haïtienne de Hamilton</h1>
+  </div>
+  <div style="padding:32px 40px">
+    <p style="color:#333;font-size:.97rem;line-height:1.7">Bonjour ${escHtmlServer(p.prenom)},</p>
+    <p style="color:#333;font-size:.97rem;line-height:1.7">Après examen de votre demande d'adhésion à l'Association Haïtienne de Hamilton, nous ne sommes pas en mesure de l'accepter pour le moment.</p>
+    ${raison ? `<div style="background:#fff3e0;border-left:4px solid #e65100;border-radius:8px;padding:16px 20px;margin:20px 0"><p style="margin:0;color:#555;font-size:.9rem"><strong>Motif :</strong> ${escHtmlServer(raison)}</p></div>` : ''}
+    <p style="color:#555;font-size:.9rem;line-height:1.7">Si vous avez des questions, n'hésitez pas à nous contacter à <a href="mailto:contact@ahhamilton.ca" style="color:#1b5e20;font-weight:700">contact@ahhamilton.ca</a>.</p>
+    <p style="color:#555;font-size:.9rem;line-height:1.7">Cordialement,<br/>Le comité de l'AHH</p>
+  </div>
+  <div style="background:#f4f7f4;padding:16px 40px;text-align:center">
+    <p style="color:#999;font-size:.75rem;margin:0">Association Haïtienne de Hamilton · Hamilton, Ontario, Canada</p>
+  </div>
+</div>
+</body></html>`
+    }).catch(e => console.error('[refus inscription email]', e.message));
+  }
   res.json({ message: 'Demande refusée' });
 });
 
@@ -865,19 +891,19 @@ function newBarcodeData() {
 
 app.post('/api/activities', authMiddleware, requireRole(...ACTIVITY_ROLES), (req, res) => {
   const { titre, description, type, date_debut, date_fin, lieu, budget_prevu, max_participants,
-          prix, paiement_requis, rabais_json, recurrence, recurrence_end, stream_url, stream_actif } = req.body;
+          prix, paiement_requis, rabais_json, recurrence, recurrence_end, stream_url, stream_actif, rabais_jeune } = req.body;
   if (!titre) return res.status(400).json({ error: 'Titre requis' });
 
   const qr_token = crypto2.randomBytes(16).toString('hex');
   const r = db.prepare(`INSERT INTO activities
     (titre, description, type, date_debut, date_fin, lieu, budget_prevu, max_participants, cree_par,
-     prix, paiement_requis, rabais_json, qr_token, recurrence, recurrence_end, stream_url, stream_actif)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+     prix, paiement_requis, rabais_json, qr_token, recurrence, recurrence_end, stream_url, stream_actif, rabais_jeune)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .run(titre, description||'', type||'general', date_debut||'', date_fin||'', lieu||'',
          budget_prevu||0, max_participants||null, req.user.id,
          parseFloat(prix)||0, paiement_requis?1:0,
          rabais_json||'{}', qr_token, recurrence||null, recurrence_end||null,
-         stream_url||null, stream_actif?1:0);
+         stream_url||null, stream_actif?1:0, parseInt(rabais_jeune)||0);
   const parentId = r.lastInsertRowid;
   // Créer ligne financière immédiatement si budget prévu
   if (budget_prevu && parseFloat(budget_prevu) > 0) {
@@ -968,7 +994,7 @@ app.post('/api/activities', authMiddleware, requireRole(...ACTIVITY_ROLES), (req
 
 app.put('/api/activities/:id', authMiddleware, requireRole(...ACTIVITY_ROLES), (req, res) => {
   const { titre, description, type, date_debut, date_fin, lieu, budget_prevu, max_participants, statut,
-          prix, paiement_requis, rabais_json, stream_url, stream_actif } = req.body;
+          prix, paiement_requis, rabais_json, stream_url, stream_actif, rabais_jeune } = req.body;
   const prev = db.prepare('SELECT * FROM activities WHERE id = ?').get(req.params.id);
   if (!prev) return res.status(404).json({ error: 'Activité introuvable' });
 
@@ -995,18 +1021,60 @@ app.put('/api/activities/:id', authMiddleware, requireRole(...ACTIVITY_ROLES), (
     membresTwilio.forEach(m => sendSMS(m.telephone, smsText).catch(() => {}));
   }
 
+  const newStatut = statut || prev.statut;
   db.prepare(`UPDATE activities SET titre=?, description=?, type=?, date_debut=?, date_fin=?, lieu=?,
     budget_prevu=?, max_participants=?, statut=?, prix=?, paiement_requis=?, rabais_json=?,
-    stream_url=?, stream_actif=? WHERE id=?`)
+    stream_url=?, stream_actif=?, rabais_jeune=? WHERE id=?`)
     .run(titre||prev.titre, description??prev.description, type||prev.type, date_debut||prev.date_debut,
          date_fin||prev.date_fin, lieu||prev.lieu, budget_prevu??prev.budget_prevu,
-         max_participants??prev.max_participants, statut||prev.statut,
+         max_participants??prev.max_participants, newStatut,
          prix!==undefined ? parseFloat(prix)||0 : prev.prix||0,
          paiement_requis!==undefined ? (paiement_requis?1:0) : prev.paiement_requis||0,
          rabais_json||prev.rabais_json||'{}',
          stream_url!==undefined ? stream_url : prev.stream_url||null,
          stream_actif!==undefined ? (stream_actif?1:0) : prev.stream_actif||0,
+         rabais_jeune!==undefined ? parseInt(rabais_jeune)||0 : prev.rabais_jeune||0,
          req.params.id);
+
+  // Notifier les inscrits si l'activité vient d'être annulée
+  if (newStatut === 'annulee' && prev.statut !== 'annulee') {
+    setImmediate(async () => {
+      try {
+        const inscrits = db.prepare(`
+          SELECT u.email, u.prenom FROM activity_registrations ar
+          JOIN users u ON u.id = ar.user_id
+          WHERE ar.activity_id = ? AND u.actif = 1 AND u.email IS NOT NULL AND u.notif_activites = 1
+        `).all(prev.id);
+        const { sendMail } = require('./mailer');
+        const siteUrl = process.env.SITE_URL || 'https://ahhamilton.ca';
+        for (const ins of inscrits) {
+          await sendMail({
+            to: ins.email,
+            subject: `Activité annulée : ${prev.titre}`,
+            html: `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/></head>
+<body style="font-family:'Segoe UI',Arial,sans-serif;background:#f4f7f4;margin:0;padding:0">
+<div style="max-width:560px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.1)">
+  <div style="background:linear-gradient(135deg,#b71c1c,#c62828);padding:28px 40px;text-align:center">
+    <h1 style="color:#fff;margin:0;font-size:1.2rem;font-weight:800">⚠️ Activité annulée</h1>
+  </div>
+  <div style="padding:32px 40px">
+    <p style="color:#333;font-size:.97rem;line-height:1.7">Bonjour ${escHtmlServer(ins.prenom)},</p>
+    <p style="color:#333;font-size:.97rem;line-height:1.7">Nous vous informons que l'activité <strong>${escHtmlServer(prev.titre)}</strong> a été annulée.</p>
+    ${prev.date_debut ? `<p style="color:#555;font-size:.9rem">Prévue le : <strong>${new Date(prev.date_debut).toLocaleDateString('fr-CA', { dateStyle: 'long', timeZone: 'America/Toronto' })}</strong></p>` : ''}
+    <p style="color:#555;font-size:.9rem;line-height:1.7">Pour toute question, contactez-nous à <a href="mailto:contact@ahhamilton.ca" style="color:#1b5e20;font-weight:700">contact@ahhamilton.ca</a>.</p>
+  </div>
+  <div style="background:#f4f7f4;padding:16px 40px;text-align:center">
+    <p style="color:#999;font-size:.75rem;margin:0">Association Haïtienne de Hamilton · Hamilton, Ontario, Canada</p>
+  </div>
+</div>
+</body></html>`
+          }).catch(e => console.error('[annulation activite]', e.message));
+        }
+        console.log(`[ANNULATION] Activité "${prev.titre}" — ${inscrits.length} inscrits notifiés`);
+      } catch(e) { console.error('[annulation notif]', e.message); }
+    });
+  }
+
   res.json({ message: 'Activité mise à jour' });
 });
 
@@ -2774,7 +2842,8 @@ app.delete('/api/activity-photos/:id', authMiddleware, requireRole('admin','secr
 // CONTACT FORM
 // ══════════════════════════════════════════════════════════════════════════════
 
-app.post('/api/contact', (req, res) => {
+const contactLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 5, message: { error: 'Trop de messages envoyés. Réessayez dans 1 heure.' }, standardHeaders: true, legacyHeaders: false });
+app.post('/api/contact', contactLimiter, (req, res) => {
   const { nom, email, sujet, message } = req.body;
   if (!nom || !email || !message) return res.status(400).json({ error: 'Champs requis manquants' });
 
@@ -3170,6 +3239,8 @@ app.post('/api/receipts', authMiddleware, requireRole('admin','tresoriere'), (re
     WHERE user_id=? AND statut='approuve' AND substr(date_soumission,1,4)=?`)
     .get(user_id, String(annee)).total;
 
+  if (total <= 0) return res.status(400).json({ error: `Aucun paiement approuvé pour ${u.prenom} ${u.nom} en ${annee}. Impossible de générer un reçu à $0.` });
+
   const contenu = `REÇU FISCAL ${annee}\nAssociation Haïtienne de Hamilton\n231 Fernwood Crescent, Hamilton, ON L8T 3L7\n\nRemis à : ${u.prenom} ${u.nom}\nCourriel : ${u.email}\n\nDons et cotisations approuvés pour ${annee} : $${total.toFixed(2)}\n\nCe reçu confirme les contributions à l'Association Haïtienne de Hamilton pour l'année fiscale ${annee}.\n\nSigné par : ${req.user.prenom} ${req.user.nom}`;
 
   const print_token = crypto.randomBytes(24).toString('hex');
@@ -3315,6 +3386,49 @@ app.get('/api/cotisations/retard', authMiddleware, requireRole('admin','tresorie
 app.patch('/api/cotisations/:id/exempter', authMiddleware, requireRole('admin','tresoriere'), (req, res) => {
   db.prepare("UPDATE cotisations SET statut='exempte' WHERE id=?").run(req.params.id);
   res.json({ message: 'Membre exempté pour cette période' });
+});
+
+// POST — envoyer un rappel de cotisation à un membre
+app.post('/api/users/:id/rappel-cotisation', authMiddleware, requireRole('admin','tresoriere','secretaire'), async (req, res) => {
+  try {
+    const user = db.prepare('SELECT id, prenom, nom, email, plan, actif FROM users WHERE id=? AND (phantom IS NULL OR phantom=0)').get(req.params.id);
+    if (!user) return res.status(404).json({ error: 'Membre introuvable' });
+    if (!user.actif) return res.status(400).json({ error: 'Compte inactif' });
+    if (!user.email) return res.status(400).json({ error: 'Aucun courriel' });
+    const siteUrl = process.env.SITE_URL || 'https://ahhamilton.ca';
+    const planLabel = { bienfaiteur: 'Bienfaiteur (100$/an)', partenaire: 'Partenaire (200$/an)', gratuit: 'Gratuit' }[user.plan] || user.plan;
+    const { sendMail } = require('./mailer');
+    await sendMail({
+      to: user.email,
+      subject: 'Rappel — Votre cotisation AHH Hamilton',
+      html: `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/></head>
+<body style="font-family:'Segoe UI',Arial,sans-serif;background:#f4f7f4;margin:0;padding:0">
+<div style="max-width:560px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.1)">
+  <div style="background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:28px 40px;text-align:center">
+    <h1 style="color:#fff;margin:0;font-size:1.2rem;font-weight:800">💳 Rappel de cotisation</h1>
+  </div>
+  <div style="padding:32px 40px">
+    <p style="color:#333;font-size:.97rem;line-height:1.7">Bonjour ${escHtmlServer(user.prenom)},</p>
+    <p style="color:#333;font-size:.97rem;line-height:1.7">Nous vous rappelons que votre cotisation annuelle pour l'Association Haïtienne de Hamilton est maintenant due.</p>
+    <div style="background:#f0f4ff;border-left:4px solid #1b5e20;border-radius:8px;padding:16px 20px;margin:20px 0">
+      <div style="font-size:.9rem;color:#555">Plan actuel : <strong>${escHtmlServer(planLabel)}</strong></div>
+    </div>
+    <div style="text-align:center;margin:24px 0">
+      <a href="${siteUrl}/dashboard/app.html" style="background:#1b5e20;color:#fff;padding:13px 32px;border-radius:10px;text-decoration:none;font-weight:700;font-size:.95rem">Accéder à mon espace membre</a>
+    </div>
+    <p style="color:#555;font-size:.9rem;line-height:1.7">Pour toute question : <a href="mailto:contact@ahhamilton.ca" style="color:#1b5e20;font-weight:700">contact@ahhamilton.ca</a></p>
+  </div>
+  <div style="background:#f4f7f4;padding:16px 40px;text-align:center">
+    <p style="color:#999;font-size:.75rem;margin:0">Association Haïtienne de Hamilton · Hamilton, Ontario, Canada</p>
+  </div>
+</div>
+</body></html>`
+    });
+    res.json({ message: `Rappel envoyé à ${user.email}` });
+  } catch(e) {
+    console.error('[rappel-cotisation]', e.message);
+    res.status(500).json({ error: 'Erreur lors de l\'envoi' });
+  }
 });
 
 // PATCH — marquer une cotisation comme payée manuellement
@@ -4078,6 +4192,13 @@ app.post('/api/activities/:id/pay-stripe', authMiddleware, async (req, res) => {
 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   const siteBase = process.env.SITE_URL || 'https://ahhamilton.ca';
+  // Appliquer le rabais jeune si applicable
+  let prixFinal = act.prix || 0;
+  let productName = act.titre;
+  if (act.rabais_jeune > 0 && isJeune(user)) {
+    prixFinal = prixFinal * (1 - act.rabais_jeune / 100);
+    productName = `${act.titre} (Rabais Espace Jeunes −${act.rabais_jeune}%)`;
+  }
   try {
     const stripe = Stripe(stripeKey);
     const session = await stripe.checkout.sessions.create({
@@ -4087,8 +4208,8 @@ app.post('/api/activities/:id/pay-stripe', authMiddleware, async (req, res) => {
       line_items: [{
         price_data: {
           currency: 'cad',
-          product_data: { name: act.titre, description: act.lieu || '' },
-          unit_amount: Math.round((act.prix || 0) * 100),
+          product_data: { name: productName, description: act.lieu || '' },
+          unit_amount: Math.round(prixFinal * 100),
         },
         quantity: 1,
       }],
@@ -5003,6 +5124,47 @@ app.post('/api/forum/topics/:id/posts', authMiddleware, (req, res) => {
   const post = db.prepare(`INSERT INTO forum_posts (topic_id, auteur_id, contenu) VALUES (?,?,?)`).run(req.params.id, req.user.id, contenu.trim());
   db.prepare(`UPDATE forum_topics SET date_derniere_activite=CURRENT_TIMESTAMP WHERE id=?`).run(req.params.id);
   res.json({ id: post.lastInsertRowid });
+
+  // Notifier les autres participants du sujet (sans doublon, sans notifier l'auteur lui-même)
+  setImmediate(async () => {
+    try {
+      const participants = db.prepare(`
+        SELECT DISTINCT u.id, u.email, u.prenom FROM forum_posts fp
+        JOIN users u ON u.id = fp.auteur_id
+        WHERE fp.topic_id = ? AND fp.auteur_id != ? AND u.actif = 1 AND u.email IS NOT NULL AND u.notif_forum = 1
+      `).all(req.params.id, req.user.id);
+      if (!participants.length) return;
+      const { sendMail } = require('./mailer');
+      const siteUrl = process.env.SITE_URL || 'https://ahhamilton.ca';
+      const auteurNom = `${req.user.prenom} ${req.user.nom}`.trim();
+      const extrait = contenu.trim().substring(0, 200) + (contenu.length > 200 ? '…' : '');
+      for (const p of participants) {
+        await sendMail({
+          to: p.email,
+          subject: `Nouvelle réponse dans : ${topic.titre}`,
+          html: `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/></head>
+<body style="font-family:'Segoe UI',Arial,sans-serif;background:#f4f7f4;margin:0;padding:0">
+<div style="max-width:560px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.1)">
+  <div style="background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:24px 40px">
+    <h1 style="color:#fff;margin:0;font-size:1.1rem;font-weight:800">💬 Nouvelle réponse dans le forum</h1>
+  </div>
+  <div style="padding:28px 40px">
+    <p style="color:#333;font-size:.95rem">Bonjour ${escHtmlServer(p.prenom)},</p>
+    <p style="color:#555;font-size:.9rem"><strong>${escHtmlServer(auteurNom)}</strong> a répondu dans le sujet :</p>
+    <div style="background:#f0f4ff;border-left:4px solid #1b5e20;border-radius:8px;padding:16px 20px;margin:16px 0">
+      <div style="font-weight:700;color:#1b5e20;margin-bottom:8px">${escHtmlServer(topic.titre)}</div>
+      <div style="font-size:.88rem;color:#555">${escHtmlServer(extrait)}</div>
+    </div>
+    <div style="text-align:center;margin:20px 0">
+      <a href="${siteUrl}/dashboard/app.html" style="background:#1b5e20;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:.9rem">Voir la discussion →</a>
+    </div>
+  </div>
+</div>
+</body></html>`
+        }).catch(e => console.error('[forum notif]', e.message));
+      }
+    } catch(e) { console.error('[forum notif]', e.message); }
+  });
 });
 
 app.delete('/api/forum/topics/:id', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
@@ -5041,17 +5203,28 @@ app.post('/api/newsletter', authMiddleware, requireRole('admin','secretaire','tr
   else if (segment === 'partenaire') query += ` AND plan='partenaire'`;
   else if (segment === 'payants') query += ` AND plan IN ('bienfaiteur','partenaire')`;
   const membres = db.prepare(query).all();
-  if (!membres.length) return res.status(400).json({ error: 'Aucun destinataire dans ce segment' });
+
+  // Inclure les abonnés du site public qui ne sont pas déjà membres (segment 'tous' seulement)
+  let abonnes = [];
+  if (!segment || segment === 'tous') {
+    const membresEmails = new Set(membres.map(m => m.email.toLowerCase()));
+    abonnes = db.prepare("SELECT prenom, email FROM newsletter_subscribers WHERE actif=1").all()
+      .filter(s => !membresEmails.has(s.email.toLowerCase()))
+      .map(s => ({ id: null, prenom: s.prenom || '', nom: '', email: s.email, plan: null }));
+  }
+
+  const destinataires = [...membres, ...abonnes];
+  if (!destinataires.length) return res.status(400).json({ error: 'Aucun destinataire dans ce segment' });
 
   const { sendMail } = require('./mailer');
   let ok = 0, errors = 0;
-  for (const m of membres) {
+  for (const m of destinataires) {
     try {
       await sendMail({
         to: m.email,
         subject: sujet,
         html: `<div style="font-family:sans-serif;max-width:600px;margin:auto">
-          <p>Bonjour ${m.prenom},</p>
+          <p>Bonjour${m.prenom ? ' ' + escHtmlServer(m.prenom) : ''},</p>
           ${corps.replace(/\n/g,'<br/>')}
           <hr style="margin:24px 0;border:none;border-top:1px solid #eee"/>
           <p style="font-size:.8rem;color:#888">Association Haïtienne de Hamilton · <a href="https://ahhamilton.ca">ahhamilton.ca</a></p>
@@ -5064,7 +5237,7 @@ app.post('/api/newsletter', authMiddleware, requireRole('admin','secretaire','tr
   db.prepare(`INSERT INTO newsletter_sends (expediteur_id, sujet, corps, nb_destinataires, segment) VALUES (?,?,?,?,?)`)
     .run(req.user.id, sujet, corps, ok, segment || 'tous');
 
-  res.json({ ok, errors, total: membres.length });
+  res.json({ ok, errors, total: destinataires.length, membres: membres.length, abonnes: abonnes.length });
 });
 
 app.get('/api/newsletter/history', authMiddleware, requireRole('admin','secretaire','tresoriere'), (req, res) => {
@@ -5603,7 +5776,7 @@ app.get('/api/sidebar-counts', authMiddleware, (req, res) => {
       counts.invoices = db.prepare("SELECT COUNT(*) AS c FROM invoices WHERE statut='envoyee'").get()?.c || 0;
     }
     // Compteurs pour tout le monde
-    counts.courriel = db.prepare("SELECT COUNT(*) AS c FROM emails WHERE folder='inbox' AND is_read=0 AND (to_email=? OR to_email IS NULL)").get(req.user.email)?.c || 0;
+    counts.courriel = db.prepare("SELECT COUNT(*) AS c FROM message_recipients WHERE destinataire_id=? AND lu=0 AND supprime=0").get(req.user.id)?.c || 0;
     counts.forum = db.prepare("SELECT COUNT(*) AS c FROM forum_posts WHERE created_at > COALESCE((SELECT derniere_connexion FROM users WHERE id=?), '2000-01-01')").get(req.user.id)?.c || 0;
     counts.mes_billets = db.prepare("SELECT COUNT(*) AS c FROM tickets WHERE user_id=? AND payment_status='paid' AND statut='actif' AND checked_in=0").get(req.user.id)?.c || 0;
   } catch(e) { console.error('[sidebar-counts]', e.message); }
@@ -6041,6 +6214,43 @@ cron.schedule('0 4 * * *', () => {
 // Fetch emplois Adzuna toutes les 6h (0h, 6h, 12h, 18h Toronto)
 cron.schedule('0 0,6,12,18 * * *', async () => {
   try { await fetchAdzunaJobs(); } catch(e) { console.error('[CRON-ADZUNA]', e.message); }
+}, { timezone: 'America/Toronto' });
+
+// Attribution automatique badges (dimanche 3h du matin)
+cron.schedule('0 3 * * 0', () => {
+  try {
+    const users = db.prepare(`SELECT u.*,
+      COALESCE((SELECT SUM(heures) FROM volunteer_hours WHERE user_id=u.id AND statut='approuve'),0) AS total_heures,
+      (SELECT COUNT(*) FROM users WHERE referred_by=u.id) AS nb_parrainages,
+      (SELECT COUNT(*) FROM talents WHERE user_id=u.id AND statut='approuve') AS nb_talents
+      FROM users WHERE actif=1 AND (phantom IS NULL OR phantom=0)`).all();
+    let total = 0;
+    const assign = (userId, code) => {
+      try {
+        const badge = db.prepare('SELECT id FROM badges WHERE code=?').get(code);
+        if (!badge) return;
+        const exists = db.prepare('SELECT id FROM user_badges WHERE user_id=? AND badge_id=?').get(userId, badge.id);
+        if (exists) return;
+        db.prepare('INSERT INTO user_badges (user_id, badge_id, attribue_par) VALUES (?,?,NULL)').run(userId, badge.id);
+        total++;
+      } catch {}
+    };
+    users.forEach(u => {
+      const inscrit = new Date(u.date_inscription || '2025-01-01');
+      const anneesService = (new Date() - inscrit) / (1000*60*60*24*365);
+      if (anneesService >= 5) assign(u.id, 'membre_5ans');
+      else if (anneesService >= 3) assign(u.id, 'membre_3ans');
+      else if (anneesService >= 1) assign(u.id, 'membre_1an');
+      if (u.total_heures >= 100) assign(u.id, 'benevole_100h');
+      else if (u.total_heures >= 25) assign(u.id, 'benevole_25h');
+      if (u.plan === 'bienfaiteur') assign(u.id, 'bienfaiteur');
+      if (u.plan === 'partenaire') assign(u.id, 'partenaire');
+      if (u.nb_parrainages > 0) assign(u.id, 'parrain');
+      if (u.nb_talents > 0) assign(u.id, 'talent');
+      if (inscrit.getFullYear() < 2022) assign(u.id, 'fondateur');
+    });
+    if (total > 0) console.log(`[CRON-BADGES] ${total} badge(s) attribué(s) automatiquement`);
+  } catch(e) { console.error('[CRON-BADGES]', e.message); }
 }, { timezone: 'America/Toronto' });
 
 // Rapport mensuel automatique (1er du mois à 8h)
