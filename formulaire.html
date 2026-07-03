@@ -269,6 +269,17 @@
     }
     html += '</div>';
 
+    if (formData.accepting_responses === false) {
+      html += '<div class="field-card" style="text-align:center;color:#c62828">';
+      html += '<p style="margin:0;font-weight:700">Ce formulaire n\'accepte plus de réponses.</p>';
+      if (formData.date_fermeture) {
+        html += '<p style="margin:6px 0 0;font-size:.9rem;color:#555">La date limite était le ' + new Date(formData.date_fermeture).toLocaleString('fr-CA', { dateStyle:'long', timeStyle:'short' }) + '.</p>';
+      }
+      html += '</div>';
+      container.innerHTML = html;
+      return;
+    }
+
     html += '<form id="formReponse" onsubmit="return false;">';
 
     // Dynamic fields

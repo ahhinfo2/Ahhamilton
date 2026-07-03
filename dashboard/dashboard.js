@@ -15018,6 +15018,11 @@ async function openFormBuilder(formId) {
           </select>
         </div>
         <div>
+          <label style="font-weight:600;font-size:.85rem;display:block;margin-bottom:4px">Date et heure de fin (optionnel)</label>
+          <input id="fb_date_fermeture" type="datetime-local" value="${form && form.date_fermeture ? form.date_fermeture.slice(0,16) : ''}" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:.9rem"/>
+          <small style="color:var(--muted)">Après cette date, seul le comité peut encore soumettre une réponse (au nom d'un membre).</small>
+        </div>
+        <div>
           <label style="font-weight:600;font-size:.85rem;display:block;margin-bottom:4px">Message de fin</label>
           <input id="fb_message_fin" type="text" value="${form ? escHtml(form.message_fin || '') : 'Merci pour votre réponse !'}" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:.9rem"/>
         </div>
@@ -15242,7 +15247,8 @@ async function _saveFormBuilder(formId) {
     statut: document.getElementById('fb_statut').value,
     allow_anonymous: document.getElementById('fb_anonymous').checked ? 1 : 0,
     message_fin: document.getElementById('fb_message_fin').value.trim() || 'Merci pour votre réponse !',
-    redirect_adhesion: document.getElementById('fb_redirect').checked ? 1 : 0
+    redirect_adhesion: document.getElementById('fb_redirect').checked ? 1 : 0,
+    date_fermeture: document.getElementById('fb_date_fermeture').value || null
   };
 
   try {
@@ -15335,8 +15341,12 @@ async function viewFormResults(formId) {
     <div style="padding-bottom:40px">
       <div style="display:flex;align-items:center;gap:14px;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid var(--border)">
         <button onclick="showView('forms-mgmt')" style="display:flex;align-items:center;gap:6px;background:var(--off);border:1px solid var(--border);border-radius:8px;padding:7px 14px;cursor:pointer;font-size:.84rem;color:var(--text)">← Retour</button>
-        <h2 style="margin:0;font-size:1.18rem;font-weight:700">Résultats : ${escHtml(form.titre)}</h2>
+        <h2 style="margin:0;font-size:1.18rem;font-weight:700;flex:1">Résultats : ${escHtml(form.titre)}</h2>
+        <button onclick="openRespondForMember(${form.id})" style="background:var(--g2);color:#fff;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;font-size:.84rem;font-weight:600;white-space:nowrap">+ Répondre pour un membre</button>
       </div>
+      ${form.date_fermeture ? `<div style="background:${new Date() > new Date(form.date_fermeture) ? '#fce4ec' : '#fff8e1'};border-radius:8px;padding:10px 16px;margin-bottom:20px;font-size:.85rem;color:${new Date() > new Date(form.date_fermeture) ? '#c62828' : '#e65100'}">
+        ${new Date() > new Date(form.date_fermeture) ? '⛔ Échéance dépassée' : '🕐 Se ferme'} le ${new Date(form.date_fermeture).toLocaleString('fr-CA', { dateStyle:'long', timeStyle:'short' })} — seul le comité peut encore soumettre une réponse.
+      </div>` : ''}
 
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px">
         <div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:16px 20px;text-align:center">
@@ -15379,6 +15389,82 @@ async function viewFormResults(formId) {
       </div>`}
     </div>
   `);
+}
+
+// ── Comité : soumettre une réponse au nom d'un membre (même après l'échéance) ──
+async function openRespondForMember(formId) {
+  const form = (window._formResultsData && window._formResultsData.id === formId) ? window._formResultsData : await api('/forms/' + formId);
+  let allUsers = [];
+  try { allUsers = await api('/users'); } catch {}
+  const fields = form.fields || [];
+
+  const fieldsHtml = fields.map(f => {
+    let opts = [];
+    try { opts = JSON.parse(f.options_json || '[]'); } catch {}
+    const req = f.obligatoire ? ' required' : '';
+    let inputHtml = '';
+    switch (f.type) {
+      case 'email': inputHtml = `<input type="email" data-fid="${f.id}" class="rfm-field"${req}/>`; break;
+      case 'telephone': inputHtml = `<input type="tel" data-fid="${f.id}" class="rfm-field"${req}/>`; break;
+      case 'textarea': inputHtml = `<textarea data-fid="${f.id}" class="rfm-field" rows="3"${req}></textarea>`; break;
+      case 'number': inputHtml = `<input type="number" data-fid="${f.id}" class="rfm-field"${req}/>`; break;
+      case 'date': inputHtml = `<input type="date" data-fid="${f.id}" class="rfm-field"${req}/>`; break;
+      case 'select':
+        inputHtml = `<select data-fid="${f.id}" class="rfm-field"${req}><option value="">-- Choisir --</option>` +
+          opts.map(o => `<option value="${escHtml(o)}">${escHtml(o)}</option>`).join('') + `</select>`;
+        break;
+      case 'radio':
+        inputHtml = `<div>` + opts.map((o,i) => `<label style="display:block;font-size:.85rem;margin-bottom:4px"><input type="radio" name="rfm_radio_${f.id}" value="${escHtml(o)}" data-fid="${f.id}" class="rfm-field-radio"${i===0&&f.obligatoire?' required':''}/> ${escHtml(o)}</label>`).join('') + `</div>`;
+        break;
+      case 'checkbox':
+        inputHtml = `<div>` + opts.map(o => `<label style="display:block;font-size:.85rem;margin-bottom:4px"><input type="checkbox" value="${escHtml(o)}" data-fid="${f.id}" class="rfm-field-check"/> ${escHtml(o)}</label>`).join('') + `</div>`;
+        break;
+      default: inputHtml = `<input type="text" data-fid="${f.id}" class="rfm-field"${req}/>`;
+    }
+    return `<div class="form-group"><label>${escHtml(f.label)}${f.obligatoire ? ' *' : ''}</label>${f.description ? `<small style="color:var(--muted);display:block;margin-bottom:4px">${escHtml(f.description)}</small>` : ''}${inputHtml}</div>`;
+  }).join('');
+
+  openModal('Répondre pour un membre — ' + escHtml(form.titre), `
+    <form id="rfmForm">
+      <div class="form-group"><label>Membre *</label>
+        <select id="rfm_user" required>
+          <option value="">-- Choisir un membre --</option>
+          ${allUsers.filter(u => u.actif).map(u => `<option value="${u.id}">${escHtml(u.prenom)} ${escHtml(u.nom)}</option>`).join('')}
+        </select>
+      </div>
+      ${fieldsHtml}
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Enregistrer la réponse</button>
+      </div>
+    </form>
+  `);
+
+  document.getElementById('rfmForm').onsubmit = async e => {
+    e.preventDefault();
+    const userId = parseInt(document.getElementById('rfm_user').value);
+    if (!userId) { toast('Choisissez un membre', 'error'); return; }
+    const answers = [];
+    fields.forEach(f => {
+      let val = '';
+      if (f.type === 'checkbox') {
+        val = Array.from(document.querySelectorAll('.rfm-field-check[data-fid="' + f.id + '"]:checked')).map(el => el.value).join(', ');
+      } else if (f.type === 'radio') {
+        const sel = document.querySelector('.rfm-field-radio[data-fid="' + f.id + '"]:checked');
+        val = sel ? sel.value : '';
+      } else {
+        const el = document.querySelector('.rfm-field[data-fid="' + f.id + '"]');
+        val = el ? el.value : '';
+      }
+      if (val) answers.push({ field_id: f.id, valeur: val });
+    });
+    try {
+      await api('/forms/' + formId + '/respond-for', { method: 'POST', body: JSON.stringify({ user_id: userId, answers }) });
+      closeModal();
+      toast('Réponse enregistrée');
+      viewFormResults(formId);
+    } catch(ex) { toast(ex.message, 'error'); }
+  };
 }
 
 function _filterFormResults() {

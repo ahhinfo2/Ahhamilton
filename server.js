@@ -7643,16 +7643,17 @@ app.get('/api/forms/:id', authMiddleware, requireRole(...FORM_EXEC), (req, res) 
 
 // ── Créer un formulaire ─────────────────────────────────────────────────────
 app.post('/api/forms', authMiddleware, requireRole(...FORM_EXEC), (req, res) => {
-  const { titre, description, activity_id, allow_anonymous, message_fin, redirect_adhesion } = req.body;
+  const { titre, description, activity_id, allow_anonymous, message_fin, redirect_adhesion, date_fermeture } = req.body;
   if (!titre) return res.status(400).json({ error: 'Titre requis' });
   const crypto = require('crypto');
   const share_token = crypto.randomBytes(24).toString('hex');
-  const r = db.prepare(`INSERT INTO forms (titre, description, share_token, activity_id, allow_anonymous, message_fin, redirect_adhesion, cree_par)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
+  const r = db.prepare(`INSERT INTO forms (titre, description, share_token, activity_id, allow_anonymous, message_fin, redirect_adhesion, date_fermeture, cree_par)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     titre, description || null, share_token, activity_id || null,
     allow_anonymous === undefined ? 1 : (allow_anonymous ? 1 : 0),
     message_fin || 'Merci pour votre réponse !',
     redirect_adhesion === undefined ? 1 : (redirect_adhesion ? 1 : 0),
+    date_fermeture || null,
     req.user.id
   );
   res.status(201).json({ id: r.lastInsertRowid, share_token });
@@ -7753,18 +7754,26 @@ app.get('/api/forms/:id/export', authMiddleware, requireRole(...FORM_EXEC), (req
   res.send(csv);
 });
 
+function formDeadlinePassed(form) {
+  return !!(form.date_fermeture && new Date() > new Date(form.date_fermeture));
+}
+
 // ── PUBLIC : récupérer un formulaire par token ──────────────────────────────
 app.get('/api/forms/public/:token', (req, res) => {
-  const form = db.prepare('SELECT id, titre, description, image_path, share_token, activity_id, allow_anonymous, message_fin, redirect_adhesion FROM forms WHERE share_token = ? AND statut = ?').get(req.params.token, 'actif');
+  // 'ferme' = fermé manuellement par le comité → introuvable, comme avant.
+  // Une échéance dépassée reste consultable, mais en lecture seule (accepting_responses:false).
+  const form = db.prepare("SELECT id, titre, description, image_path, share_token, activity_id, allow_anonymous, message_fin, redirect_adhesion, date_fermeture FROM forms WHERE share_token = ? AND statut != 'ferme'").get(req.params.token);
   if (!form) return res.status(404).json({ error: 'Formulaire introuvable ou fermé' });
   form.fields = db.prepare('SELECT id, type, label, description, obligatoire, options_json, ordre FROM form_fields WHERE form_id = ? ORDER BY ordre, id').all(form.id);
+  form.accepting_responses = !formDeadlinePassed(form);
   res.json(form);
 });
 
 // ── PUBLIC : soumettre une réponse ──────────────────────────────────────────
 app.post('/api/forms/public/:token/respond', (req, res) => {
-  const form = db.prepare('SELECT * FROM forms WHERE share_token = ? AND statut = ?').get(req.params.token, 'actif');
+  const form = db.prepare("SELECT * FROM forms WHERE share_token = ? AND statut != 'ferme'").get(req.params.token);
   if (!form) return res.status(404).json({ error: 'Formulaire introuvable ou fermé' });
+  if (formDeadlinePassed(form)) return res.status(403).json({ error: `Ce formulaire n'accepte plus de réponses depuis le ${new Date(form.date_fermeture).toLocaleString('fr-CA')}.` });
   const { nom, email, telephone, answers } = req.body;
   const r = db.prepare('INSERT INTO form_responses (form_id, nom, email, telephone) VALUES (?, ?, ?, ?)').run(
     form.id, nom || null, email || null, telephone || null
@@ -7779,6 +7788,29 @@ app.post('/api/forms/public/:token/respond', (req, res) => {
     });
   }
   res.json({ ok: true, message: form.message_fin, redirect_adhesion: form.redirect_adhesion ? true : false });
+});
+
+// ── COMITÉ : soumettre une réponse au nom d'un membre (toujours permis, même après l'échéance) ──
+app.post('/api/forms/:id/respond-for', authMiddleware, requireRole(...FORM_EXEC), (req, res) => {
+  const form = db.prepare('SELECT * FROM forms WHERE id = ?').get(req.params.id);
+  if (!form) return res.status(404).json({ error: 'Formulaire introuvable' });
+  const { user_id, answers } = req.body;
+  if (!user_id) return res.status(400).json({ error: 'Membre requis' });
+  const member = db.prepare('SELECT id, prenom, nom, email, telephone FROM users WHERE id = ?').get(user_id);
+  if (!member) return res.status(404).json({ error: 'Membre introuvable' });
+  const r = db.prepare('INSERT INTO form_responses (form_id, user_id, nom, email, telephone) VALUES (?, ?, ?, ?, ?)').run(
+    form.id, member.id, `${member.prenom} ${member.nom}`, member.email || null, member.telephone || null
+  );
+  const responseId = r.lastInsertRowid;
+  if (answers && Array.isArray(answers)) {
+    const insertAnswer = db.prepare('INSERT INTO form_answers (response_id, field_id, valeur) VALUES (?, ?, ?)');
+    answers.forEach(a => {
+      if (a.field_id && a.valeur !== undefined) {
+        insertAnswer.run(responseId, a.field_id, String(a.valeur));
+      }
+    });
+  }
+  res.json({ ok: true });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
