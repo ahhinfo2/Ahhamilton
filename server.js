@@ -6929,24 +6929,28 @@ app.post('/api/volunteer/scan', authMiddleware, (req, res) => {
     }
   }
 
+  const inscrit = !!db.prepare('SELECT id FROM activity_registrations WHERE user_id=? AND activity_id=?').get(userId, activity_id);
+
   const open = db.prepare("SELECT * FROM volunteer_hours WHERE user_id=? AND activity_id=? AND statut='en_cours' AND checkout_at IS NULL").get(userId, activity_id);
 
   if (!open) {
     db.prepare("INSERT INTO volunteer_hours (user_id, activity_id, heures, date_service, statut, checkin_at) VALUES (?,?,0,?,'en_cours',CURRENT_TIMESTAMP)")
       .run(userId, activity_id, new Date().toISOString().split('T')[0]);
-    return res.json({ ok: true, type: 'checkin', nom: `${member.prenom} ${member.nom}`, message: `Arrivée enregistrée — ${member.prenom} ${member.nom}` });
+    return res.json({ ok: true, type: 'checkin', nom: `${member.prenom} ${member.nom}`, inscrit,
+      message: inscrit ? `Arrivée enregistrée — ${member.prenom} ${member.nom}` : `Arrivée enregistrée — ${member.prenom} ${member.nom} (non inscrit à cette activité)` });
   }
 
   const heures = Math.max(0, Math.round(((Date.now() - new Date(open.checkin_at + 'Z').getTime()) / 3600000) * 100) / 100);
   db.prepare("UPDATE volunteer_hours SET checkout_at=CURRENT_TIMESTAMP, heures=?, statut='en_attente' WHERE id=?").run(heures, open.id);
-  res.json({ ok: true, type: 'checkout', nom: `${member.prenom} ${member.nom}`, heures, message: `Départ enregistré — ${member.prenom} ${member.nom} — ${heures} h` });
+  res.json({ ok: true, type: 'checkout', nom: `${member.prenom} ${member.nom}`, heures, inscrit, message: `Départ enregistré — ${member.prenom} ${member.nom} — ${heures} h` });
 });
 
 // Présences bénévolat en cours pour une activité (pour affichage + fermeture manuelle sur le scanner)
 app.get('/api/volunteer/open/:activity_id', authMiddleware, (req, res) => {
   if (!scanCanVolunteer(req)) return res.status(403).json({ error: 'Accès refusé' });
   const rows = db.prepare(`
-    SELECT vh.id, vh.user_id, vh.checkin_at, u.prenom, u.nom
+    SELECT vh.id, vh.user_id, vh.checkin_at, u.prenom, u.nom,
+      (SELECT 1 FROM activity_registrations ar WHERE ar.user_id=vh.user_id AND ar.activity_id=vh.activity_id) AS inscrit
     FROM volunteer_hours vh JOIN users u ON u.id = vh.user_id
     WHERE vh.activity_id=? AND vh.statut='en_cours' AND vh.checkout_at IS NULL
     ORDER BY vh.checkin_at ASC

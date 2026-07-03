@@ -434,8 +434,9 @@ async function refreshVolOpenList() {
     if (!rows.length) { list.innerHTML = '<div style="color:rgba(255,255,255,.4);font-size:.75rem">Personne en ce moment</div>'; return; }
     list.innerHTML = rows.map(function(v) {
       const since = new Date(v.checkin_at + 'Z').toLocaleTimeString('fr-CA', { hour:'2-digit', minute:'2-digit', timeZone:'America/Toronto' });
+      const tag = !v.inscrit ? ' <span style="color:#ffb74d;font-weight:700">⚠️ non inscrit</span>' : '';
       return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 0;font-size:.78rem;color:#fff">' +
-        '<span>' + v.prenom + ' ' + v.nom + ' <span style="color:rgba(255,255,255,.5)">depuis ' + since + '</span></span>' +
+        '<span>' + v.prenom + ' ' + v.nom + ' <span style="color:rgba(255,255,255,.5)">depuis ' + since + '</span>' + tag + '</span>' +
         '<button onclick="manualCloseVolunteer(' + v.id + ')" style="background:#2e7d32;color:#fff;border:none;border-radius:6px;padding:3px 10px;font-size:.7rem;cursor:pointer;white-space:nowrap">Marquer départ</button>' +
       '</div>';
     }).join('');
@@ -657,12 +658,13 @@ async function handleVolunteerScan(qrText, actId) {
       addHistory('err', 'Bénévolat', data.error || 'Erreur', data);
       return;
     }
+    var warn = data.inscrit === false ? ' ⚠️ NON INSCRIT' : '';
     if (data.type === 'checkin') {
-      showResultUnified('ok', '✅', 'ARRIVÉE ENREGISTRÉE', { nom: data.nom, type: 'volunteer' });
-      addHistory('ok', data.nom, 'Bénévolat : arrivée', data);
+      showResultUnified(data.inscrit === false ? 'warn' : 'ok', '✅', 'ARRIVÉE ENREGISTRÉE' + warn, { nom: data.nom, type: 'volunteer' });
+      addHistory(data.inscrit === false ? 'warn' : 'ok', data.nom, 'Bénévolat : arrivée' + (data.inscrit === false ? ' (non inscrit à l\'activité)' : ''), data);
     } else {
-      showResultUnified('ok', '🕐', 'DÉPART — ' + data.heures + ' H', { nom: data.nom, type: 'volunteer' });
-      addHistory('ok', data.nom, 'Bénévolat : départ, ' + data.heures + ' h', data);
+      showResultUnified(data.inscrit === false ? 'warn' : 'ok', '🕐', 'DÉPART — ' + data.heures + ' H' + warn, { nom: data.nom, type: 'volunteer' });
+      addHistory(data.inscrit === false ? 'warn' : 'ok', data.nom, 'Bénévolat : départ, ' + data.heures + ' h' + (data.inscrit === false ? ' (non inscrit à l\'activité)' : ''), data);
     }
     playBeep(true);
     refreshVolOpenList();
