@@ -85,7 +85,7 @@
       </div>
       <div class="membership-grid">
         <div class="mem-card" data-reveal data-delay="0">
-          <div class="mem-icon"><svg class="emoji-icon"><use href="/icons.svg#seedling"/></svg></div>
+          <div class="mem-icon">🌱</div>
           <div class="mem-price">Gratuit</div>
           <div class="mem-period" data-i18n="mem.free.period">Membres de base</div>
           <div class="mem-name">Membre</div>
@@ -99,7 +99,7 @@
         </div>
         <div class="mem-card popular" data-reveal data-delay="120">
           <div class="mem-popular-badge" data-i18n="mem.bien.badge">Le plus populaire</div>
-          <div class="mem-icon"><svg class="emoji-icon"><use href="/icons.svg#flower"/></svg></div>
+          <div class="mem-icon">🌺</div>
           <div class="mem-price">$10</div>
           <div class="mem-period" data-i18n="mem.bien.period">par mois · $100/an</div>
           <div class="mem-name">Bienfaiteur</div>
@@ -113,7 +113,7 @@
           <a href="#formAdh" class="btn btn-primary full mem-select-btn" data-plan="Bienfaiteur ($10/mois)" data-i18n="mem.bien.btn">Devenir bienfaiteur</a>
         </div>
         <div class="mem-card" data-reveal data-delay="240">
-          <div class="mem-icon"><svg class="emoji-icon"><use href="/icons.svg#star"/></svg></div>
+          <div class="mem-icon">⭐</div>
           <div class="mem-price">$20</div>
           <div class="mem-period" data-i18n="mem.part.period">par mois · $200/an</div>
           <div class="mem-name">Partenaire</div>
@@ -236,7 +236,7 @@
         </div>
         <button type="submit" class="btn btn-primary full" id="adhBtn" data-i18n="Envoyer ma demande d'adhésion">Envoyer ma demande d'adhésion</button>
         <div id="adhSuccess" style="display:none;margin-top:16px;background:#e8f5e9;border:1px solid #c8e6c9;border-radius:10px;padding:14px;font-size:.85rem;color:#1b5e20;text-align:center">
-          <svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg> Votre demande a été envoyée ! Nous vous contacterons dans les 48 heures.
+          ✅ Votre demande a été envoyée ! Nous vous contacterons dans les 48 heures.
         </div>
         <div id="adhError" style="display:none;margin-top:12px;background:#fdecea;border:1px solid #f5c6cb;border-radius:10px;padding:12px;font-size:.82rem;color:#c62828;text-align:center"></div>
         <p style="font-size:.72rem;color:var(--muted);margin-top:12px;text-align:center">
@@ -262,7 +262,7 @@
         if (el) { el.value = emailParam; el.readOnly = true; el.style.background = '#f5f5f5'; }
         var banner = document.createElement('div');
         banner.style.cssText = 'background:#e8f5e9;border:1px solid #c8e6c9;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:.84rem;color:#1b5e20';
-        banner.innerHTML = ic('mail') + ' Vous avez reçu une invitation du comité AHH. Complétez le formulaire pour finaliser votre adhésion.';
+        banner.textContent = '✉️ Vous avez reçu une invitation du comité AHH. Complétez le formulaire pour finaliser votre adhésion.';
         var form = document.getElementById('adhesionForm');
         if (form) form.insertBefore(banner, form.firstChild);
       }

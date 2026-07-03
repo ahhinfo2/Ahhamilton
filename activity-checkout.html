@@ -35,10 +35,6 @@
     .not-payant p{font-size:.85rem;color:var(--muted)}
     .login-note{text-align:center;font-size:.78rem;color:var(--muted);margin-top:14px}
     .login-note a{color:var(--g2);font-weight:600}
-    .emoji-icon{display:inline-block;width:1.15em;height:1.15em;vertical-align:-0.2em;color:inherit}
-    .emoji-icon.i-success{color:#2e7d32}
-    .emoji-icon.i-danger{color:#c62828}
-    .emoji-icon.i-warn{color:#f57f17}
   </style>
 </head>
 <body>
@@ -47,7 +43,7 @@
     <img src="Public/logo1.png" alt="AHH"/>
   </div>
 
-  <div id="loading" style="text-align:center;color:var(--muted);padding:24px"><svg class="emoji-icon"><use href="/icons.svg#hourglass"/></svg> Chargement…</div>
+  <div id="loading" style="text-align:center;color:var(--muted);padding:24px">⏳ Chargement…</div>
   <div id="mainContent" style="display:none">
     <div class="activity-name" id="actTitle"></div>
     <div class="activity-meta" id="actMeta"></div>
@@ -57,7 +53,6 @@
 </div>
 
 <script>
-  function ic(name, cls) { return '<svg class="emoji-icon' + (cls ? ' ' + cls : '') + '"><use href="/icons.svg#' + name + '"></use></svg>'; }
   const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001/api' : '/api';
   const params = new URLSearchParams(location.search);
   const actId = params.get('actid');
@@ -74,8 +69,8 @@
 
       document.getElementById('actTitle').textContent = act.titre;
       document.getElementById('actMeta').innerHTML =
-        (act.date_debut ? ic('calendar') + ' ' + new Date(act.date_debut).toLocaleDateString('fr-CA', {weekday:'long',year:'numeric',month:'long',day:'numeric'}) + '<br/>' : '') +
-        (act.lieu ? ic('pin') + ' ' + act.lieu : '');
+        (act.date_debut ? '📅 ' + new Date(act.date_debut).toLocaleDateString('fr-CA', {weekday:'long',year:'numeric',month:'long',day:'numeric'}) + '<br/>' : '') +
+        (act.lieu ? '📍 ' + act.lieu : '');
 
       document.getElementById('loading').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
@@ -83,10 +78,10 @@
       if (!act.paiement_requis || !act.prix) {
         // Gratuite — connecté : bouton direct ; non connecté : formulaire email
         document.getElementById('payBlock').innerHTML =
-          '<div class="not-payant"><div class="icon">' + ic('check','i-success') + '</div>' +
+          '<div class="not-payant"><div class="icon">✅</div>' +
           '<p>Cette activité est <strong>gratuite</strong>.</p></div>' +
           (authToken
-            ? '<button class="btn btn-scan" onclick="scanPresence()">' + ic('pin') + ' Valider ma présence</button>'
+            ? '<button class="btn btn-scan" onclick="scanPresence()">📍 Valider ma présence</button>'
             : emailForm('Confirmer ma présence gratuitement'));
       } else {
         // Activité payante
@@ -96,7 +91,7 @@
           (user && user.plan && user.plan !== 'gratuit' ? '<div class="price-plan">Rabais possible selon votre plan ' + user.plan + '</div>' : '') +
           '</div>' +
           (authToken ? `
-            <button class="btn" style="background:linear-gradient(135deg,#635bff,#8b85ff);margin-bottom:10px" onclick="payStripe()">${ic('card')} Payer en ligne : $${prixAffiche} (Stripe)</button>
+            <button class="btn" style="background:linear-gradient(135deg,#635bff,#8b85ff);margin-bottom:10px" onclick="payStripe()">💳 Payer en ligne : $${prixAffiche} (Stripe)</button>
             <div class="divider">ou payer sur place</div>
             <form id="payForm">
               <div class="form-group"><label>Méthode</label>
@@ -107,10 +102,10 @@
                 </select></div>
               <div class="form-group"><label>Référence (optionnel)</label>
                 <input id="ref" placeholder="ex: confirmation Interac…"/></div>
-              <button type="submit" class="btn">${ic('check','i-success')} Confirmer paiement sur place</button>
+              <button type="submit" class="btn">✅ Confirmer paiement sur place</button>
             </form>
             <div class="divider">ou</div>
-            <button class="btn btn-scan" onclick="scanPresence()">${ic('pin')} Seulement valider ma présence</button>`
+            <button class="btn btn-scan" onclick="scanPresence()">📍 Seulement valider ma présence</button>`
             : emailForm('Réserver ma place : $' + prixAffiche));
 
         if (authToken) {
@@ -128,7 +123,7 @@
               if (!r.ok) throw new Error(d.error);
               const uid = JSON.parse(localStorage.getItem('ahh_user') || '{}').id;
               location.href = 'carte.html?id=' + uid + '&checkin=' + encodeURIComponent(act.titre) + '&paid=1';
-            } catch(ex) { showErr(ex.message); btn.disabled=false; btn.innerHTML = ic('check','i-success') + ' Confirmer paiement sur place'; }
+            } catch(ex) { showErr(ex.message); btn.disabled=false; btn.textContent = '✅ Confirmer paiement sur place'; }
           });
         }
       }
@@ -137,7 +132,7 @@
 
   function emailForm(btnLabel) {
     return '<div style="background:#fff8e1;border-left:3px solid #f9a825;border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:.83rem;color:#5a4a00">' +
-      ic('user') + ' Entrez votre courriel membre pour confirmer votre place. Si vous n\'êtes pas membre, <a href="billets.html?id=' + actId + '" style="color:#1b5e20;font-weight:600">achetez un billet ici →</a>' +
+      '👤 Entrez votre courriel membre pour confirmer votre place. Si vous n\'êtes pas membre, <a href="billets.html?id=' + actId + '" style="color:#1b5e20;font-weight:600">achetez un billet ici →</a>' +
       '</div>' +
       '<div class="form-group">' +
       '<label>Votre courriel membre</label>' +
@@ -203,7 +198,7 @@
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error);
-      showOk(ic('check','i-success') + ' Présence validée pour « ' + d.activite + ' ». Bonne activité !');
+      showOk('✅ Présence validée pour « ' + d.activite + ' ». Bonne activité !');
     } catch(ex) { showErr(ex.message); }
   }
 

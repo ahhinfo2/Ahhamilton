@@ -199,10 +199,6 @@
       .form-card, .field-card { padding: 20px 16px; }
       .ahh-header h1 { font-size: .95rem; }
     }
-    .emoji-icon { display: inline-block; width: 1.15em; height: 1.15em; vertical-align: -0.2em; color: inherit; }
-    .emoji-icon.i-success { color: #2e7d32; }
-    .emoji-icon.i-danger { color: #c62828; }
-    .emoji-icon.i-warn { color: #f57f17; }
   </style>
 </head>
 <body>
@@ -225,7 +221,6 @@
   </div>
 
 <script>
-function ic(name, cls) { return '<svg class="emoji-icon' + (cls ? ' ' + cls : '') + '"><use href="/icons.svg#' + name + '"></use></svg>'; }
 (function() {
   const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     ? 'http://localhost:3001' : '';
@@ -417,7 +412,7 @@ function ic(name, cls) { return '<svg class="emoji-icon' + (cls ? ' ' + cls : ''
 
   function showSuccess(message, redirectAdhesion) {
     var html = '<div class="form-card success-card">';
-    html += '<div class="check-icon">' + ic('check','i-success') + '</div>';
+    html += '<div class="check-icon">✔️</div>';
     html += '<h2>Réponse enregistrée !</h2>';
     html += '<p>' + esc(message || 'Merci pour votre réponse !') + '</p>';
     if (redirectAdhesion) {
@@ -430,7 +425,7 @@ function ic(name, cls) { return '<svg class="emoji-icon' + (cls ? ' ' + cls : ''
 
   function showError(title, desc) {
     container.innerHTML = '<div class="form-card error-card">' +
-      '<div class="error-icon">' + ic('warning','i-warn') + '</div>' +
+      '<div class="error-icon">⚠️</div>' +
       '<h2>' + esc(title) + '</h2>' +
       '<p>' + esc(desc) + '</p></div>';
   }

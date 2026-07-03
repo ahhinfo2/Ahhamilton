@@ -83,21 +83,21 @@
 
       <!-- Barre de recherche + filtres -->
       <div class="tal-filter-bar">
-        <input class="tal-search" id="talSearch" type="text" placeholder="Rechercher un talent…" data-i18n-ph="Rechercher un talent…"/>
+        <input class="tal-search" id="talSearch" type="text" placeholder="🔍 Rechercher un talent…" data-i18n-ph="Rechercher un talent…"/>
         <button class="tal-filter active" data-cat="tous" data-i18n="Tous">Tous</button>
-        <button class="tal-filter" data-cat="construction" data-i18n="Construction"><svg class="emoji-icon"><use href="/icons.svg#hammer"/></svg> Construction</button>
-        <button class="tal-filter" data-cat="art"><svg class="emoji-icon"><use href="/icons.svg#palette"/></svg> Art</button>
-        <button class="tal-filter" data-cat="cuisine" data-i18n="Cuisine"><svg class="emoji-icon"><use href="/icons.svg#plate"/></svg> Cuisine</button>
-        <button class="tal-filter" data-cat="beaute"><svg class="emoji-icon"><use href="/icons.svg#sparkle"/></svg> Beauté</button>
-        <button class="tal-filter" data-cat="technologie" data-i18n="Technologie"><svg class="emoji-icon"><use href="/icons.svg#laptop"/></svg> Tech</button>
-        <button class="tal-filter" data-cat="education" data-i18n="Éducation"><svg class="emoji-icon"><use href="/icons.svg#graduation"/></svg> Éducation</button>
-        <button class="tal-filter" data-cat="sante" data-i18n="Santé"><svg class="emoji-icon"><use href="/icons.svg#health"/></svg> Santé</button>
-        <button class="tal-filter" data-cat="autre"><svg class="emoji-icon"><use href="/icons.svg#sparkle"/></svg> Autre</button>
+        <button class="tal-filter" data-cat="construction" data-i18n="Construction">🔨 Construction</button>
+        <button class="tal-filter" data-cat="art">🎨 Art</button>
+        <button class="tal-filter" data-cat="cuisine" data-i18n="Cuisine">🍽️ Cuisine</button>
+        <button class="tal-filter" data-cat="beaute">💅 Beauté</button>
+        <button class="tal-filter" data-cat="technologie" data-i18n="Technologie">💻 Tech</button>
+        <button class="tal-filter" data-cat="education" data-i18n="Éducation">📚 Éducation</button>
+        <button class="tal-filter" data-cat="sante" data-i18n="Santé">🏥 Santé</button>
+        <button class="tal-filter" data-cat="autre">✨ Autre</button>
       </div>
 
       <!-- Grille dynamique -->
       <div id="talContainer">
-        <div style="text-align:center;padding:60px;color:var(--muted)"><svg class="emoji-icon"><use href="/icons.svg#hourglass"/></svg> Chargement…</div>
+        <div style="text-align:center;padding:60px;color:var(--muted)">⏳ Chargement…</div>
       </div>
 
       <!-- CTA -->
@@ -121,16 +121,16 @@
     const BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001' : '';
 
     const CAT_META = {
-      construction: { label:'Construction & Rénovation', emoji: ic('hammer') },
-      art:          { label:'Art & Créativité',          emoji: ic('palette') },
-      cuisine:      { label:'Cuisine & Traiteur',        emoji: ic('plate') },
-      beaute:       { label:'Beauté & Bien-être',        emoji: ic('sparkle') },
-      technologie:  { label:'Technologie & Informatique',emoji: ic('laptop') },
-      education:    { label:'Éducation & Coaching',      emoji: ic('graduation') },
-      sante:        { label:'Santé & Sport',             emoji: ic('health') },
-      transport:    { label:'Transport & Livraison',     emoji: ic('car') },
-      finance:      { label:'Finance & Comptabilité',    emoji: ic('money') },
-      autre:        { label:'Autre',                     emoji: ic('sparkle') },
+      construction: { label:'Construction & Rénovation', emoji:'🔨' },
+      art:          { label:'Art & Créativité',          emoji:'🎨' },
+      cuisine:      { label:'Cuisine & Traiteur',        emoji:'🍽️' },
+      beaute:       { label:'Beauté & Bien-être',        emoji:'💅' },
+      technologie:  { label:'Technologie & Informatique',emoji:'💻' },
+      education:    { label:'Éducation & Coaching',      emoji:'📚' },
+      sante:        { label:'Santé & Sport',             emoji:'🏥' },
+      transport:    { label:'Transport & Livraison',     emoji:'🚗' },
+      finance:      { label:'Finance & Comptabilité',    emoji:'💰' },
+      autre:        { label:'Autre',                     emoji:'✨' },
     };
 
     let allTalents = [];
@@ -138,7 +138,7 @@
     let searchQuery = '';
 
     function renderTalent(t) {
-      const cat = CAT_META[t.categorie] || { emoji: ic('sparkle'), label: t.categorie };
+      const cat = CAT_META[t.categorie] || { emoji: '✨', label: t.categorie };
       const photoHtml = t.photo_path
         ? '<img src="' + BASE + t.photo_path + '" alt="' + t.nom + '" onerror="this.style.display=\'none\'"/>'
         : '<span>' + cat.emoji + '</span>';
@@ -150,9 +150,9 @@
           '<div class="tal-spec">' + (t.specialite || cat.label) + '</div>' +
           (t.description ? '<p class="tal-desc">' + t.description + '</p>' : '') +
           '<div class="tal-contact">' +
-            (t.telephone ? '<span>' + ic('phone') + ' <a href="tel:' + t.telephone + '">' + t.telephone + '</a></span>' : '') +
-            (t.adresse   ? '<span>' + ic('pin') + ' ' + t.adresse + '</span>' : '') +
-            (t.site_web  ? '<a href="' + t.site_web + '" target="_blank" rel="noopener">' + ic('globe') + ' ' + t.site_web.replace(/^https?:\/\//, '') + '</a>' : '') +
+            (t.telephone ? '<span>📞 <a href="tel:' + t.telephone + '">' + t.telephone + '</a></span>' : '') +
+            (t.adresse   ? '<span>📍 ' + t.adresse + '</span>' : '') +
+            (t.site_web  ? '<a href="' + t.site_web + '" target="_blank" rel="noopener">🌐 ' + t.site_web.replace(/^https?:\/\//, '') + '</a>' : '') +
           '</div>' +
         '</div>' +
       '</div>';
@@ -171,7 +171,7 @@
       }
 
       if (!filtered.length) {
-        container.innerHTML = '<div class="tal-empty"><div class="te-icon">' + ic('search') + '</div><p>Aucun résultat.</p></div>';
+        container.innerHTML = '<div class="tal-empty"><div class="te-icon">🔍</div><p>Aucun résultat.</p></div>';
         return;
       }
 
@@ -185,7 +185,7 @@
       let html = '';
       Object.entries(grouped).forEach(function(entry) {
         const catKey = entry[0], list = entry[1];
-        const cat = CAT_META[catKey] || { emoji: ic('sparkle'), label: catKey };
+        const cat = CAT_META[catKey] || { emoji:'✨', label: catKey };
         html += '<h3 class="tal-cat-title">' + cat.emoji + ' ' + cat.label +
           ' <span style="font-size:.75rem;background:var(--border);color:var(--muted);padding:2px 10px;border-radius:50px;font-family:Poppins,sans-serif">' +
           list.length + '</span></h3>';
@@ -201,7 +201,7 @@
         render();
       } catch(e) {
         document.getElementById('talContainer').innerHTML =
-          '<div class="tal-empty"><div class="te-icon">' + ic('warning', 'i-warn') + '</div><p>Impossible de charger les talents.</p></div>';
+          '<div class="tal-empty"><div class="te-icon">⚠️</div><p>Impossible de charger les talents.</p></div>';
       }
     }
 

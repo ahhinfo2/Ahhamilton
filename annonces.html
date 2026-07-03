@@ -105,17 +105,17 @@
   <section class="ann-section">
     <div class="container">
       <div class="ann-toolbar">
-        <input class="ann-search" id="annSearch" type="text" placeholder="Rechercher une annonce…" data-i18n-ph="Rechercher une annonce…"/>
+        <input class="ann-search" id="annSearch" type="text" placeholder="🔍 Rechercher une annonce…" data-i18n-ph="Rechercher une annonce…"/>
         <button class="ann-filter active" data-type="tous" data-i18n="Tous">Tout</button>
-        <button class="ann-filter" data-type="vente" data-i18n="Vente"><svg class="emoji-icon"><use href="/icons.svg#tag"/></svg> Vente</button>
-        <button class="ann-filter" data-type="don" data-i18n="Don"><svg class="emoji-icon"><use href="/icons.svg#gift"/></svg> Don</button>
-        <button class="ann-filter" data-type="echange" data-i18n="Échange"><svg class="emoji-icon"><use href="/icons.svg#refresh"/></svg> Échange</button>
-        <button class="ann-filter" data-type="recherche" data-i18n="Recherche"><svg class="emoji-icon"><use href="/icons.svg#search"/></svg> Recherche</button>
-        <button class="ann-filter" data-type="entraide" style="background:linear-gradient(90deg,#D21034,#003F87);color:#fff;border-color:transparent" data-i18n="Entraide"><svg class="emoji-icon"><use href="/icons.svg#handshake"/></svg> Entraide</button>
+        <button class="ann-filter" data-type="vente" data-i18n="Vente">🏷️ Vente</button>
+        <button class="ann-filter" data-type="don" data-i18n="Don">🎁 Don</button>
+        <button class="ann-filter" data-type="echange" data-i18n="Échange">🔄 Échange</button>
+        <button class="ann-filter" data-type="recherche" data-i18n="Recherche">🔍 Recherche</button>
+        <button class="ann-filter" data-type="entraide" style="background:linear-gradient(90deg,#D21034,#003F87);color:#fff;border-color:transparent" data-i18n="Entraide">🤝 Entraide</button>
       </div>
 
       <div id="annGrid" class="ann-grid">
-        <div style="text-align:center;padding:60px;color:var(--muted);grid-column:1/-1"><svg class="emoji-icon"><use href="/icons.svg#hourglass"/></svg> Chargement…</div>
+        <div style="text-align:center;padding:60px;color:var(--muted);grid-column:1/-1">⏳ Chargement…</div>
       </div>
 
       <div class="ann-cta">
@@ -129,7 +129,7 @@
 
   <!-- Lightbox -->
   <div id="annLb">
-    <button id="annLbClose" onclick="annLbClose()"><svg class="emoji-icon"><use href="/icons.svg#cross"/></svg></button>
+    <button id="annLbClose" onclick="annLbClose()">✕</button>
     <button class="ann-lb-arr" onclick="annLbNav(-1)">&#8249;</button>
     <img id="annLbImg" src="" alt=""/>
     <button class="ann-lb-arr" onclick="annLbNav(+1)">&#8250;</button>
@@ -150,10 +150,10 @@
     let lbPhotos = [];
     let lbIdx = 0;
 
-    const TYPE_LABEL = { vente: ic('tag')+' Vente', don: ic('gift')+' Don', echange: ic('refresh')+' Échange', recherche: ic('search')+' Recherche' };
+    const TYPE_LABEL = { vente:'🏷️ Vente', don:'🎁 Don', echange:'🔄 Échange', recherche:'🔍 Recherche' };
     const TYPE_CSS   = { vente:'type-vente', don:'type-don', echange:'type-echange', recherche:'type-recherche' };
 
-    const CAT_EMOJI  = { electronique: ic('laptop'), meubles: ic('sofa'), vetements: ic('clothing'), maison: ic('home'), sport: ic('ball'), vehicule: ic('car'), cuisine: ic('plate'), bebe: ic('teddy'), services: ic('handshake'), entraide: ic('flag-ht','i-flag'), autre: ic('box') };
+    const CAT_EMOJI  = { electronique:'📱',meubles:'🛋️',vetements:'👗',maison:'🏡',sport:'⚽',vehicule:'🚗',cuisine:'🍽️',bebe:'🧸',services:'🤝',entraide:'🇭🇹',autre:'📦' };
 
     function annCard(a, idx) {
       const photos = a.photos || [];
@@ -170,11 +170,11 @@
           photoHtml += '<div class="ann-photo-count">1 / ' + photos.length + '</div>';
         }
       } else {
-        const em = CAT_EMOJI[a.categorie] || ic('box');
+        const em = CAT_EMOJI[a.categorie] || '📦';
         photoHtml = '<div class="ann-no-photo">' + em + '</div>';
       }
 
-      const prix = a.gratuit ? '<div class="ann-prix gratuit">' + ic('gift') + ' Gratuit</div>'
+      const prix = a.gratuit ? '<div class="ann-prix gratuit">🎁 Gratuit</div>'
         : (a.prix ? '<div class="ann-prix">$' + parseFloat(a.prix).toFixed(2) + '</div>'
         : '<div class="ann-prix" style="color:var(--muted)">Prix à discuter</div>');
 
@@ -190,10 +190,10 @@
           (a.description ? '<p class="ann-desc">' + a.description + '</p>' : '') +
           prix +
           '<div class="ann-meta">' +
-            '<span>' + ic('user') + ' ' + a.prenom + ' ' + a.nom + '</span>' +
-            '<span>' + ic('calendar') + ' ' + date + '</span>' +
+            '<span>👤 ' + a.prenom + ' ' + a.nom + '</span>' +
+            '<span>📅 ' + date + '</span>' +
           '</div>' +
-          (a.telephone ? '<div class="ann-tel">' + ic('phone') + ' <a href="tel:' + a.telephone + '">' + a.telephone + '</a></div>' : '') +
+          (a.telephone ? '<div class="ann-tel">📞 <a href="tel:' + a.telephone + '">' + a.telephone + '</a></div>' : '') +
         '</div>' +
       '</div>';
     }
@@ -209,7 +209,7 @@
       }
       const grid = document.getElementById('annGrid');
       if (!filtered.length) {
-        grid.innerHTML = '<div class="ann-empty" style="grid-column:1/-1"><div class="ae-icon">' + ic('mailbox-empty') + '</div><p>Aucune annonce pour l\'instant.</p></div>';
+        grid.innerHTML = '<div class="ann-empty" style="grid-column:1/-1"><div class="ae-icon">📭</div><p>Aucune annonce pour l\'instant.</p></div>';
         return;
       }
       grid.innerHTML = filtered.map(function(a, i) { return annCard(a, i); }).join('');
@@ -257,7 +257,7 @@
         render();
       } catch(e) {
         document.getElementById('annGrid').innerHTML =
-          '<div class="ann-empty" style="grid-column:1/-1"><div class="ae-icon">' + ic('warning','i-warn') + '</div><p>Impossible de charger les annonces.</p></div>';
+          '<div class="ann-empty" style="grid-column:1/-1"><div class="ae-icon">⚠️</div><p>Impossible de charger les annonces.</p></div>';
       }
     }
 

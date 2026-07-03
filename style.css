@@ -27,22 +27,6 @@
 }
 
 html  { scroll-behavior: smooth; font-size: 16px; }
-
-/* ═══════════════════════════════════════════════
-   ICÔNES (remplacent les emojis — voir icons.svg)
-═══════════════════════════════════════════════ */
-.emoji-icon { display: inline-block; width: 1.15em; height: 1.15em; vertical-align: -0.2em; color: inherit; flex-shrink: 0; }
-.emoji-icon.i-flag { width: 1.35em; height: auto; aspect-ratio: 24/16; vertical-align: -0.15em; }
-.emoji-icon.i-success { color: #2e7d32; }
-.emoji-icon.i-danger  { color: #c62828; }
-.emoji-icon.i-warn    { color: #f57f17; }
-.emoji-icon.i-gold    { color: var(--accent); }
-.emoji-icon.i-muted   { color: var(--muted); }
-.emoji-icon.i-white   { color: #fff; }
-.emoji-icon.i-lg      { width: 1.6em; height: 1.6em; }
-
-.why-icon-wrap { width:64px; height:64px; margin:0 auto 14px; border-radius:16px; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,rgba(46,125,50,.1),rgba(67,160,71,.06)); border:1px solid rgba(46,125,50,.12); color:var(--g2); }
-
 /* Anti-flash FOAIT : caché jusqu'à ce que _nav.js applique les traductions */
 body  { font-family: 'Poppins', sans-serif; color: var(--text); background: #fff; line-height: 1.65; overflow-x: hidden;
         visibility: hidden; animation: _ahh-show 0s 0.5s forwards; }
@@ -720,7 +704,7 @@ img   { display: block; max-width: 100%; }
 }
 .gallery-item.tall { grid-row: span 2; }
 .gallery-item.wide { grid-column: span 2; }
-.gallery-placeholder { font-size: 4rem; opacity: .44; transition: var(--tr); color: #fff; }
+.gallery-placeholder { font-size: 4rem; opacity: .44; transition: var(--tr); }
 .gallery-overlay {
   position: absolute; inset: 0;
   background: linear-gradient(to top, rgba(0,0,0,.7) 0%, transparent 55%);
@@ -1624,7 +1608,7 @@ img   { display: block; max-width: 100%; }
   width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
   background: linear-gradient(135deg, var(--g2), var(--g3));
   border: 4px solid #fff; box-shadow: 0 0 0 3px var(--g2);
-  display: flex; align-items: center; justify-content: center; color: #fff;
+  display: flex; align-items: center; justify-content: center;
   font-size: 1.2rem; position: relative; z-index: 1;
   align-self: center;
 }

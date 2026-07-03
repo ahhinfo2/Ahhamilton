@@ -39,15 +39,11 @@
   .flow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 8px 0; font-size: .82rem; }
   .flow-step { background: #e8f5e9; padding: 6px 12px; border-radius: 8px; font-weight: 600; }
   .flow-arrow { color: #1b5e20; font-weight: 700; }
-  .emoji-icon{display:inline-block;width:1.15em;height:1.15em;vertical-align:-0.2em;color:inherit}
-  .emoji-icon.i-success{color:#2e7d32}
-  .emoji-icon.i-danger{color:#c62828}
-  .emoji-icon.i-warn{color:#f57f17}
 </style>
 </head>
 <body>
 
-<button class="print-btn no-print" onclick="window.print()"><svg class="emoji-icon"><use href="/icons.svg#printer"/></svg> Imprimer / PDF</button>
+<button class="print-btn no-print" onclick="window.print()">🖨 Imprimer / PDF</button>
 
 <div class="doc">
 
@@ -79,16 +75,16 @@
   <span class="flow-step">Activation</span><span class="flow-arrow">→</span>
   <span class="flow-step">QR envoyé</span><span class="flow-arrow">→</span>
   <span class="flow-step">Scan à l'entrée</span><span class="flow-arrow">→</span>
-  <span class="flow-step"><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg> Check-in</span>
+  <span class="flow-step">✅ Check-in</span>
 </div>
 
 <table>
   <thead><tr><th>Statut</th><th>Description</th><th>Scan possible</th></tr></thead>
   <tbody>
-    <tr><td><span class="badge badge-info">genere</span></td><td>Pré-imprimé, pas encore vendu</td><td><svg class="emoji-icon i-danger"><use href="/icons.svg#cross"/></svg> Refusé</td></tr>
-    <tr><td><span class="badge badge-ok">actif / paid</span></td><td>Payé et activé</td><td><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg> Valide</td></tr>
-    <tr><td><span class="badge badge-err">annule</span></td><td>Annulé par le comité</td><td><svg class="emoji-icon i-danger"><use href="/icons.svg#cross"/></svg> Refusé</td></tr>
-    <tr><td><span class="badge badge-warn">checked_in</span></td><td>Déjà scanné à l'entrée</td><td><svg class="emoji-icon"><use href="/icons.svg#refresh"/></svg> Déjà scanné</td></tr>
+    <tr><td><span class="badge badge-info">genere</span></td><td>Pré-imprimé, pas encore vendu</td><td>❌ Refusé</td></tr>
+    <tr><td><span class="badge badge-ok">actif / paid</span></td><td>Payé et activé</td><td>✅ Valide</td></tr>
+    <tr><td><span class="badge badge-err">annule</span></td><td>Annulé par le comité</td><td>❌ Refusé</td></tr>
+    <tr><td><span class="badge badge-warn">checked_in</span></td><td>Déjà scanné à l'entrée</td><td>🔄 Déjà scanné</td></tr>
   </tbody>
 </table>
 
@@ -108,18 +104,18 @@
 <table>
   <thead><tr><th>Condition</th><th>Statut</th><th>Entrée activité</th></tr></thead>
   <tbody>
-    <tr><td>Photo approuvée + non expirée</td><td><span class="badge badge-ok"><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg> Valide</span></td><td>Autorisée</td></tr>
-    <tr><td>Pas de photo</td><td><span class="badge badge-err"><svg class="emoji-icon i-warn"><use href="/icons.svg#warning"/></svg> Invalide</span></td><td>Bloquée</td></tr>
-    <tr><td>Photo en attente d'approbation</td><td><span class="badge badge-info"><svg class="emoji-icon"><use href="/icons.svg#clock"/></svg> En attente</span></td><td>Bloquée</td></tr>
-    <tr><td>Carte expirée (> 2 ans)</td><td><span class="badge badge-err"><svg class="emoji-icon i-danger"><use href="/icons.svg#blocked"/></svg> Expirée</span></td><td>Bloquée</td></tr>
-    <tr><td>Membre du comité (EXEC)</td><td><span class="badge badge-vip"><svg class="emoji-icon"><use href="/icons.svg#briefcase"/></svg> VIP</span></td><td>Toujours autorisée</td></tr>
+    <tr><td>Photo approuvée + non expirée</td><td><span class="badge badge-ok">✅ Valide</span></td><td>Autorisée</td></tr>
+    <tr><td>Pas de photo</td><td><span class="badge badge-err">⚠️ Invalide</span></td><td>Bloquée</td></tr>
+    <tr><td>Photo en attente d'approbation</td><td><span class="badge badge-info">🕐 En attente</span></td><td>Bloquée</td></tr>
+    <tr><td>Carte expirée (> 2 ans)</td><td><span class="badge badge-err">⛔ Expirée</span></td><td>Bloquée</td></tr>
+    <tr><td>Membre du comité (EXEC)</td><td><span class="badge badge-vip">👔 VIP</span></td><td>Toujours autorisée</td></tr>
   </tbody>
 </table>
 
 <h3>2.2 Ajouter une photo (rendre la carte valide)</h3>
 <ol>
   <li>Numériser la carte du membre</li>
-  <li>Si pas de photo → bouton <strong>« <svg class="emoji-icon"><use href="/icons.svg#camera"/></svg> Prendre / Ajouter photo »</strong> apparaît</li>
+  <li>Si pas de photo → bouton <strong>« 📷 Prendre / Ajouter photo »</strong> apparaît</li>
   <li>La caméra du téléphone s'ouvre pour prendre la photo</li>
   <li>La photo est téléversée ET approuvée automatiquement</li>
   <li>La carte est immédiatement <strong>valide</strong></li>
@@ -138,8 +134,8 @@
 <table>
   <thead><tr><th>QR scanné en 1er</th><th>Résultat</th><th>QR scanné en 2e</th><th>Résultat</th></tr></thead>
   <tbody>
-    <tr><td>Billet QR</td><td><span class="badge badge-ok"><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg> Valide</span></td><td>Carte membre</td><td><span class="badge badge-warn"><svg class="emoji-icon"><use href="/icons.svg#refresh"/></svg> Déjà entré</span></td></tr>
-    <tr><td>Carte membre</td><td><span class="badge badge-ok"><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg> Présence confirmée</span></td><td>Billet QR</td><td><span class="badge badge-warn"><svg class="emoji-icon"><use href="/icons.svg#refresh"/></svg> Déjà scanné</span></td></tr>
+    <tr><td>Billet QR</td><td><span class="badge badge-ok">✅ Valide</span></td><td>Carte membre</td><td><span class="badge badge-warn">🔄 Déjà entré</span></td></tr>
+    <tr><td>Carte membre</td><td><span class="badge badge-ok">✅ Présence confirmée</span></td><td>Billet QR</td><td><span class="badge badge-warn">🔄 Déjà scanné</span></td></tr>
   </tbody>
 </table>
 
@@ -157,17 +153,17 @@
 
 <div class="scenario">
   <div class="scenario-title">Scénario 3 : Membre sans billet : activité payante</div>
-  <p>Jean scanne sa carte → « <svg class="emoji-icon i-danger"><use href="/icons.svg#cross"/></svg> Pas de billet, activité payante (5.00 $). Achat requis. » Entrée refusée.</p>
+  <p>Jean scanne sa carte → « ❌ Pas de billet, activité payante (5.00 $). Achat requis. » Entrée refusée.</p>
 </div>
 
 <div class="scenario">
   <div class="scenario-title">Scénario 4 : Carte expirée</div>
-  <p>Lesly scanne sa carte → « <svg class="emoji-icon i-danger"><use href="/icons.svg#blocked"/></svg> Carte EXPIRÉE depuis le 2025-03-15. Renouvellement requis. » Entrée bloquée.</p>
+  <p>Lesly scanne sa carte → « ⛔ Carte EXPIRÉE depuis le 2025-03-15. Renouvellement requis. » Entrée bloquée.</p>
 </div>
 
 <div class="scenario">
   <div class="scenario-title">Scénario 5 : Carte sans photo</div>
-  <p>Nouveau membre scanne sa carte → « <svg class="emoji-icon i-warn"><use href="/icons.svg#warning"/></svg> CARTE INVALIDE, aucune photo ». Le comité peut prendre la photo sur place.</p>
+  <p>Nouveau membre scanne sa carte → « ⚠️ CARTE INVALIDE, aucune photo ». Le comité peut prendre la photo sur place.</p>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════ -->
