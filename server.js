@@ -723,10 +723,17 @@ app.put('/api/users/:id', authMiddleware, (req, res) => {
   const isSelf  = req.user.id === parseInt(req.params.id);
   if (!isMgr && !isSelf) return res.status(403).json({ error: 'Accès refusé' });
 
+  // Un membre (non-comité) ne peut plus modifier son nom/prénom une fois sa photo approuvée une première fois
+  let nomLocked = false;
+  if (isSelf && !isMgr) {
+    const cur = db.prepare('SELECT carte_photo_deja_approuvee FROM users WHERE id = ?').get(req.params.id);
+    nomLocked = !!(cur && cur.carte_photo_deja_approuvee);
+  }
+
   const { prenom, nom, email, telephone, adresse, date_naissance, role, actif, bio, operateur, sms_notifs } = req.body;
   const updates = []; const vals = [];
-  if (prenom)        { updates.push('prenom = ?');        vals.push(prenom); }
-  if (nom)           { updates.push('nom = ?');           vals.push(nom); }
+  if (prenom && !nomLocked) { updates.push('prenom = ?');        vals.push(prenom); }
+  if (nom    && !nomLocked) { updates.push('nom = ?');           vals.push(nom); }
   if (email && (isAdmin || isSelf)) { updates.push('email = ?'); vals.push(email); }
   if (telephone !== undefined) { updates.push('telephone = ?'); vals.push(telephone); }
   if (adresse !== undefined)   { updates.push('adresse = ?');   vals.push(adresse); }
@@ -769,10 +776,22 @@ const uploadAmbassador = multer({ storage: ambassadorPhotoStorage, limits: { fil
 app.post('/api/users/:id/photo', authMiddleware, uploadProfile.single('photo'), async (req, res) => {
   if (req.user.id !== parseInt(req.params.id) && req.user.role !== 'admin')
     return res.status(403).json({ error: 'Accès refusé' });
+
+  // Un membre (non-comité) ne peut pas changer sa photo tant que sa carte est valide (approuvée + non expirée)
+  const isSelf = req.user.id === parseInt(req.params.id);
+  if (isSelf && !CARTE_ROLES.includes(req.user.role)) {
+    const cur = db.prepare('SELECT carte_photo_approuvee, carte_photo_deja_approuvee, date_inscription FROM users WHERE id = ?').get(req.params.id);
+    const expired = cur && cur.carte_photo_deja_approuvee && new Date() > new Date(carteExpiration(cur.date_inscription));
+    if (cur && cur.carte_photo_approuvee && !expired) {
+      return res.status(403).json({ error: 'Votre carte est valide — seul le comité peut modifier votre photo.' });
+    }
+  }
+
   if (!req.file) return res.status(400).json({ error: 'Photo requise' });
   await compressImage(req.file.path, 1200);
   const photo_url = `/uploads/profiles/${req.file.filename}`;
-  db.prepare('UPDATE users SET photo_url = ? WHERE id = ?').run(photo_url, req.params.id);
+  // Une nouvelle photo doit toujours être re-validée par le comité
+  db.prepare('UPDATE users SET photo_url = ?, carte_photo_approuvee = 0 WHERE id = ?').run(photo_url, req.params.id);
   res.json({ photo_url });
 });
 app.use('/uploads/profiles', express.static(path.join(__dirname, 'uploads', 'profiles')));
@@ -6623,7 +6642,7 @@ app.get('/api/admin/cartes', authMiddleware, requireRole(...CARTE_ROLES), (req, 
 });
 
 app.post('/api/admin/cartes/:id/approuver-photo', authMiddleware, requireRole(...CARTE_ROLES), (req, res) => {
-  db.prepare('UPDATE users SET carte_photo_approuvee=1 WHERE id=?').run(req.params.id);
+  db.prepare('UPDATE users SET carte_photo_approuvee=1, carte_photo_deja_approuvee=1 WHERE id=?').run(req.params.id);
   res.json({ ok: true });
 });
 
@@ -6696,7 +6715,11 @@ app.post('/api/admin/cartes/:id/photo', authMiddleware, requireRole(...CARTE_ROL
   await compressImage(req.file.path, 1200);
   const photoUrl = `/uploads/profiles/${req.file.filename}`;
   const isSelf = parseInt(req.params.id) === req.user.id;
-  db.prepare('UPDATE users SET photo_url=?, carte_photo_approuvee=? WHERE id=?').run(photoUrl, isSelf ? 0 : 1, req.params.id);
+  if (isSelf) {
+    db.prepare('UPDATE users SET photo_url=?, carte_photo_approuvee=0 WHERE id=?').run(photoUrl, req.params.id);
+  } else {
+    db.prepare('UPDATE users SET photo_url=?, carte_photo_approuvee=1, carte_photo_deja_approuvee=1 WHERE id=?').run(photoUrl, req.params.id);
+  }
   res.json({ ok: true, photo_url: photoUrl, auto_approved: !isSelf });
 });
 

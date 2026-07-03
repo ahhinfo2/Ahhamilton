@@ -6366,19 +6366,32 @@ async function profile() {
     api('/calendar/token').catch(() => null)
   ]);
 
+  const isComite = can.executive();
+  const approved = !!u.carte_photo_approuvee;
+  const everApproved = !!u.carte_photo_deja_approuvee;
+  const expDate = u.date_inscription ? new Date(u.date_inscription) : null;
+  if (expDate) expDate.setFullYear(expDate.getFullYear() + 2);
+  const expired = everApproved && expDate && new Date() > expDate;
+  const cardState = !approved ? 'pending' : (expired ? 'expired' : 'valid');
+  const photoLocked = !isComite && cardState === 'valid';
+  const nameLocked = !isComite && everApproved;
   window._profileUser = u;
+  window._profileNameLocked = nameLocked;
   setContent(`
     <div class="page-header"><div><h2>Mon profil</h2></div>
       <div class="page-actions">
         <a href="../carte.html?id=${u.id}" target="_blank" class="btn btn-ghost">🪪 Carte</a>
-        <button class="btn btn-outline" onclick="openEditProfile(window._profileUser)">✏️ Modifier</button>
+        <button class="btn btn-outline" onclick="openEditProfile(window._profileUser, window._profileNameLocked)">✏️ Modifier</button>
       </div></div>
     <div class="profile-card">
       <div class="profile-avatar-wrap">
         <div class="profile-avatar">${avatarInner}</div>
-        <label class="profile-photo-btn" for="photoFileInput" title="Changer la photo">📷</label>
-        <input type="file" id="photoFileInput" accept="image/jpeg,image/png,image/webp" style="display:none"/>
+        ${photoLocked
+          ? `<span class="profile-photo-btn" title="Carte valide — seul le comité peut modifier votre photo" style="opacity:.5;cursor:not-allowed">🔒</span>`
+          : `<label class="profile-photo-btn" for="photoFileInput" title="Changer la photo">📷</label>
+             <input type="file" id="photoFileInput" accept="image/jpeg,image/png,image/webp" style="display:none"/>`}
       </div>
+      ${photoLocked ? `<p style="font-size:.72rem;color:var(--muted);text-align:center;margin-top:6px">🔒 Carte valide — contactez le comité pour changer votre photo</p>` : ''}
       <div class="profile-info">
         <h3>${u.prenom} ${u.nom}</h3>
         <span class="role-tag">${roleName(u.role)}</span>
@@ -6442,7 +6455,8 @@ async function profile() {
     } catch(ex) { toast(ex.message,'error'); }
   };
 
-  document.getElementById('photoFileInput').onchange = async function() {
+  const photoFileInput = document.getElementById('photoFileInput');
+  if (photoFileInput) photoFileInput.onchange = async function() {
     const file = this.files[0];
     if (!file) return;
     const fd = new FormData();
@@ -6476,16 +6490,17 @@ const SMS_OPERATEURS = [
   ['eastlink','Eastlink'],
 ];
 
-function openEditProfile(u) {
+function openEditProfile(u, nameLocked) {
   const optsHtml = SMS_OPERATEURS.map(([v, l]) =>
     `<option value="${v}"${(u.operateur||'') === v ? ' selected' : ''}>${l}</option>`
   ).join('');
   openModal('Modifier mon profil', `
     <form id="editProf">
       <div class="form-row">
-        <div class="form-group"><label>Prénom</label><input id="ep_prenom" value="${u.prenom||''}"/></div>
-        <div class="form-group"><label>Nom</label><input id="ep_nom" value="${u.nom||''}"/></div>
+        <div class="form-group"><label>Prénom</label><input id="ep_prenom" value="${u.prenom||''}" ${nameLocked ? 'disabled' : ''}/></div>
+        <div class="form-group"><label>Nom</label><input id="ep_nom" value="${u.nom||''}" ${nameLocked ? 'disabled' : ''}/></div>
       </div>
+      ${nameLocked ? `<p style="font-size:.75rem;color:var(--muted);margin-top:-8px;margin-bottom:14px">🔒 Votre nom ne peut plus être modifié après l'approbation de votre photo. Contactez le comité si nécessaire.</p>` : ''}
       <div class="form-group"><label>Téléphone</label><input id="ep_tel" placeholder="514-555-1234" value="${u.telephone||''}"/></div>
       <div class="form-group"><label>Adresse</label><input id="ep_addr" value="${u.adresse||''}"/></div>
       <div class="form-group"><label>Date de naissance</label><input type="date" id="ep_dob" value="${u.date_naissance||''}"/></div>

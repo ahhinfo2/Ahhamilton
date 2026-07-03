@@ -121,6 +121,8 @@ try { db.exec('ALTER TABLE users ADD COLUMN notif_emplois INTEGER DEFAULT 1'); }
 // Carte de membre numérique
 try { db.exec('ALTER TABLE users ADD COLUMN carte_photo_approuvee INTEGER DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN carte_notif_renouv INTEGER DEFAULT 0'); } catch {}
+// Marqueur permanent : vrai dès la 1ère approbation, jamais remis à zéro ensuite
+try { db.exec('ALTER TABLE users ADD COLUMN carte_photo_deja_approuvee INTEGER DEFAULT 0'); } catch {}
 // Collaboration notes : dernier éditeur + qui édite en ce moment
 try { db.exec('ALTER TABLE meeting_notes ADD COLUMN last_editor_id INTEGER REFERENCES users(id)'); } catch {}
 try { db.exec('ALTER TABLE meeting_notes ADD COLUMN editing_by INTEGER REFERENCES users(id)'); } catch {}
