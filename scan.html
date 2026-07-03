@@ -6,7 +6,7 @@
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <title>Lecteur QR AHH</title>
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="Public/html5-qrcode.min.js"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
   :root{
@@ -412,6 +412,43 @@ async function loadActivities() {
 }
 
 // ── Scanner ───────────────────────────────────────────────────────────────────
+async function _stopScannerSafe() {
+  if (!scanner) return;
+  try {
+    if (scanner.getState && scanner.getState() === Html5QrcodeScannerState.SCANNING) {
+      await scanner.stop();
+    }
+  } catch(e) {}
+  try { scanner.clear(); } catch(e) {}
+}
+
+// Essaie chaque source caméra l'une après l'autre, en arrêtant proprement
+// le flux précédent avant de retenter (sinon la caméra peut clignoter/se couper).
+async function _tryCameraSources(config) {
+  let cameraId = null;
+  try {
+    const cams = await Html5Qrcode.getCameras();
+    if (cams && cams.length) {
+      // Préférer une caméra dont le libellé suggère l'arrière ("back"/"rear"/"environment")
+      const back = cams.find(c => /back|rear|environment/i.test(c.label || ''));
+      cameraId = (back || cams[cams.length - 1]).id;
+    }
+  } catch(e) {}
+
+  const sources = [];
+  if (cameraId) sources.push(cameraId);
+  sources.push({ facingMode: 'environment' }, { facingMode: 'user' }, null);
+
+  for (const src of sources) {
+    await _stopScannerSafe();
+    try {
+      await scanner.start(src === null ? undefined : src, config, onQRDetected, () => {});
+      return true;
+    } catch(e) { /* tenter la source suivante */ }
+  }
+  return false;
+}
+
 function startScanner() {
   scanner = new Html5Qrcode('reader');
   const config = {
@@ -422,24 +459,12 @@ function startScanner() {
     experimentalFeatures: { useBarCodeDetectorIfSupported: false }
   };
 
-  // Essai 1 : caméra arrière exacte (Android Chrome)
-  scanner.start({ facingMode: { exact: 'environment' } }, config, onQRDetected, () => {})
-    .catch(() => {
-      // Essai 2 : caméra arrière préférée (iOS Safari + Chrome)
-      scanner.start({ facingMode: 'environment' }, config, onQRDetected, () => {})
-        .catch(() => {
-          // Essai 3 : n'importe quelle caméra
-          scanner.start({ facingMode: 'user' }, config, onQRDetected, () => {})
-            .catch(() => {
-              // Essai 4 : laisser le navigateur choisir
-              scanner.start(null, config, onQRDetected, () => {})
-                .catch(err => {
-                  const tip = document.querySelector('.cam-tip');
-                  if (tip) { tip.textContent = '⚠️ Caméra inaccessible. Autorisez l\'accès dans les réglages.'; tip.style.color = '#ef5350'; }
-                });
-            });
-        });
-    });
+  _tryCameraSources(config).then(ok => {
+    if (!ok) {
+      const tip = document.querySelector('.cam-tip');
+      if (tip) { tip.textContent = '⚠️ Caméra inaccessible. Autorisez l\'accès dans les réglages.'; tip.style.color = '#ef5350'; }
+    }
+  });
 }
 
 function _scanMarkPresent(actId, userId) {
