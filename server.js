@@ -6914,9 +6914,20 @@ app.post('/api/volunteer/scan', authMiddleware, (req, res) => {
   if (act.type !== 'benevolat') return res.status(400).json({ error: 'Cette activité n\'est pas de type Bénévolat' });
   if (act.statut === 'terminee') return res.status(400).json({ error: 'Cette activité est terminée' });
 
-  const member = db.prepare('SELECT id, prenom, nom, actif FROM users WHERE id=?').get(userId);
+  const member = db.prepare('SELECT id, prenom, nom, role, actif, photo_url, carte_photo_approuvee, date_inscription FROM users WHERE id=?').get(userId);
   if (!member) return res.status(404).json({ error: 'Membre introuvable' });
   if (!member.actif) return res.status(403).json({ error: 'Compte désactivé' });
+
+  // Carte valide requise, sauf pour le comité (même règle que le scan billets/cartes)
+  if (!CARTE_ROLES.includes(member.role)) {
+    if (!member.photo_url || !member.carte_photo_approuvee) {
+      return res.status(403).json({ error: 'Carte invalide', detail: `${member.prenom} ${member.nom} n'a pas de photo approuvée — sa carte n'est pas valide.` });
+    }
+    const exp = carteExpiration(member.date_inscription);
+    if (exp && new Date() > new Date(exp)) {
+      return res.status(403).json({ error: 'Carte expirée', detail: `La carte de ${member.prenom} ${member.nom} est expirée depuis le ${exp}.` });
+    }
+  }
 
   const open = db.prepare("SELECT * FROM volunteer_hours WHERE user_id=? AND activity_id=? AND statut='en_cours' AND checkout_at IS NULL").get(userId, activity_id);
 
