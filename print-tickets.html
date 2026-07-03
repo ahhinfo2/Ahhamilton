@@ -93,24 +93,27 @@
     .grid-small{gap:6px}
     .grid-stub{gap:14px}
   }
+  .emoji-icon{display:inline-block;width:1.15em;height:1.15em;vertical-align:-0.2em;color:inherit}
+  .emoji-icon.i-warn{color:#f57f17}
 </style>
 </head>
 <body>
 <div class="controls">
-  <h2 id="pageTitle">⏳ Chargement des billets...</h2>
+  <h2 id="pageTitle"><svg class="emoji-icon"><use href="/icons.svg#hourglass"/></svg> Chargement des billets...</h2>
   <span class="count" id="pageCount"></span>
   <div style="display:flex;gap:6px;align-items:center">
     <span style="font-size:.78rem;color:#666">Format :</span>
-    <button class="btn btn-active" id="btnStub"   onclick="setFormat('stub')"   style="padding:6px 12px">🎫 Avec talon</button>
-    <button class="btn btn-outline" id="btnNormal" onclick="setFormat('normal')" style="padding:6px 12px">📄 Standard</button>
-    <button class="btn btn-outline" id="btnSmall"  onclick="setFormat('small')"  style="padding:6px 12px">🗂 Petit (4/page)</button>
+    <button class="btn btn-active" id="btnStub"   onclick="setFormat('stub')"   style="padding:6px 12px"><svg class="emoji-icon"><use href="/icons.svg#ticket"/></svg> Avec talon</button>
+    <button class="btn btn-outline" id="btnNormal" onclick="setFormat('normal')" style="padding:6px 12px"><svg class="emoji-icon"><use href="/icons.svg#document"/></svg> Standard</button>
+    <button class="btn btn-outline" id="btnSmall"  onclick="setFormat('small')"  style="padding:6px 12px"><svg class="emoji-icon"><use href="/icons.svg#folder"/></svg> Petit (4/page)</button>
   </div>
-  <button class="btn btn-print" onclick="window.print()">🖨️ Imprimer</button>
+  <button class="btn btn-print" onclick="window.print()"><svg class="emoji-icon"><use href="/icons.svg#printer"/></svg> Imprimer</button>
   <a href="javascript:history.back()" class="btn btn-back">← Retour</a>
 </div>
 <div id="ticketsGrid"></div>
 
 <script>
+function ic(name, cls) { return '<svg class="emoji-icon' + (cls ? ' ' + cls : '') + '"><use href="/icons.svg#' + name + '"></use></svg>'; }
 const API = location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? 'http://localhost:3001/api' : '/api';
 const BASE = location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? 'http://localhost:3001' : '';
 const token = localStorage.getItem('ahh_token');
@@ -171,8 +174,8 @@ function renderTicket(t, fmt) {
         </div>
         <div class="ticket-body">
           <div class="ticket-title">${s(t.activite)}</div>
-          <div class="ticket-meta">${dateStr ? '📅 ' + dateStr : ''}${t.lieu ? ' · 📍 ' + t.lieu : ''}</div>
-          <div class="ticket-buyer">👤 ${s(t.acheteur_nom||'Anonyme')}${t.type_nom ? ' · ' + s(t.type_nom) : ''}</div>
+          <div class="ticket-meta">${dateStr ? ic('calendar') + ' ' + dateStr : ''}${t.lieu ? ' · ' + ic('pin') + ' ' + t.lieu : ''}</div>
+          <div class="ticket-buyer">${ic('user')} ${s(t.acheteur_nom||'Anonyme')}${t.type_nom ? ' · ' + s(t.type_nom) : ''}</div>
         </div>
         <div class="ticket-codes">
           <div class="ticket-codes-lbl">Scannez à l'entrée</div>
@@ -182,7 +185,7 @@ function renderTicket(t, fmt) {
             <div class="ticket-bc-val">${s(t.barcode_data||'')}</div>
           </div>
         </div>
-        <div class="ticket-footer">⚠️ Billet personnel · non transférable · valide une seule fois</div>
+        <div class="ticket-footer">${ic('warning','i-warn')} Billet personnel · non transférable · valide une seule fois</div>
       </div>
 
       <!-- Séparateur pointillé -->
@@ -190,7 +193,7 @@ function renderTicket(t, fmt) {
 
       <!-- TALON (reste chez le vendeur) -->
       <div class="ticket-stub-part">
-        <div class="stub-label">✂ Talon vendeur</div>
+        <div class="stub-label">${ic('scissors')} Talon vendeur</div>
         <div class="stub-activite">${s(t.activite)}</div>
         <div class="stub-code">${s(t.barcode_data||'')}</div>
         <div class="stub-prix">$${(t.prix||0).toFixed(2)} · Cash</div>
@@ -208,7 +211,7 @@ function renderTicket(t, fmt) {
       <div class="ts-body">
         <div class="ts-title">${s(t.activite||'')}</div>
         <div class="ts-meta">${dateStr}${t.lieu ? ' · ' + t.lieu : ''}</div>
-        <div class="ts-buyer">👤 ${s(t.acheteur_nom||'Anonyme')}</div>
+        <div class="ts-buyer">${ic('user')} ${s(t.acheteur_nom||'Anonyme')}</div>
         ${t.type_nom ? `<div class="ts-meta" style="margin-top:2px">${s(t.type_nom)}</div>` : ''}
       </div>
       <div class="ts-codes">
@@ -216,7 +219,7 @@ function renderTicket(t, fmt) {
         <div class="ts-bc"><img src="${bcSrc}" alt="Barcode" onerror="this.style.display='none'"/></div>
         <div class="ts-bc-val">${s(t.barcode_data||'')}</div>
       </div>
-      <div class="ts-footer">⚠️ Personnel · valide 1 fois</div>
+      <div class="ts-footer">${ic('warning','i-warn')} Personnel · valide 1 fois</div>
     </div>`;
 
   return `
@@ -224,15 +227,15 @@ function renderTicket(t, fmt) {
       <div class="ticket-hdr"><img src="/Public/logo1.png" alt="AHH"/><div class="ticket-hdr-txt"><strong>Association Haïtienne de Hamilton</strong><span>Billet d'entrée officiel</span></div></div>
       <div class="ticket-body">
         <div class="ticket-title">${s(t.activite||'')}</div>
-        <div class="ticket-meta">${dateStr ? '📅 ' + dateStr : ''}${t.lieu ? ' · 📍 ' + t.lieu : ''}</div>
-        <div class="ticket-buyer">👤 ${s(t.acheteur_nom||'Anonyme')}${t.type_nom ? ' · ' + s(t.type_nom) : ''}</div>
+        <div class="ticket-meta">${dateStr ? ic('calendar') + ' ' + dateStr : ''}${t.lieu ? ' · ' + ic('pin') + ' ' + t.lieu : ''}</div>
+        <div class="ticket-buyer">${ic('user')} ${s(t.acheteur_nom||'Anonyme')}${t.type_nom ? ' · ' + s(t.type_nom) : ''}</div>
       </div>
       <div class="ticket-codes">
         <div class="ticket-codes-lbl">Scannez à l'entrée</div>
         <div class="ticket-qr"><img src="${qrSrc}" alt="QR" onerror="this.style.display='none'"/></div>
         <div class="ticket-bc"><img src="${bcSrc}" alt="Barcode" onerror="this.style.display='none'"/><div class="ticket-bc-val">${s(t.barcode_data||'')}</div></div>
       </div>
-      <div class="ticket-footer">⚠️ Billet personnel et non transférable · valide une seule fois</div>
+      <div class="ticket-footer">${ic('warning','i-warn')} Billet personnel et non transférable · valide une seule fois</div>
     </div>`;
 }
 

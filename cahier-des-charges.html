@@ -113,6 +113,12 @@
         -webkit-print-color-adjust: exact; print-color-adjust: exact;
       }
     }
+    .emoji-icon{display:inline-block;width:1.15em;height:1.15em;vertical-align:-0.2em;color:inherit}
+    .emoji-icon.i-success{color:#2e7d32}
+    .emoji-icon.i-danger{color:#c62828}
+    .emoji-icon.i-warn{color:#f57f17}
+    .emoji-icon.i-gold{color:#f9a825}
+    .emoji-icon.i-blue{color:#1565c0}
   </style>
 </head>
 <body>
@@ -136,7 +142,7 @@
 <!-- ══════════════════════════════════════════════════════════ TABLE DES MATIÈRES -->
 <div class="section">
   <div class="toc">
-    <h2>📑 Table des matières</h2>
+    <h2><svg class="emoji-icon"><use href="/icons.svg#clipboard"/></svg> Table des matières</h2>
     <ol>
       <li><span>Présentation et contexte</span></li>
       <li><span>Objectifs de la plateforme</span></li>
@@ -204,11 +210,11 @@
   <h2 class="sub-title">Critères de succès</h2>
   <div class="feature-grid">
     <div class="feature-card">
-      <div class="fc-header"><div class="fc-icon">👥</div><div class="fc-title">Adoption des membres</div></div>
+      <div class="fc-header"><div class="fc-icon"><svg class="emoji-icon"><use href="/icons.svg#users"/></svg></div><div class="fc-title">Adoption des membres</div></div>
       <p>≥ 80 % des membres actifs utilisent la plateforme pour consulter les activités et gérer leur profil.</p>
     </div>
     <div class="feature-card">
-      <div class="fc-header"><div class="fc-icon">💳</div><div class="fc-title">Billetterie en ligne</div></div>
+      <div class="fc-header"><div class="fc-icon"><svg class="emoji-icon"><use href="/icons.svg#card"/></svg></div><div class="fc-title">Billetterie en ligne</div></div>
       <p>≥ 50 % des billets d'activités vendus via la plateforme d'ici 12 mois.</p>
     </div>
     <div class="feature-card">
@@ -216,7 +222,7 @@
       <p>Réduction de 60 % du temps consacré aux tâches administratives manuelles.</p>
     </div>
     <div class="feature-card">
-      <div class="fc-header"><div class="fc-icon">💰</div><div class="fc-title">Transparence financière</div></div>
+      <div class="fc-header"><div class="fc-icon"><svg class="emoji-icon"><use href="/icons.svg#money"/></svg></div><div class="fc-title">Transparence financière</div></div>
       <p>Toutes les transactions enregistrées et accessibles à la trésorière en temps réel.</p>
     </div>
   </div>
@@ -243,14 +249,14 @@
   <h2 class="sub-title">Rôles et permissions</h2>
   <table>
     <tr><th>Fonctionnalité</th><th>Admin</th><th>Secrétaire</th><th>Trésorière</th><th>Délégué</th><th>Membre</th><th>Public</th></tr>
-    <tr><td>Tableau de bord</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>—</td></tr>
-    <tr><td>Gestion membres</td><td>✅</td><td>✅</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
-    <tr><td>Activités</td><td>✅</td><td>✅</td><td>—</td><td>✅</td><td>Voir</td><td>Voir</td></tr>
-    <tr><td>Billetterie (vendre)</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>Acheter</td><td>Acheter</td></tr>
-    <tr><td>Lecteur QR</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>—</td><td>—</td></tr>
-    <tr><td>Finance</td><td>✅</td><td>—</td><td>✅</td><td>—</td><td>—</td><td>—</td></tr>
-    <tr><td>Courriels internes</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>—</td></tr>
-    <tr><td>Galerie / Contenu</td><td>✅</td><td>✅</td><td>—</td><td>—</td><td>Voir</td><td>Voir</td></tr>
+    <tr><td>Tableau de bord</td><td><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg></td><td><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg></td><td><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg></td><td><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg></td><td><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg></td><td>—</td></tr>
+    <tr><td>Gestion membres</td><td><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg></td><td><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg></td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+    <tr><td>Activités</td><td><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg></td><td><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg></td><td>—</td><td><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg></td><td>Voir</td><td>Voir</td></tr>
+    <tr><td>Billetterie (vendre)</td><td><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg></td><td><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg></td><td><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg></td><td><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg></td><td>Acheter</td><td>Acheter</td></tr>
+    <tr><td>Lecteur QR</td><td><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg></td><td><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg></td><td><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg></td><td><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg></td><td>—</td><td>—</td></tr>
+    <tr><td>Finance</td><td><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg></td><td>—</td><td><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg></td><td>—</td><td>—</td><td>—</td></tr>
+    <tr><td>Courriels internes</td><td><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg></td><td><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg></td><td><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg></td><td><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg></td><td><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg></td><td>—</td></tr>
+    <tr><td>Galerie / Contenu</td><td><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg></td><td><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg></td><td>—</td><td>—</td><td>Voir</td><td>Voir</td></tr>
   </table>
 
   <div class="info-box">
@@ -264,7 +270,7 @@
 
   <div class="feature-grid">
     <div class="feature-card">
-      <div class="fc-header"><div class="fc-icon">👥</div><div class="fc-title">Gestion des membres</div></div>
+      <div class="fc-header"><div class="fc-icon"><svg class="emoji-icon"><use href="/icons.svg#users"/></svg></div><div class="fc-title">Gestion des membres</div></div>
       <ul>
         <li>Annuaire complet avec photo</li>
         <li>Plans : gratuit, bienfaiteur, partenaire</li>
@@ -274,17 +280,17 @@
       </ul>
     </div>
     <div class="feature-card">
-      <div class="fc-header"><div class="fc-icon">🎉</div><div class="fc-title">Activités et événements</div></div>
+      <div class="fc-header"><div class="fc-icon"><svg class="emoji-icon"><use href="/icons.svg#confetti"/></svg></div><div class="fc-title">Activités et événements</div></div>
       <ul>
         <li>Calendrier avec statuts (planifié, en cours, terminé, archivé)</li>
         <li>Inscriptions en ligne des membres</li>
-        <li>Gestion des présences en direct (📍)</li>
+        <li>Gestion des présences en direct (<svg class="emoji-icon"><use href="/icons.svg#pin"/></svg>)</li>
         <li>Rapport d'activité complet</li>
         <li>QR code d'invitation (PNG haute résolution)</li>
       </ul>
     </div>
     <div class="feature-card">
-      <div class="fc-header"><div class="fc-icon">🎟</div><div class="fc-title">Billetterie en ligne</div></div>
+      <div class="fc-header"><div class="fc-icon"><svg class="emoji-icon"><use href="/icons.svg#ticket"/></svg></div><div class="fc-title">Billetterie en ligne</div></div>
       <ul>
         <li>Types de billets multiples (Adulte, Enfant, VIP…)</li>
         <li>Vente publique sans compte requis</li>
@@ -294,7 +300,7 @@
       </ul>
     </div>
     <div class="feature-card">
-      <div class="fc-header"><div class="fc-icon">💰</div><div class="fc-title">Finance</div></div>
+      <div class="fc-header"><div class="fc-icon"><svg class="emoji-icon"><use href="/icons.svg#money"/></svg></div><div class="fc-title">Finance</div></div>
       <ul>
         <li>Lignes budgétaires par activité/projet</li>
         <li>Suivi dépenses, revenus, commanditaires</li>
@@ -304,7 +310,7 @@
       </ul>
     </div>
     <div class="feature-card">
-      <div class="fc-header"><div class="fc-icon">✉️</div><div class="fc-title">Communication</div></div>
+      <div class="fc-header"><div class="fc-icon"><svg class="emoji-icon"><use href="/icons.svg#mail"/></svg></div><div class="fc-title">Communication</div></div>
       <ul>
         <li>Messagerie interne entre membres</li>
         <li>Notifications et alertes en temps réel</li>
@@ -314,7 +320,7 @@
       </ul>
     </div>
     <div class="feature-card">
-      <div class="fc-header"><div class="fc-icon">🖼</div><div class="fc-title">Galerie et contenu</div></div>
+      <div class="fc-header"><div class="fc-icon"><svg class="emoji-icon"><use href="/icons.svg#picture"/></svg></div><div class="fc-title">Galerie et contenu</div></div>
       <ul>
         <li>Galerie photo par activité/album</li>
         <li>Lightbox avec navigation précédent/suivant</li>
@@ -324,7 +330,7 @@
       </ul>
     </div>
     <div class="feature-card">
-      <div class="fc-header"><div class="fc-icon">🤝</div><div class="fc-title">Bénévolat</div></div>
+      <div class="fc-header"><div class="fc-icon"><svg class="emoji-icon"><use href="/icons.svg#handshake"/></svg></div><div class="fc-title">Bénévolat</div></div>
       <ul>
         <li>Enregistrement des heures par membre</li>
         <li>Approbation par le comité</li>
@@ -333,7 +339,7 @@
       </ul>
     </div>
     <div class="feature-card">
-      <div class="fc-header"><div class="fc-icon">📊</div><div class="fc-title">Rapports et lettres</div></div>
+      <div class="fc-header"><div class="fc-icon"><svg class="emoji-icon"><use href="/icons.svg#chart"/></svg></div><div class="fc-title">Rapports et lettres</div></div>
       <ul>
         <li>Rapports de bénévolat par membre/période</li>
         <li>Rapports financiers exportables</li>
@@ -384,11 +390,11 @@
   <h2 class="sub-title">Types de billets configurables</h2>
   <table>
     <tr><th>Type</th><th>Prix exemple</th><th>Capacité</th><th>Description</th></tr>
-    <tr><td>🧑 Adulte</td><td>$40.00</td><td>200 places</td><td>13 ans et plus</td></tr>
-    <tr><td>👶 Enfant</td><td>$15.00</td><td>100 places</td><td>4 à 12 ans</td></tr>
-    <tr><td>⭐ VIP</td><td>$75.00</td><td>20 places</td><td>Accès prioritaire + repas inclus</td></tr>
-    <tr><td>🎓 Étudiant</td><td>$25.00</td><td>50 places</td><td>Sur présentation d'une carte</td></tr>
-    <tr><td>🎁 Gratuit</td><td>$0.00</td><td>Illimité</td><td>Invités spéciaux / bénévoles</td></tr>
+    <tr><td><svg class="emoji-icon"><use href="/icons.svg#user"/></svg> Adulte</td><td>$40.00</td><td>200 places</td><td>13 ans et plus</td></tr>
+    <tr><td><svg class="emoji-icon"><use href="/icons.svg#user"/></svg> Enfant</td><td>$15.00</td><td>100 places</td><td>4 à 12 ans</td></tr>
+    <tr><td><svg class="emoji-icon i-gold"><use href="/icons.svg#star"/></svg> VIP</td><td>$75.00</td><td>20 places</td><td>Accès prioritaire + repas inclus</td></tr>
+    <tr><td><svg class="emoji-icon"><use href="/icons.svg#graduation"/></svg> Étudiant</td><td>$25.00</td><td>50 places</td><td>Sur présentation d'une carte</td></tr>
+    <tr><td><svg class="emoji-icon"><use href="/icons.svg#gift"/></svg> Gratuit</td><td>$0.00</td><td>Illimité</td><td>Invités spéciaux / bénévoles</td></tr>
   </table>
 
   <div class="info-box">
@@ -418,7 +424,7 @@
     1. La validité du code (token unique en base de données)<br/>
     2. Si le billet n'a pas déjà été scanné (checked_in = 0)<br/>
     3. Le statut du paiement (actif/en attente)<br/>
-    Si une fraude est détectée, le lecteur QR affiche « ❌ Billet déjà utilisé » et n'accorde pas l'entrée.
+    Si une fraude est détectée, le lecteur QR affiche « <svg class="emoji-icon i-danger"><use href="/icons.svg#cross"/></svg> Billet déjà utilisé » et n'accorde pas l'entrée.
   </div>
 </div>
 
@@ -513,25 +519,25 @@
       <td><strong>Phase 1</strong><br/>Fondation</td>
       <td>Oct 2025 – Jan 2026</td>
       <td>Membres, authentification, activités, messagerie, galerie, paiements de base</td>
-      <td><span class="badge badge-green">✅ Complété</span></td>
+      <td><span class="badge badge-green"><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg> Complété</span></td>
     </tr>
     <tr>
       <td><strong>Phase 2</strong><br/>Finance & Billets</td>
       <td>Fév 2026 – Mai 2026</td>
       <td>Lignes financières, factures, billets QR, scan entrée, types de billets, vente publique, Stripe</td>
-      <td><span class="badge badge-green">✅ Complété</span></td>
+      <td><span class="badge badge-green"><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg> Complété</span></td>
     </tr>
     <tr>
       <td><strong>Phase 3</strong><br/>Automatisation</td>
       <td>Juin 2026 – Sep 2026</td>
       <td>Cotisations automatiques, PWA mobile, sondages, calendrier public</td>
-      <td><span class="badge badge-blue">🔵 Planifié</span></td>
+      <td><span class="badge badge-blue"><svg class="emoji-icon i-blue"><use href="/icons.svg#dot"/></svg> Planifié</span></td>
     </tr>
     <tr>
       <td><strong>Phase 4</strong><br/>Enrichissement</td>
       <td>Oct 2026 – Déc 2026</td>
       <td>Plan de table interactif, Google Calendar, statistiques avancées</td>
-      <td><span class="badge badge-orange">🟡 À confirmer</span></td>
+      <td><span class="badge badge-orange"><svg class="emoji-icon i-gold"><use href="/icons.svg#dot"/></svg> À confirmer</span></td>
     </tr>
   </table>
 
@@ -577,11 +583,11 @@
 
   <h2 class="sub-title">Points à approuver</h2>
   <ul>
-    <li>☐ &nbsp;Adoption officielle de la plateforme numérique comme outil principal de gestion</li>
-    <li>☐ &nbsp;Validation du budget d'infrastructure mensuel (~$15 CAD/mois)</li>
-    <li>☐ &nbsp;Priorisation des modules de la Phase 3 (cotisations automatiques, PWA mobile)</li>
-    <li>☐ &nbsp;Désignation d'un responsable technique au sein du comité</li>
-    <li>☐ &nbsp;Politique de gestion des données personnelles des membres (conformité LPRPDE)</li>
+    <li><svg class="emoji-icon"><use href="/icons.svg#checkbox"/></svg> &nbsp;Adoption officielle de la plateforme numérique comme outil principal de gestion</li>
+    <li><svg class="emoji-icon"><use href="/icons.svg#checkbox"/></svg> &nbsp;Validation du budget d'infrastructure mensuel (~$15 CAD/mois)</li>
+    <li><svg class="emoji-icon"><use href="/icons.svg#checkbox"/></svg> &nbsp;Priorisation des modules de la Phase 3 (cotisations automatiques, PWA mobile)</li>
+    <li><svg class="emoji-icon"><use href="/icons.svg#checkbox"/></svg> &nbsp;Désignation d'un responsable technique au sein du comité</li>
+    <li><svg class="emoji-icon"><use href="/icons.svg#checkbox"/></svg> &nbsp;Politique de gestion des données personnelles des membres (conformité LPRPDE)</li>
   </ul>
 
   <div class="signature-block">

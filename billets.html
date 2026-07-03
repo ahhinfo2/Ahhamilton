@@ -56,6 +56,10 @@
     .success-icon{font-size:3rem;text-align:center;margin-bottom:10px}
     .no-types{text-align:center;padding:30px;color:var(--muted)}
     #loadWrap{text-align:center;color:#fff;padding:60px;font-size:1.1rem}
+    .emoji-icon{display:inline-block;width:1.15em;height:1.15em;vertical-align:-0.2em;color:inherit}
+    .emoji-icon.i-success{color:#2e7d32}
+    .emoji-icon.i-danger{color:#c62828}
+    .emoji-icon.i-warn{color:#f57f17}
   </style>
 </head>
 <body>
@@ -106,12 +110,12 @@
       <div class="section-label">3. Mode de paiement</div>
       <div class="pay-method">
         <div class="pay-opt selected" id="optInterac" onclick="selectPay('interac')">
-          <div class="icon">🏦</div>
+          <div class="icon"><svg class="emoji-icon"><use href="/icons.svg#bank"/></svg></div>
           <div class="label">Interac</div>
           <div class="sub">Virement bancaire</div>
         </div>
         <div class="pay-opt" id="optStripe" onclick="selectPay('stripe')">
-          <div class="icon">💳</div>
+          <div class="icon"><svg class="emoji-icon"><use href="/icons.svg#card"/></svg></div>
           <div class="label">Carte</div>
           <div class="sub">Visa / Mastercard</div>
         </div>
@@ -128,11 +132,11 @@
 
     <!-- Confirmation Interac -->
     <div class="card" id="stepInterac" style="display:none">
-      <div class="success-icon">✅</div>
+      <div class="success-icon"><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg></div>
       <h2 style="color:var(--g2);font-size:1.1rem;margin-bottom:10px">Réservation confirmée !</h2>
       <p style="font-size:.85rem;color:var(--muted);margin-bottom:18px">Vos billets sont réservés. Complétez le paiement par Interac pour recevoir vos codes QR par courriel.</p>
       <div class="interac-box">
-        <h3>💳 Instructions Interac</h3>
+        <h3><svg class="emoji-icon"><use href="/icons.svg#card"/></svg> Instructions Interac</h3>
         <ol>
           <li>Ouvrez votre application bancaire</li>
           <li>Envoyez <strong id="intMontant"></strong> à <strong id="intEmail"></strong></li>
@@ -146,6 +150,7 @@
 </div>
 
 <script>
+  function ic(name, cls) { return '<svg class="emoji-icon' + (cls ? ' ' + cls : '') + '"><use href="/icons.svg#' + name + '"></use></svg>'; }
   const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001/api' : '/api';
   const params = new URLSearchParams(location.search);
   const actId = params.get('id');
@@ -169,8 +174,8 @@
       document.getElementById('stepPay').style.display = 'none';
       document.getElementById('actTitle').textContent = 'Paiement confirmé !';
       document.getElementById('actMeta').innerHTML =
-        '✅ Votre paiement par carte a été accepté.<br/><br/>' +
-        '⏳ Activation de votre billet en cours...';
+        ic('check','i-success') + ' Votre paiement par carte a été accepté.<br/><br/>' +
+        ic('hourglass') + ' Activation de votre billet en cours...';
 
       // Activer les billets et afficher le QR directement sur la page
       try {
@@ -190,16 +195,16 @@
           }
         }
         document.getElementById('actMeta').innerHTML =
-          '✅ <strong>Paiement confirmé !</strong><br/><br/>' +
+          ic('check','i-success') + ' <strong>Paiement confirmé !</strong><br/><br/>' +
           (qrHtml || '') +
-          '<p style="font-size:.85rem">📧 Un courriel avec votre QR a également été envoyé à <strong>' + (d.email || '') + '</strong>.</p>' +
-          '<p style="font-size:.82rem;color:#c62828">⚠️ <strong>Conservez ce code QR</strong>. Vous devrez le présenter à l\'entrée.</p>' +
-          '<button onclick="window.print()" style="margin-top:12px;padding:10px 20px;background:#1b5e20;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:.9rem">🖨️ Imprimer / Sauvegarder</button>';
+          '<p style="font-size:.85rem">' + ic('mail') + ' Un courriel avec votre QR a également été envoyé à <strong>' + (d.email || '') + '</strong>.</p>' +
+          '<p style="font-size:.82rem;color:#c62828">' + ic('warning','i-danger') + ' <strong>Conservez ce code QR</strong>. Vous devrez le présenter à l\'entrée.</p>' +
+          '<button onclick="window.print()" style="margin-top:12px;padding:10px 20px;background:#1b5e20;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:.9rem">' + ic('printer') + ' Imprimer / Sauvegarder</button>';
       } catch(e) {
         document.getElementById('actMeta').innerHTML =
-          '✅ Votre paiement a été accepté.<br/><br/>' +
-          '📧 <strong>Vérifiez votre courriel</strong> pour votre code QR d\'entrée.<br/><br/>' +
-          '⚠️ <strong>Conservez votre code QR.</strong>';
+          ic('check','i-success') + ' Votre paiement a été accepté.<br/><br/>' +
+          ic('mail') + ' <strong>Vérifiez votre courriel</strong> pour votre code QR d\'entrée.<br/><br/>' +
+          ic('warning','i-warn') + ' <strong>Conservez votre code QR.</strong>';
       }
       return;
     }
@@ -226,8 +231,8 @@
     document.getElementById('actTitle').textContent = act.titre;
     const d = act.date_debut ? new Date(act.date_debut).toLocaleDateString('fr-CA', { weekday:'long', year:'numeric', month:'long', day:'numeric' }) : '';
     document.getElementById('actMeta').innerHTML =
-      (d ? '📅 ' + d + '<br/>' : '') +
-      (act.lieu ? '📍 ' + act.lieu : '');
+      (d ? ic('calendar') + ' ' + d + '<br/>' : '') +
+      (act.lieu ? ic('pin') + ' ' + act.lieu : '');
 
     if (!act.ticket_types || !act.ticket_types.length) {
       document.getElementById('ticketTypes').innerHTML = '<div class="no-types">Aucun billet disponible pour cette activité.</div>';
@@ -253,7 +258,7 @@
             <div class="tt-nom">${tt.nom}</div>
             ${tt.description ? `<div class="tt-desc">${tt.description}</div>` : ''}
             <div class="tt-prix">${tt.prix > 0 ? fmt(tt.prix) : 'Gratuit'}</div>
-            ${dispo !== null ? `<div class="tt-dispo">${sold_out ? '⛔ Épuisé' : dispo + ' place' + (dispo > 1 ? 's' : '') + ' disponible' + (dispo > 1 ? 's' : '')}</div>` : ''}
+            ${dispo !== null ? `<div class="tt-dispo">${sold_out ? ic('blocked','i-danger') + ' Épuisé' : dispo + ' place' + (dispo > 1 ? 's' : '') + ' disponible' + (dispo > 1 ? 's' : '')}</div>` : ''}
           </div>
           ${sold_out ? '' : `
           <div class="qty-ctrl">
@@ -288,7 +293,7 @@
     } else {
       document.getElementById('optInterac').style.display = 'block';
       document.getElementById('optStripe').style.display = 'block';
-      btn.textContent = payMethod === 'stripe' ? '💳 Payer par carte →' : '🏦 Réserver et payer par Interac →';
+      btn.innerHTML = payMethod === 'stripe' ? ic('card') + ' Payer par carte →' : ic('bank') + ' Réserver et payer par Interac →';
     }
   }
 
@@ -356,7 +361,7 @@
         document.getElementById('intRef').textContent = d.interac.reference;
       } else {
         document.getElementById('stepInterac').innerHTML =
-          '<div class="success-icon">✅</div>' +
+          '<div class="success-icon">' + ic('check','i-success') + '</div>' +
           '<h2 style="color:var(--g2)">Billets réservés !</h2>' +
           '<p style="font-size:.85rem;color:var(--muted);margin-top:10px">Vos codes QR ont été envoyés à <strong>' + email + '</strong>.</p>';
       }

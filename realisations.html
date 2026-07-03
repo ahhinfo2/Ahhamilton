@@ -99,15 +99,16 @@
   } catch(e) {}
 
   // Timeline statique (le comite peut la modifier via le dashboard plus tard)
+  function _ic(name) { return '<svg class="emoji-icon"><use href="/icons.svg#' + name + '"></use></svg>'; }
   var events = [
-    { year:'2024', icon:'🌱', title:'Fondation de l\'AHH', desc:'Création officielle de l\'Association Haïtienne de Hamilton par un groupe de citoyens engagés de la communauté haïtienne.' },
-    { year:'2024', icon:'🤝', title:'Premiers membres', desc:'Recrutement des premiers membres fondateurs et mise en place du comité exécutif (président, secrétaire, trésorière, délégués).' },
-    { year:'2025', icon:'🎉', title:'Premiers événements communautaires', desc:'Organisation des premières activités culturelles et sociales pour rassembler la communauté haïtienne de Hamilton.' },
-    { year:'2025', icon:'💻', title:'Lancement de la plateforme numérique', desc:'Mise en ligne du site web ahhamilton.ca avec tableau de bord, billetterie, carte de membre numérique et outils de gestion.' },
-    { year:'2025', icon:'🪪', title:'Cartes de membre numériques', desc:'Déploiement des cartes de membre avec QR code, validation par photo et scanner unifié pour les événements.' },
-    { year:'2026', icon:'💼', title:'Portail emplois et stages', desc:'Intégration automatique des offres d\'emploi à Hamilton via Adzuna, avec approbation par le comité avant publication.' },
-    { year:'2026', icon:'📱', title:'Application mobile PWA', desc:'Lancement de l\'application mobile progressive (PWA) permettant l\'accès hors ligne, les notifications et le scanner depuis le téléphone.' },
-    { year:'2026', icon:'🌍', title:'Croissance communautaire', desc:'L\'AHH atteint 50+ membres actifs et organise régulièrement des événements culturels, des ateliers et des activités de réseautage.' },
+    { year:'2024', icon:_ic('seedling'), title:'Fondation de l\'AHH', desc:'Création officielle de l\'Association Haïtienne de Hamilton par un groupe de citoyens engagés de la communauté haïtienne.' },
+    { year:'2024', icon:_ic('handshake'), title:'Premiers membres', desc:'Recrutement des premiers membres fondateurs et mise en place du comité exécutif (président, secrétaire, trésorière, délégués).' },
+    { year:'2025', icon:_ic('confetti'), title:'Premiers événements communautaires', desc:'Organisation des premières activités culturelles et sociales pour rassembler la communauté haïtienne de Hamilton.' },
+    { year:'2025', icon:_ic('laptop'), title:'Lancement de la plateforme numérique', desc:'Mise en ligne du site web ahhamilton.ca avec tableau de bord, billetterie, carte de membre numérique et outils de gestion.' },
+    { year:'2025', icon:_ic('id-card'), title:'Cartes de membre numériques', desc:'Déploiement des cartes de membre avec QR code, validation par photo et scanner unifié pour les événements.' },
+    { year:'2026', icon:_ic('briefcase'), title:'Portail emplois et stages', desc:'Intégration automatique des offres d\'emploi à Hamilton via Adzuna, avec approbation par le comité avant publication.' },
+    { year:'2026', icon:_ic('laptop'), title:'Application mobile PWA', desc:'Lancement de l\'application mobile progressive (PWA) permettant l\'accès hors ligne, les notifications et le scanner depuis le téléphone.' },
+    { year:'2026', icon:_ic('globe'), title:'Croissance communautaire', desc:'L\'AHH atteint 50+ membres actifs et organise régulièrement des événements culturels, des ateliers et des activités de réseautage.' },
   ];
 
   var html = events.map(function(e) {

@@ -42,6 +42,10 @@
     .actions{display:none}
     .ticket{box-shadow:none;border:1px solid #ccc}
   }
+  .emoji-icon{display:inline-block;width:1.15em;height:1.15em;vertical-align:-0.2em;color:inherit}
+  .emoji-icon.i-success{color:#2e7d32}
+  .emoji-icon.i-danger{color:#c62828}
+  .emoji-icon.i-warn{color:#f57f17}
 </style>
 </head>
 <body>
@@ -69,15 +73,16 @@
         <div class="ticket-barcode-val" id="tBarcodeVal"></div>
       </div>
     </div>
-    <div class="ticket-footer">⚠️ Billet personnel · non transférable · valide une seule fois</div>
+    <div class="ticket-footer"><svg class="emoji-icon i-warn"><use href="/icons.svg#warning"/></svg> Billet personnel · non transférable · valide une seule fois</div>
   </div>
   <div class="actions">
-    <button class="btn btn-print" onclick="window.print()">🖨️ Imprimer</button>
-    <button class="btn btn-close" onclick="window.close()">✕ Fermer</button>
+    <button class="btn btn-print" onclick="window.print()"><svg class="emoji-icon"><use href="/icons.svg#printer"/></svg> Imprimer</button>
+    <button class="btn btn-close" onclick="window.close()"><svg class="emoji-icon"><use href="/icons.svg#cross"/></svg> Fermer</button>
   </div>
 </div>
 
 <script>
+function ic(name, cls) { return '<svg class="emoji-icon' + (cls ? ' ' + cls : '') + '"><use href="/icons.svg#' + name + '"></use></svg>'; }
 const API = location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? 'http://localhost:3001/api' : '/api';
 const BASE = location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? 'http://localhost:3001' : '';
 const params = new URLSearchParams(location.search);
@@ -93,10 +98,10 @@ async function load() {
 
     document.getElementById('tActivite').textContent = t.activite || '';
     const meta = [];
-    if (t.date_debut) meta.push('📅 ' + new Date(t.date_debut).toLocaleDateString('fr-CA', { dateStyle: 'long' }));
-    if (t.lieu) meta.push('📍 ' + t.lieu);
+    if (t.date_debut) meta.push(ic('calendar') + ' ' + new Date(t.date_debut).toLocaleDateString('fr-CA', { dateStyle: 'long' }));
+    if (t.lieu) meta.push(ic('pin') + ' ' + t.lieu);
     document.getElementById('tMeta').innerHTML = meta.map(m => `<div>${m}</div>`).join('');
-    document.getElementById('tBuyer').innerHTML = '👤 <strong>' + (t.acheteur_nom || 'Anonyme') + '</strong>' +
+    document.getElementById('tBuyer').innerHTML = ic('user') + ' <strong>' + (t.acheteur_nom || 'Anonyme') + '</strong>' +
       (t.acheteur_email ? '<br/><span style="font-size:.78rem;color:#777">' + t.acheteur_email + '</span>' : '');
     document.getElementById('tBadge').innerHTML = t.type_nom ? '<span class="badge">' + t.type_nom + '</span>' : '';
 
@@ -118,7 +123,7 @@ async function load() {
     document.getElementById('ticketWrap').style.alignItems = 'center';
     document.getElementById('ticketWrap').style.gap = '16px';
   } catch(e) {
-    document.getElementById('loadMsg').textContent = '❌ ' + e.message;
+    document.getElementById('loadMsg').innerHTML = ic('cross','i-danger') + ' ' + e.message;
   }
 }
 load();

@@ -3,26 +3,30 @@
 <title>Purge Cache</title>
 <style>body{font-family:sans-serif;background:#111;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;text-align:center}
 .box{padding:30px}.btn{background:#2e7d32;color:#fff;border:none;padding:16px 40px;border-radius:12px;font-size:1.1rem;font-weight:700;cursor:pointer;margin:10px}
-.btn:active{background:#1b5e20}.ok{color:#66bb6a;font-size:1.2rem;margin-top:16px}</style>
+.btn:active{background:#1b5e20}.ok{color:#66bb6a;font-size:1.2rem;margin-top:16px}
+.emoji-icon{display:inline-block;width:1.15em;height:1.15em;vertical-align:-0.2em;color:inherit}
+.emoji-icon.i-success{color:#66bb6a}
+.emoji-icon.i-danger{color:#ef5350}</style>
 </head><body>
 <div class="box">
-<h1>🔄 Purge Cache</h1>
+<h1><svg class="emoji-icon"><use href="/icons.svg#refresh"></use></svg> Purge Cache</h1>
 <p style="color:rgba(255,255,255,.5);font-size:.9rem">Vide le cache et recharge le scanner</p>
 <button class="btn" onclick="purge()">Purger maintenant</button>
 <div id="msg"></div>
 </div>
 <script>
+function ic(name, cls) { return '<svg class="emoji-icon' + (cls ? ' ' + cls : '') + '"><use href="/icons.svg#' + name + '"></use></svg>'; }
 async function purge(){
   var m=document.getElementById('msg');
-  m.innerHTML='⏳ Purge en cours...';
+  m.innerHTML=ic('hourglass')+' Purge en cours...';
   try{
     var keys=await caches.keys();
     for(var i=0;i<keys.length;i++) await caches.delete(keys[i]);
     var regs=await navigator.serviceWorker.getRegistrations();
     for(var j=0;j<regs.length;j++) await regs[j].unregister();
-    m.innerHTML='<div class="ok">✅ Cache vidé ! Redirection...</div>';
+    m.innerHTML='<div class="ok">'+ic('check','i-success')+' Cache vidé ! Redirection...</div>';
     setTimeout(function(){location.href='/scan.html'},1500);
-  }catch(e){m.innerHTML='❌ '+e.message;}
+  }catch(e){m.innerHTML=ic('cross','i-danger')+' '+e.message;}
 }
 </script>
 </body></html>

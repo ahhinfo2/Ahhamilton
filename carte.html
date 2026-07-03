@@ -70,6 +70,7 @@
 </div>
 
 <script>
+  function ic(name, cls) { return '<svg class="emoji-icon' + (cls ? ' ' + cls : '') + '"><use href="/icons.svg#' + name + '"></use></svg>'; }
   const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     ? 'http://localhost:3001/api' : '/api';
   const BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
@@ -142,7 +143,7 @@
           <div>
             ${m.photo_url
               ? '<img class="card-avatar" src="' + BASE_URL + m.photo_url + '" alt="Photo"/>'
-              : '<div class="card-avatar">👤</div>'}
+              : '<div class="card-avatar">' + ic('user') + '</div>'}
           </div>
           <div style="flex:1;min-width:0">
             <div class="card-name">${escHtml(m.prenom)} ${escHtml(m.nom)}</div>
@@ -166,7 +167,7 @@
 
       ${!m.photo_url
         ? `<div style="background:#fff8e1;border:1px solid #ffe082;border-radius:12px;padding:14px 16px;margin-top:14px;display:flex;gap:10px;align-items:flex-start">
-            <span style="font-size:1.2rem;flex-shrink:0">⚠️</span>
+            <span style="font-size:1.2rem;flex-shrink:0">${ic('warning','i-warn')}</span>
             <div>
               <div style="font-weight:700;font-size:.88rem;color:#e65100;margin-bottom:3px">Carte non valide</div>
               <div style="font-size:.82rem;color:#6d4c41">Ajoutez une photo dans votre profil et faites-la approuver par un autre membre du comité.</div>
@@ -174,24 +175,24 @@
           </div>`
         : !m.carte_photo_approuvee
           ? `<div style="background:#e3f2fd;border:1px solid #90caf9;border-radius:12px;padding:14px 16px;margin-top:14px;display:flex;gap:10px;align-items:flex-start">
-              <span style="font-size:1.2rem;flex-shrink:0">🕐</span>
+              <span style="font-size:1.2rem;flex-shrink:0">${ic('clock')}</span>
               <div>
                 <div style="font-weight:700;font-size:.88rem;color:#1565c0;margin-bottom:3px">En attente de validation</div>
                 <div style="font-size:.82rem;color:#37474f">Votre photo doit être approuvée par un autre membre du comité.</div>
               </div>
             </div>`
           : `<div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:12px;padding:12px 16px;margin-top:14px;display:flex;gap:10px;align-items:center">
-              <span style="font-size:1.2rem">✅</span>
+              <span style="font-size:1.2rem">${ic('check','i-success')}</span>
               <div style="font-size:.84rem;color:#1b5e20;font-weight:700">Carte valide, photo approuvée</div>
             </div>`}
 
       ${checkin ? `<div style="background:#e8f5e9;border-left:4px solid #2e7d32;border-radius:10px;padding:14px 16px;margin-top:14px;font-size:.9rem;color:#1b5e20">
-        ✅ <strong>Présence confirmée</strong> pour « ${checkin} »${paid ? ' · <strong>Paiement reçu</strong> 💳' : ''}
+        ${ic('check','i-success')} <strong>Présence confirmée</strong> pour « ${checkin} »${paid ? ' · <strong>Paiement reçu</strong> ' + ic('card') : ''}
       </div>` : ''}
 
       <div class="actions">
-        <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimer</button>
-        <button class="btn btn-outline" onclick="downloadCard()">💾 Télécharger</button>
+        <button class="btn btn-primary" onclick="window.print()">${ic('printer')} Imprimer</button>
+        <button class="btn btn-outline" onclick="downloadCard()">${ic('document')} Télécharger</button>
         <a href="dashboard/app.html" class="btn btn-ghost">← Tableau de bord</a>
       </div>`;
 
@@ -203,7 +204,7 @@
 
   function showError(msg) {
     document.getElementById('cardContainer').innerHTML =
-      '<div class="not-found"><div class="nf-icon">❌</div><h2>Erreur</h2><p>' + msg + '</p>' +
+      '<div class="not-found"><div class="nf-icon">' + ic('cross','i-danger') + '</div><h2>Erreur</h2><p>' + msg + '</p>' +
       '<a href="dashboard/app.html" class="btn btn-primary" style="margin-top:16px">Tableau de bord</a></div>';
   }
 

@@ -38,7 +38,7 @@
     <div class="container">
       <div class="membre-avatar-wrap">
         <img id="membrePhoto" class="membre-avatar" src="" alt="Photo" style="display:none"/>
-        <div id="membrePhotoFallback" class="membre-avatar">👤</div>
+        <div id="membrePhotoFallback" class="membre-avatar"><svg class="emoji-icon"><use href="/icons.svg#user"/></svg></div>
       </div>
       <div class="membre-name" id="membreName">—</div>
       <div class="membre-role-badge" id="membreRole">—</div>
@@ -109,7 +109,7 @@
               '<div class="talent-card-cat">' + escHtml(t.categorie) + '</div>' +
               '<div class="talent-card-name">' + escHtml(t.nom) + '</div>' +
               (t.description ? '<div class="talent-card-desc">' + escHtml(t.description.substring(0, 120)) + '</div>' : '') +
-              (t.site_web ? '<a href="' + escHtml(t.site_web) + '" target="_blank" rel="noopener" style="font-size:.78rem;color:#2e7d32;display:block;margin-top:8px">🌐 Voir le site</a>' : '') +
+              (t.site_web ? '<a href="' + escHtml(t.site_web) + '" target="_blank" rel="noopener" style="font-size:.78rem;color:#2e7d32;display:block;margin-top:8px">' + ic('globe') + ' Voir le site</a>' : '') +
             '</div>' +
           '</div>';
         }).join('') + '</div></div>';
@@ -122,7 +122,7 @@
 
     function showNotFound() {
       document.getElementById('membreContent').innerHTML =
-        '<div class="not-found"><div class="nf-icon">🔍</div><h2>Membre introuvable</h2>' +
+        '<div class="not-found"><div class="nf-icon">' + ic('search') + '</div><h2>Membre introuvable</h2>' +
         '<p>Ce profil n\'existe pas ou n\'est pas public.</p>' +
         '<a href="index.html" class="btn btn-primary" style="margin-top:20px">Retour à l\'accueil</a></div>';
     }

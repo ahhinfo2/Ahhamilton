@@ -1,4 +1,11 @@
 // ══════════════════════════════════════════════════════════
+// ICÔNES (remplace les emojis — voir icons.svg)
+// ══════════════════════════════════════════════════════════
+window.ic = function(name, cls) {
+  return '<svg class="emoji-icon' + (cls ? ' ' + cls : '') + '"><use href="/icons.svg#' + name + '"></use></svg>';
+};
+
+// ══════════════════════════════════════════════════════════
 // BANNIÈRE HORS-LIGNE + NOTIFICATION MISE À JOUR PWA
 // ══════════════════════════════════════════════════════════
 (function() {

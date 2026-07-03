@@ -230,6 +230,14 @@
 
   /* Bannière legacy — non utilisée sur mobile maintenant */
   #scanBanner{display:none!important}
+
+  .emoji-icon{display:inline-block;width:1.15em;height:1.15em;vertical-align:-0.2em;color:inherit}
+  .emoji-icon.i-success{color:#2e7d32}
+  .emoji-icon.i-danger{color:#c62828}
+  .emoji-icon.i-warn{color:#f57f17}
+  .emoji-icon.i-gold{color:#f9a825}
+  .emoji-icon.i-white{color:#fff}
+  .emoji-icon.i-lg{width:1.6em;height:1.6em}
 </style>
 </head>
 <body>
@@ -281,7 +289,7 @@
         <option value="">Toutes les activités</option>
       </select>
     </div>
-    <div class="cam-tip">📱 Pointez la caméra vers un QR code (billet ou carte membre)</div>
+    <div class="cam-tip"><svg class="emoji-icon"><use href="/icons.svg#qr"/></svg> Pointez la caméra vers un QR code (billet ou carte membre)</div>
     <div style="padding:6px 10px;display:flex;gap:6px;background:#222">
       <input id="manualCode" placeholder="Saisie manuelle : AHH-XXXXXX ou AHH-00001-..." style="flex:1;padding:6px 10px;border-radius:6px;border:1px solid #555;background:#333;color:#fff;font-size:.8rem;font-family:monospace" onkeydown="if(event.key==='Enter'){event.preventDefault();_manualScan();}"/>
       <button onclick="_manualScan()" style="background:#2e7d32;color:#fff;border:none;padding:6px 12px;border-radius:6px;font-weight:700;font-size:.8rem;cursor:pointer">OK</button>
@@ -292,21 +300,21 @@
   <div class="result-side">
     <div class="result-header">Dernier scan</div>
     <div class="result-main idle" id="resultMain">
-      <div class="idle-icon">📷</div>
+      <div class="idle-icon"><svg class="emoji-icon"><use href="/icons.svg#camera"/></svg></div>
       <p class="idle">En attente d'un scan…</p>
     </div>
     <div class="history" id="historyBox" style="display:none">
       <div class="history-title">Historique de la session</div>
       <div id="histList"></div>
     </div>
-    <button id="histFullBtn" style="display:none;width:100%;padding:10px;background:#222;color:#fff;border:none;border-top:1px solid #333;font-size:.78rem;cursor:pointer;font-weight:600" onclick="_showFullHistory()">📋 Voir tout l'historique</button>
+    <button id="histFullBtn" style="display:none;width:100%;padding:10px;background:#222;color:#fff;border:none;border-top:1px solid #333;font-size:.78rem;cursor:pointer;font-weight:600" onclick="_showFullHistory()"><svg class="emoji-icon"><use href="/icons.svg#clipboard"/></svg> Voir tout l'historique</button>
   </div>
 </div>
 
 <!-- Page historique plein écran -->
 <div id="histFullPage" style="display:none;position:fixed;inset:0;z-index:600;background:#111;overflow-y:auto">
   <div style="background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:1">
-    <div style="color:#fff;font-weight:700;font-size:.95rem">📋 Historique complet</div>
+    <div style="color:#fff;font-weight:700;font-size:.95rem"><svg class="emoji-icon"><use href="/icons.svg#clipboard"/></svg> Historique complet</div>
     <button onclick="document.getElementById('histFullPage').style.display='none'" style="background:rgba(255,255,255,.2);border:none;color:#fff;padding:6px 14px;border-radius:8px;cursor:pointer;font-size:.82rem">← Retour au lecteur QR</button>
   </div>
   <div id="histFullList" style="padding:12px"></div>
@@ -317,6 +325,7 @@
 <audio id="sndErr" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=" preload="auto"></audio>
 
 <script>
+function ic(name, cls) { return '<svg class="emoji-icon' + (cls ? ' ' + cls : '') + '"><use href="/icons.svg#' + name + '"></use></svg>'; }
 const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
   ? 'http://localhost:3001/api' : '/api';
 let TOKEN = localStorage.getItem('ahh_token');
@@ -435,7 +444,7 @@ function startScanner() {
               scanner.start(null, config, onQRDetected, () => {})
                 .catch(err => {
                   const tip = document.querySelector('.cam-tip');
-                  if (tip) { tip.textContent = '⚠️ Caméra inaccessible. Autorisez l\'accès dans les réglages.'; tip.style.color = '#ef5350'; }
+                  if (tip) { tip.innerHTML = ic('warning','i-warn') + ' Caméra inaccessible. Autorisez l\'accès dans les réglages.'; tip.style.color = '#ef5350'; }
                 });
             });
         });
@@ -450,7 +459,7 @@ function _scanMarkPresent(actId, userId) {
   }).then(function(r) { return r.json(); }).then(function(d) {
     if (d.ok || d.already_in) {
       var btn = event.target;
-      btn.outerHTML = '<span style="color:#66bb6a;font-size:.68rem">✅ Présent</span>';
+      btn.outerHTML = '<span style="color:#66bb6a;font-size:.68rem">' + ic('check','i-success') + ' Présent</span>';
     }
   }).catch(function() {});
 }
@@ -481,7 +490,7 @@ async function onQRDetected(rawText) {
 
   var actId = document.getElementById('actSelect').value || null;
   var box = document.getElementById('resultMain');
-  box.innerHTML = '<div class="idle-icon" style="animation:spin .5s linear infinite">⏳</div>';
+  box.innerHTML = '<div class="idle-icon" style="animation:spin .5s linear infinite">' + ic('hourglass') + '</div>';
 
   try {
     var res = await fetch(API + '/scan/unified', {
@@ -494,12 +503,12 @@ async function onQRDetected(rawText) {
     if (data.type === 'activite') {
       // ── QR d'activité (pas un billet, c'est le QR de l'activité elle-même) ──
       if (data.status === 'supprimee') {
-        showResultUnified('err', '🗑️', 'ACTIVITÉ SUPPRIMÉE', data);
+        showResultUnified('err', ic('trash'), 'ACTIVITÉ SUPPRIMÉE', data);
         playBeep(false);
-        addHistory('err', data.activite || 'Supprimée', '🗑️ ' + (data.message || ''), data);
+        addHistory('err', data.activite || 'Supprimée', ic('trash') + ' ' + (data.message || ''), data);
       } else {
         var actCls = data.is_today ? 'ok' : 'warn';
-        showResultUnified(actCls, data.is_today ? '🎉' : '📅', data.is_today ? 'ACTIVITÉ DU JOUR' : 'INFO ACTIVITÉ', data);
+        showResultUnified(actCls, data.is_today ? ic('confetti') : ic('calendar'), data.is_today ? 'ACTIVITÉ DU JOUR' : 'INFO ACTIVITÉ', data);
         playBeep(data.is_today);
         var actMeta = (data.lieu ? data.lieu + ' : ' : '') + (data.paiement_requis && data.prix > 0 ? data.prix.toFixed(2) + ' $' : 'Gratuit');
         if (data.presences > 0) actMeta += ' : ' + data.presences + ' présent(s)';
@@ -508,64 +517,64 @@ async function onQRDetected(rawText) {
     } else if (data.type === 'ticket') {
       // ── Ticket result ──
       if (data.status === 'supprimee') {
-        showResultUnified('err', '🗑️', 'ACTIVITÉ SUPPRIMÉE', data);
+        showResultUnified('err', ic('trash'), 'ACTIVITÉ SUPPRIMÉE', data);
         playBeep(false);
-        addHistory('err', data.nom || 'Inconnu', '🗑️ ' + (data.activite || 'Supprimée'), data);
+        addHistory('err', data.nom || 'Inconnu', ic('trash') + ' ' + (data.activite || 'Supprimée'), data);
       } else if (data.status === 'passee') {
-        showResultUnified('warn', '📅', 'ACTIVITÉ TERMINÉE', data);
+        showResultUnified('warn', ic('calendar'), 'ACTIVITÉ TERMINÉE', data);
         playBeep(false);
-        addHistory('err', data.nom || 'Inconnu', '📅 ' + (data.activite || 'Passée'), data);
+        addHistory('err', data.nom || 'Inconnu', ic('calendar') + ' ' + (data.activite || 'Passée'), data);
       } else if (data.status === 'future') {
-        showResultUnified('warn', '🕐', 'ACTIVITÉ PAS ENCORE', data);
+        showResultUnified('warn', ic('clock'), 'ACTIVITÉ PAS ENCORE', data);
         playBeep(false);
-        addHistory('err', data.nom || 'Inconnu', '🕐 ' + (data.activite || 'Future'), data);
+        addHistory('err', data.nom || 'Inconnu', ic('clock') + ' ' + (data.activite || 'Future'), data);
       } else if (!data.ok && data.status === 'invalide') {
-        showResultUnified('warn', '⚠️', data.message || 'BILLET INVALIDE', data);
+        showResultUnified('warn', ic('warning','i-warn'), data.message || 'BILLET INVALIDE', data);
         playBeep(false);
         addHistory('err', data.nom || 'Inconnu', (data.activite ? data.activite + ' : ' : '') + (data.message || 'Invalide'), data);
       } else if (data.status === 'deja_scanne') {
-        showResultUnified('dup', '🔄', 'DÉJÀ ENTRÉ', data);
+        showResultUnified('dup', ic('refresh'), 'DÉJÀ ENTRÉ', data);
         playBeep(false);
         addHistory('dup', data.nom, (data.activite ? data.activite + ' : ' : '') + 'Déjà scanné' + (data.table_numero ? ', table ' + data.table_numero : ''), data);
       } else if (data.ok) {
-        showResultUnified('ok', '✅', 'BIENVENUE', data);
+        showResultUnified('ok', ic('check','i-success'), 'BIENVENUE', data);
         playBeep(true);
         addHistory('ok', data.nom, (data.activite ? data.activite + ' : ' : '') + (data.table_numero ? 'Table ' + data.table_numero + ', ' : '') + (data.vendu_en_ligne ? 'En ligne' : 'Vendu par ' + (data.vendeur_nom || '?')), data);
       } else {
-        showResultUnified('err', '❌', data.message || 'ERREUR', data);
+        showResultUnified('err', ic('cross','i-danger'), data.message || 'ERREUR', data);
         playBeep(false);
         addHistory('err', data.nom || 'Inconnu', data.message || 'Erreur', data);
       }
     } else if (data.type === 'carte') {
       // ── Card result ──
       if (data.status === 'vip') {
-        showResultUnified('vip', '👑', 'VIP : COMITÉ', data);
+        showResultUnified('vip', ic('crown','i-gold'), 'VIP : COMITÉ', data);
         playBeep(true);
         addHistory('vip', data.nom, (data.activite ? data.activite + ' : ' : '') + 'Comité VIP', data);
       } else if (data.status === 'deja_scanne') {
-        showResultUnified('dup', '🔄', 'DÉJÀ ENTRÉ(E)', data);
+        showResultUnified('dup', ic('refresh'), 'DÉJÀ ENTRÉ(E)', data);
         playBeep(false);
         addHistory('dup', data.nom, (data.activite ? data.activite + ' : ' : '') + 'Déjà entré(e)', data);
       } else if (data.ok) {
-        showResultUnified('ok', '✅', 'BIENVENUE', data);
+        showResultUnified('ok', ic('check','i-success'), 'BIENVENUE', data);
         playBeep(true);
         var histMeta = data.plan ? (data.plan.charAt(0).toUpperCase() + data.plan.slice(1)) : 'Membre';
         if (data.total_billets > 0) histMeta += ', ' + data.billets_restants + '/' + data.total_billets + ' billets';
         if (data.activite) histMeta = data.activite + ' : ' + histMeta;
         addHistory('ok', data.nom, histMeta, data);
       } else {
-        showResultUnified(data.status === 'invalide' ? 'warn' : 'err', '⚠️', data.message || 'INVALIDE', data);
+        showResultUnified(data.status === 'invalide' ? 'warn' : 'err', ic('warning','i-warn'), data.message || 'INVALIDE', data);
         playBeep(false);
         addHistory('err', data.nom || 'Inconnu', data.message || 'Invalide', data);
       }
     } else {
       // ── Error / not found ──
-      showResultUnified('err', '❌', data.message || 'QR NON RECONNU', data);
+      showResultUnified('err', ic('cross','i-danger'), data.message || 'QR NON RECONNU', data);
       playBeep(false);
       addHistory('err', qrText.split('\n')[0] || 'Inconnu', data.message || 'Non reconnu', data);
     }
   } catch(e) {
-    showResultUnified('err', '⚠️', 'ERREUR RÉSEAU', { nom: 'Vérifiez la connexion', type: 'error' });
+    showResultUnified('err', ic('warning','i-warn'), 'ERREUR RÉSEAU', { nom: 'Vérifiez la connexion', type: 'error' });
     playBeep(false);
   }
 }
@@ -580,38 +589,39 @@ function closeOverlay() {
 function showResultUnified(cls, icon, statusText, data) {
   var type = data.type || 'error';
   var nom = data.nom || '';
-  var icons = { ok:'✅', dup:'🔄', err:'❌', warn:'⚠️', vip:'👑' };
+  var icons = { ok: ic('check','i-success'), dup: ic('refresh'), err: ic('cross','i-danger'), warn: ic('warning','i-warn'), vip: ic('crown','i-gold') };
+  var iconHtml = icons[cls] || icon;
 
   // ── Overlay plein écran ──
   var o = document.getElementById('scanOverlay');
   o.className = 'visible ' + cls;
   document.getElementById('ovIcon').innerHTML = (type === 'carte' && data.photo_url)
-    ? '<img class="ov-photo" src="' + data.photo_url + '" onerror="this.outerHTML=\'' + (icons[cls] || icon) + '\'">'
-    : (icons[cls] || icon);
+    ? '<img class="ov-photo" src="' + data.photo_url + '" onerror="this.outerHTML=this.dataset.fallback" data-fallback="' + iconHtml.replace(/"/g, '&quot;') + '">'
+    : iconHtml;
   document.getElementById('ovStatus').textContent = statusText;
   document.getElementById('ovName').textContent = nom;
 
   var subParts = [];
   if (type === 'activite') {
-    if (data.lieu) subParts.push('📍 ' + data.lieu);
-    if (data.paiement_requis && data.prix > 0) subParts.push('💵 ' + parseFloat(data.prix).toFixed(2) + ' $');
-    else subParts.push('🆓 Gratuit');
-    if (data.total_billets > 0) subParts.push('🎟 ' + data.total_billets + ' billets');
-    if (data.presences > 0) subParts.push('👥 ' + data.presences + ' présent(s)');
-    if (data.date_evenement) subParts.push('📅 ' + data.date_evenement.substring(0, 10));
+    if (data.lieu) subParts.push(ic('pin') + ' ' + data.lieu);
+    if (data.paiement_requis && data.prix > 0) subParts.push(ic('money') + ' ' + parseFloat(data.prix).toFixed(2) + ' $');
+    else subParts.push('Gratuit');
+    if (data.total_billets > 0) subParts.push(ic('ticket') + ' ' + data.total_billets + ' billets');
+    if (data.presences > 0) subParts.push(ic('users') + ' ' + data.presences + ' présent(s)');
+    if (data.date_evenement) subParts.push(ic('calendar') + ' ' + data.date_evenement.substring(0, 10));
   } else if (type === 'ticket') {
-    if (data.table_numero) subParts.push('🪑 Table ' + data.table_numero);
-    if (data.vendeur_nom) subParts.push('👤 ' + data.vendeur_nom);
-    else if (data.vendu_en_ligne) subParts.push('🌐 En ligne');
-    if (data.activite) subParts.push('🎉 ' + data.activite);
-    if (data.prix) subParts.push('💵 ' + parseFloat(data.prix).toFixed(2) + ' $');
+    if (data.table_numero) subParts.push(ic('chair') + ' Table ' + data.table_numero);
+    if (data.vendeur_nom) subParts.push(ic('user') + ' ' + data.vendeur_nom);
+    else if (data.vendu_en_ligne) subParts.push(ic('globe') + ' En ligne');
+    if (data.activite) subParts.push(ic('confetti') + ' ' + data.activite);
+    if (data.prix) subParts.push(ic('money') + ' ' + parseFloat(data.prix).toFixed(2) + ' $');
   } else if (type === 'carte') {
-    if (data.plan) subParts.push('🪪 ' + data.plan.charAt(0).toUpperCase() + data.plan.slice(1));
-    if (data.is_comite) subParts.push('⭐ Comité');
-    if (data.activite) subParts.push('🎉 ' + data.activite);
+    if (data.plan) subParts.push(ic('id-card') + ' ' + data.plan.charAt(0).toUpperCase() + data.plan.slice(1));
+    if (data.is_comite) subParts.push(ic('star') + ' Comité');
+    if (data.activite) subParts.push(ic('confetti') + ' ' + data.activite);
     if (typeof data.total_billets === 'number' && data.total_billets > 0)
-      subParts.push('🎟 ' + data.billets_restants + '/' + data.total_billets + ' billets');
-    if (data.carte_valide === false && cls !== 'vip') subParts.push('⚠️ Carte invalide');
+      subParts.push(ic('ticket') + ' ' + data.billets_restants + '/' + data.total_billets + ' billets');
+    if (data.carte_valide === false && cls !== 'vip') subParts.push(ic('warning','i-warn') + ' Carte invalide');
   }
   document.getElementById('ovSub').innerHTML = subParts.join(' · ');
 
@@ -627,36 +637,36 @@ function showResultUnified(cls, icon, statusText, data) {
       '<div class="result-icon">' + icon + '</div>' +
       '<div class="result-status">' + statusText + '</div>' +
       '<div class="result-name">' + nom + '</div>' +
-      (data.lieu ? '<div class="result-badge">📍 ' + data.lieu + '</div>' : '') +
-      '<div class="result-badge">' + (data.paiement_requis && data.prix > 0 ? '💵 ' + parseFloat(data.prix).toFixed(2) + ' $' : '🆓 Gratuit') + '</div>' +
-      (data.total_billets > 0 ? '<div class="result-badge">🎟 ' + data.total_billets + ' billets vendus</div>' : '') +
-      (data.presences > 0 ? '<div class="result-badge">👥 ' + data.presences + ' présent(s)</div>' : '') +
-      (data.date_evenement ? '<div class="result-activity">📅 ' + data.date_evenement.substring(0, 10) + '</div>' : '') +
-      (!data.is_today ? '<div class="result-badge" style="background:rgba(255,152,0,.2);margin-top:8px">⚠️ Ce n\'est pas une activité du jour</div>' : '');
+      (data.lieu ? '<div class="result-badge">' + ic('pin') + ' ' + data.lieu + '</div>' : '') +
+      '<div class="result-badge">' + (data.paiement_requis && data.prix > 0 ? ic('money') + ' ' + parseFloat(data.prix).toFixed(2) + ' $' : 'Gratuit') + '</div>' +
+      (data.total_billets > 0 ? '<div class="result-badge">' + ic('ticket') + ' ' + data.total_billets + ' billets vendus</div>' : '') +
+      (data.presences > 0 ? '<div class="result-badge">' + ic('users') + ' ' + data.presences + ' présent(s)</div>' : '') +
+      (data.date_evenement ? '<div class="result-activity">' + ic('calendar') + ' ' + data.date_evenement.substring(0, 10) + '</div>' : '') +
+      (!data.is_today ? '<div class="result-badge" style="background:rgba(255,152,0,.2);margin-top:8px">' + ic('warning','i-warn') + ' Ce n\'est pas une activité du jour</div>' : '');
   } else if (type === 'ticket') {
     var achatInfo = data.vendeur_nom
-      ? '<div class="result-badge">👤 Vendu par ' + data.vendeur_nom + '</div>'
-      : '<div class="result-badge">🌐 Acheté en ligne</div>';
+      ? '<div class="result-badge">' + ic('user') + ' Vendu par ' + data.vendeur_nom + '</div>'
+      : '<div class="result-badge">' + ic('globe') + ' Acheté en ligne</div>';
     box.innerHTML =
       '<div class="result-icon">' + icon + '</div>' +
       '<div class="result-status">' + statusText + '</div>' +
       '<div class="result-name">' + nom + '</div>' +
-      (data.table_numero ? '<div class="result-table">🪑 Table ' + data.table_numero + '</div>' : '<div class="result-table" style="color:rgba(255,255,255,.4)">Table non assignée</div>') +
+      (data.table_numero ? '<div class="result-table">' + ic('chair') + ' Table ' + data.table_numero + '</div>' : '<div class="result-table" style="color:rgba(255,255,255,.4)">Table non assignée</div>') +
       achatInfo +
       (data.activite ? '<div class="result-activity">' + data.activite + '</div>' : '') +
-      (data.status === 'deja_scanne' ? '<div class="result-badge" style="background:rgba(206,147,216,.2);margin-top:8px">⚠️ Ce billet a déjà été scanné</div>' : '');
+      (data.status === 'deja_scanne' ? '<div class="result-badge" style="background:rgba(206,147,216,.2);margin-top:8px">' + ic('warning','i-warn') + ' Ce billet a déjà été scanné</div>' : '');
   } else if (type === 'carte') {
     var photoHtml = data.photo_url
       ? '<img class="result-photo" src="' + data.photo_url + '" onerror="this.style.display=\'none\'">'
       : '';
     var planLabel = data.plan ? data.plan.charAt(0).toUpperCase() + data.plan.slice(1) : 'Gratuit';
     var carteStatusHtml = '';
-    if (data.carte_valide === false && cls !== 'vip') carteStatusHtml = '<div class="result-badge" style="background:rgba(255,152,0,.2)">⚠️ Carte invalide</div>';
-    else if (data.carte_valide) carteStatusHtml = '<div class="result-badge" style="background:rgba(76,175,80,.2)">✅ Carte valide</div>';
+    if (data.carte_valide === false && cls !== 'vip') carteStatusHtml = '<div class="result-badge" style="background:rgba(255,152,0,.2)">' + ic('warning','i-warn') + ' Carte invalide</div>';
+    else if (data.carte_valide) carteStatusHtml = '<div class="result-badge" style="background:rgba(76,175,80,.2)">' + ic('check','i-success') + ' Carte valide</div>';
     var billetsHtml = '';
     if (typeof data.total_billets === 'number' && data.total_billets > 0)
-      billetsHtml = '<div class="result-badge">🎟 ' + data.billets_restants + ' billet(s) restant(s) sur ' + data.total_billets + '</div>';
-    var vipBadge = data.is_comite ? '<div class="result-badge" style="background:rgba(26,35,126,.3);color:#90caf9">⭐ Comité : VIP</div>' : '';
+      billetsHtml = '<div class="result-badge">' + ic('ticket') + ' ' + data.billets_restants + ' billet(s) restant(s) sur ' + data.total_billets + '</div>';
+    var vipBadge = data.is_comite ? '<div class="result-badge" style="background:rgba(26,35,126,.3);color:#90caf9">' + ic('star') + ' Comité : VIP</div>' : '';
     // Activités du membre
     var actsHtml = '';
     if (data.activities && data.activities.length) {
@@ -665,7 +675,7 @@ function showResultUnified(cls, icon, statusText, data) {
       data.activities.forEach(function(a) {
         var isPresent = a.reg_checked_in === 1;
         var isRegistered = !!a.reg_statut;
-        var statusIcon = isPresent ? '✅' : (isRegistered ? '📝' : (a.nb_billets > 0 ? '🎟' : ''));
+        var statusIcon = isPresent ? ic('check','i-success') : (isRegistered ? ic('pencil') : (a.nb_billets > 0 ? ic('ticket') : ''));
         actsHtml += '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.08);font-size:.75rem">' +
           '<span>' + statusIcon + '</span>' +
           '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:rgba(255,255,255,.8)">' + (a.titre||'') + '</span>' +
@@ -681,10 +691,10 @@ function showResultUnified(cls, icon, statusText, data) {
       '<div class="result-icon">' + icon + '</div>' +
       '<div class="result-status">' + statusText + '</div>' +
       '<div class="result-name">' + nom + '</div>' +
-      '<div class="result-badge">🪪 ' + planLabel + '</div>' +
+      '<div class="result-badge">' + ic('id-card') + ' ' + planLabel + '</div>' +
       vipBadge + carteStatusHtml + billetsHtml +
       (data.activite ? '<div class="result-activity">' + data.activite + '</div>' : '') +
-      (data.status === 'deja_scanne' ? '<div class="result-badge" style="background:rgba(206,147,216,.2);margin-top:8px">🔄 Déjà entré(e)</div>' : '') +
+      (data.status === 'deja_scanne' ? '<div class="result-badge" style="background:rgba(206,147,216,.2);margin-top:8px">' + ic('refresh') + ' Déjà entré(e)</div>' : '') +
       actsHtml;
   } else {
     // Error / unknown
@@ -713,7 +723,7 @@ function _renderHistory() {
   list.innerHTML = '<div style="font-size:.65rem;color:rgba(255,255,255,.3);margin-bottom:4px;text-align:right">' + history.length + ' scan(s)</div>' +
     preview.map(function(h, i) {
       var isCarte = h.fullData && h.fullData.type === 'carte';
-      var label = isCarte ? '🪪' : '🎟';
+      var label = isCarte ? ic('id-card') : ic('ticket');
       return '<div class="hist-item" style="cursor:pointer" onclick="_replayHistory(' + i + ')">' +
         '<div class="hist-dot ' + h.type + '"></div>' +
         '<div class="hist-info">' +
@@ -743,18 +753,18 @@ function _showFullHistory() {
 
   html += history.map(function(h, i) {
     var isCarte = h.fullData && h.fullData.type === 'carte';
-    var label = isCarte ? '🪪 Carte' : '🎟 Billet';
-    var statusIcon = h.type === 'ok' ? '✅' : h.type === 'vip' ? '👑' : h.type === 'dup' ? '🔄' : '❌';
+    var label = isCarte ? ic('id-card') + ' Carte' : ic('ticket') + ' Billet';
+    var statusIcon = h.type === 'ok' ? ic('check','i-success') : h.type === 'vip' ? ic('crown','i-gold') : h.type === 'dup' ? ic('refresh') : ic('cross','i-danger');
     var bgColor = h.type === 'ok' ? 'rgba(46,125,50,.15)' : h.type === 'vip' ? 'rgba(26,35,126,.15)' : h.type === 'dup' ? 'rgba(106,26,117,.15)' : 'rgba(198,40,40,.15)';
     var details = '';
     if (h.fullData) {
       var d = h.fullData;
-      if (d.activite) details += '🎉 ' + d.activite + '<br>';
-      if (d.barcode) details += '🔢 ' + d.barcode + '<br>';
-      if (d.plan) details += '🪪 ' + d.plan + '<br>';
-      if (d.total_billets > 0) details += '🎟 ' + (d.total_billets - (d.billets_restants||0)) + '/' + d.total_billets + ' billets<br>';
-      if (d.table_numero) details += '🪑 Table ' + d.table_numero + '<br>';
-      if (d.prix) details += '💵 ' + parseFloat(d.prix).toFixed(2) + ' $<br>';
+      if (d.activite) details += ic('confetti') + ' ' + d.activite + '<br>';
+      if (d.barcode) details += ic('hash') + ' ' + d.barcode + '<br>';
+      if (d.plan) details += ic('id-card') + ' ' + d.plan + '<br>';
+      if (d.total_billets > 0) details += ic('ticket') + ' ' + (d.total_billets - (d.billets_restants||0)) + '/' + d.total_billets + ' billets<br>';
+      if (d.table_numero) details += ic('chair') + ' Table ' + d.table_numero + '<br>';
+      if (d.prix) details += ic('money') + ' ' + parseFloat(d.prix).toFixed(2) + ' $<br>';
     }
     return '<div style="background:' + bgColor + ';border-radius:10px;padding:12px 14px;margin-bottom:8px;cursor:pointer" onclick="_expandHistEntry(this,' + i + ')">' +
       '<div style="display:flex;align-items:center;gap:10px">' +
@@ -769,7 +779,7 @@ function _showFullHistory() {
     '</div>';
   }).join('');
 
-  if (history.length === 0) html = '<div style="text-align:center;color:rgba(255,255,255,.4);padding:60px 0"><div style="font-size:2.5rem;margin-bottom:12px">📋</div><div>Aucun scan dans cette session</div></div>';
+  if (history.length === 0) html = '<div style="text-align:center;color:rgba(255,255,255,.4);padding:60px 0"><div style="font-size:2.5rem;margin-bottom:12px">' + ic('clipboard') + '</div><div>Aucun scan dans cette session</div></div>';
 
   list.innerHTML = html;
 }
@@ -788,14 +798,14 @@ function _expandHistEntry(el, idx) {
   if (d.activite) rows += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span style="opacity:.6">Activité</span><strong>' + d.activite + '</strong></div>';
   if (d.barcode) rows += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span style="opacity:.6">Code</span><strong style="font-family:monospace">' + d.barcode + '</strong></div>';
   if (d.plan) rows += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span style="opacity:.6">Plan</span><strong>' + d.plan + '</strong></div>';
-  if (d.is_comite) rows += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span style="opacity:.6">Rôle</span><strong>⭐ Comité VIP</strong></div>';
+  if (d.is_comite) rows += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span style="opacity:.6">Rôle</span><strong>' + ic('star') + ' Comité VIP</strong></div>';
   if (d.total_billets > 0) rows += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span style="opacity:.6">Billets</span><strong>' + (d.total_billets-(d.billets_restants||0)) + '/' + d.total_billets + '</strong></div>';
   if (d.table_numero) rows += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span style="opacity:.6">Table</span><strong>' + d.table_numero + '</strong></div>';
   if (d.prix) rows += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span style="opacity:.6">Prix</span><strong>' + parseFloat(d.prix).toFixed(2) + ' $</strong></div>';
   if (d.vendeur_nom) rows += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span style="opacity:.6">Vendu par</span><strong>' + d.vendeur_nom + '</strong></div>';
   if (d.lieu) rows += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span style="opacity:.6">Lieu</span><strong>' + d.lieu + '</strong></div>';
-  if (d.carte_valide === true) rows += '<div style="padding:4px 0;color:#66bb6a;font-weight:600">✅ Carte valide</div>';
-  else if (d.carte_valide === false) rows += '<div style="padding:4px 0;color:#ef5350;font-weight:600">❌ Carte invalide</div>';
+  if (d.carte_valide === true) rows += '<div style="padding:4px 0;color:#66bb6a;font-weight:600">' + ic('check','i-success') + ' Carte valide</div>';
+  else if (d.carte_valide === false) rows += '<div style="padding:4px 0;color:#ef5350;font-weight:600">' + ic('cross','i-danger') + ' Carte invalide</div>';
   if (d.message && d.status !== 'valide' && d.status !== 'vip') rows += '<div style="padding:6px 0;color:#ff9800;font-size:.82rem">' + d.message + '</div>';
   if (!rows) rows = '<div style="color:rgba(255,255,255,.4);padding:8px 0">Aucun détail disponible</div>';
   expand.innerHTML = '<div style="font-size:.84rem;color:rgba(255,255,255,.85)">' + rows + '</div>';
@@ -809,7 +819,7 @@ function _replayHistory(idx) {
   var o = document.getElementById('scanOverlay');
   var cls = h.type === 'vip' ? 'vip' : h.type;
   o.className = 'visible ' + cls;
-  document.getElementById('ovIcon').textContent = cls === 'ok' ? '✅' : cls === 'dup' ? '🔄' : cls === 'vip' ? '👑' : '❌';
+  document.getElementById('ovIcon').innerHTML = cls === 'ok' ? ic('check','i-success') : cls === 'dup' ? ic('refresh') : cls === 'vip' ? ic('crown','i-gold') : ic('cross','i-danger');
   document.getElementById('ovStatus').textContent = d.status === 'vip' ? 'VIP : COMITÉ' : d.status === 'valide' ? 'VALIDE' : d.status === 'deja_scanne' ? 'DÉJÀ SCANNÉ' : d.status || 'ERREUR';
   document.getElementById('ovName').textContent = d.nom || h.nom || '';
 

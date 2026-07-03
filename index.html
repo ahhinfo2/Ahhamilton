@@ -64,8 +64,8 @@
   <div id="welcome-popup">
     <div class="welcome-card">
       <div class="welcome-banner">
-        <button class="welcome-close" id="welcomeClose" aria-label="Fermer">✕</button>
-        <div class="wb-flag">🇭🇹🤝🇨🇦</div>
+        <button class="welcome-close" id="welcomeClose" aria-label="Fermer"><svg class="emoji-icon"><use href="/icons.svg#cross"/></svg></button>
+        <div class="wb-flag"><svg class="emoji-icon i-flag"><use href="/icons.svg#flag-ht"/></svg> <svg class="emoji-icon"><use href="/icons.svg#handshake"/></svg> <svg class="emoji-icon i-flag"><use href="/icons.svg#flag-ca"/></svg></div>
         <h2>Bienvenue dans la communauté AHH !</h2>
         <p>Association Haïtienne de Hamilton : culture, solidarité et entraide depuis 2008.</p>
       </div>
@@ -100,7 +100,7 @@
         <div class="hero-buttons">
           <a href="actualites.html" class="btn btn-primary" data-i18n="hero.btn1">Voir nos activités</a>
           <a href="adhesion.html" class="btn btn-ghost" data-i18n="hero.btn2">Nous rejoindre</a>
-          <a href="#don" class="btn" style="background:#e65100;color:#fff;border:2px solid #e65100" data-i18n="Faire un don">💛 Faire un don</a>
+          <a href="#don" class="btn" style="background:#e65100;color:#fff;border:2px solid #e65100" data-i18n="Faire un don"><svg class="emoji-icon"><use href="/icons.svg#heart"/></svg> Faire un don</a>
         </div>
       </div>
     </div>
@@ -149,22 +149,22 @@
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:24px;max-width:960px;margin:0 auto">
         <div class="ahh-why-card" style="text-align:center;padding:28px 20px;background:#fff;border-radius:16px;box-shadow:0 2px 16px rgba(0,0,0,.06)" data-reveal data-delay="0">
-          <div style="font-size:2.4rem;margin-bottom:12px">🤝</div>
+          <div class="why-icon-wrap"><svg class="emoji-icon i-lg"><use href="/icons.svg#handshake"/></svg></div>
           <h3 style="font-size:1rem;font-weight:700;margin-bottom:8px;color:var(--g1)">Réseau communautaire</h3>
           <p style="font-size:.85rem;color:var(--muted);line-height:1.6">Connectez-vous avec des familles haïtiennes de Hamilton et de la région.</p>
         </div>
         <div class="ahh-why-card" style="text-align:center;padding:28px 20px;background:#fff;border-radius:16px;box-shadow:0 2px 16px rgba(0,0,0,.06)" data-reveal data-delay="120">
-          <div style="font-size:2.4rem;margin-bottom:12px">🎭</div>
+          <div class="why-icon-wrap"><svg class="emoji-icon i-lg"><use href="/icons.svg#masks"/></svg></div>
           <h3 style="font-size:1rem;font-weight:700;margin-bottom:8px;color:var(--g1)">Culture & traditions</h3>
           <p style="font-size:.85rem;color:var(--muted);line-height:1.6">Célébrez la richesse culturelle haïtienne à travers nos événements et activités.</p>
         </div>
         <div class="ahh-why-card" style="text-align:center;padding:28px 20px;background:#fff;border-radius:16px;box-shadow:0 2px 16px rgba(0,0,0,.06)" data-reveal data-delay="240">
-          <div style="font-size:2.4rem;margin-bottom:12px">💼</div>
+          <div class="why-icon-wrap"><svg class="emoji-icon i-lg"><use href="/icons.svg#briefcase"/></svg></div>
           <h3 style="font-size:1rem;font-weight:700;margin-bottom:8px;color:var(--g1)">Opportunités</h3>
           <p style="font-size:.85rem;color:var(--muted);line-height:1.6">Accédez à des stages, formations et offres d'emploi pour la communauté.</p>
         </div>
         <div class="ahh-why-card" style="text-align:center;padding:28px 20px;background:#fff;border-radius:16px;box-shadow:0 2px 16px rgba(0,0,0,.06)" data-reveal data-delay="360">
-          <div style="font-size:2.4rem;margin-bottom:12px">❤️</div>
+          <div class="why-icon-wrap"><svg class="emoji-icon i-lg"><use href="/icons.svg#heart"/></svg></div>
           <h3 style="font-size:1rem;font-weight:700;margin-bottom:8px;color:var(--g1)">Entraide & soutien</h3>
           <p style="font-size:.85rem;color:var(--muted);line-height:1.6">Bénéficiez d'un réseau d'entraide pour les nouvelles familles arrivant au Canada.</p>
         </div>
@@ -176,12 +176,12 @@
   <section id="anniversaires-section" style="display:none;position:relative;overflow:hidden;padding:56px 0;background:linear-gradient(135deg,#1b5e20 0%,#2e7d32 40%,#1a237e 100%)">
     <!-- Confetti décoratif CSS -->
     <div aria-hidden="true" style="position:absolute;inset:0;pointer-events:none;overflow:hidden">
-      <span style="position:absolute;top:12%;left:8%;font-size:2rem;opacity:.18;animation:bFlt 4s ease-in-out infinite">🎈</span>
-      <span style="position:absolute;top:20%;right:10%;font-size:1.6rem;opacity:.15;animation:bFlt 5s ease-in-out infinite .8s">🎊</span>
-      <span style="position:absolute;bottom:18%;left:14%;font-size:1.4rem;opacity:.14;animation:bFlt 4.5s ease-in-out infinite 1.2s">🎉</span>
-      <span style="position:absolute;bottom:22%;right:8%;font-size:2rem;opacity:.15;animation:bFlt 3.8s ease-in-out infinite .4s">🎈</span>
-      <span style="position:absolute;top:50%;left:4%;font-size:1.2rem;opacity:.12;animation:bFlt 5.2s ease-in-out infinite 2s">⭐</span>
-      <span style="position:absolute;top:40%;right:4%;font-size:1.2rem;opacity:.12;animation:bFlt 4.2s ease-in-out infinite 1.6s">✨</span>
+      <span style="position:absolute;top:12%;left:8%;font-size:2rem;opacity:.18;color:#fff;animation:bFlt 4s ease-in-out infinite"><svg class="emoji-icon" style="width:1em;height:1em"><use href="/icons.svg#balloon"/></svg></span>
+      <span style="position:absolute;top:20%;right:10%;font-size:1.6rem;opacity:.15;color:#fff;animation:bFlt 5s ease-in-out infinite .8s"><svg class="emoji-icon" style="width:1em;height:1em"><use href="/icons.svg#confetti"/></svg></span>
+      <span style="position:absolute;bottom:18%;left:14%;font-size:1.4rem;opacity:.14;color:#fff;animation:bFlt 4.5s ease-in-out infinite 1.2s"><svg class="emoji-icon" style="width:1em;height:1em"><use href="/icons.svg#confetti"/></svg></span>
+      <span style="position:absolute;bottom:22%;right:8%;font-size:2rem;opacity:.15;color:#fff;animation:bFlt 3.8s ease-in-out infinite .4s"><svg class="emoji-icon" style="width:1em;height:1em"><use href="/icons.svg#balloon"/></svg></span>
+      <span style="position:absolute;top:50%;left:4%;font-size:1.2rem;opacity:.12;color:#fff;animation:bFlt 5.2s ease-in-out infinite 2s"><svg class="emoji-icon" style="width:1em;height:1em"><use href="/icons.svg#star"/></svg></span>
+      <span style="position:absolute;top:40%;right:4%;font-size:1.2rem;opacity:.12;color:#fff;animation:bFlt 4.2s ease-in-out infinite 1.6s"><svg class="emoji-icon" style="width:1em;height:1em"><use href="/icons.svg#sparkle"/></svg></span>
     </div>
     <style>
       @keyframes bFlt{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-12px) rotate(8deg)}}
@@ -194,11 +194,11 @@
       <!-- Titre -->
       <div style="margin-bottom:36px">
         <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.12);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.2);border-radius:30px;padding:6px 18px;margin-bottom:16px">
-          <span style="font-size:1rem">🎂</span>
+          <span style="font-size:1rem;color:#fff"><svg class="emoji-icon"><use href="/icons.svg#cake"/></svg></span>
           <span style="color:rgba(255,255,255,.9);font-size:.78rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Aujourd'hui</span>
         </div>
         <h2 style="font-size:2.2rem;font-weight:900;color:#fff;margin:0 0 8px;text-shadow:0 2px 20px rgba(0,0,0,.3)">Joyeux anniversaire !</h2>
-        <p style="color:rgba(255,255,255,.75);font-size:.95rem;margin:0">La grande famille AHH vous souhaite une très belle fête 🥳</p>
+        <p style="color:rgba(255,255,255,.75);font-size:.95rem;margin:0">La grande famille AHH vous souhaite une très belle fête <svg class="emoji-icon"><use href="/icons.svg#sparkle"/></svg></p>
       </div>
       <!-- Cartes membres -->
       <div id="anniversairesGrid" style="display:flex;flex-wrap:wrap;gap:24px;justify-content:center"></div>
@@ -209,7 +209,7 @@
   <section id="featured-activity" style="display:none;background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:60px 0">
     <div class="container">
       <div style="text-align:center;margin-bottom:8px">
-        <span style="background:rgba(255,255,255,.2);color:#fff;font-size:.75rem;font-weight:700;padding:4px 14px;border-radius:20px;letter-spacing:.08em">⭐ À LA UNE</span>
+        <span style="background:rgba(255,255,255,.2);color:#fff;font-size:.75rem;font-weight:700;padding:4px 14px;border-radius:20px;letter-spacing:.08em"><svg class="emoji-icon"><use href="/icons.svg#star"/></svg> À LA UNE</span>
       </div>
       <div id="featured-card" style="display:flex;gap:40px;align-items:center;flex-wrap:wrap;margin-top:24px">
         <div id="featured-img" style="flex:0 0 380px;max-width:100%"></div>
@@ -218,7 +218,7 @@
           <div id="featured-meta" style="font-size:.95rem;opacity:.85;margin-bottom:16px;line-height:1.8"></div>
           <div id="featured-desc" style="font-size:.9rem;opacity:.8;margin-bottom:28px;line-height:1.7;max-width:480px"></div>
           <div style="display:flex;gap:12px;flex-wrap:wrap">
-            <a id="featured-btn" href="#" class="btn btn-primary" style="background:#fff;color:#1b5e20;font-weight:700;padding:14px 28px;border-radius:12px;font-size:1rem">🎟️ S'inscrire</a>
+            <a id="featured-btn" href="#" class="btn btn-primary" style="background:#fff;color:#1b5e20;font-weight:700;padding:14px 28px;border-radius:12px;font-size:1rem"><svg class="emoji-icon"><use href="/icons.svg#ticket"/></svg> S'inscrire</a>
             <a id="featured-btn2" href="actualites.html" class="btn" style="border:2px solid rgba(255,255,255,.5);color:#fff;padding:14px 22px;border-radius:12px;font-size:.95rem">Voir toutes les activités →</a>
           </div>
         </div>
@@ -266,19 +266,19 @@
       </div>
       <div class="pillars-grid">
         <div class="pillar-card hai-blue-border glass-card" data-reveal data-delay="0">
-          <div class="pillar-icon-wrap">🌐</div>
+          <div class="pillar-icon-wrap"><svg class="emoji-icon"><use href="/icons.svg#globe"/></svg></div>
           <h3 data-i18n="pillar1.h3">Réseautage & Connexions</h3>
           <p data-i18n="pillar1.p">Créer des espaces de rencontre pour que les familles haïtiennes de Hamilton se connectent, partagent et bâtissent des liens durables.</p>
           <a href="actualites.html" class="pillar-link" data-i18n="pillar1.link">Voir les activités →</a>
         </div>
         <div class="pillar-card featured gold-border glass-card" data-reveal data-delay="120">
-          <div class="pillar-icon-wrap">🎭</div>
+          <div class="pillar-icon-wrap"><svg class="emoji-icon"><use href="/icons.svg#masks"/></svg></div>
           <h3 data-i18n="pillar2.h3">Événements culturels</h3>
           <p data-i18n="pillar2.p">Organiser des événements vibrants pour célébrer la richesse de la culture haïtienne et renforcer notre identité commune.</p>
           <a href="galerie.html" class="pillar-link" data-i18n="pillar2.link">Voir la galerie →</a>
         </div>
         <div class="pillar-card hai-red-border glass-card" data-reveal data-delay="240">
-          <div class="pillar-icon-wrap">🤲</div>
+          <div class="pillar-icon-wrap"><svg class="emoji-icon"><use href="/icons.svg#pray"/></svg></div>
           <h3 data-i18n="pillar3.h3">Programmes d'assistance</h3>
           <p data-i18n="pillar3.p">Offrir un soutien adapté aux familles haïtiennes : nouveaux arrivants, ressources d'intégration et réseau de solidarité.</p>
           <a href="adhesion.html" class="pillar-link" data-i18n="pillar3.link">Rejoindre AHH →</a>
@@ -413,7 +413,7 @@
       <!-- Toggle don mensuel -->
       <div style="display:flex;justify-content:center;margin-bottom:24px">
         <button id="donToggle" onclick="_toggleDonMode()" style="background:rgba(255,255,255,.15);color:#fff;border:2px solid rgba(255,255,255,.4);padding:12px 28px;border-radius:30px;font-weight:700;font-size:.9rem;cursor:pointer;transition:all .3s">
-          🔄 Don mensuel
+          <svg class="emoji-icon"><use href="/icons.svg#refresh"/></svg> Don mensuel
         </button>
       </div>
       <div class="donation-cards">
@@ -437,7 +437,7 @@
           <a href="https://donate.stripe.com/fZe9CTg1Oh0qehacMM" target="_blank" rel="noopener" class="btn btn-outline-white">Donner $100</a>
         </div>
         <div class="donation-card" data-reveal data-delay="360">
-          <div class="donation-amount">✦</div>
+          <div class="donation-amount"><svg class="emoji-icon i-lg"><use href="/icons.svg#star"/></svg></div>
           <div class="donation-label">Montant libre</div>
           <p>Choisissez le montant qui vous convient. Chaque dollar compte !</p>
           <div style="display:flex;gap:8px;align-items:center;margin-top:auto">
@@ -468,7 +468,7 @@
     if (_donRecurring) {
       toggle.style.background = '#e65100';
       toggle.style.borderColor = '#e65100';
-      toggle.textContent = '✅ Mode mensuel actif, cliquez pour revenir au don unique';
+      toggle.innerHTML = ic('check') + ' Mode mensuel actif, cliquez pour revenir au don unique';
       cards.forEach(function(card, i) {
         var link = card.querySelector('a.btn, a.btn-primary, a.btn-outline-white');
         if (link) {
@@ -521,7 +521,7 @@
     } else {
       toggle.style.background = 'rgba(255,255,255,.15)';
       toggle.style.borderColor = 'rgba(255,255,255,.4)';
-      toggle.textContent = '🔄 Don mensuel';
+      toggle.innerHTML = ic('refresh') + ' Don mensuel';
       cards.forEach(function(card, i) {
         var link = card.querySelector('a.btn, a.btn-primary, a.btn-outline-white');
         if (link && _donOriginalLinks[i]) {
@@ -548,12 +548,12 @@
   <section class="ambassador-section" id="ambassador-section" style="display:none">
     <div class="container">
       <div class="section-header" data-reveal>
-        <span class="section-badge" style="background:rgba(249,168,37,.12);color:#c77700;border-color:rgba(249,168,37,.3)">⭐ Honneur</span>
+        <span class="section-badge" style="background:rgba(249,168,37,.12);color:#c77700;border-color:rgba(249,168,37,.3)"><svg class="emoji-icon"><use href="/icons.svg#star"/></svg> Honneur</span>
         <h2>Ambassadeur <span class="italic-accent">du mois</span></h2>
         <p>Chaque mois, nous célébrons un membre exceptionnel de notre communauté.</p>
       </div>
       <div class="ambassador-card" id="ambassadorCard" data-reveal>
-        <div class="ambassador-badge-crown">👑 Ambassadeur du mois</div>
+        <div class="ambassador-badge-crown"><svg class="emoji-icon"><use href="/icons.svg#crown"/></svg> Ambassadeur du mois</div>
         <div class="ambassador-photo-placeholder" id="ambassadorPhoto">?</div>
         <div class="ambassador-info">
           <div class="ambassador-name" id="ambassadorName">—</div>
@@ -574,7 +574,7 @@
       </div>
       <div class="timeline">
         <div class="timeline-item" data-spring data-delay="0">
-          <div class="timeline-dot">🌱</div>
+          <div class="timeline-dot"><svg class="emoji-icon"><use href="/icons.svg#seedling"/></svg></div>
           <div class="timeline-content">
             <div class="timeline-year">2008</div>
             <h4>Fondation de l'AHH</h4>
@@ -582,7 +582,7 @@
           </div>
         </div>
         <div class="timeline-item" data-spring data-delay="120">
-          <div class="timeline-dot">🎭</div>
+          <div class="timeline-dot"><svg class="emoji-icon"><use href="/icons.svg#masks"/></svg></div>
           <div class="timeline-content">
             <div class="timeline-year">2012</div>
             <h4>Premiers grands événements culturels</h4>
@@ -590,7 +590,7 @@
           </div>
         </div>
         <div class="timeline-item" data-spring data-delay="240">
-          <div class="timeline-dot">🤲</div>
+          <div class="timeline-dot"><svg class="emoji-icon"><use href="/icons.svg#pray"/></svg></div>
           <div class="timeline-content">
             <div class="timeline-year">2016</div>
             <h4>Programme d'assistance aux nouveaux arrivants</h4>
@@ -598,7 +598,7 @@
           </div>
         </div>
         <div class="timeline-item" data-spring data-delay="360">
-          <div class="timeline-dot">🌐</div>
+          <div class="timeline-dot"><svg class="emoji-icon"><use href="/icons.svg#globe"/></svg></div>
           <div class="timeline-content">
             <div class="timeline-year">2020</div>
             <h4>Transition numérique</h4>
@@ -606,7 +606,7 @@
           </div>
         </div>
         <div class="timeline-item" data-spring data-delay="480">
-          <div class="timeline-dot">🚀</div>
+          <div class="timeline-dot"><svg class="emoji-icon"><use href="/icons.svg#rocket"/></svg></div>
           <div class="timeline-content">
             <div class="timeline-year">2024</div>
             <h4>Plateforme numérique AHH</h4>
@@ -614,7 +614,7 @@
           </div>
         </div>
         <div class="timeline-item" data-spring data-delay="600">
-          <div class="timeline-dot">⭐</div>
+          <div class="timeline-dot"><svg class="emoji-icon"><use href="/icons.svg#star"/></svg></div>
           <div class="timeline-content">
             <div class="timeline-year">2025+</div>
             <h4>Croissance et rayonnement</h4>
@@ -629,38 +629,38 @@
   <section class="infographie-section">
     <div class="container" style="position:relative;z-index:1">
       <div class="section-header light" data-reveal>
-        <span class="section-badge" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)">🇭🇹 Haïti</span>
+        <span class="section-badge" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)"><svg class="emoji-icon i-flag"><use href="/icons.svg#flag-ht"/></svg> Haïti</span>
         <h2>Haïti en quelques chiffres</h2>
         <p>La perle des Antilles, une nation riche d'histoire, de culture et de résilience.</p>
       </div>
       <div class="infographie-grid">
         <div class="info-card" data-reveal data-delay="0">
-          <span class="info-icon">📅</span>
+          <span class="info-icon"><svg class="emoji-icon"><use href="/icons.svg#calendar"/></svg></span>
           <div class="info-stat">1804</div>
           <div class="info-label">Première république noire indépendante au monde</div>
         </div>
         <div class="info-card" data-reveal data-delay="80">
-          <span class="info-icon">👥</span>
+          <span class="info-icon"><svg class="emoji-icon"><use href="/icons.svg#users"/></svg></span>
           <div class="info-stat">11M+</div>
           <div class="info-label">Habitants sur l'île</div>
         </div>
         <div class="info-card" data-reveal data-delay="160">
-          <span class="info-icon">🗣️</span>
+          <span class="info-icon"><svg class="emoji-icon"><use href="/icons.svg#chat"/></svg></span>
           <div class="info-stat">2</div>
           <div class="info-label">Langues officielles : français et créole haïtien</div>
         </div>
         <div class="info-card" data-reveal data-delay="240">
-          <span class="info-icon">🎵</span>
+          <span class="info-icon"><svg class="emoji-icon"><use href="/icons.svg#music"/></svg></span>
           <div class="info-stat">200+</div>
           <div class="info-label">Ans d'histoire musicale (Rara, Kompa, Jazz)</div>
         </div>
         <div class="info-card" data-reveal data-delay="320">
-          <span class="info-icon">🍽️</span>
+          <span class="info-icon"><svg class="emoji-icon"><use href="/icons.svg#plate"/></svg></span>
           <div class="info-stat">Griot</div>
           <div class="info-label">Plat national : porc frit accompagné de bannann peze</div>
         </div>
         <div class="info-card" data-reveal data-delay="400">
-          <span class="info-icon">🏳️</span>
+          <span class="info-icon"><svg class="emoji-icon i-flag"><use href="/icons.svg#flag-ht"/></svg></span>
           <div class="info-stat">1803</div>
           <div class="info-label">Année de création du drapeau haïtien bleu et rouge</div>
         </div>
@@ -761,14 +761,14 @@
         <p>Nous sommes heureux de vous accueillir. Contactez-nous pour toute question.</p>
         <div class="contact-items">
           <div class="contact-item">
-            <span class="contact-icon">📍</span>
+            <span class="contact-icon"><svg class="emoji-icon"><use href="/icons.svg#pin"/></svg></span>
             <div>
               <strong>Adresse</strong>
               <span>231 Fernwood Crescent, Hamilton, ON  L8T 3L7</span>
             </div>
           </div>
           <div class="contact-item">
-            <span class="contact-icon">📞</span>
+            <span class="contact-icon"><svg class="emoji-icon"><use href="/icons.svg#phone"/></svg></span>
             <div>
               <strong>Téléphone</strong>
               <span>
@@ -778,7 +778,7 @@
             </div>
           </div>
           <div class="contact-item">
-            <span class="contact-icon">✉️</span>
+            <span class="contact-icon"><svg class="emoji-icon"><use href="/icons.svg#mail"/></svg></span>
             <div>
               <strong>Courriel</strong>
               <span><a href="mailto:contact@ahhamilton.ca">contact@ahhamilton.ca</a></span>
@@ -797,7 +797,7 @@
       <form class="contact-form" id="contactForm" data-reveal data-delay="150">
         <h3 class="form-title">Envoyez-nous un message</h3>
         <div class="contact-success" id="contactSuccess">
-          <div class="cs-icon">✅</div>
+          <div class="cs-icon"><svg class="emoji-icon i-success"><use href="/icons.svg#check"/></svg></div>
           <h3>Message envoyé !</h3>
           <p>Merci de nous avoir contactés. Nous vous répondrons dans les plus brefs délais.</p>
         </div>
@@ -941,7 +941,7 @@
             : '<div class="bday-avatar" style="width:88px;height:88px;border-radius:50%;background:linear-gradient(135deg,#f9a825,#e65100);color:#fff;display:flex;align-items:center;justify-content:center;font-size:2.2rem;font-weight:900;margin:0 auto 14px">' + initiale + '</div>') +
           '<div style="font-size:1.05rem;font-weight:800;color:#fff;margin-bottom:4px">' + m.prenom + ' ' + m.nom_initial + '.</div>' +
           '<div style="font-size:.78rem;color:rgba(255,255,255,.65);margin-bottom:12px;font-style:italic">Membre AHH</div>' +
-          '<div style="background:rgba(249,168,37,.2);border:1px solid rgba(249,168,37,.4);border-radius:30px;padding:5px 14px;display:inline-block;font-size:.82rem;color:#ffd54f;font-weight:700">🎂 Bonne fête !</div>' +
+          '<div style="background:rgba(249,168,37,.2);border:1px solid rgba(249,168,37,.4);border-radius:30px;padding:5px 14px;display:inline-block;font-size:.82rem;color:#ffd54f;font-weight:700">' + ic('cake') + ' Bonne fête !</div>' +
         '</div>';
       }).join('');
     } catch(e) {}
@@ -965,7 +965,7 @@
         return '<' + tag + ' class="sponsor-card">' +
           (s.photo_url
             ? '<img class="sponsor-card-img" src="' + s.photo_url + '" alt="' + s.nom + '" loading="lazy">'
-            : '<div class="sponsor-card-placeholder">🤝</div>') +
+            : '<div class="sponsor-card-placeholder">' + ic('handshake') + '</div>') +
           '<div class="sponsor-card-body">' +
             '<span class="sponsor-card-cat" style="background:' + (CAT_COLORS[s.categorie]||'#9E9E9E') + '">' + (CAT_LABELS[s.categorie]||s.categorie) + '</span>' +
             '<div class="sponsor-card-name">' + s.nom + '</div>' +
@@ -1056,7 +1056,7 @@
         var email = (document.getElementById('nlEmail')||{}).value || '';
         var nlMsg = document.getElementById('nlMsg');
         if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-          if (nlMsg) { nlMsg.textContent = '❌ Veuillez entrer un courriel valide.'; nlMsg.classList.add('show'); }
+          if (nlMsg) { nlMsg.innerHTML = ic('cross', 'i-danger') + ' Veuillez entrer un courriel valide.'; nlMsg.classList.add('show'); }
           return;
         }
         nlBtn.disabled = true; nlBtn.textContent = '…';
@@ -1066,10 +1066,10 @@
             body: JSON.stringify({ email: email })
           });
           if (!r.ok) throw new Error();
-          if (nlMsg) { nlMsg.textContent = '✅ Abonnement confirmé ! Merci de rejoindre notre communauté.'; nlMsg.classList.add('show'); }
+          if (nlMsg) { nlMsg.innerHTML = ic('check', 'i-success') + ' Abonnement confirmé ! Merci de rejoindre notre communauté.'; nlMsg.classList.add('show'); }
           document.getElementById('nlEmail').value = '';
         } catch(e) {
-          if (nlMsg) { nlMsg.textContent = '❌ Erreur. Veuillez réessayer.'; nlMsg.classList.add('show'); }
+          if (nlMsg) { nlMsg.innerHTML = ic('cross', 'i-danger') + ' Erreur. Veuillez réessayer.'; nlMsg.classList.add('show'); }
         } finally {
           nlBtn.disabled = false; nlBtn.textContent = 'S\'abonner';
         }
@@ -1079,11 +1079,11 @@
 
   // ── Fil d'actualité en temps réel ──
   var FEED_TYPE_ICONS = {
-    culturel:  { icon:'🌺', color:'linear-gradient(135deg,#1b5e20,#43a047)' },
-    benevolat: { icon:'🤝', color:'linear-gradient(135deg,#0277bd,#29b6f6)' },
-    social:    { icon:'🍽️', color:'linear-gradient(135deg,#00695c,#26a69a)' },
-    reunion:   { icon:'📋', color:'linear-gradient(135deg,#37474f,#546e7a)' },
-    general:   { icon:'✨', color:'linear-gradient(135deg,#6a1b9a,#ab47bc)' },
+    culturel:  { icon:'flower', color:'linear-gradient(135deg,#1b5e20,#43a047)' },
+    benevolat: { icon:'handshake', color:'linear-gradient(135deg,#0277bd,#29b6f6)' },
+    social:    { icon:'plate', color:'linear-gradient(135deg,#00695c,#26a69a)' },
+    reunion:   { icon:'clipboard', color:'linear-gradient(135deg,#37474f,#546e7a)' },
+    general:   { icon:'sparkle', color:'linear-gradient(135deg,#6a1b9a,#ab47bc)' },
   };
   async function loadFeed() {
     try {
@@ -1104,11 +1104,11 @@
           : '<div style="height:6px;background:' + t.color + '"></div>';
         return '<div class="feed-card">' + imgPart +
           '<div class="feed-card-body">' +
-          (dateStr ? '<div class="feed-card-date">📅 ' + dateStr + '</div>' : '') +
+          (dateStr ? '<div class="feed-card-date">' + ic('calendar') + ' ' + dateStr + '</div>' : '') +
           '<div class="feed-card-title">' + ev.titre + '</div>' +
           '<div class="feed-card-meta">' +
-          (ev.lieu ? '<span>📍 ' + ev.lieu + '</span>' : '') +
-          '<span>👥 ' + (ev.nb_inscrits||0) + (ev.max_participants ? '/' + ev.max_participants : '') + '</span>' +
+          (ev.lieu ? '<span>' + ic('pin') + ' ' + ev.lieu + '</span>' : '') +
+          '<span>' + ic('users') + ' ' + (ev.nb_inscrits||0) + (ev.max_participants ? '/' + ev.max_participants : '') + '</span>' +
           '</div>' +
           '<a href="actualites.html" class="feed-card-cta">Voir les détails →</a>' +
           '</div></div>';
