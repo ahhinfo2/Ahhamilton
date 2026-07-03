@@ -1055,6 +1055,15 @@ app.put('/api/activities/:id', authMiddleware, requireRole(...ACTIVITY_ROLES), (
          rabais_jeune!==undefined ? parseInt(rabais_jeune)||0 : prev.rabais_jeune||0,
          req.params.id);
 
+  // Activité bénévolat marquée terminée : fermer automatiquement les présences oubliées
+  if (newStatut === 'terminee' && prev.statut !== 'terminee') {
+    const stillOpen = db.prepare("SELECT * FROM volunteer_hours WHERE activity_id=? AND statut='en_cours' AND checkout_at IS NULL").all(req.params.id);
+    stillOpen.forEach(row => {
+      const heures = Math.max(0, Math.round(((Date.now() - new Date(row.checkin_at + 'Z').getTime()) / 3600000) * 100) / 100);
+      db.prepare("UPDATE volunteer_hours SET checkout_at=CURRENT_TIMESTAMP, heures=?, statut='en_attente' WHERE id=?").run(heures, row.id);
+    });
+  }
+
   // Notifier les inscrits si l'activité vient d'être annulée
   if (newStatut === 'annulee' && prev.statut !== 'annulee') {
     setImmediate(async () => {
@@ -6869,6 +6878,79 @@ app.post('/api/carte-scan/presencer', authMiddleware, (req, res) => {
     billets_restants: restants,
     message
   });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// POINTAGE BÉNÉVOLAT (scan arrivée / scan départ → heures calculées)
+// ══════════════════════════════════════════════════════════════════════════════
+
+function parseAhhUserId(raw) {
+  const parts = String(raw).split('-');
+  if (parts[0] === 'AHH' && parts[1]) {
+    const id = parseInt(parts[1]);
+    if (!isNaN(id)) return id;
+  }
+  const m = String(raw).match(/[?&]id=(\d+)/);
+  return m ? parseInt(m[1]) : null;
+}
+
+function scanCanVolunteer(req) {
+  if (CARTE_ROLES.includes(req.user.role)) return true;
+  const deleg = db.prepare("SELECT id FROM scan_delegations WHERE user_id=? AND actif=1 AND type IN ('cartes','tous') AND (date_expiration IS NULL OR date_expiration > datetime('now'))").get(req.user.id);
+  return !!deleg;
+}
+
+// Scan carte d'un bénévole : 1er scan = arrivée, 2e scan = départ (heures calculées)
+app.post('/api/volunteer/scan', authMiddleware, (req, res) => {
+  if (!scanCanVolunteer(req)) return res.status(403).json({ error: 'Accès refusé' });
+  const { qr_data, activity_id } = req.body;
+  if (!qr_data || !activity_id) return res.status(400).json({ error: 'Paramètres manquants' });
+
+  const userId = parseAhhUserId(qr_data);
+  if (!userId) return res.status(404).json({ error: 'QR invalide' });
+
+  const act = db.prepare('SELECT * FROM activities WHERE id=?').get(activity_id);
+  if (!act) return res.status(404).json({ error: 'Activité introuvable' });
+  if (act.type !== 'benevolat') return res.status(400).json({ error: 'Cette activité n\'est pas de type Bénévolat' });
+  if (act.statut === 'terminee') return res.status(400).json({ error: 'Cette activité est terminée' });
+
+  const member = db.prepare('SELECT id, prenom, nom, actif FROM users WHERE id=?').get(userId);
+  if (!member) return res.status(404).json({ error: 'Membre introuvable' });
+  if (!member.actif) return res.status(403).json({ error: 'Compte désactivé' });
+
+  const open = db.prepare("SELECT * FROM volunteer_hours WHERE user_id=? AND activity_id=? AND statut='en_cours' AND checkout_at IS NULL").get(userId, activity_id);
+
+  if (!open) {
+    db.prepare("INSERT INTO volunteer_hours (user_id, activity_id, heures, date_service, statut, checkin_at) VALUES (?,?,0,?,'en_cours',CURRENT_TIMESTAMP)")
+      .run(userId, activity_id, new Date().toISOString().split('T')[0]);
+    return res.json({ ok: true, type: 'checkin', nom: `${member.prenom} ${member.nom}`, message: `Arrivée enregistrée — ${member.prenom} ${member.nom}` });
+  }
+
+  const heures = Math.max(0, Math.round(((Date.now() - new Date(open.checkin_at + 'Z').getTime()) / 3600000) * 100) / 100);
+  db.prepare("UPDATE volunteer_hours SET checkout_at=CURRENT_TIMESTAMP, heures=?, statut='en_attente' WHERE id=?").run(heures, open.id);
+  res.json({ ok: true, type: 'checkout', nom: `${member.prenom} ${member.nom}`, heures, message: `Départ enregistré — ${member.prenom} ${member.nom} — ${heures} h` });
+});
+
+// Présences bénévolat en cours pour une activité (pour affichage + fermeture manuelle sur le scanner)
+app.get('/api/volunteer/open/:activity_id', authMiddleware, (req, res) => {
+  if (!scanCanVolunteer(req)) return res.status(403).json({ error: 'Accès refusé' });
+  const rows = db.prepare(`
+    SELECT vh.id, vh.user_id, vh.checkin_at, u.prenom, u.nom
+    FROM volunteer_hours vh JOIN users u ON u.id = vh.user_id
+    WHERE vh.activity_id=? AND vh.statut='en_cours' AND vh.checkout_at IS NULL
+    ORDER BY vh.checkin_at ASC
+  `).all(req.params.activity_id);
+  res.json(rows);
+});
+
+// Fermer manuellement une présence bénévolat ouverte (oubli de scan au départ)
+app.post('/api/volunteer/:id/checkout', authMiddleware, (req, res) => {
+  if (!scanCanVolunteer(req)) return res.status(403).json({ error: 'Accès refusé' });
+  const open = db.prepare("SELECT * FROM volunteer_hours WHERE id=? AND statut='en_cours' AND checkout_at IS NULL").get(req.params.id);
+  if (!open) return res.status(404).json({ error: 'Présence introuvable ou déjà fermée' });
+  const heures = Math.max(0, Math.round(((Date.now() - new Date(open.checkin_at + 'Z').getTime()) / 3600000) * 100) / 100);
+  db.prepare("UPDATE volunteer_hours SET checkout_at=CURRENT_TIMESTAMP, heures=?, statut='en_attente' WHERE id=?").run(heures, open.id);
+  res.json({ ok: true, heures });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════

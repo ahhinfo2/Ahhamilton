@@ -123,6 +123,9 @@ try { db.exec('ALTER TABLE users ADD COLUMN carte_photo_approuvee INTEGER DEFAUL
 try { db.exec('ALTER TABLE users ADD COLUMN carte_notif_renouv INTEGER DEFAULT 0'); } catch {}
 // Marqueur permanent : vrai dès la 1ère approbation, jamais remis à zéro ensuite
 try { db.exec('ALTER TABLE users ADD COLUMN carte_photo_deja_approuvee INTEGER DEFAULT 0'); } catch {}
+// Pointage bénévolat par scan QR : arrivée/départ, statut 'en_cours' pendant la présence
+try { db.exec('ALTER TABLE volunteer_hours ADD COLUMN checkin_at TEXT'); } catch {}
+try { db.exec('ALTER TABLE volunteer_hours ADD COLUMN checkout_at TEXT'); } catch {}
 // Collaboration notes : dernier éditeur + qui édite en ce moment
 try { db.exec('ALTER TABLE meeting_notes ADD COLUMN last_editor_id INTEGER REFERENCES users(id)'); } catch {}
 try { db.exec('ALTER TABLE meeting_notes ADD COLUMN editing_by INTEGER REFERENCES users(id)'); } catch {}

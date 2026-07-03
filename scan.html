@@ -281,6 +281,10 @@
         <option value="">Toutes les activités</option>
       </select>
     </div>
+    <div id="volOpenBox" style="display:none;background:#12210f;padding:8px 12px;max-height:120px;overflow-y:auto;border-top:1px solid #223">
+      <div style="color:#a5d6a7;font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">🕐 Présences bénévolat en cours</div>
+      <div id="volOpenList"></div>
+    </div>
     <div class="cam-tip">📱 Pointez la caméra vers un QR code (billet ou carte membre)</div>
     <div style="padding:6px 10px;display:flex;gap:6px;background:#222">
       <input id="manualCode" placeholder="Saisie manuelle : AHH-XXXXXX ou AHH-00001-..." style="flex:1;padding:6px 10px;border-radius:6px;border:1px solid #555;background:#333;color:#fff;font-size:.8rem;font-family:monospace" onkeydown="if(event.key==='Enter'){event.preventDefault();_manualScan();}"/>
@@ -376,6 +380,7 @@ function logout() {
 }
 
 // ── Activités ────────────────────────────────────────────────────────────────
+window._actTypeById = {};
 async function loadActivities() {
   try {
     const r = await fetch(API + '/activities', { headers: { Authorization: 'Bearer ' + TOKEN } });
@@ -396,6 +401,7 @@ async function loadActivities() {
     }
 
     filteredActs.forEach(a => {
+      window._actTypeById[a.id] = a.type;
       const opt = document.createElement('option');
       opt.value = a.id;
       opt.textContent = a.titre + (a.date_debut ? ' · ' + new Date(a.date_debut).toLocaleDateString('fr-CA') : '');
@@ -408,6 +414,39 @@ async function loadActivities() {
     }
     const urlActId = new URLSearchParams(window.location.search).get('activity_id');
     if (urlActId) sel.value = urlActId;
+
+    sel.addEventListener('change', refreshVolOpenList);
+    refreshVolOpenList();
+  } catch(e) {}
+}
+
+// ── Pointage bénévolat (présences en cours + fermeture manuelle) ──────────────
+async function refreshVolOpenList() {
+  const sel = document.getElementById('actSelect');
+  const box = document.getElementById('volOpenBox');
+  const actId = sel.value;
+  if (!actId || window._actTypeById[actId] !== 'benevolat') { box.style.display = 'none'; return; }
+  try {
+    const r = await fetch(API + '/volunteer/open/' + actId, { headers: { Authorization: 'Bearer ' + TOKEN } });
+    const rows = await r.json();
+    box.style.display = 'block';
+    const list = document.getElementById('volOpenList');
+    if (!rows.length) { list.innerHTML = '<div style="color:rgba(255,255,255,.4);font-size:.75rem">Personne en ce moment</div>'; return; }
+    list.innerHTML = rows.map(function(v) {
+      const since = new Date(v.checkin_at + 'Z').toLocaleTimeString('fr-CA', { hour:'2-digit', minute:'2-digit', timeZone:'America/Toronto' });
+      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 0;font-size:.78rem;color:#fff">' +
+        '<span>' + v.prenom + ' ' + v.nom + ' <span style="color:rgba(255,255,255,.5)">depuis ' + since + '</span></span>' +
+        '<button onclick="manualCloseVolunteer(' + v.id + ')" style="background:#2e7d32;color:#fff;border:none;border-radius:6px;padding:3px 10px;font-size:.7rem;cursor:pointer;white-space:nowrap">Marquer départ</button>' +
+      '</div>';
+    }).join('');
+  } catch(e) {}
+}
+
+async function manualCloseVolunteer(id) {
+  try {
+    const r = await fetch(API + '/volunteer/' + id + '/checkout', { method:'POST', headers: { Authorization: 'Bearer ' + TOKEN } });
+    const d = await r.json();
+    if (d.ok) { playBeep(true); refreshVolOpenList(); }
   } catch(e) {}
 }
 
@@ -505,6 +544,12 @@ async function onQRDetected(rawText) {
   }
 
   var actId = document.getElementById('actSelect').value || null;
+
+  // Activité de type Bénévolat sélectionnée : scan = pointage arrivée/départ, pas billet/carte normale
+  if (actId && window._actTypeById[actId] === 'benevolat') {
+    return handleVolunteerScan(qrText, actId);
+  }
+
   var box = document.getElementById('resultMain');
   box.innerHTML = '<div class="idle-icon" style="animation:spin .5s linear infinite">⏳</div>';
 
@@ -589,6 +634,38 @@ async function onQRDetected(rawText) {
       playBeep(false);
       addHistory('err', qrText.split('\n')[0] || 'Inconnu', data.message || 'Non reconnu', data);
     }
+  } catch(e) {
+    showResultUnified('err', '⚠️', 'ERREUR RÉSEAU', { nom: 'Vérifiez la connexion', type: 'error' });
+    playBeep(false);
+  }
+}
+
+// ── Pointage bénévolat : scan = arrivée, re-scan = départ (heures calculées) ──
+async function handleVolunteerScan(qrText, actId) {
+  var box = document.getElementById('resultMain');
+  box.innerHTML = '<div class="idle-icon" style="animation:spin .5s linear infinite">⏳</div>';
+  try {
+    var res = await fetch(API + '/volunteer/scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + TOKEN },
+      body: JSON.stringify({ qr_data: qrText, activity_id: actId })
+    });
+    var data = await res.json();
+    if (!res.ok) {
+      showResultUnified('err', '❌', data.error || 'ERREUR', { nom: data.detail || '', type: 'error' });
+      playBeep(false);
+      addHistory('err', 'Bénévolat', data.error || 'Erreur', data);
+      return;
+    }
+    if (data.type === 'checkin') {
+      showResultUnified('ok', '✅', 'ARRIVÉE ENREGISTRÉE', { nom: data.nom, type: 'volunteer' });
+      addHistory('ok', data.nom, 'Bénévolat : arrivée', data);
+    } else {
+      showResultUnified('ok', '🕐', 'DÉPART — ' + data.heures + ' H', { nom: data.nom, type: 'volunteer' });
+      addHistory('ok', data.nom, 'Bénévolat : départ, ' + data.heures + ' h', data);
+    }
+    playBeep(true);
+    refreshVolOpenList();
   } catch(e) {
     showResultUnified('err', '⚠️', 'ERREUR RÉSEAU', { nom: 'Vérifiez la connexion', type: 'error' });
     playBeep(false);
