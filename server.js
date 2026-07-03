@@ -6627,8 +6627,8 @@ const CARTE_ROLES = ['admin','tresoriere','secretaire','delegue'];
 
 app.get('/api/admin/cartes', authMiddleware, requireRole(...CARTE_ROLES), (req, res) => {
   const members = db.prepare(`
-    SELECT id, prenom, nom, email, plan, role, date_inscription, photo_url,
-           carte_photo_approuvee, carte_notif_renouv
+    SELECT id, prenom, nom, email, telephone, adresse, plan, role, date_inscription, photo_url,
+           carte_photo_approuvee, carte_photo_deja_approuvee, carte_notif_renouv
     FROM users WHERE actif=1 AND (phantom IS NULL OR phantom=0)
     ORDER BY nom, prenom
   `).all();

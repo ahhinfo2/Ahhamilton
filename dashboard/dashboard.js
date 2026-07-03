@@ -11631,16 +11631,51 @@ async function _cgOpenProfile(id) {
         '<div>📷 Photo : ' + (m.photo_url ? (m.carte_photo_approuvee ? '✅ Approuvée' : '⏳ En attente') : '❌ Aucune') + '</div>' +
       '</div>' +
       '<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px">' +
-        (!m.photo_url ? '<label style="cursor:pointer"><span class="btn btn-primary btn-sm">📷 Ajouter photo</span><input type="file" accept="image/*" capture="environment" style="display:none" onchange="_cgUploadPhoto(' + m.id + ',this.files[0])"/></label>' : '') +
+        '<label style="cursor:pointer"><span class="btn btn-outline btn-sm">📷 ' + (m.photo_url ? 'Changer' : 'Ajouter') + ' photo</span><input type="file" accept="image/*" capture="environment" style="display:none" onchange="_cgUploadPhoto(' + m.id + ',this.files[0])"/></label>' +
         (m.photo_url && !m.carte_photo_approuvee ? '<button class="btn btn-primary btn-sm" onclick="_cgApprovePhoto(' + m.id + ')">✅ Approuver photo</button>' : '') +
         (m.photo_url && !m.carte_photo_approuvee ? '<button class="btn btn-danger btn-sm" onclick="_cgRefusPhotoModal(' + m.id + ',\'' + escHtml(m.prenom+' '+m.nom).replace(/'/g,"\\'") + '\')">✉️ Refuser avec message</button>' : '') +
         (m.photo_url && m.carte_photo_approuvee ? '<button class="btn btn-outline btn-sm" style="color:#e65100;border-color:#e65100" onclick="_cgDesapprouverPhoto(' + m.id + ')">↩️ Désapprouver</button>' : '') +
+        '<button class="btn btn-outline btn-sm" onclick="_cgEditInfo(' + m.id + ')">✏️ Modifier infos</button>' +
         '<button class="btn btn-outline btn-sm" onclick="carteRenouveler(' + m.id + ',\'' + escHtml(m.prenom + ' ' + m.nom).replace(/'/g,"\\'") + '\')">🔄 Renouveler</button>' +
         '<button class="btn btn-outline btn-sm" onclick="closeModal();generateVolunteerLetter(' + m.id + ',\'fr\')" title="Lettre FR">📝 Lettre FR</button>' +
         '<button class="btn btn-outline btn-sm" onclick="closeModal();generateVolunteerLetter(' + m.id + ',\'en\')" title="Lettre EN">📝 EN</button>' +
       '</div>' +
     '</div>');
   } catch(e) { toast(e.message, true); }
+}
+
+function _cgEditInfo(id) {
+  const m = (window._carteMembers || []).find(function(x) { return x.id === id; });
+  if (!m) return;
+  openModal('✏️ Modifier — ' + escHtml(m.prenom + ' ' + m.nom), `
+    <form id="cgEditInfoForm">
+      <div class="form-row">
+        <div class="form-group"><label>Prénom</label><input id="cgei_prenom" value="${escHtml(m.prenom||'')}"/></div>
+        <div class="form-group"><label>Nom</label><input id="cgei_nom" value="${escHtml(m.nom||'')}"/></div>
+      </div>
+      <div class="form-group"><label>Téléphone</label><input id="cgei_tel" value="${escHtml(m.telephone||'')}"/></div>
+      <div class="form-group"><label>Adresse</label><input id="cgei_addr" value="${escHtml(m.adresse||'')}"/></div>
+      <p style="font-size:.78rem;color:var(--muted);margin:-4px 0 14px">Le comité peut modifier ces informations en tout temps, peu importe l'état de la carte.</p>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Enregistrer</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('cgEditInfoForm').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      await api('/users/' + id, { method:'PUT', body: JSON.stringify({
+        prenom: document.getElementById('cgei_prenom').value,
+        nom: document.getElementById('cgei_nom').value,
+        telephone: document.getElementById('cgei_tel').value,
+        adresse: document.getElementById('cgei_addr').value
+      })});
+      toast('Informations mises à jour');
+      closeModal();
+      carteGestionView();
+    } catch(ex) { toast(ex.message, true); }
+  };
 }
 
 async function _cgUploadPhoto(userId, file) {
