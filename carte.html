@@ -41,7 +41,13 @@
     ? 'http://localhost:3001' : '';
 
   const PLAN_LABEL = { gratuit:'Gratuit', bienfaiteur:'Bienfaiteur', partenaire:'Partenaire' };
-  const PLAN_COLOR = { gratuit:'#546e7a', bienfaiteur:'#1565c0', partenaire:'#4a148c' };
+  const CARTE_ROLES = ['admin','tresoriere','secretaire','delegue'];
+  // Couleur selon le statut de la carte : comité = gris-ardoise, en attente = bleu, valide = vert (identique au reste du site)
+  function cardColor(m) {
+    if (CARTE_ROLES.includes(m.role)) return '#546e7a';
+    if (m.photo_url && m.carte_photo_approuvee) return '#1b5e20';
+    return '#1565c0';
+  }
 
   async function loadCard() {
     const params = new URLSearchParams(window.location.search);
@@ -87,7 +93,7 @@
 
   async function renderCard(m, isSelf, token) {
     const planLabel = PLAN_LABEL[m.plan] || 'Gratuit';
-    const planColor = PLAN_COLOR[m.plan] || PLAN_COLOR.gratuit;
+    const planColor = cardColor(m);
     const initials = ((m.prenom||'?')[0] + ((m.nom||'')[0]||'')).toUpperCase();
     const numMembre = String(m.id).padStart(5, '0');
     const expiration = m.date_inscription

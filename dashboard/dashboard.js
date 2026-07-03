@@ -11364,7 +11364,8 @@ async function parrainageView() {
 async function carteMembreView() {
   const me = await api('/auth/me').catch(() => USER);
   const planLabel = { gratuit:'Gratuit', bienfaiteur:'Bienfaiteur', partenaire:'Partenaire' };
-  const planColor = { gratuit:'#546e7a', bienfaiteur:'#1565c0', partenaire:'#4a148c' };
+  // Couleur selon le statut de la carte : comité = gris-ardoise, en attente = bleu, valide = vert (identique au reste du site)
+  const cardColor = ['admin','tresoriere','secretaire','delegue'].includes(me.role) ? '#546e7a' : (me.photo_url && me.carte_photo_approuvee ? '#1b5e20' : '#1565c0');
   const initials = `${(me.prenom||'?')[0]}${(me.nom||'')[0]}`.toUpperCase();
   const numMembre = String(me.id).padStart(5, '0');
   const qrText = `AHH-${numMembre}-${me.id}`;
@@ -11373,7 +11374,7 @@ async function carteMembreView() {
   setContent(`
     <div class="page-header"><div><h2>🪪 Ma carte de membre</h2><p>Votre identité numérique AHH Hamilton</p></div></div>
     <div style="display:flex;justify-content:center;margin-bottom:24px">
-      <div id="carteMembre" style="width:min(420px,95vw);border-radius:20px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.25);background:linear-gradient(135deg,${planColor[me.plan]||'#1a237e'},${planColor[me.plan]||'#1a237e'}cc);color:#fff;position:relative">
+      <div id="carteMembre" style="width:min(420px,95vw);border-radius:20px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.25);background:linear-gradient(135deg,${cardColor},${cardColor}cc);color:#fff;position:relative">
         <!-- En-tête -->
         <div style="padding:22px 24px 14px;display:flex;justify-content:space-between;align-items:flex-start">
           <div>
@@ -11636,6 +11637,7 @@ async function _cgOpenProfile(id) {
         (m.photo_url && !m.carte_photo_approuvee ? '<button class="btn btn-danger btn-sm" onclick="_cgRefusPhotoModal(' + m.id + ',\'' + escHtml(m.prenom+' '+m.nom).replace(/'/g,"\\'") + '\')">✉️ Refuser avec message</button>' : '') +
         (m.photo_url && m.carte_photo_approuvee ? '<button class="btn btn-outline btn-sm" style="color:#e65100;border-color:#e65100" onclick="_cgDesapprouverPhoto(' + m.id + ')">↩️ Désapprouver</button>' : '') +
         '<button class="btn btn-outline btn-sm" onclick="_cgEditInfo(' + m.id + ')">✏️ Modifier infos</button>' +
+        '<button class="btn btn-outline btn-sm" onclick="window.open(\'../carte.html?id=' + m.id + '\', \'_blank\')">🪪 Afficher la carte physique</button>' +
         '<button class="btn btn-outline btn-sm" onclick="carteRenouveler(' + m.id + ',\'' + escHtml(m.prenom + ' ' + m.nom).replace(/'/g,"\\'") + '\')">🔄 Renouveler</button>' +
         '<button class="btn btn-outline btn-sm" onclick="closeModal();generateVolunteerLetter(' + m.id + ',\'fr\')" title="Lettre FR">📝 Lettre FR</button>' +
         '<button class="btn btn-outline btn-sm" onclick="closeModal();generateVolunteerLetter(' + m.id + ',\'en\')" title="Lettre EN">📝 EN</button>' +
