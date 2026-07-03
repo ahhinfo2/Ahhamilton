@@ -10,54 +10,19 @@
   <link rel="stylesheet" href="style.css"/>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
   <style>
-    body { background: #f0f4f0; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; padding:24px; box-sizing:border-box; }
-    .card-wrap { width:340px; }
-    .member-card {
-      background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 50%, #388e3c 100%);
-      border-radius: 20px;
-      padding: 28px 24px 24px;
-      color: #fff;
-      box-shadow: 0 12px 40px rgba(27,94,32,.35);
-      position: relative;
-      overflow: hidden;
-    }
-    .member-card::before {
-      content:'';
-      position:absolute; top:-40px; right:-40px;
-      width:160px; height:160px;
-      border-radius:50%;
-      background:rgba(255,255,255,.07);
-    }
-    .member-card::after {
-      content:'';
-      position:absolute; bottom:-60px; left:-30px;
-      width:200px; height:200px;
-      border-radius:50%;
-      background:rgba(255,255,255,.05);
-    }
-    .card-logo { display:flex; align-items:center; gap:10px; margin-bottom:22px; }
-    .card-logo img { width:38px; height:38px; border-radius:8px; }
-    .card-logo-text { font-size:.82rem; font-weight:700; line-height:1.2; opacity:.9; }
-    .card-avatar { width:72px; height:72px; border-radius:50%; border:3px solid rgba(255,255,255,.5); object-fit:cover; margin-bottom:12px; background:rgba(255,255,255,.15); display:flex; align-items:center; justify-content:center; font-size:2rem; }
-    .card-name { font-size:1.25rem; font-weight:700; margin-bottom:2px; }
-    .card-role { font-size:.78rem; opacity:.8; margin-bottom:14px; }
-    .card-plan { display:inline-block; background:rgba(255,255,255,.2); border:1px solid rgba(255,255,255,.3); border-radius:20px; padding:3px 12px; font-size:.72rem; font-weight:700; margin-bottom:20px; letter-spacing:.04em; }
-    .card-info { display:flex; gap:20px; margin-bottom:20px; font-size:.78rem; opacity:.85; }
-    .card-info div { display:flex; flex-direction:column; }
-    .card-info label { font-size:.66rem; opacity:.7; font-weight:600; text-transform:uppercase; letter-spacing:.05em; margin-bottom:2px; }
-    .card-qr { background:#fff; border-radius:12px; padding:10px; display:flex; align-items:center; justify-content:center; }
-    .card-qr img { width:110px; height:110px; }
-    .card-footer { text-align:center; margin-top:14px; font-size:.72rem; opacity:.65; }
-    .card-number { font-family:monospace; font-size:.75rem; opacity:.6; margin-top:8px; letter-spacing:.08em; }
-
-    .actions { display:flex; gap:10px; margin-top:20px; justify-content:center; flex-wrap:wrap; }
+    body { font-family:'Poppins',sans-serif; background: #f0f4f0; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; padding:24px; box-sizing:border-box; }
+    .card-wrap { width:min(420px,95vw); }
+    .actions { display:flex; gap:12px; margin-top:20px; justify-content:center; flex-wrap:wrap; }
+    .actions .btn-print { background:var(--g1,#1b5e20); color:#fff; }
+    .caption { text-align:center; font-size:.78rem; color:#607060; margin-top:12px; }
+    .status-box { max-width:420px; margin:18px auto 0; padding:14px 16px; border-radius:12px; display:flex; gap:12px; align-items:flex-start; }
     .not-found { text-align:center; padding:60px 24px; }
     .not-found .nf-icon { font-size:3rem; margin-bottom:12px; }
 
     @media print {
       body { background:#fff; padding:0; }
-      .actions { display:none; }
-      .member-card { box-shadow:none; border:1px solid #ddd; }
+      .actions, .status-box, .caption { display:none; }
+      #memberCard { box-shadow:none; }
     }
   </style>
 </head>
@@ -75,131 +40,141 @@
   const BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     ? 'http://localhost:3001' : '';
 
-  const ROLE_LABELS = { admin:'Administrateur·trice', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Accompagnateur', member:'Membre' };
-  const PLAN_LABELS = { gratuit:'Membre', bienfaiteur:'Bienfaiteur', partenaire:'Partenaire' };
-  const PLAN_COLORS = { gratuit:'rgba(255,255,255,.15)', bienfaiteur:'rgba(212,175,55,.4)', partenaire:'rgba(192,192,192,.4)' };
+  const PLAN_LABEL = { gratuit:'Gratuit', bienfaiteur:'Bienfaiteur', partenaire:'Partenaire' };
+  const PLAN_COLOR = { gratuit:'#546e7a', bienfaiteur:'#1565c0', partenaire:'#4a148c' };
 
   async function loadCard() {
     const params = new URLSearchParams(window.location.search);
     const token = localStorage.getItem('ahh_token');
 
-    // Determine member ID
-    let memberId = parseInt(params.get('id'));
-    let user = null;
-
-    // If no token, redirect to login
     if (!token) {
       window.location.href = '/dashboard/login.html?redirect=' + encodeURIComponent(window.location.href);
       return;
     }
 
-    // Get current user
+    let currentUser = null;
     try {
       const res = await fetch(API + '/auth/me', { headers: { Authorization: 'Bearer ' + token } });
       if (!res.ok) throw new Error('Session expirée');
-      user = await res.json();
-      if (!memberId) memberId = user.id;
+      currentUser = await res.json();
     } catch(e) {
       showError('Session expirée. Veuillez vous reconnecter.');
       return;
     }
 
-    // Fetch member card data
+    let memberId = parseInt(params.get('id'));
+    if (!memberId) memberId = currentUser.id;
+
     try {
       const res = await fetch(API + '/members/' + memberId + '/card', { headers: { Authorization: 'Bearer ' + token } });
       if (!res.ok) { showError('Carte introuvable ou accès refusé.'); return; }
       const m = await res.json();
       if (!m.actif) { showError('Ce compte n\'est pas actif.'); return; }
-      renderCard(m);
+      await renderCard(m, memberId === currentUser.id, token);
     } catch(e) {
       showError(e.message);
     }
   }
 
-  function renderCard(m) {
-    const since = m.date_inscription ? new Date(m.date_inscription).toLocaleDateString('fr-CA', { year:'numeric', month:'long' }) : '–';
-    const planLabel = PLAN_LABELS[m.plan] || m.plan;
-    const planColor = PLAN_COLORS[m.plan] || PLAN_COLORS.gratuit;
-    const memberId = String(m.id).padStart(5, '0');
-    const profileUrl = window.location.origin + '/membre.html?id=' + m.id;
-    const checkin = new URLSearchParams(window.location.search).get('checkin');
-    const paid    = new URLSearchParams(window.location.search).get('paid');
+  async function fetchQrDataUrl(text, token) {
+    try {
+      const res = await fetch(API + '/qr?data=' + encodeURIComponent(text), { headers: { Authorization: 'Bearer ' + token } });
+      if (!res.ok) return '';
+      const d = await res.json();
+      return d.qr || '';
+    } catch(e) { return ''; }
+  }
+
+  async function renderCard(m, isSelf, token) {
+    const planLabel = PLAN_LABEL[m.plan] || 'Gratuit';
+    const planColor = PLAN_COLOR[m.plan] || PLAN_COLOR.gratuit;
+    const initials = ((m.prenom||'?')[0] + ((m.nom||'')[0]||'')).toUpperCase();
+    const numMembre = String(m.id).padStart(5, '0');
+    const expiration = m.date_inscription
+      ? new Date(new Date(m.date_inscription).setFullYear(new Date(m.date_inscription).getFullYear()+2)).toLocaleDateString('fr-CA',{year:'numeric',month:'short'})
+      : (new Date().getFullYear()+2);
 
     document.title = m.prenom + ' ' + m.nom + ' | Carte AHH';
 
-    // QR au format AHH-xxxxx-id (compatible avec le scanner du tableau de bord)
-    const qrContent = `AHH-${memberId}-${m.id}`;
-    const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(qrContent)}&bgcolor=ffffff&color=1a237e`;
+    const qrText = `AHH-${numMembre}-${m.id}`;
+    const qrDataUrl = await fetchQrDataUrl(qrText, token);
+
+    const checkin = new URLSearchParams(window.location.search).get('checkin');
+    const paid    = new URLSearchParams(window.location.search).get('paid');
 
     document.getElementById('cardContainer').innerHTML = `
-      <div class="member-card">
-        <div class="card-logo">
-          <img src="Public/logo1.png" alt="AHH"/>
-          <div class="card-logo-text">Association Haïtienne<br/>de Hamilton</div>
-        </div>
-
-        <div style="display:flex;gap:16px;align-items:flex-start">
+      <div id="memberCard" style="border-radius:20px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.25);background:linear-gradient(135deg,${planColor},${planColor}cc);color:#fff;position:relative">
+        <div style="padding:22px 24px 14px;display:flex;justify-content:space-between;align-items:flex-start">
           <div>
-            ${m.photo_url
-              ? '<img class="card-avatar" src="' + BASE_URL + m.photo_url + '" alt="Photo"/>'
-              : '<div class="card-avatar">👤</div>'}
+            <div style="font-size:.62rem;letter-spacing:.15em;opacity:.7;text-transform:uppercase;margin-bottom:4px">Association Haïtienne Hamilton</div>
+            <div style="font-size:1.05rem;font-weight:800;letter-spacing:.04em">AHH</div>
           </div>
+          <div style="background:rgba(255,255,255,.15);border-radius:8px;padding:6px 12px;font-size:.72rem;font-weight:700;letter-spacing:.06em">${planLabel.toUpperCase()}</div>
+        </div>
+        <div style="padding:0 24px 16px;display:flex;align-items:center;gap:14px">
+          ${m.photo_url && m.carte_photo_approuvee
+            ? `<img src="${BASE_URL}${m.photo_url}" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid rgba(255,255,255,.5);flex-shrink:0"/>`
+            : `<div style="width:72px;height:72px;border-radius:50%;background:rgba(255,255,255,.2);border:3px solid rgba(255,255,255,.5);font-size:1.8rem;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0">${initials}</div>`}
           <div style="flex:1;min-width:0">
-            <div class="card-name">${escHtml(m.prenom)} ${escHtml(m.nom)}</div>
-            <div class="card-role">${ROLE_LABELS[m.role] || m.role}</div>
-            <div class="card-plan" style="background:${planColor}">${planLabel.toUpperCase()}</div>
+            <div style="font-size:1.25rem;font-weight:800;line-height:1.1">${escHtml(m.prenom)}</div>
+            <div style="font-size:1.25rem;font-weight:800;line-height:1.1">${escHtml(m.nom)}</div>
+            <div style="font-size:.72rem;opacity:.7;margin-top:5px">Membre depuis ${m.date_inscription ? new Date(m.date_inscription).getFullYear() : '–'}</div>
+          </div>
+          <img src="Public/logo1.png" alt="AHH" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid rgba(255,255,255,.35);flex-shrink:0"/>
+        </div>
+        <div style="background:rgba(0,0,0,.2);padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px">
+          <div>
+            <div style="font-size:.6rem;opacity:.65;text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px">N° de membre</div>
+            <div style="font-size:1.4rem;font-weight:900;letter-spacing:.12em;font-family:monospace">#${numMembre}</div>
+            <div style="font-size:.65rem;opacity:.55;margin-top:6px">Expire · ${expiration}</div>
+          </div>
+          <div style="background:#fff;border-radius:10px;padding:6px;width:102px;height:102px;display:flex;align-items:center;justify-content:center">
+            ${qrDataUrl ? `<img src="${qrDataUrl}" alt="QR" style="width:90px;height:90px;display:block"/>` : `<span style="color:#999;font-size:.65rem;text-align:center">QR indisponible</span>`}
           </div>
         </div>
-
-        <div class="card-info">
-          <div><label>Membre depuis</label><span>${since}</span></div>
-          <div><label>No. membre</label><span>#${memberId}</span></div>
-          ${m.telephone ? '<div><label>Téléphone</label><span>' + escHtml(m.telephone) + '</span></div>' : ''}
-        </div>
-
-        <div class="card-qr">
-          <img id="qrImg" src="${qrSrc}" alt="QR Code"/>
-        </div>
-        <div class="card-footer">Scannez avec le scanner AHH</div>
-        <div class="card-number">AHH-${memberId}</div>
       </div>
 
+      <div class="actions">
+        <button class="btn btn-primary btn-print" onclick="window.print()">🖨️ Imprimer</button>
+        <button class="btn btn-outline" onclick="toast_('Faites une capture d\\'écran de la carte pour l\\'enregistrer')">💾 Enregistrer en image</button>
+      </div>
+      <p class="caption">Présentez cette carte lors des événements AHH Hamilton</p>
+
       ${!m.photo_url
-        ? `<div style="background:#fff8e1;border:1px solid #ffe082;border-radius:12px;padding:14px 16px;margin-top:14px;display:flex;gap:10px;align-items:flex-start">
-            <span style="font-size:1.2rem;flex-shrink:0">⚠️</span>
+        ? `<div class="status-box" style="background:#fff8e1;border:1px solid #ffe082">
+            <span style="font-size:1.3rem;flex-shrink:0">⚠️</span>
             <div>
               <div style="font-weight:700;font-size:.88rem;color:#e65100;margin-bottom:3px">Carte non valide</div>
-              <div style="font-size:.82rem;color:#6d4c41">Ajoutez une photo dans votre profil et faites-la approuver par un autre membre du comité.</div>
+              <div style="font-size:.82rem;color:#6d4c41;line-height:1.45">
+                ${isSelf ? 'Votre carte' : 'Cette carte'} de membre ne sera <strong>valide</strong> qu'une fois ${isSelf ? "qu'une photo aura été ajoutée à votre profil" : "qu'une photo aura été ajoutée"} <strong>et</strong> approuvée par le comité.
+              </div>
+              ${isSelf ? `<a href="dashboard/app.html" class="btn" style="margin-top:10px;background:#e65100;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:.8rem;font-weight:700;text-decoration:none;display:inline-block">📷 Mettre à jour mon profil →</a>` : ''}
             </div>
           </div>`
         : !m.carte_photo_approuvee
-          ? `<div style="background:#e3f2fd;border:1px solid #90caf9;border-radius:12px;padding:14px 16px;margin-top:14px;display:flex;gap:10px;align-items:flex-start">
-              <span style="font-size:1.2rem;flex-shrink:0">🕐</span>
+          ? `<div class="status-box" style="background:#e3f2fd;border:1px solid #90caf9">
+              <span style="font-size:1.3rem;flex-shrink:0">🕐</span>
               <div>
-                <div style="font-weight:700;font-size:.88rem;color:#1565c0;margin-bottom:3px">En attente de validation</div>
-                <div style="font-size:.82rem;color:#37474f">Votre photo doit être approuvée par un autre membre du comité.</div>
+                <div style="font-weight:700;font-size:.88rem;color:#1565c0;margin-bottom:3px">Carte en attente de validation</div>
+                <div style="font-size:.82rem;color:#37474f;line-height:1.45">La photo a bien été reçue. ${isSelf ? 'Votre carte sera' : 'Cette carte sera'} <strong>activée</strong> dès qu'un membre du comité aura approuvé la photo.</div>
               </div>
             </div>`
-          : `<div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:12px;padding:12px 16px;margin-top:14px;display:flex;gap:10px;align-items:center">
-              <span style="font-size:1.2rem">✅</span>
-              <div style="font-size:.84rem;color:#1b5e20;font-weight:700">Carte valide, photo approuvée</div>
-            </div>`}
+          : `<div class="status-box" style="background:#e8f5e9;border:1px solid #a5d6a7;align-items:center">
+              <span style="font-size:1.3rem">✅</span>
+              <div style="font-size:.84rem;color:#1b5e20;font-weight:700">Carte valide</div>
+              <div style="font-size:.8rem;color:#2e7d32">Photo approuvée par le comité</div>
+            </div>`
+      }
 
-      ${checkin ? `<div style="background:#e8f5e9;border-left:4px solid #2e7d32;border-radius:10px;padding:14px 16px;margin-top:14px;font-size:.9rem;color:#1b5e20">
-        ✅ <strong>Présence confirmée</strong> pour « ${checkin} »${paid ? ' · <strong>Paiement reçu</strong> 💳' : ''}
+      ${checkin ? `<div style="background:#e8f5e9;border-left:4px solid #2e7d32;border-radius:10px;padding:14px 16px;margin-top:14px;font-size:.9rem;color:#1b5e20;max-width:420px;margin-left:auto;margin-right:auto">
+        ✅ <strong>Présence confirmée</strong> pour « ${escHtml(checkin)} »${paid ? ' · <strong>Paiement reçu</strong> 💳' : ''}
       </div>` : ''}
 
-      <div class="actions">
-        <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimer</button>
-        <button class="btn btn-outline" onclick="downloadCard()">💾 Télécharger</button>
-        <a href="dashboard/app.html" class="btn btn-ghost">← Tableau de bord</a>
-      </div>`;
-
+      <p style="text-align:center;margin-top:16px"><a href="dashboard/app.html" style="color:#607060;font-size:.82rem;text-decoration:none">← Tableau de bord</a></p>
+    `;
   }
 
-  function downloadCard() {
-    window.print();
-  }
+  function toast_(msg) { alert(msg); }
 
   function showError(msg) {
     document.getElementById('cardContainer').innerHTML =

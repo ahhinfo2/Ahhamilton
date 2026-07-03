@@ -11367,8 +11367,8 @@ async function carteMembreView() {
   const planColor = { gratuit:'#546e7a', bienfaiteur:'#1565c0', partenaire:'#4a148c' };
   const initials = `${(me.prenom||'?')[0]}${(me.nom||'')[0]}`.toUpperCase();
   const numMembre = String(me.id).padStart(5, '0');
-  const qrData = encodeURIComponent(`AHH-${numMembre}-${me.referral_code || me.id}`);
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${qrData}&bgcolor=ffffff&color=1a237e`;
+  const qrText = `AHH-${numMembre}-${me.id}`;
+  const qrUrl = await api('/qr?data=' + encodeURIComponent(qrText)).then(d => d.qr).catch(() => '');
 
   setContent(`
     <div class="page-header"><div><h2>🪪 Ma carte de membre</h2><p>Votre identité numérique AHH Hamilton</p></div></div>
@@ -11405,8 +11405,8 @@ async function carteMembreView() {
                 : new Date().getFullYear() + 2}
             </div>
           </div>
-          <div style="background:#fff;border-radius:10px;padding:6px">
-            <img src="${qrUrl}" alt="QR" style="width:90px;height:90px;display:block"/>
+          <div style="background:#fff;border-radius:10px;padding:6px;width:102px;height:102px;display:flex;align-items:center;justify-content:center">
+            ${qrUrl ? `<img src="${qrUrl}" alt="QR" style="width:90px;height:90px;display:block"/>` : `<span style="color:#999;font-size:.65rem;text-align:center">QR indisponible</span>`}
           </div>
         </div>
       </div>
