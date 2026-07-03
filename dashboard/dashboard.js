@@ -2184,6 +2184,16 @@ function openActivityForm(a = null) {
         <div class="form-group"><label>Date fin</label><input type="datetime-local" id="a_fin" value="${a?.date_fin||''}"/></div>
       </div>
       <div class="form-row">
+        <div class="form-group">
+          <label>Nombre d'heures</label>
+          <input type="number" id="a_heures" min="0" step="0.25" placeholder="ex: 5"/>
+          <small style="color:var(--muted)">Se remplit automatiquement avec la date de fin (dans un sens ou dans l'autre).</small>
+        </div>
+        <div class="form-group" style="display:flex;align-items:flex-end;padding-bottom:8px">
+          <span id="a_dateErr" style="color:#c62828;font-size:.82rem;font-weight:600"></span>
+        </div>
+      </div>
+      <div class="form-row">
         <div class="form-group"><label>Lieu</label><input id="a_lieu" value="${a?.lieu||''}"/></div>
         <div class="form-group"><label>Budget prévu ($)</label><input type="number" id="a_budget" value="${a?.budget_prevu||0}" step="0.01"/></div>
       </div>
@@ -2269,8 +2279,58 @@ function openActivityForm(a = null) {
       </div>
     </form>
   `);
+
+  // ── Synchro Date début / Date fin / Nombre d'heures ──────────────────────
+  const a_debut = document.getElementById('a_debut');
+  const a_fin = document.getElementById('a_fin');
+  const a_heures = document.getElementById('a_heures');
+  const a_dateErr = document.getElementById('a_dateErr');
+  let _actSyncing = false;
+
+  function _actValidateDates() {
+    if (a_debut.value && a_fin.value && new Date(a_fin.value) < new Date(a_debut.value)) {
+      a_dateErr.textContent = '⚠️ La date de fin ne peut pas être avant la date de début';
+      a_fin.style.borderColor = '#c62828';
+      return false;
+    }
+    a_dateErr.textContent = '';
+    a_fin.style.borderColor = '';
+    return true;
+  }
+  function _actHeuresFromDates() {
+    if (!a_debut.value || !a_fin.value || !_actValidateDates()) return;
+    const diffH = (new Date(a_fin.value) - new Date(a_debut.value)) / 3600000;
+    _actSyncing = true;
+    a_heures.value = diffH > 0 ? Math.round(diffH * 100) / 100 : '';
+    _actSyncing = false;
+  }
+  function _actFinFromHeures() {
+    const h = parseFloat(a_heures.value);
+    if (!a_debut.value || !h || h <= 0) return;
+    const f = new Date(new Date(a_debut.value).getTime() + h * 3600000);
+    f.setMinutes(f.getMinutes() - f.getTimezoneOffset());
+    _actSyncing = true;
+    a_fin.value = f.toISOString().slice(0, 16);
+    _actSyncing = false;
+    _actValidateDates();
+  }
+  a_debut.addEventListener('change', () => {
+    if (_actSyncing) return;
+    if (a_heures.value) _actFinFromHeures(); else _actValidateDates();
+  });
+  a_fin.addEventListener('change', () => {
+    if (_actSyncing) return;
+    if (_actValidateDates()) _actHeuresFromDates();
+  });
+  a_heures.addEventListener('input', () => {
+    if (_actSyncing) return;
+    _actFinFromHeures();
+  });
+  if (a_debut.value && a_fin.value) _actHeuresFromDates();
+
   document.getElementById('actForm').onsubmit = async e => {
     e.preventDefault();
+    if (!_actValidateDates()) { toast('La date de fin ne peut pas être avant la date de début', 'error'); return; }
     const payant = document.getElementById('a_payant').checked;
     const rabaisJson = {};
     if (payant && canSetDiscount()) {
