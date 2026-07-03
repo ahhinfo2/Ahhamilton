@@ -1830,7 +1830,7 @@ async function openMemberDetail(u) {
 
       ${can.executive() ? `<div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-outline btn-sm" onclick="closeModal();openMemberForm(window._memberDetail)">✏️ Modifier</button>
-        <button class="btn btn-ghost btn-sm" onclick="closeModal();showView('carte-gestion')">🪪 Carte membre</button>
+        <button class="btn btn-ghost btn-sm" onclick="window.open('../carte.html?id=' + ${m.id}, '_blank')">🪪 Afficher la carte physique</button>
         ${m.actif
           ? `<button class="btn btn-danger btn-sm" onclick="closeModal();toggleMember(${m.id},0)">🚫 Désactiver</button>`
           : `<button class="btn btn-ghost btn-sm"  onclick="closeModal();toggleMember(${m.id},1)">✅ Activer</button>`}
