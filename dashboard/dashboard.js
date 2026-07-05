@@ -391,7 +391,6 @@ async function buildSidebar() {
       { id:'reports',           icon:'◆', label:'Rapports',            roles:EXEC },
       { id:'stats-growth',      icon:'📈', label:'Statistiques',       roles:EXEC },
       { id:'alerts',            icon:'◇', label:'Alertes',             roles:EXEC },
-      { id:'audit-log',         icon:'📋', label:'Journal d\'audit',   roles:EXEC },
       { id:'votes',             icon:'🗳️', label:'Votes & Élections', roles:EXEC },
       { id:'parrainage',        icon:'🤝', label:'Parrainage',         roles: ALL },
       { id:'export-data',       icon:'📦', label:'Export / Sauvegarde', roles:['admin','secretaire','tresoriere'] },
@@ -603,7 +602,6 @@ function setActiveNav(viewId) {
     'meeting-agendas':'Ordres du jour',
     'decision-registry':'Registre des décisions',
     'policies':'Politiques et règlements',
-    'audit-log':'Journal d\'audit',
     'email-templates':'Modèles de courriels',
     'export-data':'Export données',
     'annual-report':'Rapport annuel',
@@ -1205,7 +1203,6 @@ async function showView(viewId) {
     'meeting-agendas': meetingAgendasView,
     'decision-registry': decisionRegistryView,
     'policies': policiesView,
-    'audit-log': auditLogView,
     'email-templates': emailTemplatesView,
     'export-data': exportDataView,
     'annual-report': annualReportView,
@@ -14434,125 +14431,6 @@ async function policyDelete(id) {
     toast('Politique supprimée');
     await policiesView();
   } catch(e) { toast(e.message, true); }
-}
-
-// ══ AUDIT LOG — même style que Stats du site (connexions par membre) ════
-async function auditLogView() {
-  if (!can.executive()) { toast('Accès réservé au comité exécutif', true); return; }
-
-  setContent(`
-    <div class="page-header">
-      <div><h2>📋 Journal d'audit</h2><p>Connexions et actions des membres</p></div>
-      <div class="page-actions">
-        <button class="btn btn-outline btn-sm" onclick="auditLogView()">🔄 Rafraîchir</button>
-      </div>
-    </div>
-    <div class="table-card">
-      <div style="padding:20px">
-        <div id="audit_connexions_section">
-          <div style="text-align:center;padding:24px;color:var(--muted)">Chargement…</div>
-        </div>
-      </div>
-    </div>`);
-
-  window._auditConnData = null;
-  window._auditConnFiltres = { recherche: '', role: '', plan: '' };
-  _auditChargerConnexions('nb_connexions', 'desc');
-}
-
-async function _auditChargerConnexions(triCol, triDir) {
-  const section = document.getElementById('audit_connexions_section');
-  if (!section) return;
-
-  if (!window._auditConnData) {
-    section.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted)">Chargement…</div>';
-    try { window._auditConnData = await api('/stats/connexions'); }
-    catch { section.innerHTML = '<div style="color:#c62828;padding:12px">Erreur de chargement</div>'; return; }
-  }
-
-  window._auditConnTri = { col: triCol, dir: triDir };
-  _auditRendreConnexions();
-}
-
-function _auditRendreConnexions() {
-  const section = document.getElementById('audit_connexions_section');
-  if (!section) return;
-  const { col: triCol, dir: triDir } = window._auditConnTri || { col:'nb_connexions', dir:'desc' };
-  const { recherche, role, plan } = window._auditConnFiltres || {};
-  const ROLE_FR = { admin:'Admin', secretaire:'Secrétaire', tresoriere:'Trésorière', delegue:'Délégué', membre:'Membre' };
-
-  let rows = (window._auditConnData || []).filter(u => {
-    if (recherche) {
-      const q = recherche.toLowerCase();
-      const nom = (u.prenom + ' ' + u.nom).toLowerCase();
-      const email = (u.email || '').toLowerCase();
-      if (!nom.includes(q) && !email.includes(q)) return false;
-    }
-    if (role && u.role !== role) return false;
-    if (plan && (u.plan || 'gratuit') !== plan) return false;
-    return true;
-  });
-
-  rows = [...rows].sort((a, b) => {
-    let va = a[triCol] ?? 0, vb = b[triCol] ?? 0;
-    if (typeof va === 'string') va = va.toLowerCase();
-    if (typeof vb === 'string') vb = vb.toLowerCase();
-    return triDir === 'asc' ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
-  });
-
-  const inv = d => d === 'asc' ? 'desc' : 'asc';
-  const th = (label, colId) => {
-    const active = triCol === colId;
-    const arrow  = active ? (triDir === 'asc' ? ' ▲' : ' ▼') : '';
-    const center = colId === 'nb_connexions';
-    return '<th onclick="_auditChargerConnexions(\'' + colId + '\',\'' + (active ? inv(triDir) : 'desc') + '\')" ' +
-      'style="padding:8px 12px;text-align:' + (center ? 'center' : 'left') + ';cursor:pointer;user-select:none;white-space:nowrap;' +
-      'background:' + (active ? '#e8f0fe' : '#f8f8f8') + ';color:' + (active ? '#1565c0' : 'var(--text)') + '">' + label + arrow + '</th>';
-  };
-
-  const roles  = [...new Set((window._auditConnData||[]).map(u => u.role).filter(Boolean))];
-  const plans  = [...new Set((window._auditConnData||[]).map(u => u.plan || 'gratuit').filter(Boolean))];
-  const selStyle = 'border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:.82rem;background:#fff;cursor:pointer;';
-
-  section.innerHTML =
-    '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;padding:12px 14px;background:var(--off);border-radius:10px;border:1px solid var(--border)">' +
-      '<input id="aud_recherche" type="text" placeholder="🔍 Rechercher un membre…" value="' + escHtml(recherche || '') + '" ' +
-        'oninput="window._auditConnFiltres.recherche=this.value;_auditRendreConnexions()" ' +
-        'style="flex:1;min-width:180px;border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:.84rem"/>' +
-      '<select onchange="window._auditConnFiltres.role=this.value;_auditRendreConnexions()" style="' + selStyle + '">' +
-        '<option value="">Tous les rôles</option>' +
-        roles.map(r => '<option value="' + r + '"' + (role === r ? ' selected' : '') + '>' + (ROLE_FR[r] || r) + '</option>').join('') +
-      '</select>' +
-      '<select onchange="window._auditConnFiltres.plan=this.value;_auditRendreConnexions()" style="' + selStyle + '">' +
-        '<option value="">Tous les plans</option>' +
-        plans.map(p => '<option value="' + p + '"' + (plan === p ? ' selected' : '') + '>' + (p.charAt(0).toUpperCase() + p.slice(1)) + '</option>').join('') +
-      '</select>' +
-      (recherche || role || plan
-        ? '<button onclick="window._auditConnFiltres={recherche:\'\',role:\'\',plan:\'\'};_auditRendreConnexions()" style="border:1px solid #c62828;color:#c62828;background:#fff;border-radius:8px;padding:6px 12px;font-size:.8rem;cursor:pointer">✕ Réinitialiser</button>'
-        : '') +
-    '</div>' +
-    '<div style="font-size:.8rem;color:var(--muted);margin-bottom:8px">' + rows.length + ' membre(s) affiché(s) sur ' + (window._auditConnData||[]).length + ' · Cliquez sur une colonne pour trier</div>' +
-    '<div style="overflow-x:auto;border:1px solid var(--border);border-radius:10px">' +
-    '<table style="width:100%;border-collapse:collapse;font-size:.84rem">' +
-    '<thead><tr>' +
-    th('Membre', 'nom') + th('Rôle', 'role') + th('Plan', 'plan') + th('Connexions', 'nb_connexions') + th('Dernière connexion', 'derniere_connexion') +
-    '</tr></thead><tbody>' +
-    (rows.length ? rows.map((u, i) => {
-      const initials = ((u.prenom||'')[0]||'').toUpperCase() + ((u.nom||'')[0]||'').toUpperCase();
-      const date = u.derniere_connexion ? u.derniere_connexion.substring(0, 16).replace('T', ' ') : 'Jamais';
-      const heat = u.nb_connexions >= 20 ? '#1b5e20' : u.nb_connexions >= 5 ? '#e65100' : '#555';
-      return '<tr style="border-top:1px solid var(--border)' + (i % 2 ? ';background:#fafafa' : '') + '">' +
-        '<td style="padding:9px 12px"><div style="display:flex;align-items:center;gap:8px">' +
-        '<div style="width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;flex-shrink:0">' + initials + '</div>' +
-        '<div><strong>' + escHtml(u.prenom + ' ' + u.nom) + '</strong><div style="font-size:.73rem;color:var(--muted)">' + (u.email || '') + '</div></div>' +
-        '</div></td>' +
-        '<td style="padding:9px 12px">' + (ROLE_FR[u.role] || u.role || '') + '</td>' +
-        '<td style="padding:9px 12px">' + planBadge(u.plan) + '</td>' +
-        '<td style="padding:9px;text-align:center;font-size:1.1rem;font-weight:800;color:' + heat + '">' + (u.nb_connexions || 0) + '</td>' +
-        '<td style="padding:9px 12px;font-size:.8rem;color:var(--muted)">' + date + '</td>' +
-        '</tr>';
-    }).join('') : '<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--muted)">Aucun résultat pour ces filtres</td></tr>') +
-    '</tbody></table></div>';
 }
 
 // ══ EMAIL TEMPLATES ════════════════════════════════════════════════════════
