@@ -125,6 +125,8 @@ try { db.exec('ALTER TABLE users ADD COLUMN carte_notif_renouv INTEGER DEFAULT 0
 try { db.exec('ALTER TABLE users ADD COLUMN carte_photo_deja_approuvee INTEGER DEFAULT 0'); } catch {}
 // Titre du comité affiché sur la carte de membre (ex. Présidente, Vice-président, Conseiller)
 try { db.exec('ALTER TABLE users ADD COLUMN titre_comite TEXT'); } catch {}
+// Photo complète (non recadrée) conservée pour pouvoir réajuster le cadrage plus tard
+try { db.exec('ALTER TABLE users ADD COLUMN photo_original_url TEXT'); } catch {}
 // Pointage bénévolat par scan QR : arrivée/départ, statut 'en_cours' pendant la présence
 try { db.exec('ALTER TABLE volunteer_hours ADD COLUMN checkin_at TEXT'); } catch {}
 try { db.exec('ALTER TABLE volunteer_hours ADD COLUMN checkout_at TEXT'); } catch {}

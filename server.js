@@ -682,7 +682,7 @@ app.get('/api/users', authMiddleware, (req, res) => {
   const total = db.prepare("SELECT COUNT(*) AS c FROM users WHERE (phantom IS NULL OR phantom = 0)").get().c;
   const rows = db.prepare(`SELECT id, prenom, nom, email, telephone, adresse, role, actif,
     plan, plan_paid_month, plan_unpaid_count, titre_comite,
-    date_inscription, date_naissance, bio, photo_url, email_org FROM users
+    date_inscription, date_naissance, bio, photo_url, photo_original_url, email_org FROM users
     WHERE (phantom IS NULL OR phantom = 0) ORDER BY nom, prenom LIMIT ? OFFSET ?`).all(limit, offset);
   res.json(req.query.page ? { data: rows, total, page, pages: Math.ceil(total / limit) } : rows);
 });
@@ -690,7 +690,7 @@ app.get('/api/users', authMiddleware, (req, res) => {
 app.get('/api/users/:id', authMiddleware, (req, res) => {
   const u = db.prepare(`SELECT id, prenom, nom, email, telephone, adresse, role, actif,
     plan, plan_paid_month, plan_unpaid_count, titre_comite,
-    date_inscription, date_naissance, bio, photo_url, email_org FROM users WHERE id = ?`).get(req.params.id);
+    date_inscription, date_naissance, bio, photo_url, photo_original_url, email_org FROM users WHERE id = ?`).get(req.params.id);
   if (!u) return res.status(404).json({ error: 'Utilisateur introuvable' });
   res.json(u);
 });
@@ -765,10 +765,12 @@ const profileStorage = multer.diskStorage({
     const targetId = req.params.id || req.user.id;
     const u = db.prepare('SELECT prenom, nom FROM users WHERE id = ?').get(targetId);
     const namePart = u ? `${slugifyName(u.prenom)}_${slugifyName(u.nom)}` : `user_${targetId}`;
-    cb(null, `${namePart}_${targetId}_${Date.now()}${path.extname(file.originalname).toLowerCase()}`);
+    const suffix = file.fieldname === 'original' ? '_original' : '';
+    cb(null, `${namePart}_${targetId}${suffix}_${Date.now()}${path.extname(file.originalname).toLowerCase()}`);
   }
 });
-const uploadProfile = multer({ storage: profileStorage, limits: { fileSize: 5 * 1024 * 1024 } });
+const uploadProfile = multer({ storage: profileStorage, limits: { fileSize: 8 * 1024 * 1024 } });
+const uploadProfileFields = uploadProfile.fields([{ name: 'photo', maxCount: 1 }, { name: 'original', maxCount: 1 }]);
 
 const ambassadorPhotoStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -780,7 +782,7 @@ const ambassadorPhotoStorage = multer.diskStorage({
 });
 const uploadAmbassador = multer({ storage: ambassadorPhotoStorage, limits: { fileSize: 5 * 1024 * 1024 } });
 
-app.post('/api/users/:id/photo', authMiddleware, uploadProfile.single('photo'), async (req, res) => {
+app.post('/api/users/:id/photo', authMiddleware, uploadProfileFields, async (req, res) => {
   if (req.user.id !== parseInt(req.params.id) && req.user.role !== 'admin')
     return res.status(403).json({ error: 'Accès refusé' });
 
@@ -794,12 +796,24 @@ app.post('/api/users/:id/photo', authMiddleware, uploadProfile.single('photo'), 
     }
   }
 
-  if (!req.file) return res.status(400).json({ error: 'Photo requise' });
-  await compressImage(req.file.path, 1200);
-  const photo_url = `/uploads/profiles/${req.file.filename}`;
+  const photoFile = req.files?.photo?.[0];
+  const originalFile = req.files?.original?.[0];
+  if (!photoFile) return res.status(400).json({ error: 'Photo requise' });
+  await compressImage(photoFile.path, 1200);
+  const photo_url = `/uploads/profiles/${photoFile.filename}`;
+  const updates = ['photo_url = ?', 'carte_photo_approuvee = 0'];
+  const vals = [photo_url];
+  let photo_original_url;
+  if (originalFile) {
+    await compressImage(originalFile.path, 2000);
+    photo_original_url = `/uploads/profiles/${originalFile.filename}`;
+    updates.push('photo_original_url = ?');
+    vals.push(photo_original_url);
+  }
+  vals.push(req.params.id);
   // Une nouvelle photo doit toujours être re-validée par le comité
-  db.prepare('UPDATE users SET photo_url = ?, carte_photo_approuvee = 0 WHERE id = ?').run(photo_url, req.params.id);
-  res.json({ photo_url });
+  db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...vals);
+  res.json({ photo_url, photo_original_url });
 });
 app.use('/uploads/profiles', express.static(path.join(__dirname, 'uploads', 'profiles')));
 
@@ -6643,7 +6657,7 @@ const CARTE_ROLES = ['admin','tresoriere','secretaire','delegue'];
 
 app.get('/api/admin/cartes', authMiddleware, requireRole(...CARTE_ROLES), (req, res) => {
   const members = db.prepare(`
-    SELECT id, prenom, nom, email, telephone, adresse, plan, role, titre_comite, date_inscription, photo_url,
+    SELECT id, prenom, nom, email, telephone, adresse, plan, role, titre_comite, date_inscription, photo_url, photo_original_url,
            carte_photo_approuvee, carte_photo_deja_approuvee, carte_notif_renouv
     FROM users WHERE actif=1 AND (phantom IS NULL OR phantom=0)
     ORDER BY nom, prenom
@@ -6726,17 +6740,27 @@ app.post('/api/admin/cartes/:id/refus-photo', authMiddleware, requireRole(...CAR
 });
 
 // Upload photo membre (comité prend la photo — NE PAS auto-approuver si même personne)
-app.post('/api/admin/cartes/:id/photo', authMiddleware, requireRole(...CARTE_ROLES), uploadProfile.single('photo'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'Photo requise' });
-  await compressImage(req.file.path, 1200);
-  const photoUrl = `/uploads/profiles/${req.file.filename}`;
+app.post('/api/admin/cartes/:id/photo', authMiddleware, requireRole(...CARTE_ROLES), uploadProfileFields, async (req, res) => {
+  const photoFile = req.files?.photo?.[0];
+  const originalFile = req.files?.original?.[0];
+  if (!photoFile) return res.status(400).json({ error: 'Photo requise' });
+  await compressImage(photoFile.path, 1200);
+  const photoUrl = `/uploads/profiles/${photoFile.filename}`;
   const isSelf = parseInt(req.params.id) === req.user.id;
-  if (isSelf) {
-    db.prepare('UPDATE users SET photo_url=?, carte_photo_approuvee=0 WHERE id=?').run(photoUrl, req.params.id);
-  } else {
-    db.prepare('UPDATE users SET photo_url=?, carte_photo_approuvee=1, carte_photo_deja_approuvee=1 WHERE id=?').run(photoUrl, req.params.id);
+  const updates = isSelf
+    ? ['photo_url=?', 'carte_photo_approuvee=0']
+    : ['photo_url=?', 'carte_photo_approuvee=1', 'carte_photo_deja_approuvee=1'];
+  const vals = [photoUrl];
+  let photoOriginalUrl;
+  if (originalFile) {
+    await compressImage(originalFile.path, 2000);
+    photoOriginalUrl = `/uploads/profiles/${originalFile.filename}`;
+    updates.push('photo_original_url=?');
+    vals.push(photoOriginalUrl);
   }
-  res.json({ ok: true, photo_url: photoUrl, auto_approved: !isSelf });
+  vals.push(req.params.id);
+  db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id=?`).run(...vals);
+  res.json({ ok: true, photo_url: photoUrl, photo_original_url: photoOriginalUrl, auto_approved: !isSelf });
 });
 
 app.post('/api/admin/cartes/:id/renouveler', authMiddleware, requireRole(...CARTE_ROLES), (req, res) => {

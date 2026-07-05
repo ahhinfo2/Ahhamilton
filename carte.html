@@ -41,7 +41,8 @@
     ? 'http://localhost:3001' : '';
 
   const PLAN_LABEL = { gratuit:'Gratuit', bienfaiteur:'Bienfaiteur', partenaire:'Partenaire' };
-  const ROLE_LABEL = { admin:'Admin', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Délégué' };
+  // "admin" recouvre plusieurs postes (Présidente, Vice-président...), donc jamais "Admin" par défaut
+  const ROLE_LABEL = { admin:'Membre du bureau', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Délégué' };
   const CARTE_ROLES = ['admin','tresoriere','secretaire','delegue'];
   // Couleur selon le statut de la carte : comité = gris-ardoise, en attente = bleu, valide = vert (identique au reste du site)
   function cardColor(m) {

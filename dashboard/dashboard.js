@@ -286,6 +286,14 @@ function roleName(r) {
   return { admin:'Admin', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Accompagnateur', member:'Membre' }[r] || r;
 }
 
+// Titre affiché sur la carte de membre / galerie photos pour le comité : le
+// rôle "admin" recouvre plusieurs postes (Présidente, Vice-président...), donc
+// on n'affiche jamais "Admin" par défaut — seul un titre_comite explicite l'indique.
+function comiteCardTitle(m) {
+  if (m.titre_comite) return m.titre_comite;
+  return { tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Délégué', admin:'Membre du bureau' }[m.role] || '';
+}
+
 function setContent(html) {
   const mc = document.getElementById('mainContent');
   // Supprimer le skeleton au premier rendu
@@ -994,19 +1002,20 @@ function closeModal() {
 // l'aperçu et l'image exportée utilisent exactement le même bitmap et les mêmes
 // calculs, à un simple facteur d'échelle près, donc ce qui est affiché ici est
 // toujours identique à ce qui sera enregistré.
-function openPhotoCropper(file, onConfirm) {
+function openPhotoCropper(file, onConfirm, opts = {}) {
   const STAGE = 280, OUT = 600, MIN_SCALE = 1, MAX_SCALE = 5;
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
   overlay.innerHTML = `
     <div style="background:var(--card,#fff);border-radius:16px;padding:22px;max-width:340px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4)">
-      <h3 style="margin:0 0 4px;font-size:1.05rem">📷 Ajuster la photo</h3>
+      <h3 style="margin:0 0 4px;font-size:1.05rem">${escHtml(opts.title || '📷 Ajuster la photo')}</h3>
       <p style="margin:0 0 16px;font-size:.78rem;color:var(--muted)">Glissez pour déplacer · molette ou pincement pour zoomer</p>
       <canvas id="cropCanvas" width="${STAGE}" height="${STAGE}" style="border-radius:50%;background:#111;cursor:grab;touch-action:none;display:block;margin:0 auto"></canvas>
       <input type="range" id="cropZoom" min="100" max="${MAX_SCALE * 100}" value="100" style="width:100%;margin-top:16px"/>
+      ${opts.allowReplace ? `<label style="display:inline-block;margin-top:12px;font-size:.8rem;color:var(--g2);text-decoration:underline;cursor:pointer">📷 Changer la photo<input type="file" id="cropReplaceInput" accept="image/*" style="display:none"/></label>` : ''}
       <div style="display:flex;gap:10px;justify-content:center;margin-top:18px">
         <button id="cropCancelBtn" type="button" class="btn btn-ghost">Annuler</button>
-        <button id="cropConfirmBtn" type="button" class="btn btn-primary">✓ Utiliser cette photo</button>
+        <button id="cropConfirmBtn" type="button" class="btn btn-primary">${escHtml(opts.confirmLabel || '✓ Utiliser cette photo')}</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -1014,6 +1023,7 @@ function openPhotoCropper(file, onConfirm) {
   const canvas = overlay.querySelector('#cropCanvas');
   const ctx = canvas.getContext('2d');
   const zoomSlider = overlay.querySelector('#cropZoom');
+  let currentSource = file;
 
   let bitmap = null, bw = 0, bh = 0, baseScale = 1, scale = 1, offX = 0, offY = 0;
   let dragging = false, lastX = 0, lastY = 0;
@@ -1049,22 +1059,36 @@ function openPhotoCropper(file, onConfirm) {
     zoomSlider.value = Math.round(scale * 100);
   }
 
-  (async () => {
+  async function loadSource(src) {
+    currentSource = src;
     try {
+      let newBitmap;
       try {
-        bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+        newBitmap = await createImageBitmap(src, { imageOrientation: 'from-image' });
       } catch (e) {
-        bitmap = await createImageBitmap(file);
+        newBitmap = await createImageBitmap(src);
       }
+      if (bitmap) bitmap.close();
+      bitmap = newBitmap;
       bw = bitmap.width; bh = bitmap.height;
       baseScale = STAGE / Math.min(bw, bh);
       scale = 1; offX = 0; offY = 0;
+      zoomSlider.value = 100;
       draw();
     } catch (e) {
       toast('Impossible de lire cette image — essayez un autre fichier.', 'error');
-      cleanup();
+      if (!bitmap) cleanup();
     }
-  })();
+  }
+  loadSource(file);
+
+  const replaceInput = overlay.querySelector('#cropReplaceInput');
+  if (replaceInput) {
+    replaceInput.addEventListener('change', () => {
+      const f = replaceInput.files[0];
+      if (f) loadSource(f);
+    });
+  }
 
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
@@ -1131,7 +1155,7 @@ function openPhotoCropper(file, onConfirm) {
     const w = bw * baseScale * scale * ratio, h = bh * baseScale * scale * ratio;
     const x = OUT / 2 - w / 2 + offX * ratio, y = OUT / 2 - h / 2 + offY * ratio;
     outCanvas.getContext('2d').drawImage(bitmap, x, y, w, h);
-    outCanvas.toBlob((blob) => { cleanup(); if (blob) onConfirm(blob); }, 'image/jpeg', 0.92);
+    outCanvas.toBlob((blob) => { const src = currentSource; cleanup(); if (blob) onConfirm(blob, src); }, 'image/jpeg', 0.92);
   };
 }
 
@@ -6674,9 +6698,10 @@ async function profile() {
     const file = this.files[0];
     this.value = '';
     if (!file) return;
-    openPhotoCropper(file, async (blob) => {
+    openPhotoCropper(file, async (blob, sourceFile) => {
       const fd = new FormData();
       fd.append('photo', blob, 'photo.jpg');
+      fd.append('original', sourceFile, 'original.jpg');
       try {
         const res = await fetch(`${BASE}/api/users/${u.id}/photo`, {
           method: 'POST', headers: { Authorization: `Bearer ${TOKEN}` }, body: fd
@@ -11582,7 +11607,7 @@ async function carteMembreView() {
   const me = await api('/auth/me').catch(() => USER);
   const CARTE_ROLES = ['admin','tresoriere','secretaire','delegue'];
   // Comité : titre personnalisé (ex. Présidente) ; membres : rien (pas de badge de plan)
-  const badgeText = CARTE_ROLES.includes(me.role) ? (me.titre_comite || roleName(me.role)) : '';
+  const badgeText = CARTE_ROLES.includes(me.role) ? comiteCardTitle(me) : '';
   // Couleur selon le statut de la carte : comité = gris-ardoise, en attente = bleu, valide = vert (identique au reste du site)
   const cardColor = CARTE_ROLES.includes(me.role) ? '#546e7a' : (me.photo_url && me.carte_photo_approuvee ? '#1b5e20' : '#1565c0');
   const initials = `${(me.prenom||'?')[0]}${(me.nom||'')[0]}`.toUpperCase();
@@ -11811,13 +11836,12 @@ async function photosMembresView() {
 function _pmRender(list) {
   const grid = document.getElementById('pmGrid');
   if (!grid) return;
-  const roleLabel = { admin:'Admin', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Délégué', member:'Membre' };
   if (!list.length) { grid.innerHTML = '<p style="color:var(--muted);grid-column:1/-1;text-align:center;padding:30px">Aucun membre trouvé</p>'; return; }
   grid.innerHTML = list.map(m => {
-    const titre = ['admin','tresoriere','secretaire','delegue'].includes(m.role) ? (m.titre_comite || roleLabel[m.role]) : roleLabel[m.role] || 'Membre';
+    const titre = ['admin','tresoriere','secretaire','delegue'].includes(m.role) ? comiteCardTitle(m) : 'Membre';
     const borderColor = !m.photo_url ? 'var(--border)' : m.carte_photo_approuvee ? '#2e7d32' : '#e65100';
     return `
-    <div onclick="openMemberDetail(window._photosMembresData.find(x=>x.id===${m.id}))" style="cursor:pointer;text-align:center;background:var(--card,#fff);border:1px solid var(--border);border-radius:12px;padding:14px 10px;transition:transform .15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
+    <div onclick="_pmAdjustPhoto(${m.id})" style="cursor:pointer;text-align:center;background:var(--card,#fff);border:1px solid var(--border);border-radius:12px;padding:14px 10px;transition:transform .15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
       ${m.photo_url
         ? `<img src="${BASE}${m.photo_url}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid ${borderColor};margin-bottom:8px"/>`
         : `<div style="width:80px;height:80px;border-radius:50%;background:var(--g3);color:#fff;font-size:1.5rem;font-weight:700;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;border:3px solid ${borderColor}">${(m.prenom||'?')[0]}${(m.nom||'')[0]||''}</div>`}
@@ -11832,6 +11856,50 @@ function _pmFilter() {
   const q = (document.getElementById('pmSearch')?.value || '').toLowerCase();
   const list = (window._photosMembresData || []).filter(m => !q || `${m.prenom} ${m.nom}`.toLowerCase().includes(q));
   _pmRender(list);
+}
+
+// Ouvre l'outil de recadrage directement sur la photo complète (non recadrée) du
+// membre, avec un bouton pour changer de photo si besoin.
+async function _pmAdjustPhoto(id) {
+  const m = (window._photosMembresData || []).find(x => x.id === id);
+  if (!m) return;
+
+  async function uploadCropped(blob, sourceFile) {
+    const fd = new FormData();
+    fd.append('photo', blob, 'photo.jpg');
+    fd.append('original', sourceFile, 'original.jpg');
+    try {
+      const res = await fetch(BASE + '/api/admin/cartes/' + id + '/photo', {
+        method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN }, body: fd
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || 'Téléversement échoué'); }
+      const data = await res.json();
+      m.photo_url = data.photo_url;
+      if (data.photo_original_url) m.photo_original_url = data.photo_original_url;
+      m.carte_photo_approuvee = data.auto_approved ? 1 : 0;
+      toast(data.auto_approved ? '✅ Photo mise à jour — carte validée' : '📷 Photo mise à jour — en attente d\'approbation par un AUTRE membre du comité');
+      _pmRender(window._photosMembresData);
+    } catch (e) { toast('Erreur : ' + e.message, 'error'); }
+  }
+
+  if (!m.photo_url) {
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'image/*';
+    inp.onchange = () => { if (inp.files[0]) openPhotoCropper(inp.files[0], uploadCropped, { allowReplace: true }); };
+    inp.click();
+    return;
+  }
+
+  try {
+    const resp = await fetch(BASE + (m.photo_original_url || m.photo_url));
+    if (!resp.ok) throw new Error('Photo introuvable');
+    const blob = await resp.blob();
+    openPhotoCropper(blob, uploadCropped, {
+      title: '📷 Photo de ' + (m.prenom || ''),
+      allowReplace: true,
+      confirmLabel: '💾 Enregistrer le cadrage'
+    });
+  } catch (e) { toast('Impossible de charger la photo actuelle', 'error'); }
 }
 
 function _cgFilter() {
@@ -11949,9 +12017,10 @@ function _cgEditInfo(id) {
 
 async function _cgUploadPhoto(userId, file) {
   if (!file) return;
-  openPhotoCropper(file, async (blob) => {
+  openPhotoCropper(file, async (blob, sourceFile) => {
     var fd = new FormData();
     fd.append('photo', blob, 'photo.jpg');
+    fd.append('original', sourceFile, 'original.jpg');
     try {
       await fetch(BASE + '/api/admin/cartes/' + userId + '/photo', {
         method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN }, body: fd
@@ -12320,9 +12389,10 @@ async function carteScanSearch() {
 
 async function _uploadCartePhoto(userId, file) {
   if (!file) return;
-  openPhotoCropper(file, async (blob) => {
+  openPhotoCropper(file, async (blob, sourceFile) => {
     const fd = new FormData();
     fd.append('photo', blob, 'photo.jpg');
+    fd.append('original', sourceFile, 'original.jpg');
     try {
       await fetch(BASE + '/api/admin/cartes/' + userId + '/photo', {
         method: 'POST',
