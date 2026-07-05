@@ -314,6 +314,7 @@ const _crypto = require('crypto');
 const ALLOWED_IMAGE_MIMES = ['image/jpeg','image/png','image/gif','image/webp'];
 const ALLOWED_DOC_MIMES = [...ALLOWED_IMAGE_MIMES,'application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','text/csv','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
 function safeFilename(file) { return `${Date.now()}-${_crypto.randomBytes(8).toString('hex')}${path.extname(file.originalname).toLowerCase()}`; }
+function slugifyName(str) { return String(str||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-zA-Z0-9]+/g,'_').replace(/^_+|_+$/g,'') || 'membre'; }
 function imageFilter(req, file, cb) { cb(ALLOWED_IMAGE_MIMES.includes(file.mimetype) ? null : new Error('Type de fichier non autorisé'), ALLOWED_IMAGE_MIMES.includes(file.mimetype)); }
 function docFilter(req, file, cb) { cb(ALLOWED_DOC_MIMES.includes(file.mimetype) ? null : new Error('Type de fichier non autorisé'), ALLOWED_DOC_MIMES.includes(file.mimetype)); }
 function escHtmlServer(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -759,7 +760,12 @@ const profileStorage = multer.diskStorage({
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
-  filename: (req, file, cb) => cb(null, `user_${req.user.id}_${Date.now()}${path.extname(file.originalname)}`)
+  filename: (req, file, cb) => {
+    const targetId = req.params.id || req.user.id;
+    const u = db.prepare('SELECT prenom, nom FROM users WHERE id = ?').get(targetId);
+    const namePart = u ? `${slugifyName(u.prenom)}_${slugifyName(u.nom)}` : `user_${targetId}`;
+    cb(null, `${namePart}_${targetId}_${Date.now()}${path.extname(file.originalname).toLowerCase()}`);
+  }
 });
 const uploadProfile = multer({ storage: profileStorage, limits: { fileSize: 5 * 1024 * 1024 } });
 

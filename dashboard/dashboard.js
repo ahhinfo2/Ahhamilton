@@ -1829,7 +1829,7 @@ async function openMemberDetail(u) {
       </div>
 
       ${can.executive() ? `<div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-outline btn-sm" onclick="closeModal();openMemberForm(window._memberDetail)">✏️ Modifier</button>
+        <button class="btn btn-outline btn-sm" onclick="openMemberForm(window._memberDetail)">✏️ Modifier</button>
         <button class="btn btn-ghost btn-sm" onclick="window.open('../carte.html?id=' + ${m.id}, '_blank')">🪪 Afficher la carte physique</button>
         ${m.actif
           ? `<button class="btn btn-danger btn-sm" onclick="closeModal();toggleMember(${m.id},0)">🚫 Désactiver</button>`
@@ -6956,7 +6956,7 @@ function calOpenEvent(id) {
         '<div><label style="font-size:.7rem;font-weight:700;color:var(--muted);display:block;margin-bottom:2px">BUDGET</label>' + fmtMoney(a.budget_prevu||0) + '</div>' +
       '</div>' +
       (can.admin() ? '<div style="padding-top:14px;border-top:1px solid var(--border);margin-top:14px;display:flex;gap:8px">' +
-        '<button class="btn btn-outline btn-sm" onclick="closeModal();openActivityForm(window._calEventDetail)">✏️ Modifier</button>' +
+        '<button class="btn btn-outline btn-sm" onclick="openActivityForm(window._calEventDetail)">✏️ Modifier</button>' +
         (a.statut === 'planifiee' ? '<button class="btn btn-primary btn-sm" onclick="closeModal();launchActivity(' + a.id + ',\'' + a.titre.replace(/'/g,"\\'") + '\')">🚀 Lancer</button>' : '') +
         '<button class="btn btn-ghost btn-sm" onclick="closeModal();viewRegistrations(' + a.id + ',\'' + a.titre.replace(/'/g,"\\'") + '\')">👥 Inscrits</button>' +
       '</div>' : '')
