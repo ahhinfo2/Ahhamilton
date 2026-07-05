@@ -990,18 +990,20 @@ function closeModal() {
 }
 
 // ── Recadrage de photo avant envoi (overlay indépendant, ne touche pas setContent) ──
+// Rendu par canvas (glisser-déplacer + molette/pincement pour zoomer, comme Canva) :
+// l'aperçu et l'image exportée utilisent exactement le même bitmap et les mêmes
+// calculs, à un simple facteur d'échelle près, donc ce qui est affiché ici est
+// toujours identique à ce qui sera enregistré.
 function openPhotoCropper(file, onConfirm) {
-  const STAGE = 240, OUT = 500;
+  const STAGE = 280, OUT = 600, MIN_SCALE = 1, MAX_SCALE = 5;
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
   overlay.innerHTML = `
-    <div style="background:var(--card,#fff);border-radius:16px;padding:22px;max-width:320px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+    <div style="background:var(--card,#fff);border-radius:16px;padding:22px;max-width:340px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4)">
       <h3 style="margin:0 0 4px;font-size:1.05rem">📷 Ajuster la photo</h3>
-      <p style="margin:0 0 16px;font-size:.78rem;color:var(--muted)">Glissez pour repositionner, zoomez avec le curseur</p>
-      <div id="cropStage" style="position:relative;width:${STAGE}px;height:${STAGE}px;margin:0 auto;overflow:hidden;border-radius:50%;background:#111;cursor:grab;touch-action:none">
-        <img id="cropImg" draggable="false" style="position:absolute;top:0;left:0;user-select:none"/>
-      </div>
-      <input type="range" id="cropZoom" min="100" max="300" value="100" style="width:100%;margin-top:16px"/>
+      <p style="margin:0 0 16px;font-size:.78rem;color:var(--muted)">Glissez pour déplacer · molette ou pincement pour zoomer</p>
+      <canvas id="cropCanvas" width="${STAGE}" height="${STAGE}" style="border-radius:50%;background:#111;cursor:grab;touch-action:none;display:block;margin:0 auto"></canvas>
+      <input type="range" id="cropZoom" min="100" max="${MAX_SCALE * 100}" value="100" style="width:100%;margin-top:16px"/>
       <div style="display:flex;gap:10px;justify-content:center;margin-top:18px">
         <button id="cropCancelBtn" type="button" class="btn btn-ghost">Annuler</button>
         <button id="cropConfirmBtn" type="button" class="btn btn-primary">✓ Utiliser cette photo</button>
@@ -1009,77 +1011,127 @@ function openPhotoCropper(file, onConfirm) {
     </div>`;
   document.body.appendChild(overlay);
 
-  const stage = overlay.querySelector('#cropStage');
-  const img = overlay.querySelector('#cropImg');
+  const canvas = overlay.querySelector('#cropCanvas');
+  const ctx = canvas.getContext('2d');
   const zoomSlider = overlay.querySelector('#cropZoom');
-  const url = URL.createObjectURL(file);
-  let naturalW = 0, naturalH = 0, baseScale = 1, scale = 1, offX = 0, offY = 0;
-  let dragging = false, startX = 0, startY = 0, startOffX = 0, startOffY = 0;
 
-  function applyTransform() {
-    const w = naturalW * baseScale * scale;
-    const h = naturalH * baseScale * scale;
-    img.style.width = w + 'px';
-    img.style.height = h + 'px';
+  let bitmap = null, bw = 0, bh = 0, baseScale = 1, scale = 1, offX = 0, offY = 0;
+  let dragging = false, lastX = 0, lastY = 0;
+  const pointers = new Map();
+  let pinchStartDist = 0, pinchStartScale = 1;
+
+  function clampOffsets() {
+    const w = bw * baseScale * scale, h = bh * baseScale * scale;
     const maxX = Math.max(0, (w - STAGE) / 2);
     const maxY = Math.max(0, (h - STAGE) / 2);
     offX = Math.min(maxX, Math.max(-maxX, offX));
     offY = Math.min(maxY, Math.max(-maxY, offY));
-    img.style.left = (STAGE / 2 - w / 2 + offX) + 'px';
-    img.style.top = (STAGE / 2 - h / 2 + offY) + 'px';
   }
 
-  img.onload = () => {
-    naturalW = img.naturalWidth; naturalH = img.naturalHeight;
-    baseScale = STAGE / Math.min(naturalW, naturalH);
-    scale = 1; offX = 0; offY = 0;
-    applyTransform();
-  };
-  img.src = url;
-
-  function pointerDown(e) {
-    dragging = true;
-    const p = e.touches ? e.touches[0] : e;
-    startX = p.clientX; startY = p.clientY; startOffX = offX; startOffY = offY;
-    stage.style.cursor = 'grabbing';
+  function draw() {
+    if (!bitmap) return;
+    clampOffsets();
+    const w = bw * baseScale * scale, h = bh * baseScale * scale;
+    const x = STAGE / 2 - w / 2 + offX, y = STAGE / 2 - h / 2 + offY;
+    ctx.clearRect(0, 0, STAGE, STAGE);
+    ctx.drawImage(bitmap, x, y, w, h);
   }
-  function pointerMove(e) {
-    if (!dragging) return;
-    const p = e.touches ? e.touches[0] : e;
-    offX = startOffX + (p.clientX - startX);
-    offY = startOffY + (p.clientY - startY);
-    applyTransform();
-  }
-  function pointerUp() { dragging = false; stage.style.cursor = 'grab'; }
 
-  stage.addEventListener('mousedown', pointerDown);
-  window.addEventListener('mousemove', pointerMove);
-  window.addEventListener('mouseup', pointerUp);
-  stage.addEventListener('touchstart', pointerDown, { passive: true });
-  window.addEventListener('touchmove', pointerMove, { passive: true });
-  window.addEventListener('touchend', pointerUp);
-  zoomSlider.addEventListener('input', () => { scale = zoomSlider.value / 100; applyTransform(); });
+  function zoomAt(mx, my, factor) {
+    const oldScale = scale;
+    const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, oldScale * factor));
+    const k = newScale / oldScale;
+    const imgCenterX = STAGE / 2 + offX, imgCenterY = STAGE / 2 + offY;
+    offX = mx - (mx - imgCenterX) * k - STAGE / 2;
+    offY = my - (my - imgCenterY) * k - STAGE / 2;
+    scale = newScale;
+    draw();
+    zoomSlider.value = Math.round(scale * 100);
+  }
+
+  (async () => {
+    try {
+      try {
+        bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      } catch (e) {
+        bitmap = await createImageBitmap(file);
+      }
+      bw = bitmap.width; bh = bitmap.height;
+      baseScale = STAGE / Math.min(bw, bh);
+      scale = 1; offX = 0; offY = 0;
+      draw();
+    } catch (e) {
+      toast('Impossible de lire cette image — essayez un autre fichier.', 'error');
+      cleanup();
+    }
+  })();
+
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    zoomAt(e.clientX - rect.left, e.clientY - rect.top, e.deltaY < 0 ? 1.1 : 0.9);
+  }, { passive: false });
+
+  canvas.addEventListener('pointerdown', (e) => {
+    canvas.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 1) {
+      dragging = true; lastX = e.clientX; lastY = e.clientY;
+      canvas.style.cursor = 'grabbing';
+    } else if (pointers.size === 2) {
+      dragging = false;
+      const pts = [...pointers.values()];
+      pinchStartDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      pinchStartScale = scale;
+    }
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 2) {
+      const pts = [...pointers.values()];
+      const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      const midX = (pts[0].x + pts[1].x) / 2, midY = (pts[0].y + pts[1].y) / 2;
+      const rect = canvas.getBoundingClientRect();
+      if (pinchStartDist > 0) {
+        const targetScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, pinchStartScale * (dist / pinchStartDist)));
+        zoomAt(midX - rect.left, midY - rect.top, targetScale / scale);
+      }
+    } else if (dragging) {
+      offX += (e.clientX - lastX);
+      offY += (e.clientY - lastY);
+      lastX = e.clientX; lastY = e.clientY;
+      draw();
+    }
+  });
+  function endPointer(e) {
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) pinchStartDist = 0;
+    if (pointers.size === 0) { dragging = false; canvas.style.cursor = 'grab'; }
+  }
+  canvas.addEventListener('pointerup', endPointer);
+  canvas.addEventListener('pointercancel', endPointer);
+  canvas.addEventListener('pointerleave', (e) => { if (pointers.size <= 1) endPointer(e); });
+
+  zoomSlider.addEventListener('input', () => {
+    zoomAt(STAGE / 2, STAGE / 2, (zoomSlider.value / 100) / scale);
+  });
 
   function cleanup() {
-    URL.revokeObjectURL(url);
-    window.removeEventListener('mousemove', pointerMove);
-    window.removeEventListener('mouseup', pointerUp);
-    window.removeEventListener('touchmove', pointerMove);
-    window.removeEventListener('touchend', pointerUp);
+    if (bitmap) bitmap.close();
     overlay.remove();
   }
 
   overlay.querySelector('#cropCancelBtn').onclick = () => cleanup();
   overlay.querySelector('#cropConfirmBtn').onclick = () => {
-    const canvas = document.createElement('canvas');
-    canvas.width = OUT; canvas.height = OUT;
+    if (!bitmap) return;
+    const outCanvas = document.createElement('canvas');
+    outCanvas.width = OUT; outCanvas.height = OUT;
     const ratio = OUT / STAGE;
-    const w = naturalW * baseScale * scale * ratio;
-    const h = naturalH * baseScale * scale * ratio;
-    const x = OUT / 2 - w / 2 + offX * ratio;
-    const y = OUT / 2 - h / 2 + offY * ratio;
-    canvas.getContext('2d').drawImage(img, x, y, w, h);
-    canvas.toBlob((blob) => { cleanup(); if (blob) onConfirm(blob); }, 'image/jpeg', 0.92);
+    const w = bw * baseScale * scale * ratio, h = bh * baseScale * scale * ratio;
+    const x = OUT / 2 - w / 2 + offX * ratio, y = OUT / 2 - h / 2 + offY * ratio;
+    outCanvas.getContext('2d').drawImage(bitmap, x, y, w, h);
+    outCanvas.toBlob((blob) => { cleanup(); if (blob) onConfirm(blob); }, 'image/jpeg', 0.92);
   };
 }
 
