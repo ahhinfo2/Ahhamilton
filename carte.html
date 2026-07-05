@@ -41,6 +41,7 @@
     ? 'http://localhost:3001' : '';
 
   const PLAN_LABEL = { gratuit:'Gratuit', bienfaiteur:'Bienfaiteur', partenaire:'Partenaire' };
+  const ROLE_LABEL = { admin:'Admin', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Délégué' };
   const CARTE_ROLES = ['admin','tresoriere','secretaire','delegue'];
   // Couleur selon le statut de la carte : comité = gris-ardoise, en attente = bleu, valide = vert (identique au reste du site)
   function cardColor(m) {
@@ -92,7 +93,7 @@
   }
 
   async function renderCard(m, isSelf, token) {
-    const planLabel = PLAN_LABEL[m.plan] || 'Gratuit';
+    const badgeText = CARTE_ROLES.includes(m.role) ? (m.titre_comite || ROLE_LABEL[m.role] || '') : '';
     const planColor = cardColor(m);
     const initials = ((m.prenom||'?')[0] + ((m.nom||'')[0]||'')).toUpperCase();
     const numMembre = String(m.id).padStart(5, '0');
@@ -115,7 +116,7 @@
             <div style="font-size:.62rem;letter-spacing:.15em;opacity:.7;text-transform:uppercase;margin-bottom:4px">Association Haïtienne Hamilton</div>
             <div style="font-size:1.05rem;font-weight:800;letter-spacing:.04em">AHH</div>
           </div>
-          <div style="background:rgba(255,255,255,.15);border-radius:8px;padding:6px 12px;font-size:.72rem;font-weight:700;letter-spacing:.06em">${planLabel.toUpperCase()}</div>
+          ${badgeText ? `<div style="background:rgba(255,255,255,.15);border-radius:8px;padding:6px 12px;font-size:.72rem;font-weight:700;letter-spacing:.06em">${escHtml(badgeText).toUpperCase()}</div>` : ''}
         </div>
         <div style="padding:0 24px 16px;display:flex;align-items:center;gap:14px">
           ${m.photo_url && m.carte_photo_approuvee

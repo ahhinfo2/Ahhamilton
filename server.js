@@ -681,7 +681,7 @@ app.get('/api/users', authMiddleware, (req, res) => {
   const offset = (page - 1) * limit;
   const total = db.prepare("SELECT COUNT(*) AS c FROM users WHERE (phantom IS NULL OR phantom = 0)").get().c;
   const rows = db.prepare(`SELECT id, prenom, nom, email, telephone, adresse, role, actif,
-    plan, plan_paid_month, plan_unpaid_count,
+    plan, plan_paid_month, plan_unpaid_count, titre_comite,
     date_inscription, date_naissance, bio, photo_url, email_org FROM users
     WHERE (phantom IS NULL OR phantom = 0) ORDER BY nom, prenom LIMIT ? OFFSET ?`).all(limit, offset);
   res.json(req.query.page ? { data: rows, total, page, pages: Math.ceil(total / limit) } : rows);
@@ -689,7 +689,7 @@ app.get('/api/users', authMiddleware, (req, res) => {
 
 app.get('/api/users/:id', authMiddleware, (req, res) => {
   const u = db.prepare(`SELECT id, prenom, nom, email, telephone, adresse, role, actif,
-    plan, plan_paid_month, plan_unpaid_count,
+    plan, plan_paid_month, plan_unpaid_count, titre_comite,
     date_inscription, date_naissance, bio, photo_url, email_org FROM users WHERE id = ?`).get(req.params.id);
   if (!u) return res.status(404).json({ error: 'Utilisateur introuvable' });
   res.json(u);
@@ -731,7 +731,7 @@ app.put('/api/users/:id', authMiddleware, (req, res) => {
     nomLocked = !!(cur && cur.carte_photo_deja_approuvee);
   }
 
-  const { prenom, nom, email, telephone, adresse, date_naissance, role, actif, bio, operateur, sms_notifs } = req.body;
+  const { prenom, nom, email, telephone, adresse, date_naissance, role, actif, bio, operateur, sms_notifs, titre_comite } = req.body;
   const updates = []; const vals = [];
   if (prenom && !nomLocked) { updates.push('prenom = ?');        vals.push(prenom); }
   if (nom    && !nomLocked) { updates.push('nom = ?');           vals.push(nom); }
@@ -742,6 +742,7 @@ app.put('/api/users/:id', authMiddleware, (req, res) => {
   if (bio !== undefined)       { updates.push('bio = ?');       vals.push(bio); }
   if (operateur !== undefined) { updates.push('operateur = ?'); vals.push(operateur || null); }
   if (sms_notifs !== undefined){ updates.push('sms_notifs = ?'); vals.push(sms_notifs ? 1 : 0); }
+  if (isMgr && titre_comite !== undefined) { updates.push('titre_comite = ?'); vals.push(titre_comite || null); }
   if (isAdmin && role !== undefined)          { updates.push('role = ?');          vals.push(role); }
   if (isAdmin && actif !== undefined)         { updates.push('actif = ?');         vals.push(actif); }
   if (isAdmin && req.body.email_org !== undefined)    { updates.push('email_org = ?');    vals.push(req.body.email_org || null); }
@@ -6642,7 +6643,7 @@ const CARTE_ROLES = ['admin','tresoriere','secretaire','delegue'];
 
 app.get('/api/admin/cartes', authMiddleware, requireRole(...CARTE_ROLES), (req, res) => {
   const members = db.prepare(`
-    SELECT id, prenom, nom, email, telephone, adresse, plan, role, date_inscription, photo_url,
+    SELECT id, prenom, nom, email, telephone, adresse, plan, role, titre_comite, date_inscription, photo_url,
            carte_photo_approuvee, carte_photo_deja_approuvee, carte_notif_renouv
     FROM users WHERE actif=1 AND (phantom IS NULL OR phantom=0)
     ORDER BY nom, prenom
@@ -7019,7 +7020,7 @@ app.get('/api/members/:id/card', authMiddleware, (req, res) => {
   if (req.user.id !== targetId && !['admin','secretaire','tresoriere','delegue'].includes(req.user.role)) {
     return res.status(403).json({ error: 'Accès refusé' });
   }
-  const u = db.prepare('SELECT id, prenom, nom, email, telephone, plan, role, date_inscription, photo_url, carte_photo_approuvee, actif FROM users WHERE id=?').get(targetId);
+  const u = db.prepare('SELECT id, prenom, nom, email, telephone, plan, role, titre_comite, date_inscription, photo_url, carte_photo_approuvee, actif FROM users WHERE id=?').get(targetId);
   if (!u) return res.status(404).json({ error: 'Membre introuvable' });
   res.json(u);
 });

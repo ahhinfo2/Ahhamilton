@@ -347,6 +347,7 @@ async function buildSidebar() {
       { id:'members',       icon:'◎', label:'Annuaire',         roles:['admin','secretaire','delegue'] },
       { id:'inscriptions',  icon:'◈', label:'Inscriptions',     roles:EXEC },
       { id:'carte-gestion', icon:'🪪', label:'Cartes membres',  roles:EXEC },
+      { id:'photos-membres', icon:'🖼️', label:'Photos des membres', roles:EXEC },
     ]},
 
     // ── Activités ─────────────────────────────────────────────────
@@ -586,7 +587,7 @@ function setActiveNav(viewId) {
     'young-trainings':'Formations', 'young-polls':'Sondages', 'young-stories':'Success Stories',
     'votes':'Votes & Élections', 'parrainage':'Parrainage', 'stats-growth':'Statistiques',
     'carte-membre':'Ma carte membre', 'actualites':'Actualités', 'notif-prefs':'Notifications',
-    'carte-gestion':'Gestion des cartes', 'carte-scanner':'Lecteur de cartes', 'scanner-unified':'Lecteur QR',
+    'carte-gestion':'Gestion des cartes', 'photos-membres':'Photos des membres', 'carte-scanner':'Lecteur de cartes', 'scanner-unified':'Lecteur QR',
     'journal-admin':'Journal d\'activité', 'mes-badges':'Mes badges', 'ambassadeur-admin':'Ambassadeur du mois',
     'abonnes-newsletter':'Abonnés newsletter',
     'tasks':'Tâches',
@@ -988,6 +989,100 @@ function closeModal() {
   showView(vid);
 }
 
+// ── Recadrage de photo avant envoi (overlay indépendant, ne touche pas setContent) ──
+function openPhotoCropper(file, onConfirm) {
+  const STAGE = 240, OUT = 500;
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML = `
+    <div style="background:var(--card,#fff);border-radius:16px;padding:22px;max-width:320px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+      <h3 style="margin:0 0 4px;font-size:1.05rem">📷 Ajuster la photo</h3>
+      <p style="margin:0 0 16px;font-size:.78rem;color:var(--muted)">Glissez pour repositionner, zoomez avec le curseur</p>
+      <div id="cropStage" style="position:relative;width:${STAGE}px;height:${STAGE}px;margin:0 auto;overflow:hidden;border-radius:50%;background:#111;cursor:grab;touch-action:none">
+        <img id="cropImg" draggable="false" style="position:absolute;top:0;left:0;user-select:none"/>
+      </div>
+      <input type="range" id="cropZoom" min="100" max="300" value="100" style="width:100%;margin-top:16px"/>
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:18px">
+        <button id="cropCancelBtn" type="button" class="btn btn-ghost">Annuler</button>
+        <button id="cropConfirmBtn" type="button" class="btn btn-primary">✓ Utiliser cette photo</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const stage = overlay.querySelector('#cropStage');
+  const img = overlay.querySelector('#cropImg');
+  const zoomSlider = overlay.querySelector('#cropZoom');
+  const url = URL.createObjectURL(file);
+  let naturalW = 0, naturalH = 0, baseScale = 1, scale = 1, offX = 0, offY = 0;
+  let dragging = false, startX = 0, startY = 0, startOffX = 0, startOffY = 0;
+
+  function applyTransform() {
+    const w = naturalW * baseScale * scale;
+    const h = naturalH * baseScale * scale;
+    img.style.width = w + 'px';
+    img.style.height = h + 'px';
+    const maxX = Math.max(0, (w - STAGE) / 2);
+    const maxY = Math.max(0, (h - STAGE) / 2);
+    offX = Math.min(maxX, Math.max(-maxX, offX));
+    offY = Math.min(maxY, Math.max(-maxY, offY));
+    img.style.left = (STAGE / 2 - w / 2 + offX) + 'px';
+    img.style.top = (STAGE / 2 - h / 2 + offY) + 'px';
+  }
+
+  img.onload = () => {
+    naturalW = img.naturalWidth; naturalH = img.naturalHeight;
+    baseScale = STAGE / Math.min(naturalW, naturalH);
+    scale = 1; offX = 0; offY = 0;
+    applyTransform();
+  };
+  img.src = url;
+
+  function pointerDown(e) {
+    dragging = true;
+    const p = e.touches ? e.touches[0] : e;
+    startX = p.clientX; startY = p.clientY; startOffX = offX; startOffY = offY;
+    stage.style.cursor = 'grabbing';
+  }
+  function pointerMove(e) {
+    if (!dragging) return;
+    const p = e.touches ? e.touches[0] : e;
+    offX = startOffX + (p.clientX - startX);
+    offY = startOffY + (p.clientY - startY);
+    applyTransform();
+  }
+  function pointerUp() { dragging = false; stage.style.cursor = 'grab'; }
+
+  stage.addEventListener('mousedown', pointerDown);
+  window.addEventListener('mousemove', pointerMove);
+  window.addEventListener('mouseup', pointerUp);
+  stage.addEventListener('touchstart', pointerDown, { passive: true });
+  window.addEventListener('touchmove', pointerMove, { passive: true });
+  window.addEventListener('touchend', pointerUp);
+  zoomSlider.addEventListener('input', () => { scale = zoomSlider.value / 100; applyTransform(); });
+
+  function cleanup() {
+    URL.revokeObjectURL(url);
+    window.removeEventListener('mousemove', pointerMove);
+    window.removeEventListener('mouseup', pointerUp);
+    window.removeEventListener('touchmove', pointerMove);
+    window.removeEventListener('touchend', pointerUp);
+    overlay.remove();
+  }
+
+  overlay.querySelector('#cropCancelBtn').onclick = () => cleanup();
+  overlay.querySelector('#cropConfirmBtn').onclick = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = OUT; canvas.height = OUT;
+    const ratio = OUT / STAGE;
+    const w = naturalW * baseScale * scale * ratio;
+    const h = naturalH * baseScale * scale * ratio;
+    const x = OUT / 2 - w / 2 + offX * ratio;
+    const y = OUT / 2 - h / 2 + offY * ratio;
+    canvas.getContext('2d').drawImage(img, x, y, w, h);
+    canvas.toBlob((blob) => { cleanup(); if (blob) onConfirm(blob); }, 'image/jpeg', 0.92);
+  };
+}
+
 // ── VIEWS ──────────────────────────────────────────────────────────────────
 async function showView(viewId) {
   window._currentViewId = viewId;
@@ -1022,6 +1117,7 @@ async function showView(viewId) {
     'actualites': actualitesView,
     'notif-prefs': notifPrefsView,
     'carte-gestion': carteGestionView,
+    'photos-membres': photosMembresView,
     'carte-scanner': carteScannerView,
     'scanner-unified': function() { window.open(window.location.origin + '/scan.html', '_blank'); },
     'journal-admin': journalAdmin,
@@ -2581,14 +2677,18 @@ function openMemberForm(u = null) {
       </div>
       <div class="form-group"><label>Adresse</label><input id="m_addr" value="${u?.adresse||''}"/></div>
       ${can.admin() ? `<div class="form-group"><label>Rôle</label>
-        <select id="m_role">
+        <select id="m_role" onchange="document.getElementById('m_titre_wrap').style.display = ['delegue','secretaire','tresoriere','admin'].includes(this.value) ? 'block' : 'none'">
           <option value="member" ${u?.role==='member'?'selected':''}>Membre</option>
           <option value="delegue" ${u?.role==='delegue'?'selected':''}>Accompagnateur</option>
           <option value="secretaire" ${u?.role==='secretaire'?'selected':''}>Secrétaire</option>
           <option value="tresoriere" ${u?.role==='tresoriere'?'selected':''}>Trésorière</option>
           <option value="admin" ${u?.role==='admin'?'selected':''}>Admin</option>
-        </select></div>
-        <div style="background:var(--off);border-radius:10px;padding:14px;margin-top:6px">
+        </select></div>` : ''}
+      ${can.executive() ? `<div class="form-group" id="m_titre_wrap" style="display:${['delegue','secretaire','tresoriere','admin'].includes(u?.role)?'block':'none'}">
+        <label>Titre affiché sur la carte de membre</label>
+        <input id="m_titre" value="${escHtml(u?.titre_comite||'')}" placeholder="Ex. Présidente, Vice-président, Conseiller..."/>
+      </div>` : ''}
+      ${can.admin() ? `<div style="background:var(--off);border-radius:10px;padding:14px;margin-top:6px">
           <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">📤 Courriel organisationnel (envoi externe)</div>
           <div class="form-row">
             <div class="form-group"><label>Courriel @ahhamilton.ca</label><input type="email" id="m_email_org" value="${u?.email_org||''}" placeholder="vp@ahhamilton.ca"/></div>
@@ -2613,6 +2713,8 @@ function openMemberForm(u = null) {
       const smtpPass = document.getElementById('m_smtp_pass').value;
       if (smtpPass) body.smtp_pass_org = smtpPass;
     }
+    const titreEl = document.getElementById('m_titre');
+    if (titreEl) body.titre_comite = titreEl.value.trim();
     if (!isEdit) body.password = document.getElementById('m_pw').value;
     try {
       if (isEdit) {
@@ -6516,22 +6618,25 @@ async function profile() {
   };
 
   const photoFileInput = document.getElementById('photoFileInput');
-  if (photoFileInput) photoFileInput.onchange = async function() {
+  if (photoFileInput) photoFileInput.onchange = function() {
     const file = this.files[0];
+    this.value = '';
     if (!file) return;
-    const fd = new FormData();
-    fd.append('photo', file);
-    try {
-      const res = await fetch(`${BASE}/api/users/${u.id}/photo`, {
-        method: 'POST', headers: { Authorization: `Bearer ${TOKEN}` }, body: fd
-      });
-      if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Téléversement échoué'); }
-      const data = await res.json();
-      USER.photo_url = data.photo_url;
-      localStorage.setItem('ahh_user', JSON.stringify(USER));
-      toast('Photo de profil mise à jour');
-      profile();
-    } catch(ex) { toast(ex.message, 'error'); }
+    openPhotoCropper(file, async (blob) => {
+      const fd = new FormData();
+      fd.append('photo', blob, 'photo.jpg');
+      try {
+        const res = await fetch(`${BASE}/api/users/${u.id}/photo`, {
+          method: 'POST', headers: { Authorization: `Bearer ${TOKEN}` }, body: fd
+        });
+        if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Téléversement échoué'); }
+        const data = await res.json();
+        USER.photo_url = data.photo_url;
+        localStorage.setItem('ahh_user', JSON.stringify(USER));
+        toast('Photo de profil mise à jour');
+        profile();
+      } catch(ex) { toast(ex.message, 'error'); }
+    });
   };
 }
 
@@ -11423,9 +11528,11 @@ async function parrainageView() {
 // ══════════════════════════════════════════════════════════════════════════════
 async function carteMembreView() {
   const me = await api('/auth/me').catch(() => USER);
-  const planLabel = { gratuit:'Gratuit', bienfaiteur:'Bienfaiteur', partenaire:'Partenaire' };
+  const CARTE_ROLES = ['admin','tresoriere','secretaire','delegue'];
+  // Comité : titre personnalisé (ex. Présidente) ; membres : rien (pas de badge de plan)
+  const badgeText = CARTE_ROLES.includes(me.role) ? (me.titre_comite || roleName(me.role)) : '';
   // Couleur selon le statut de la carte : comité = gris-ardoise, en attente = bleu, valide = vert (identique au reste du site)
-  const cardColor = ['admin','tresoriere','secretaire','delegue'].includes(me.role) ? '#546e7a' : (me.photo_url && me.carte_photo_approuvee ? '#1b5e20' : '#1565c0');
+  const cardColor = CARTE_ROLES.includes(me.role) ? '#546e7a' : (me.photo_url && me.carte_photo_approuvee ? '#1b5e20' : '#1565c0');
   const initials = `${(me.prenom||'?')[0]}${(me.nom||'')[0]}`.toUpperCase();
   const numMembre = String(me.id).padStart(5, '0');
   const qrText = `AHH-${numMembre}-${me.id}`;
@@ -11441,7 +11548,7 @@ async function carteMembreView() {
             <div style="font-size:.62rem;letter-spacing:.15em;opacity:.7;text-transform:uppercase;margin-bottom:4px">Association Haïtienne Hamilton</div>
             <div style="font-size:1.05rem;font-weight:800;letter-spacing:.04em">AHH</div>
           </div>
-          <div style="background:rgba(255,255,255,.15);border-radius:8px;padding:6px 12px;font-size:.72rem;font-weight:700;letter-spacing:.06em">${(planLabel[me.plan]||'GRATUIT').toUpperCase()}</div>
+          ${badgeText ? `<div style="background:rgba(255,255,255,.15);border-radius:8px;padding:6px 12px;font-size:.72rem;font-weight:700;letter-spacing:.06em">${escHtml(badgeText).toUpperCase()}</div>` : ''}
         </div>
         <!-- Photo + nom + logo -->
         <div style="padding:0 24px 16px;display:flex;align-items:center;gap:14px">
@@ -11630,6 +11737,51 @@ async function carteGestionView() {
   `);
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// PHOTOS DES MEMBRES (galerie unique — comité)
+// ══════════════════════════════════════════════════════════════════════════════
+async function photosMembresView() {
+  const members = (await api('/users').catch(() => [])).filter(m => m.actif);
+  window._photosMembresData = members;
+  const roleLabel = { admin:'Admin', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Délégué', member:'Membre' };
+
+  setContent(`
+    <div class="page-header">
+      <div><h2>🖼️ Photos des membres</h2><p>${members.filter(m=>m.photo_url).length} photo(s) sur ${members.length} membres actifs</p></div>
+      <div class="page-actions"><button class="btn btn-outline" onclick="photosMembresView()">↻ Actualiser</button></div>
+    </div>
+    <input type="text" id="pmSearch" placeholder="🔍 Rechercher par nom..." oninput="_pmFilter()" style="width:100%;padding:9px 14px;border:1px solid var(--border);border-radius:8px;font-size:.85rem;margin-bottom:16px"/>
+    <div id="pmGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:16px"></div>
+  `);
+  _pmRender(members);
+}
+
+function _pmRender(list) {
+  const grid = document.getElementById('pmGrid');
+  if (!grid) return;
+  const roleLabel = { admin:'Admin', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Délégué', member:'Membre' };
+  if (!list.length) { grid.innerHTML = '<p style="color:var(--muted);grid-column:1/-1;text-align:center;padding:30px">Aucun membre trouvé</p>'; return; }
+  grid.innerHTML = list.map(m => {
+    const titre = ['admin','tresoriere','secretaire','delegue'].includes(m.role) ? (m.titre_comite || roleLabel[m.role]) : roleLabel[m.role] || 'Membre';
+    const borderColor = !m.photo_url ? 'var(--border)' : m.carte_photo_approuvee ? '#2e7d32' : '#e65100';
+    return `
+    <div onclick="openMemberDetail(window._photosMembresData.find(x=>x.id===${m.id}))" style="cursor:pointer;text-align:center;background:var(--card,#fff);border:1px solid var(--border);border-radius:12px;padding:14px 10px;transition:transform .15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
+      ${m.photo_url
+        ? `<img src="${BASE}${m.photo_url}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid ${borderColor};margin-bottom:8px"/>`
+        : `<div style="width:80px;height:80px;border-radius:50%;background:var(--g3);color:#fff;font-size:1.5rem;font-weight:700;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;border:3px solid ${borderColor}">${(m.prenom||'?')[0]}${(m.nom||'')[0]||''}</div>`}
+      <div style="font-size:.84rem;font-weight:700;line-height:1.2">${escHtml(m.prenom)} ${escHtml(m.nom)}</div>
+      <div style="font-size:.7rem;color:var(--muted);margin-top:2px">${escHtml(titre)}</div>
+      ${!m.photo_url ? '<div style="font-size:.65rem;color:#e65100;margin-top:4px">❌ Aucune photo</div>' : !m.carte_photo_approuvee ? '<div style="font-size:.65rem;color:#1565c0;margin-top:4px">🕐 En attente</div>' : ''}
+    </div>`;
+  }).join('');
+}
+
+function _pmFilter() {
+  const q = (document.getElementById('pmSearch')?.value || '').toLowerCase();
+  const list = (window._photosMembresData || []).filter(m => !q || `${m.prenom} ${m.nom}`.toLowerCase().includes(q));
+  _pmRender(list);
+}
+
 function _cgFilter() {
   var q = (document.getElementById('cgSearch')?.value || '').toLowerCase();
   var role = document.getElementById('cgRole')?.value || '';
@@ -11717,6 +11869,7 @@ function _cgEditInfo(id) {
       </div>
       <div class="form-group"><label>Téléphone</label><input id="cgei_tel" value="${escHtml(m.telephone||'')}"/></div>
       <div class="form-group"><label>Adresse</label><input id="cgei_addr" value="${escHtml(m.adresse||'')}"/></div>
+      ${['admin','tresoriere','secretaire','delegue'].includes(m.role) ? `<div class="form-group"><label>Titre affiché sur la carte de membre</label><input id="cgei_titre" value="${escHtml(m.titre_comite||'')}" placeholder="Ex. Présidente, Vice-président, Conseiller..."/></div>` : ''}
       <p style="font-size:.78rem;color:var(--muted);margin:-4px 0 14px">Le comité peut modifier ces informations en tout temps, peu importe l'état de la carte.</p>
       <div class="form-actions">
         <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
@@ -11727,11 +11880,13 @@ function _cgEditInfo(id) {
   document.getElementById('cgEditInfoForm').onsubmit = async e => {
     e.preventDefault();
     try {
+      const titreInput = document.getElementById('cgei_titre');
       await api('/users/' + id, { method:'PUT', body: JSON.stringify({
         prenom: document.getElementById('cgei_prenom').value,
         nom: document.getElementById('cgei_nom').value,
         telephone: document.getElementById('cgei_tel').value,
-        adresse: document.getElementById('cgei_addr').value
+        adresse: document.getElementById('cgei_addr').value,
+        ...(titreInput ? { titre_comite: titreInput.value.trim() } : {})
       })});
       toast('Informations mises à jour');
       closeModal();
@@ -11742,15 +11897,17 @@ function _cgEditInfo(id) {
 
 async function _cgUploadPhoto(userId, file) {
   if (!file) return;
-  var fd = new FormData();
-  fd.append('photo', file);
-  try {
-    await fetch(BASE + '/api/admin/cartes/' + userId + '/photo', {
-      method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN }, body: fd
-    });
-    toast('📷 Photo uploadée — en attente d\'approbation par un AUTRE membre du comité');
-    carteGestionView();
-  } catch(e) { toast('Erreur : ' + e.message, true); }
+  openPhotoCropper(file, async (blob) => {
+    var fd = new FormData();
+    fd.append('photo', blob, 'photo.jpg');
+    try {
+      await fetch(BASE + '/api/admin/cartes/' + userId + '/photo', {
+        method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN }, body: fd
+      });
+      toast('📷 Photo uploadée — en attente d\'approbation par un AUTRE membre du comité');
+      carteGestionView();
+    } catch(e) { toast('Erreur : ' + e.message, true); }
+  });
 }
 
 async function _cgApprovePhoto(id) {
@@ -12111,18 +12268,20 @@ async function carteScanSearch() {
 
 async function _uploadCartePhoto(userId, file) {
   if (!file) return;
-  const fd = new FormData();
-  fd.append('photo', file);
-  try {
-    await fetch(BASE + '/api/admin/cartes/' + userId + '/photo', {
-      method: 'POST',
-      headers: { Authorization: 'Bearer ' + TOKEN },
-      body: fd
-    });
-    toast('✅ Photo ajoutée — carte validée');
-    const input = document.getElementById('scanQrInput');
-    if (input?.value) carteScanSearch();
-  } catch(e) { toast('Erreur photo : ' + e.message, true); }
+  openPhotoCropper(file, async (blob) => {
+    const fd = new FormData();
+    fd.append('photo', blob, 'photo.jpg');
+    try {
+      await fetch(BASE + '/api/admin/cartes/' + userId + '/photo', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + TOKEN },
+        body: fd
+      });
+      toast('✅ Photo ajoutée — carte validée');
+      const input = document.getElementById('scanQrInput');
+      if (input?.value) carteScanSearch();
+    } catch(e) { toast('Erreur photo : ' + e.message, true); }
+  });
 }
 
 async function carteScanPresencer(actId) {
