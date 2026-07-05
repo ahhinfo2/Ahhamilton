@@ -11424,8 +11424,9 @@ async function statsGrowthView() {
   setTimeout(() => {
     if (!window.Chart) {
       const s2 = document.createElement('script');
-      s2.src = 'https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js';
+      s2.src = '/Public/chart.umd.min.js';
       s2.onload = () => document.getElementById('chartMembres') && statsGrowthView();
+      s2.onerror = () => toast('Impossible de charger la librairie de graphiques', 'error');
       document.head.appendChild(s2);
       return;
     }
