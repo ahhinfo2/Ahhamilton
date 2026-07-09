@@ -2000,6 +2000,7 @@ async function openMemberDetail(u) {
       ${can.executive() ? `<div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-outline btn-sm" onclick="openMemberForm(window._memberDetail)">✏️ Modifier</button>
         <button class="btn btn-ghost btn-sm" onclick="window.open('../carte.html?id=' + ${m.id}, '_blank')">🪪 Afficher la carte physique</button>
+        <button class="btn btn-ghost btn-sm" onclick="sendResetPasswordLink(${m.id},'${escHtml(m.prenom+' '+m.nom).replace(/'/g,"\\'")}')">🔑 Envoyer réinitialisation mot de passe</button>
         ${m.actif
           ? `<button class="btn btn-danger btn-sm" onclick="closeModal();toggleMember(${m.id},0)">🚫 Désactiver</button>`
           : `<button class="btn btn-ghost btn-sm"  onclick="closeModal();toggleMember(${m.id},1)">✅ Activer</button>`}
@@ -2813,6 +2814,14 @@ async function toggleMember(id, actif) {
     filterMembers();
     toast(actif ? 'Membre activé' : 'Membre désactivé');
   } catch(ex) { toast(ex.message, 'error'); }
+}
+
+async function sendResetPasswordLink(id, nom) {
+  if (!confirm(`Envoyer un lien de réinitialisation de mot de passe à ${nom} ?`)) return;
+  try {
+    const r = await api(`/users/${id}/send-reset-password`, { method:'POST' });
+    toast(r.message || 'Lien envoyé');
+  } catch (ex) { toast(ex.message, 'error'); }
 }
 
 async function deleteMember(id) {
@@ -11968,6 +11977,7 @@ async function _cgOpenProfile(id) {
         (m.photo_url && m.carte_photo_approuvee ? '<button class="btn btn-outline btn-sm" style="color:#e65100;border-color:#e65100" onclick="_cgDesapprouverPhoto(' + m.id + ')">↩️ Désapprouver</button>' : '') +
         '<button class="btn btn-outline btn-sm" onclick="_cgEditInfo(' + m.id + ')">✏️ Modifier infos</button>' +
         '<button class="btn btn-outline btn-sm" onclick="window.open(\'../carte.html?id=' + m.id + '\', \'_blank\')">🪪 Afficher la carte physique</button>' +
+        '<button class="btn btn-outline btn-sm" onclick="sendResetPasswordLink(' + m.id + ',\'' + escHtml(m.prenom+' '+m.nom).replace(/'/g,"\\'") + '\')">🔑 Envoyer réinitialisation mot de passe</button>' +
         '<button class="btn btn-outline btn-sm" onclick="carteRenouveler(' + m.id + ',\'' + escHtml(m.prenom + ' ' + m.nom).replace(/'/g,"\\'") + '\')">🔄 Renouveler</button>' +
         '<button class="btn btn-outline btn-sm" onclick="closeModal();generateVolunteerLetter(' + m.id + ',\'fr\')" title="Lettre FR">📝 Lettre FR</button>' +
         '<button class="btn btn-outline btn-sm" onclick="closeModal();generateVolunteerLetter(' + m.id + ',\'en\')" title="Lettre EN">📝 EN</button>' +

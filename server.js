@@ -835,12 +835,28 @@ app.delete('/api/users/:id', authMiddleware, requireRole('admin','secretaire','d
     db.prepare('DELETE FROM alerts WHERE destinataire_id = ?').run(uid);
     db.prepare('DELETE FROM recommendation_letters WHERE membre_id = ?').run(uid);
     db.prepare('DELETE FROM password_reset_tokens WHERE user_id = ?').run(uid);
+    // Colonnes NOT NULL référençant users(id) : suppression obligatoire (ON DELETE NO ACTION)
+    db.prepare('DELETE FROM vote_responses WHERE user_id = ?').run(uid);
+    db.prepare('DELETE FROM poll_votes WHERE user_id = ?').run(uid);
+    db.prepare('DELETE FROM comite_tables WHERE user_id = ?').run(uid);
+    db.prepare('DELETE FROM document_signatures WHERE user_id = ?').run(uid);
+    db.prepare('DELETE FROM note_contributions WHERE user_id = ?').run(uid);
+    db.prepare('DELETE FROM note_signatures WHERE user_id = ?').run(uid);
+    db.prepare('DELETE FROM scan_delegations WHERE delegue_par = ?').run(uid);
+    db.prepare('DELETE FROM scan_delegations WHERE user_id = ?').run(uid);
+    db.prepare('DELETE FROM scan_logs WHERE scanner_id = ?').run(uid);
+    db.prepare('DELETE FROM committee_meeting_attendance WHERE user_id = ?').run(uid);
+    db.prepare('DELETE FROM committee_meeting_signatures WHERE user_id = ?').run(uid);
+    db.prepare('DELETE FROM rideshares WHERE user_id = ?').run(uid);
+    db.prepare('DELETE FROM rideshare_requests WHERE user_id = ?').run(uid);
 
     // SET NULL sur les colonnes historiques (préserver les données)
     db.prepare('UPDATE messages SET expediteur_id = NULL WHERE expediteur_id = ?').run(uid);
     db.prepare('UPDATE newsletter_sends SET expediteur_id = NULL WHERE expediteur_id = ?').run(uid);
     db.prepare('UPDATE emails_externes SET expediteur_id = NULL WHERE expediteur_id = ?').run(uid);
     db.prepare('UPDATE meeting_notes SET auteur_id = NULL WHERE auteur_id = ?').run(uid);
+    db.prepare('UPDATE meeting_notes SET editing_by = NULL WHERE editing_by = ?').run(uid);
+    db.prepare('UPDATE meeting_notes SET last_editor_id = NULL WHERE last_editor_id = ?').run(uid);
     db.prepare('UPDATE volunteer_hours SET approuve_par = NULL WHERE approuve_par = ?').run(uid);
     db.prepare('UPDATE payments SET approuve_par = NULL WHERE approuve_par = ?').run(uid);
     db.prepare('UPDATE tax_receipts SET genere_par = NULL WHERE genere_par = ?').run(uid);
@@ -851,13 +867,49 @@ app.delete('/api/users/:id', authMiddleware, requireRole('admin','secretaire','d
     db.prepare('UPDATE recommendation_letters SET genere_par = NULL WHERE genere_par = ?').run(uid);
     db.prepare('UPDATE recommendation_letters SET signe_par = NULL WHERE signe_par = ?').run(uid);
     db.prepare('UPDATE chat_messages SET sender_id = NULL WHERE sender_id = ?').run(uid);
+    db.prepare('UPDATE chat_rooms SET created_by = NULL WHERE created_by = ?').run(uid);
     db.prepare('UPDATE gallery_photos SET cree_par = NULL WHERE cree_par = ?').run(uid);
     db.prepare('UPDATE transactions SET cree_par = NULL WHERE cree_par = ?').run(uid);
     db.prepare('UPDATE invoices SET cree_par = NULL WHERE cree_par = ?').run(uid);
     db.prepare('UPDATE activity_tables SET membre_attribue = NULL WHERE membre_attribue = ?').run(uid);
     db.prepare('UPDATE tickets SET user_id = NULL WHERE user_id = ?').run(uid);
     db.prepare('UPDATE tickets SET vendu_par = NULL WHERE vendu_par = ?').run(uid);
+    db.prepare('UPDATE tickets SET transferred_to = NULL WHERE transferred_to = ?').run(uid);
     db.prepare('UPDATE pending_registrations SET traite_par = NULL WHERE traite_par = ?').run(uid);
+    db.prepare('UPDATE votes SET cree_par = NULL WHERE cree_par = ?').run(uid);
+    db.prepare('UPDATE young_jobs SET cree_par = NULL WHERE cree_par = ?').run(uid);
+    db.prepare('UPDATE young_trainings SET cree_par = NULL WHERE cree_par = ?').run(uid);
+    db.prepare('UPDATE young_polls SET cree_par = NULL WHERE cree_par = ?').run(uid);
+    db.prepare('UPDATE success_stories SET user_id = NULL WHERE user_id = ?').run(uid);
+    db.prepare('UPDATE activity_photos SET cree_par = NULL WHERE cree_par = ?').run(uid);
+    db.prepare('UPDATE tasks SET cree_par = NULL WHERE cree_par = ?').run(uid);
+    db.prepare('UPDATE tasks SET assigne_a = NULL WHERE assigne_a = ?').run(uid);
+    db.prepare('UPDATE agendas SET cree_par = NULL WHERE cree_par = ?').run(uid);
+    db.prepare('UPDATE agenda_items SET responsable_id = NULL WHERE responsable_id = ?').run(uid);
+    db.prepare('UPDATE decisions SET cree_par = NULL WHERE cree_par = ?').run(uid);
+    db.prepare('UPDATE decisions SET responsable_id = NULL WHERE responsable_id = ?').run(uid);
+    db.prepare('UPDATE policies SET cree_par = NULL WHERE cree_par = ?').run(uid);
+    db.prepare('UPDATE policies SET approuve_par = NULL WHERE approuve_par = ?').run(uid);
+    db.prepare('UPDATE audit_log SET user_id = NULL WHERE user_id = ?').run(uid);
+    db.prepare('UPDATE email_templates SET cree_par = NULL WHERE cree_par = ?').run(uid);
+    db.prepare('UPDATE meeting_schedule SET cree_par = NULL WHERE cree_par = ?').run(uid);
+    db.prepare('UPDATE user_badges SET attribue_par = NULL WHERE attribue_par = ?').run(uid);
+    db.prepare('UPDATE activity_logs SET user_id = NULL WHERE user_id = ?').run(uid);
+    db.prepare('UPDATE documents SET upload_par = NULL WHERE upload_par = ?').run(uid);
+    db.prepare('UPDATE sponsors SET cree_par = NULL WHERE cree_par = ?').run(uid);
+    db.prepare('UPDATE forms SET cree_par = NULL WHERE cree_par = ?').run(uid);
+    db.prepare('UPDATE form_responses SET user_id = NULL WHERE user_id = ?').run(uid);
+    db.prepare('UPDATE committee_meetings SET cree_par = NULL WHERE cree_par = ?').run(uid);
+    db.prepare('UPDATE shop_products SET cree_par = NULL WHERE cree_par = ?').run(uid);
+    db.prepare('UPDATE shop_orders SET user_id = NULL WHERE user_id = ?').run(uid);
+    db.prepare('UPDATE activity_feedback SET user_id = NULL WHERE user_id = ?').run(uid);
+    db.prepare('UPDATE member_activity_photos SET approuve_par = NULL WHERE approuve_par = ?').run(uid);
+    db.prepare('UPDATE member_activity_photos SET user_id = NULL WHERE user_id = ?').run(uid);
+    db.prepare('UPDATE payment_plans SET user_id = NULL WHERE user_id = ?').run(uid);
+    db.prepare('UPDATE task_comments SET user_id = NULL WHERE user_id = ?').run(uid);
+    db.prepare('UPDATE activity_seats SET user_id = NULL WHERE user_id = ?').run(uid);
+    db.prepare('UPDATE fierte_entries SET cree_par = NULL WHERE cree_par = ?').run(uid);
+    db.prepare('UPDATE alertes_urgentes SET user_id = NULL WHERE user_id = ?').run(uid);
 
     // Retirer le membre des salons de chat et sous-comités
     db.prepare('DELETE FROM chat_room_members WHERE user_id = ?').run(uid);
@@ -872,7 +924,13 @@ app.delete('/api/users/:id', authMiddleware, requireRole('admin','secretaire','d
   } catch(e) {
     try { db.prepare('ROLLBACK').run(); } catch {}
     console.error('Erreur suppression membre:', e.message);
-    res.status(500).json({ error: 'Erreur lors de la suppression' });
+    const isFk = /FOREIGN KEY/i.test(e.message || '');
+    res.status(500).json({
+      error: isFk
+        ? 'Suppression impossible : ce membre a encore des données liées non gérées par le système. Contactez le développeur avec ce message.'
+        : 'Erreur lors de la suppression',
+      detail: e.message
+    });
   }
 });
 
@@ -2769,6 +2827,34 @@ app.post('/api/auth/reset-password', authLimiter, (req, res) => {
   db.prepare('UPDATE password_reset_tokens SET used = 1 WHERE id = ?').run(row.id);
 
   res.json({ message: 'Mot de passe réinitialisé avec succès' });
+});
+
+// Le comité déclenche l'envoi d'un lien de réinitialisation à un membre (ex: compte verrouillé,
+// membre qui n'arrive pas à se reconnecter) — contrairement à /relance-connexion, fonctionne
+// même si le membre s'est déjà connecté avant.
+app.post('/api/users/:id/send-reset-password', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), async (req, res) => {
+  const uid = parseInt(req.params.id);
+  const user = db.prepare('SELECT id, prenom, nom, email, actif FROM users WHERE id = ?').get(uid);
+  if (!user) return res.status(404).json({ error: 'Membre introuvable' });
+  if (!user.actif) return res.status(400).json({ error: 'Compte inactif' });
+  if (!user.email) return res.status(400).json({ error: 'Aucun courriel pour ce membre' });
+
+  db.prepare('UPDATE password_reset_tokens SET used = 1 WHERE user_id = ? AND used = 0').run(uid);
+  const token = crypto.randomBytes(32).toString('hex');
+  const expires = new Date(Date.now() + 3600000).toISOString(); // 1h, comme la demande self-service
+  db.prepare('INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)').run(uid, token, expires);
+
+  const siteUrl = process.env.SITE_URL || `http://localhost:${PORT}`;
+  const resetLink = `${siteUrl}/dashboard/reset-password.html?token=${token}`;
+
+  try {
+    await mailer.sendResetPassword(user, resetLink);
+  } catch (e) {
+    console.error('Erreur envoi courriel reset (admin):', e.message);
+    return res.status(502).json({ error: 'Le lien a été généré mais le courriel n\'a pas pu être envoyé : ' + e.message });
+  }
+  logAudit(req.user.id, 'admin_reset_password_sent', 'user', uid, `Lien de réinitialisation envoyé à ${user.prenom} ${user.nom} (${user.email})`, req.ip);
+  res.json({ ok: true, message: 'Lien de réinitialisation envoyé à ' + user.email });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
