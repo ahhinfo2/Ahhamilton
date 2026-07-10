@@ -705,7 +705,7 @@ app.get('/api/membres/anniversaires', authMiddleware, requireRole('admin','secre
   res.json(rows);
 });
 
-app.post('/api/users', authMiddleware, requireRole('admin'), (req, res) => {
+app.post('/api/users', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const { prenom, nom, email, telephone, adresse, date_naissance, role, password } = req.body;
   if (!prenom || !nom || !email || !password)
     return res.status(400).json({ error: 'Champs requis manquants' });
@@ -719,8 +719,8 @@ app.post('/api/users', authMiddleware, requireRole('admin'), (req, res) => {
 
 const MEMBER_MGR_ROLES = ['admin','tresoriere','secretaire','delegue'];
 app.put('/api/users/:id', authMiddleware, (req, res) => {
-  const isAdmin = req.user.role === 'admin';
   const isMgr   = MEMBER_MGR_ROLES.includes(req.user.role);
+  const isAdmin = isMgr; // tout le comité a les droits admin sur la gestion des membres/rôles
   const isSelf  = req.user.id === parseInt(req.params.id);
   if (!isMgr && !isSelf) return res.status(403).json({ error: 'Accès refusé' });
 
@@ -1311,7 +1311,7 @@ app.get('/api/activities/:id/registrations', authMiddleware, (req, res) => {
 // FINANCE
 // ══════════════════════════════════════════════════════════════════════════════
 
-app.get('/api/finance/lines', authMiddleware, requireRole('admin', 'tresoriere', 'secretaire'), (req, res) => {
+app.get('/api/finance/lines', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const rows = db.prepare(`
     SELECT fl.*, a.titre AS activite, p.nom AS projet,
       COALESCE((SELECT SUM(t.montant) FROM transactions t WHERE t.financial_line_id = fl.id AND t.type = 'depense'), 0) AS depenses,
@@ -1326,7 +1326,7 @@ app.get('/api/finance/lines', authMiddleware, requireRole('admin', 'tresoriere',
   res.json(rows);
 });
 
-app.get('/api/finance/chart', authMiddleware, requireRole('admin', 'tresoriere', 'secretaire'), (req, res) => {
+app.get('/api/finance/chart', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const rows = db.prepare(`
     SELECT strftime('%Y-%m', date_transaction) AS mois,
            SUM(CASE WHEN type='revenu'  THEN montant ELSE 0 END) AS revenus,
@@ -1337,14 +1337,14 @@ app.get('/api/finance/chart', authMiddleware, requireRole('admin', 'tresoriere',
   res.json(rows);
 });
 
-app.get('/api/finance/summary', authMiddleware, requireRole('admin', 'tresoriere', 'secretaire'), (req, res) => {
+app.get('/api/finance/summary', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const account = db.prepare('SELECT * FROM account_info WHERE id = 1').get() || {};
   const actCount = db.prepare("SELECT COUNT(*) AS cnt FROM activities WHERE statut IN ('planifiee','en_cours')").get().cnt;
   const projCount = db.prepare("SELECT COUNT(*) AS cnt FROM projects WHERE statut IN ('en_cours','planifie')").get().cnt;
   res.json({ solde: account.solde || 0, projets_en_cours: actCount + projCount });
 });
 
-app.get('/api/finance/transactions', authMiddleware, requireRole('admin', 'tresoriere', 'secretaire'), (req, res) => {
+app.get('/api/finance/transactions', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const { line_id } = req.query;
   const q = line_id
     ? 'WHERE t.financial_line_id = ?'
@@ -1378,7 +1378,7 @@ app.post('/api/finance/transactions', authMiddleware, requireRole('tresoriere', 
   res.status(201).json({ id: r.lastInsertRowid });
 });
 
-app.get('/api/finance/account', authMiddleware, requireRole('admin', 'tresoriere', 'secretaire'), (req, res) => {
+app.get('/api/finance/account', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const info = db.prepare('SELECT * FROM account_info WHERE id = 1').get();
   res.json(info || {});
 });
@@ -1391,7 +1391,7 @@ app.put('/api/finance/account', authMiddleware, requireRole('tresoriere', 'admin
 });
 
 // Invoices
-app.get('/api/finance/invoices', authMiddleware, requireRole('admin', 'tresoriere', 'secretaire'), (req, res) => {
+app.get('/api/finance/invoices', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const rows = db.prepare(`SELECT i.*, u.prenom || ' ' || u.nom AS createur, fl.titre AS ligne
     FROM invoices i LEFT JOIN users u ON u.id = i.cree_par LEFT JOIN financial_lines fl ON fl.id = i.financial_line_id
     ORDER BY i.date_upload DESC`).all();
@@ -1611,7 +1611,7 @@ app.get('/api/volunteer/letter/:userId', authMiddleware, requireRole('admin','se
   res.json({ nom: membre.prenom + ' ' + membre.nom, total_heures: totalH, heures: hours, email: membre.email, membre_id: membre.id, date_inscription: membre.date_inscription });
 });
 
-app.delete('/api/volunteer/:id', authMiddleware, requireRole('admin'), (req, res) => {
+app.delete('/api/volunteer/:id', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   db.prepare('DELETE FROM volunteer_hours WHERE id = ?').run(req.params.id);
   res.json({ message: 'Supprimé' });
 });
@@ -2015,7 +2015,7 @@ app.get('/api/subcommittees', authMiddleware, (req, res) => {
   res.json(rows);
 });
 
-app.post('/api/subcommittees', authMiddleware, requireRole('admin'), (req, res) => {
+app.post('/api/subcommittees', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const { nom, description, activity_id, chef_id, membres } = req.body;
   if (!nom) return res.status(400).json({ error: 'Nom requis' });
   const r = db.prepare('INSERT INTO sub_committees (nom, description, activity_id, chef_id) VALUES (?, ?, ?, ?)')
@@ -2027,7 +2027,7 @@ app.post('/api/subcommittees', authMiddleware, requireRole('admin'), (req, res) 
   res.status(201).json({ id: r.lastInsertRowid });
 });
 
-app.put('/api/subcommittees/:id', authMiddleware, requireRole('admin'), (req, res) => {
+app.put('/api/subcommittees/:id', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const { nom, description, statut, chef_id, activity_id, membres } = req.body;
   db.prepare('UPDATE sub_committees SET nom=?, description=?, statut=?, chef_id=?, activity_id=? WHERE id=?')
     .run(nom||'', description||'', statut||'actif', chef_id||null, activity_id||null, req.params.id);
@@ -2039,7 +2039,7 @@ app.put('/api/subcommittees/:id', authMiddleware, requireRole('admin'), (req, re
   res.json({ message: 'Mis à jour' });
 });
 
-app.delete('/api/subcommittees/:id', authMiddleware, requireRole('admin'), (req, res) => {
+app.delete('/api/subcommittees/:id', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   db.prepare('DELETE FROM sub_committees WHERE id = ?').run(req.params.id);
   res.json({ message: 'Sous-comité supprimé' });
 });
@@ -2074,7 +2074,7 @@ app.get('/api/projects', authMiddleware, (req, res) => {
   res.json(rows);
 });
 
-app.post('/api/projects', authMiddleware, requireRole('admin'), (req, res) => {
+app.post('/api/projects', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const { nom, description, responsable_id, date_debut, date_fin, budget_prevu, notes } = req.body;
   if (!nom) return res.status(400).json({ error: 'Nom requis' });
   const r = db.prepare(`INSERT INTO projects (nom, description, responsable_id, date_debut, date_fin, budget_prevu, notes) VALUES (?, ?, ?, ?, ?, ?, ?)`)
@@ -2085,7 +2085,7 @@ app.post('/api/projects', authMiddleware, requireRole('admin'), (req, res) => {
   res.status(201).json({ id: r.lastInsertRowid });
 });
 
-app.put('/api/projects/:id', authMiddleware, requireRole('admin'), (req, res) => {
+app.put('/api/projects/:id', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const { nom, description, statut, progression, date_debut, date_fin, budget_prevu, notes } = req.body;
   const prev = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
   if (!prev) return res.status(404).json({ error: 'Projet introuvable' });
@@ -2100,7 +2100,7 @@ app.put('/api/projects/:id', authMiddleware, requireRole('admin'), (req, res) =>
   res.json({ message: 'Mis à jour' });
 });
 
-app.delete('/api/projects/:id', authMiddleware, requireRole('admin'), (req, res) => {
+app.delete('/api/projects/:id', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const prev = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
   if (!prev) return res.status(404).json({ error: 'Projet introuvable' });
   try {
@@ -2306,7 +2306,7 @@ app.get('/api/reports/volunteer', authMiddleware, requireRole('admin', 'secretai
   res.json({ rows, total_heures: total });
 });
 
-app.get('/api/reports/finance', authMiddleware, requireRole('admin', 'tresoriere', 'secretaire'), (req, res) => {
+app.get('/api/reports/finance', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const { activity_id } = req.query;
   const lines = db.prepare(`SELECT fl.*,
     COALESCE((SELECT SUM(montant) FROM transactions WHERE financial_line_id = fl.id AND type='depense'),0) AS depenses,
@@ -3257,7 +3257,7 @@ app.get('/api/payments/my', authMiddleware, (req, res) => {
 });
 
 // GET — tous les paiements (finance)
-app.get('/api/payments', authMiddleware, requireRole('admin','tresoriere','secretaire'), (req, res) => {
+app.get('/api/payments', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const rows = db.prepare(`SELECT p.*, u.prenom, u.nom, u.email, u.plan
     FROM payments p LEFT JOIN users u ON u.id = p.user_id
     ORDER BY p.date_soumission DESC`).all();
@@ -3355,7 +3355,7 @@ app.get('/api/receipts/my', authMiddleware, (req, res) => {
   res.json(db.prepare('SELECT * FROM tax_receipts WHERE user_id = ? ORDER BY annee DESC').all(req.user.id));
 });
 
-app.get('/api/receipts', authMiddleware, requireRole('admin','tresoriere','secretaire'), (req, res) => {
+app.get('/api/receipts', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const rows = db.prepare(`SELECT r.*, u.prenom, u.nom, u.email
     FROM tax_receipts r JOIN users u ON u.id = r.user_id
     ORDER BY r.annee DESC, r.date_generation DESC`).all();
@@ -3573,7 +3573,7 @@ app.patch('/api/cotisations/:id/payer', authMiddleware, requireRole('admin','tre
 });
 
 // GET — rapport mensuel (données pour export)
-app.get('/api/payments/rapport-mensuel', authMiddleware, requireRole('admin','tresoriere','secretaire'), (req, res) => {
+app.get('/api/payments/rapport-mensuel', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const mois = req.query.mois || new Date().toISOString().substring(0,7);
   const paiements = db.prepare(`
     SELECT p.*, u.prenom, u.nom, u.email, u.plan
@@ -4411,7 +4411,7 @@ app.get('/api/activities/:id/tables', authMiddleware, (req, res) => {
 });
 
 // Assigner/désassigner une table à un membre comité
-app.put('/api/activity-tables/:id/assign', authMiddleware, requireRole('admin'), (req, res) => {
+app.put('/api/activity-tables/:id/assign', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const { membre_id } = req.body;
   db.prepare('UPDATE activity_tables SET membre_attribue = ? WHERE id = ?').run(membre_id || null, req.params.id);
   res.json({ message: 'Table mise à jour' });
@@ -6515,7 +6515,7 @@ app.get('/api/votes/:id/resultats', authMiddleware, (req, res) => {
   res.json({ vote, resultats, total, myVote: myVote?.option_index ?? null });
 });
 
-app.delete('/api/votes/:id', authMiddleware, requireRole('admin'), (req, res) => {
+app.delete('/api/votes/:id', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   db.prepare('DELETE FROM votes WHERE id=?').run(req.params.id);
   res.json({ ok: true });
 });
@@ -6614,7 +6614,7 @@ app.get('/api/newsletter/subscribers/export', authMiddleware, requireRole('admin
 // 6. RAPPORT FISCAL ANNUEL PDF
 // ══════════════════════════════════════════════════════════════════════════════
 
-app.get('/api/reports/fiscal-annuel/:annee', authMiddleware, requireRole('admin','tresoriere'), (req, res) => {
+app.get('/api/reports/fiscal-annuel/:annee', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const annee = parseInt(req.params.annee) || new Date().getFullYear();
   const reçus = db.prepare(`
     SELECT tr.*, u.prenom, u.nom, u.email, u.adresse
@@ -7326,7 +7326,7 @@ app.get('/api/export/membres.csv', authMiddleware, requireRole('admin','secretai
   res.send('﻿' + csv);
 });
 
-app.get('/api/export/paiements.csv', authMiddleware, requireRole('admin','tresoriere','secretaire'), (req, res) => {
+app.get('/api/export/paiements.csv', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   let sql = `SELECT p.id, u.prenom, u.nom, u.email, p.montant, p.type, p.mois,
     p.methode, p.reference, p.statut, p.date_soumission
     FROM payments p LEFT JOIN users u ON u.id=p.user_id WHERE 1=1`;
@@ -7411,7 +7411,7 @@ app.get('/api/users/:id/badges', authMiddleware, (req, res) => {
   res.json(rows);
 });
 
-app.post('/api/badges/auto-assign', authMiddleware, requireRole('admin'), (req, res) => {
+app.post('/api/badges/auto-assign', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const users = db.prepare(`SELECT u.*,
     COALESCE((SELECT SUM(heures) FROM volunteer_hours WHERE user_id=u.id AND statut='approuve'),0) AS total_heures,
     (SELECT COUNT(*) FROM user_badges WHERE user_id=u.id) AS nb_badges,
@@ -7453,7 +7453,7 @@ app.post('/api/badges/auto-assign', authMiddleware, requireRole('admin'), (req, 
   res.json({ ok: true, assigned: total });
 });
 
-app.post('/api/users/:id/badges', authMiddleware, requireRole('admin'), (req, res) => {
+app.post('/api/users/:id/badges', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const { badge_code } = req.body;
   const badge = db.prepare('SELECT id FROM badges WHERE code=?').get(badge_code);
   if (!badge) return res.status(404).json({ error: 'Badge introuvable' });
@@ -7464,13 +7464,13 @@ app.post('/api/users/:id/badges', authMiddleware, requireRole('admin'), (req, re
   } catch { res.status(409).json({ error: 'Badge déjà attribué' }); }
 });
 
-app.delete('/api/users/:id/badges/:badgeId', authMiddleware, requireRole('admin'), (req, res) => {
+app.delete('/api/users/:id/badges/:badgeId', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   db.prepare('DELETE FROM user_badges WHERE user_id=? AND badge_id=?').run(req.params.id, req.params.badgeId);
   res.json({ ok: true });
 });
 
 // ── Feature 11 : Logs d'activité admin ───────────────────────────────────
-app.get('/api/activity-logs', authMiddleware, requireRole('admin'), (req, res) => {
+app.get('/api/activity-logs', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const limit = Math.min(parseInt(req.query.limit) || 100, 500);
   const action = req.query.action ? `AND action LIKE ?` : '';
   const rows = db.prepare(`SELECT al.*, u.prenom||' '||u.nom AS nom_acteur
@@ -7579,7 +7579,7 @@ app.get('/api/ambassador', (req, res) => {
   } catch(e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
-app.post('/api/ambassador/photo', authMiddleware, requireRole('admin'), uploadAmbassador.single('photo'), async (req, res) => {
+app.post('/api/ambassador/photo', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), uploadAmbassador.single('photo'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Photo requise' });
   await compressImage(req.file.path, 1200);
   const photo_url = `/uploads/ambassador/${req.file.filename}`;
@@ -7587,7 +7587,7 @@ app.post('/api/ambassador/photo', authMiddleware, requireRole('admin'), uploadAm
 });
 app.use('/uploads/ambassador', express.static(path.join(__dirname, 'uploads', 'ambassador')));
 
-app.put('/api/ambassador', authMiddleware, requireRole('admin'), (req, res) => {
+app.put('/api/ambassador', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const { nom, prenom, role_description, citation, photo_url, user_id } = req.body;
   try {
     db.prepare(`UPDATE ambassador SET nom=?, prenom=?, role_description=?, citation=?,
@@ -8278,7 +8278,7 @@ app.delete('/api/policies/:id', authMiddleware, requireRole('admin','secretaire'
 // JOURNAL D'AUDIT
 // ══════════════════════════════════════════════════════════════════════════════
 
-app.get('/api/audit', authMiddleware, requireRole('admin'), (req, res) => {
+app.get('/api/audit', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 50;
   const offset = (page - 1) * limit;
@@ -8418,7 +8418,7 @@ app.get('/api/export/activities', authMiddleware, requireRole(...EXEC_ROLES), (r
 // SAUVEGARDE BASE DE DONNÉES
 // ══════════════════════════════════════════════════════════════════════════════
 
-app.post('/api/backup', authMiddleware, requireRole('admin'), (req, res) => {
+app.post('/api/backup', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   try {
     const backupDir = path.join(__dirname, 'backups');
     if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
@@ -8441,7 +8441,7 @@ app.post('/api/backup', authMiddleware, requireRole('admin'), (req, res) => {
   }
 });
 
-app.get('/api/backups', authMiddleware, requireRole('admin'), (req, res) => {
+app.get('/api/backups', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   try {
     const backupDir = path.join(__dirname, 'backups');
     if (!fs.existsSync(backupDir)) return res.json([]);
@@ -8462,7 +8462,7 @@ app.get('/api/backups', authMiddleware, requireRole('admin'), (req, res) => {
 // RAPPORT ANNUEL
 // ══════════════════════════════════════════════════════════════════════════════
 
-app.get('/api/reports/annual', authMiddleware, requireRole('admin'), (req, res) => {
+app.get('/api/reports/annual', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const annee = parseInt(req.query.annee) || new Date().getFullYear();
   const anneeStr = String(annee);
 
@@ -9710,7 +9710,7 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-app.get('/api/admin/monitoring', authMiddleware, requireRole('admin'), (req, res) => {
+app.get('/api/admin/monitoring', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   try {
     const totalUsers = db.prepare('SELECT COUNT(*) AS c FROM users WHERE actif = 1 AND (phantom IS NULL OR phantom = 0)').get().c;
     const totalActivities = db.prepare('SELECT COUNT(*) AS c FROM activities').get().c;
@@ -9952,7 +9952,7 @@ app.post('/api/payment-plans/:id/pay-next', authMiddleware, (req, res) => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 // Sauvegarde vers chemin distant (BACKUP_REMOTE_PATH)
-app.post('/api/admin/backup-cloud', authMiddleware, requireRole('admin'), (req, res) => {
+app.post('/api/admin/backup-cloud', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   try {
     const remotePath = process.env.BACKUP_REMOTE_PATH;
     if (!remotePath) return res.status(400).json({ error: 'BACKUP_REMOTE_PATH non configuré dans les variables d\'environnement' });
@@ -9987,7 +9987,7 @@ app.post('/api/admin/backup-cloud', authMiddleware, requireRole('admin'), (req, 
 });
 
 // Download a backup file
-app.get('/api/admin/backups/:filename', authMiddleware, requireRole('admin'), (req, res) => {
+app.get('/api/admin/backups/:filename', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   try {
     const filename = req.params.filename;
     // Prevent path traversal
@@ -10005,12 +10005,12 @@ app.get('/api/admin/backups/:filename', authMiddleware, requireRole('admin'), (r
 // RÔLES PERSONNALISÉS
 // ══════════════════════════════════════════════════════════════════════════════
 
-app.get('/api/admin/roles', authMiddleware, requireRole('admin'), (req, res) => {
+app.get('/api/admin/roles', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const rows = db.prepare('SELECT * FROM custom_roles ORDER BY nom ASC').all();
   res.json(rows);
 });
 
-app.post('/api/admin/roles', authMiddleware, requireRole('admin'), (req, res) => {
+app.post('/api/admin/roles', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const { nom, label, permissions_json, couleur } = req.body;
   if (!nom || !label) return res.status(400).json({ error: 'Nom et label requis' });
   try {
@@ -10023,7 +10023,7 @@ app.post('/api/admin/roles', authMiddleware, requireRole('admin'), (req, res) =>
   }
 });
 
-app.put('/api/admin/roles/:id', authMiddleware, requireRole('admin'), (req, res) => {
+app.put('/api/admin/roles/:id', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const { nom, label, permissions_json, couleur } = req.body;
   const existing = db.prepare('SELECT id FROM custom_roles WHERE id=?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Rôle introuvable' });
@@ -10037,7 +10037,7 @@ app.put('/api/admin/roles/:id', authMiddleware, requireRole('admin'), (req, res)
   }
 });
 
-app.delete('/api/admin/roles/:id', authMiddleware, requireRole('admin'), (req, res) => {
+app.delete('/api/admin/roles/:id', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const existing = db.prepare('SELECT id FROM custom_roles WHERE id=?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Rôle introuvable' });
   db.prepare('UPDATE users SET custom_role_id=NULL WHERE custom_role_id=?').run(req.params.id);
@@ -10045,7 +10045,7 @@ app.delete('/api/admin/roles/:id', authMiddleware, requireRole('admin'), (req, r
   res.json({ message: 'Rôle supprimé' });
 });
 
-app.post('/api/admin/roles/:id/assign/:userId', authMiddleware, requireRole('admin'), (req, res) => {
+app.post('/api/admin/roles/:id/assign/:userId', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const role = db.prepare('SELECT id FROM custom_roles WHERE id=?').get(req.params.id);
   if (!role) return res.status(404).json({ error: 'Rôle introuvable' });
   const user = db.prepare('SELECT id FROM users WHERE id=?').get(req.params.userId);
@@ -10220,7 +10220,7 @@ app.put('/api/committee-meetings/:id', authMiddleware, requireRole(...CM_ROLES),
   res.json({ ok: true });
 });
 
-app.delete('/api/committee-meetings/:id', authMiddleware, requireRole('admin'), (req, res) => {
+app.delete('/api/committee-meetings/:id', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const m = db.prepare('SELECT * FROM committee_meetings WHERE id=?').get(req.params.id);
   if (!m) return res.status(404).json({ error: 'Rencontre introuvable' });
   if (m.verrouille) return res.status(403).json({ error: 'Rencontre verrouillée, suppression impossible' });

@@ -38,13 +38,14 @@ const EMOJIS = [
 
 // ── Permissions (déclaré tôt — utilisé dans home() avant la ligne 246 originale) ──
 const can = {
-  admin:       () => USER.role === 'admin',
+  // Tout le comité a les droits admin, sauf sur les finances (voir financeView/adminOrTre ci-dessous)
+  admin:       () => ['admin','tresoriere','secretaire','delegue'].includes(USER.role),
   tresoriere:  () => USER.role === 'tresoriere',
   secretaire:  () => USER.role === 'secretaire',
   delegue:     () => USER.role === 'delegue',
   adminOrSec:  () => ['admin','secretaire'].includes(USER.role),
   adminOrTre:  () => ['admin','tresoriere'].includes(USER.role),
-  financeView: () => ['admin','tresoriere','secretaire'].includes(USER.role),
+  financeView: () => ['admin','tresoriere','secretaire','delegue'].includes(USER.role),
   executive:   () => ['admin','tresoriere','secretaire','delegue'].includes(USER.role),
 };
 
@@ -366,11 +367,11 @@ async function buildSidebar() {
 
     // ── Finance ───────────────────────────────────────────────────
     { label: 'Finance', items: [
-      { id:'paiements',         icon:'◆', label:'Paiements',        roles:['admin','tresoriere','secretaire'] },
-      { id:'finance',           icon:'◇', label:'Budget',            roles:['admin','tresoriere','secretaire'] },
-      { id:'invoices',          icon:'◈', label:'Factures',          roles:['admin','tresoriere','secretaire'] },
-      { id:'recus',             icon:'◉', label:'Reçus fiscaux',    roles:['admin','tresoriere','secretaire'] },
-      { id:'rapports_finance',  icon:'📊', label:'Rapports finance', roles:['admin','tresoriere','secretaire'] },
+      { id:'paiements',         icon:'◆', label:'Paiements',        roles:['admin','tresoriere','secretaire','delegue'] },
+      { id:'finance',           icon:'◇', label:'Budget',            roles:['admin','tresoriere','secretaire','delegue'] },
+      { id:'invoices',          icon:'◈', label:'Factures',          roles:['admin','tresoriere','secretaire','delegue'] },
+      { id:'recus',             icon:'◉', label:'Reçus fiscaux',    roles:['admin','tresoriere','secretaire','delegue'] },
+      { id:'rapports_finance',  icon:'📊', label:'Rapports finance', roles:['admin','tresoriere','secretaire','delegue'] },
     ]},
 
     // ── Communication ─────────────────────────────────────────────
