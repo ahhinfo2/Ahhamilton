@@ -200,9 +200,21 @@
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Erreur');
-        ok.textContent = '✅ Demande envoyée ! L\'équipe AHH examinera votre demande et vous contactera dès approbation.';
+
+        // Message pré-rempli vers le groupe WhatsApp (Jean Raymond)
+        const inscritPrenom = document.getElementById('prenom').value.trim();
+        const inscritNom = document.getElementById('nom').value.trim();
+        const inscritTel = document.getElementById('telephone').value.trim();
+        const waMsg = 'Bonjour Jean Raymond, je suis ' + inscritPrenom + ' ' + inscritNom + ' et voici mon numéro (' + inscritTel + '). '
+          + 'Je viens de m\'inscrire sur le site de l\'AHH, pouvez-vous m\'ajouter sur le groupe WhatsApp SVP. '
+          + '(ceci est un message automatique de AHH)';
+        const waUrl = 'https://wa.me/19055197967?text=' + encodeURIComponent(waMsg);
+
+        ok.innerHTML = '✅ Demande envoyée ! L\'équipe AHH examinera votre demande et vous contactera dès approbation.'
+          + '<div style="margin-top:12px"><a href="' + waUrl + '" target="_blank" rel="noopener" class="btn" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none">📱 Rejoindre le groupe WhatsApp</a></div>';
         ok.style.display = 'block';
         document.getElementById('regForm').style.display = 'none';
+        try { window.open(waUrl, '_blank'); } catch(_) {}
       } catch(ex) {
         err.textContent = ex.message; err.style.display = 'block';
         btn.disabled = false; btn.textContent = 'Créer mon compte';

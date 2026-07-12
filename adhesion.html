@@ -237,6 +237,11 @@
         <button type="submit" class="btn btn-primary full" id="adhBtn" data-i18n="Envoyer ma demande d'adhésion">Envoyer ma demande d'adhésion</button>
         <div id="adhSuccess" style="display:none;margin-top:16px;background:#e8f5e9;border:1px solid #c8e6c9;border-radius:10px;padding:14px;font-size:.85rem;color:#1b5e20;text-align:center">
           ✅ Votre demande a été envoyée ! Nous vous contacterons dans les 48 heures.
+          <div style="margin-top:12px">
+            <a id="adhWhatsapp" href="#" target="_blank" rel="noopener" class="btn btn-primary" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none">
+              📱 Rejoindre le groupe WhatsApp
+            </a>
+          </div>
         </div>
         <div id="adhError" style="display:none;margin-top:12px;background:#fdecea;border:1px solid #f5c6cb;border-radius:10px;padding:12px;font-size:.82rem;color:#c62828;text-align:center"></div>
         <p style="font-size:.72rem;color:var(--muted);margin-top:12px;text-align:center">
@@ -311,6 +316,18 @@
         document.getElementById('adhSuccess').style.display = 'block';
         btn.style.display = 'none';
         e.target.querySelectorAll('input,select,textarea').forEach(function(el) { el.disabled = true; });
+
+        // Message pré-rempli vers le groupe WhatsApp (Jean Raymond)
+        var inscritPrenom = document.getElementById('adh_prenom').value.trim();
+        var inscritNom = document.getElementById('adh_nom').value.trim();
+        var inscritTel = document.getElementById('adh_tel').value.trim();
+        var waMsg = 'Bonjour Jean Raymond, je suis ' + inscritPrenom + ' ' + inscritNom + ' et voici mon numéro (' + inscritTel + '). '
+          + 'Je viens de m\'inscrire sur le site de l\'AHH, pouvez-vous m\'ajouter sur le groupe WhatsApp SVP. '
+          + '(ceci est un message automatique de AHH)';
+        var waUrl = 'https://wa.me/19055197967?text=' + encodeURIComponent(waMsg);
+        var waLink = document.getElementById('adhWhatsapp');
+        waLink.href = waUrl;
+        try { window.open(waUrl, '_blank'); } catch(_) {}
       } catch(ex) {
         errEl.textContent = ex.message === 'Une demande est déjà en cours pour cet email'
           ? 'Une demande avec cet email est déjà en cours de traitement.'
