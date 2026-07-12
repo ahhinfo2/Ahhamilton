@@ -1092,6 +1092,34 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS sponsors (
   date_creation TEXT DEFAULT CURRENT_TIMESTAMP
 )`); } catch {}
 
+// ── Équipe dirigeante (page publique index.html + equipe.html) ─────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS team_bureau (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nom TEXT NOT NULL,
+  titre TEXT NOT NULL,
+  citation TEXT DEFAULT '',
+  photo_url TEXT,
+  couleur1 TEXT DEFAULT '#1b5e20',
+  couleur2 TEXT DEFAULT '#43a047',
+  actif INTEGER DEFAULT 1,
+  ordre INTEGER DEFAULT 0,
+  cree_par INTEGER REFERENCES users(id),
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+// Seed unique avec les 6 membres déjà affichés en dur sur le site, pour ne rien perdre à la migration
+try {
+  const nb = db.prepare('SELECT COUNT(*) AS c FROM team_bureau').get().c;
+  if (nb === 0) {
+    const seed = db.prepare(`INSERT INTO team_bureau (nom, titre, citation, photo_url, couleur1, couleur2, ordre) VALUES (?,?,?,?,?,?,?)`);
+    seed.run('Jean-Carme Dorcent', 'Présidente', "Ma vision est de construire une communauté haïtienne forte et fière à Hamilton, où chaque famille se sent chez elle et peut s'épanouir pleinement.", '/Public/Jean Carme.jpg', '#f9a825', '#fdd835', 1);
+    seed.run('Jean Raymond Antoine', 'Vice-Président', "Ensemble, nous avons la force de surmonter tous les défis. Je m'engage à soutenir chaque initiative qui fait avancer notre communauté.", '/Public/Jean Raymond.jpg', '#1b5e20', '#43a047', 2);
+    seed.run('Aviole Vincent', 'Trésorière', "La transparence et la rigueur financière garantissent que chaque dollar donné sert vraiment notre mission communautaire.", '/Public/Aviole.jpg', '#6a1b9a', '#ab47bc', 3);
+    seed.run('Pierre Jeens Cazeau', 'Secrétaire', "Chaque voix mérite d'être entendue. Je veille à ce que nos décisions reflètent les aspirations de toute notre communauté.", '/Public/Pierre Jeens.jpg', '#0277bd', '#29b6f6', 4);
+    seed.run('Garry Talma', 'Conseiller', "Je suis le lien entre nos membres et notre comité. Votre bonheur et votre intégration sont au cœur de mon engagement quotidien.", '/Public/Garry.jpg', '#d84315', '#ff7043', 5);
+    seed.run('Driscoll Médé', 'Conseiller', "Représenter notre communauté est un honneur. Je m'assure que chaque membre soit informé, inclus et valorisé dans toutes nos activités.", '/Public/Driscoll.jpg', '#00695c', '#26a69a', 6);
+  }
+} catch {}
+
 // ── Délégation de scan (billets/cartes) ─────────────────────────────────────
 try { db.exec(`CREATE TABLE IF NOT EXISTS scan_delegations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

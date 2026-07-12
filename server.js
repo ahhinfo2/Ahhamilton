@@ -7228,6 +7228,83 @@ app.patch('/api/sponsors/:id/ordre', authMiddleware, requireRole('admin','secret
   } catch(e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
+// ── Équipe dirigeante (page publique) ─────────────────────────────────────────
+const teamBureauStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, 'uploads', 'team');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => cb(null, `team_${Date.now()}${path.extname(file.originalname).toLowerCase()}`)
+});
+const uploadTeamBureau = multer({ storage: teamBureauStorage, limits: { fileSize: 8 * 1024 * 1024 } });
+app.use('/uploads/team', express.static(path.join(__dirname, 'uploads', 'team')));
+
+const TEAM_ROLES = ['admin','tresoriere','secretaire','delegue'];
+
+app.get('/api/team', (req, res) => {
+  try {
+    const rows = db.prepare('SELECT * FROM team_bureau WHERE actif=1 ORDER BY ordre ASC, date_creation ASC').all();
+    res.json(rows);
+  } catch(e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
+});
+
+app.get('/api/team/all', authMiddleware, requireRole(...TEAM_ROLES), (req, res) => {
+  try {
+    const rows = db.prepare('SELECT * FROM team_bureau ORDER BY ordre ASC, date_creation ASC').all();
+    res.json(rows);
+  } catch(e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
+});
+
+app.post('/api/team', authMiddleware, requireRole(...TEAM_ROLES), uploadTeamBureau.single('photo'), (req, res) => {
+  try {
+    const { nom, titre, citation, couleur1, couleur2 } = req.body;
+    if (!nom || !titre) return res.status(400).json({ error: 'Nom et titre requis' });
+    const photo_url = req.file ? `/uploads/team/${req.file.filename}` : null;
+    const maxOrdre = db.prepare('SELECT COALESCE(MAX(ordre),0) AS m FROM team_bureau').get().m;
+    const r = db.prepare('INSERT INTO team_bureau (nom, titre, citation, photo_url, couleur1, couleur2, cree_par, ordre) VALUES (?,?,?,?,?,?,?,?)')
+      .run(nom, titre, citation||'', photo_url, couleur1||'#1b5e20', couleur2||'#43a047', req.user.id, maxOrdre + 1);
+    res.status(201).json({ id: r.lastInsertRowid });
+  } catch(e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
+});
+
+app.put('/api/team/:id', authMiddleware, requireRole(...TEAM_ROLES), uploadTeamBureau.single('photo'), (req, res) => {
+  try {
+    const existing = db.prepare('SELECT * FROM team_bureau WHERE id=?').get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Introuvable' });
+    const { nom, titre, citation, couleur1, couleur2, actif, ordre } = req.body;
+    const photo_url = req.file ? `/uploads/team/${req.file.filename}` : existing.photo_url;
+    db.prepare('UPDATE team_bureau SET nom=?, titre=?, citation=?, photo_url=?, couleur1=?, couleur2=?, actif=?, ordre=? WHERE id=?')
+      .run(nom||existing.nom, titre||existing.titre, citation!=null?citation:existing.citation,
+           photo_url, couleur1||existing.couleur1, couleur2||existing.couleur2,
+           actif!=null?parseInt(actif):existing.actif, ordre!=null?parseInt(ordre):existing.ordre, req.params.id);
+    res.json({ ok: true });
+  } catch(e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
+});
+
+app.delete('/api/team/:id', authMiddleware, requireRole(...TEAM_ROLES), (req, res) => {
+  try {
+    db.prepare('DELETE FROM team_bureau WHERE id=?').run(req.params.id);
+    res.json({ ok: true });
+  } catch(e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
+});
+
+app.patch('/api/team/:id/ordre', authMiddleware, requireRole(...TEAM_ROLES), (req, res) => {
+  try {
+    const { direction } = req.body;
+    const current = db.prepare('SELECT * FROM team_bureau WHERE id=?').get(req.params.id);
+    if (!current) return res.status(404).json({ error: 'Introuvable' });
+    const target = direction === 'up'
+      ? db.prepare('SELECT * FROM team_bureau WHERE ordre < ? ORDER BY ordre DESC LIMIT 1').get(current.ordre)
+      : db.prepare('SELECT * FROM team_bureau WHERE ordre > ? ORDER BY ordre ASC LIMIT 1').get(current.ordre);
+    if (target) {
+      db.prepare('UPDATE team_bureau SET ordre=? WHERE id=?').run(target.ordre, current.id);
+      db.prepare('UPDATE team_bureau SET ordre=? WHERE id=?').run(current.ordre, target.id);
+    }
+    res.json({ ok: true });
+  } catch(e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
+});
+
 // ── Fermeture propre de la DB à l'arrêt ────────────────────────────────────
 function gracefulShutdown(signal) {
   console.log(`\n[${signal}] Fermeture propre en cours...`);

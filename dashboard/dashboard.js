@@ -417,6 +417,7 @@ async function buildSidebar() {
       { id:'annonces_mgmt',     icon:'◉', label:'Annonces',          roles:['admin','secretaire'] },
       { id:'documents_mgmt',    icon:'📁', label:'Documents',         roles:['admin','secretaire'] },
       { id:'sponsors_mgmt',     icon:'🤝', label:'Commanditaires',    roles:['admin','secretaire'] },
+      { id:'equipe_mgmt',       icon:'👥', label:'Équipe dirigeante', roles:['admin','tresoriere','secretaire','delegue'] },
       { id:'shop-mgmt',         icon:'🛒', label:'Boutique',           roles:EXEC },
     ]},
 
@@ -1174,7 +1175,7 @@ async function showView(viewId) {
     notes, reports, letters, projects, alerts, profile,
     gallery_mgmt, annuaire, talents_mgmt, annonces_mgmt, mes_talents, mes_annonces,
     inscriptions, paiements, recus, mon_paiement, mes_billets, testimonials_mgmt, videos_mgmt,
-    scanner, forum, newsletter, rapports_finance, documents_mgmt, sponsors_mgmt
+    scanner, forum, newsletter, rapports_finance, documents_mgmt, sponsors_mgmt, equipe_mgmt
   };
   const extViews = {
     'pending-orders': pendingOrders,
@@ -9865,6 +9866,129 @@ async function sponsorDelete(id, nom) {
   if (!confirm('Supprimer le commanditaire «'+nom+'» ?')) return;
   await api('/sponsors/'+id, { method:'DELETE' });
   sponsors_mgmt(); toast('Commanditaire supprimé');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ÉQUIPE DIRIGEANTE (page publique index.html + equipe.html)
+// ══════════════════════════════════════════════════════════════════════════════
+async function equipe_mgmt() {
+  const team = await api('/team/all').catch(() => []);
+  window._team_cache = team;
+
+  setContent(`
+    <div class="page-header">
+      <h1>👥 Équipe dirigeante</h1>
+      <button class="btn btn-primary" onclick="teamForm()">+ Ajouter un membre</button>
+    </div>
+    <p style="color:var(--muted);margin-bottom:24px">Gérez les membres du comité affichés sur le site public (nom, titre, photo, citation).</p>
+    <div id="teamList">
+      ${team.length === 0
+        ? '<p style="color:var(--muted);text-align:center;padding:40px 0">Aucun membre pour l\'instant.</p>'
+        : team.map(t => `
+          <div class="table-card" style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;margin-bottom:16px;opacity:${t.actif?1:.5}">
+            ${t.photo_url
+              ? `<img src="${BASE}${t.photo_url}" alt="${escHtml(t.nom)}" style="width:80px;height:80px;object-fit:cover;border-radius:50%;flex-shrink:0;box-shadow:0 4px 16px rgba(0,0,0,.15)">`
+              : `<div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,${t.couleur1},${t.couleur2});display:flex;align-items:center;justify-content:center;font-size:1.6rem;color:#fff;font-weight:700;flex-shrink:0">${(t.nom||'?')[0]}</div>`}
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+                <strong style="font-size:1.1rem">${escHtml(t.nom)}</strong>
+                <span style="background:${t.couleur1};color:#fff;font-size:.72rem;font-weight:700;border-radius:20px;padding:2px 10px">${escHtml(t.titre)}</span>
+                ${!t.actif ? '<span style="background:#ccc;color:#555;font-size:.72rem;font-weight:700;border-radius:20px;padding:2px 10px">Masqué</span>' : ''}
+              </div>
+              ${t.citation ? `<p style="color:var(--muted);font-size:.85rem;margin:0;font-style:italic">"${escHtml(t.citation)}"</p>` : ''}
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+              <button class="btn btn-outline btn-sm" onclick="teamForm(${t.id})">✏️ Modifier</button>
+              <button class="btn btn-outline btn-sm" onclick="teamToggle(${t.id},${t.actif?0:1})">${t.actif?'⏸ Masquer':'▶ Afficher'}</button>
+              <div style="display:flex;gap:4px">
+                <button class="btn btn-outline btn-sm" onclick="teamOrdre(${t.id},'up')" title="Monter">↑</button>
+                <button class="btn btn-outline btn-sm" onclick="teamOrdre(${t.id},'down')" title="Descendre">↓</button>
+              </div>
+              <button class="btn btn-sm" style="background:#f44336;color:#fff" onclick="teamDelete(${t.id},'${escHtml(t.nom).replace(/'/g,"\\'")}')">🗑 Supprimer</button>
+            </div>
+          </div>`).join('')}
+    </div>
+  `);
+}
+
+function teamForm(id) {
+  const t = id ? window._team_cache?.find(x => x.id === id) : null;
+  window._team_newPhotoBlob = null;
+  openModal(id ? 'Modifier — ' + escHtml(t.nom) : 'Ajouter un membre de l\'équipe', `
+    <form id="teamFrm">
+      <div class="form-group">
+        <label>Nom *</label>
+        <input id="tm_nom" class="form-control" required value="${escHtml(t?.nom||'')}" placeholder="Ex: Jean-Carme Dorcent">
+      </div>
+      <div class="form-group">
+        <label>Titre *</label>
+        <input id="tm_titre" class="form-control" required value="${escHtml(t?.titre||'')}" placeholder="Ex: Présidente">
+      </div>
+      <div class="form-group">
+        <label>Citation (optionnel)</label>
+        <textarea id="tm_citation" class="form-control" rows="2" placeholder="Une phrase affichée sur la page Équipe complète">${escHtml(t?.citation||'')}</textarea>
+      </div>
+      <div class="form-group">
+        <label>Photo</label>
+        <div id="tm_photoPreview" style="margin-bottom:8px">
+          ${t?.photo_url ? `<img src="${BASE}${t.photo_url}" style="width:80px;height:80px;object-fit:cover;border-radius:50%;display:block">` : ''}
+        </div>
+        <label style="cursor:pointer"><span class="btn btn-outline btn-sm">📷 ${t?.photo_url ? 'Changer la photo' : 'Ajouter une photo'}</span>
+          <input type="file" id="tm_photoInput" accept="image/*" style="display:none"/></label>
+      </div>
+      <div class="form-actions" style="margin-top:16px">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="button" class="btn btn-primary" onclick="teamSave(${id||'null'})">💾 Enregistrer</button>
+      </div>
+    </form>
+  `);
+
+  document.getElementById('tm_photoInput').onchange = function() {
+    const file = this.files[0];
+    this.value = '';
+    if (!file) return;
+    openPhotoCropper(file, (blob) => {
+      window._team_newPhotoBlob = blob;
+      const url = URL.createObjectURL(blob);
+      document.getElementById('tm_photoPreview').innerHTML = `<img src="${url}" style="width:80px;height:80px;object-fit:cover;border-radius:50%;display:block">`;
+    }, { title: '📷 Photo de ' + (document.getElementById('tm_nom').value || 'membre'), confirmLabel: '✓ Utiliser cette photo' });
+  };
+}
+
+async function teamSave(id) {
+  const nom = document.getElementById('tm_nom').value.trim();
+  const titre = document.getElementById('tm_titre').value.trim();
+  if (!nom || !titre) { toast('Nom et titre sont obligatoires', 'error'); return; }
+  const fd = new FormData();
+  fd.append('nom', nom);
+  fd.append('titre', titre);
+  fd.append('citation', document.getElementById('tm_citation').value.trim());
+  if (window._team_newPhotoBlob) fd.append('photo', window._team_newPhotoBlob, 'photo.jpg');
+  const url = BASE + '/api' + (id ? '/team/'+id : '/team');
+  try {
+    const res = await fetch(url, { method: id ? 'PUT' : 'POST', headers: { Authorization: `Bearer ${TOKEN}` }, body: fd });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) { toast(data?.error || 'Erreur '+res.status, 'error'); return; }
+    closeModal(); equipe_mgmt(); toast(id ? 'Membre mis à jour' : 'Membre ajouté');
+  } catch(e) { toast('Erreur réseau : ' + e.message, 'error'); }
+}
+
+async function teamToggle(id, actif) {
+  const fd = new FormData();
+  fd.append('actif', actif);
+  await fetch(BASE + '/api/team/' + id, { method:'PUT', headers:{ Authorization:`Bearer ${TOKEN}` }, body:fd }).catch(() => null);
+  equipe_mgmt();
+}
+
+async function teamOrdre(id, direction) {
+  await api('/team/'+id+'/ordre', { method:'PATCH', body:JSON.stringify({direction}) }).catch(() => null);
+  equipe_mgmt();
+}
+
+async function teamDelete(id, nom) {
+  if (!confirm('Supprimer «'+nom+'» de l\'équipe affichée sur le site public ?')) return;
+  await api('/team/'+id, { method:'DELETE' });
+  equipe_mgmt(); toast('Membre supprimé');
 }
 
 async function mon_paiement() {
