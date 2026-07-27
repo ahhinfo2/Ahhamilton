@@ -12,6 +12,8 @@ let _noteSyncInterval = null;
 let _noteDebounce = null;
 let _pagSig = '';
 let _pagTimer = null;
+let _agPagSig = '';
+let _agPagTimer = null;
 
 // ── PWA INSTALL PROMPT ──────────────────────────────────────────────────────
 let _pwaPrompt = null;
@@ -306,6 +308,8 @@ function setContent(html) {
   if (_notesRefreshInterval) { clearInterval(_notesRefreshInterval); _notesRefreshInterval = null; }
   if (_pagTimer) { clearTimeout(_pagTimer); _pagTimer = null; }
   _pagSig = '';
+  if (_agPagTimer) { clearTimeout(_agPagTimer); _agPagTimer = null; }
+  _agPagSig = '';
   // Libérer la session d'édition si on quittait une note
   if (_noteEditingId) { api(`/notes/${_noteEditingId}/editing`, { method:'DELETE' }).catch(()=>{}); _noteEditingId = null; }
   // Réinitialiser le mode flex-fill (utilisé par certaines vues pleine hauteur)
@@ -4337,41 +4341,43 @@ function _openNoteEditor(n, allActs, forceReadOnly) {
         <div style="width:1px;height:24px;background:#ddd;margin:0 4px"></div>
 
         <!-- Formatage texte -->
-        <button class="we-btn" onclick="document.execCommand('bold')" title="Gras (Ctrl+B)"><b>G</b></button>
-        <button class="we-btn" onclick="document.execCommand('italic')" title="Italique (Ctrl+I)"><i>I</i></button>
-        <button class="we-btn" onclick="document.execCommand('underline')" title="Souligner (Ctrl+U)"><u>S</u></button>
-        <button class="we-btn" onclick="document.execCommand('strikeThrough')" title="Barré"><s>B</s></button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('bold')" title="Gras (Ctrl+B)"><b>G</b></button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('italic')" title="Italique (Ctrl+I)"><i>I</i></button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('underline')" title="Souligner (Ctrl+U)"><u>S</u></button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('strikeThrough')" title="Barré"><s>B</s></button>
 
         <!-- Séparateur -->
         <div style="width:1px;height:24px;background:#ddd;margin:0 4px"></div>
 
         <!-- Titres -->
-        <button class="we-btn" onclick="document.execCommand('formatBlock',false,'h1')" title="Titre 1" style="font-size:.75rem;font-weight:800">H1</button>
-        <button class="we-btn" onclick="document.execCommand('formatBlock',false,'h2')" title="Titre 2" style="font-size:.75rem;font-weight:700">H2</button>
-        <button class="we-btn" onclick="document.execCommand('formatBlock',false,'h3')" title="Titre 3" style="font-size:.75rem;font-weight:600">H3</button>
-        <button class="we-btn" onclick="document.execCommand('formatBlock',false,'p')" title="Paragraphe normal" style="font-size:.75rem">¶</button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('formatBlock',false,'h1')" title="Titre 1" style="font-size:.75rem;font-weight:800">H1</button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('formatBlock',false,'h2')" title="Titre 2" style="font-size:.75rem;font-weight:700">H2</button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('formatBlock',false,'h3')" title="Titre 3" style="font-size:.75rem;font-weight:600">H3</button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('formatBlock',false,'p')" title="Paragraphe normal" style="font-size:.75rem">¶</button>
 
         <!-- Séparateur -->
         <div style="width:1px;height:24px;background:#ddd;margin:0 4px"></div>
 
         <!-- Listes -->
-        <button class="we-btn" onclick="document.execCommand('insertUnorderedList')" title="Liste à puces">• ≡</button>
-        <button class="we-btn" onclick="document.execCommand('insertOrderedList')" title="Liste numérotée">1. ≡</button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('insertUnorderedList');_fixListNesting('n_editor');_collapseSelectionToEnd()" title="Liste à puces">• ≡</button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('insertOrderedList');_fixListNesting('n_editor');_collapseSelectionToEnd()" title="Liste numérotée">1. ≡</button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('indent');_fixListNesting('n_editor');_collapseSelectionToEnd()" title="Sous-point (indenter)">➡ Indenter</button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('outdent');_fixListNesting('n_editor');_collapseSelectionToEnd()" title="Remonter d'un niveau">⬅ Désindenter</button>
 
         <!-- Séparateur -->
         <div style="width:1px;height:24px;background:#ddd;margin:0 4px"></div>
 
         <!-- Alignement -->
-        <button class="we-btn" onclick="document.execCommand('justifyLeft')" title="Aligner à gauche">⬅</button>
-        <button class="we-btn" onclick="document.execCommand('justifyCenter')" title="Centrer">⬛</button>
-        <button class="we-btn" onclick="document.execCommand('justifyRight')" title="Aligner à droite">➡</button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('justifyLeft')" title="Aligner à gauche">⬅</button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('justifyCenter')" title="Centrer">⬛</button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('justifyRight')" title="Aligner à droite">➡</button>
 
         <!-- Séparateur -->
         <div style="width:1px;height:24px;background:#ddd;margin:0 4px"></div>
 
         <!-- Actions -->
-        <button class="we-btn" onclick="document.execCommand('undo')" title="Annuler">↩</button>
-        <button class="we-btn" onclick="document.execCommand('redo')" title="Rétablir">↪</button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('undo')" title="Annuler">↩</button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('redo')" title="Rétablir">↪</button>
 
         <!-- Séparateur -->
         <div style="width:1px;height:24px;background:#ddd;margin:0 4px"></div>
@@ -4472,6 +4478,16 @@ function _openNoteEditor(n, allActs, forceReadOnly) {
   if (!readOnly) {
     const ed = document.getElementById('n_editor');
     if (ed) {
+      // Tab / Shift+Tab pour indenter/désindenter (sous-puces, sous-sous-puces)
+      ed.addEventListener('keydown', e => {
+        if (e.key === 'Tab') {
+          e.preventDefault();
+          document.execCommand(e.shiftKey ? 'outdent' : 'indent');
+          _fixListNesting('n_editor');
+          _collapseSelectionToEnd();
+        }
+      });
+
       // Coller (Ctrl+V)
       ed.addEventListener('paste', e => {
         const items = e.clipboardData?.items;
@@ -4591,6 +4607,40 @@ async function autoSaveNote(id) {
   }
 }
 
+// Chrome's execCommand('insertUnorderedList'/'insertOrderedList') sur du texte dans un <p>
+// laisse parfois la liste imbriquée à l'intérieur du <p> (HTML invalide : <p><ul>...) —
+// ce qui fait ensuite dérailler indent/outdent (contenu qui se déplace/fusionne). On sort
+// la liste du <p> juste après chaque commande liée aux listes.
+function _fixListNesting(editorId) {
+  const ed = document.getElementById(editorId);
+  if (!ed) return;
+  ed.querySelectorAll('p > ul, p > ol').forEach(list => {
+    const p = list.parentNode;
+    p.parentNode.insertBefore(list, p.nextSibling);
+    if (!p.textContent.trim() && !p.querySelector('img')) p.remove();
+  });
+}
+
+// execCommand('insertUnorderedList'/'insertOrderedList'/'indent'/'outdent') recollapse parfois
+// le curseur au DÉBUT de la ligne affectée au lieu de le laisser à la fin — la touche Entrée
+// suivante insère alors une nouvelle puce AVANT le texte au lieu d'après, ce qui mélange
+// l'ordre du contenu. On replace systématiquement le curseur à la fin du bloc courant (li/p/div).
+function _collapseSelectionToEnd() {
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return;
+  let node = sel.getRangeAt(0).startContainer;
+  while (node && node.nodeType !== 1) node = node.parentNode;
+  let block = node;
+  while (block && !['LI','P','DIV'].includes(block.tagName)) block = block.parentNode;
+  if (!block) block = node;
+  if (!block) return;
+  const range = document.createRange();
+  range.selectNodeContents(block);
+  range.collapse(false);
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
 function noteChanged() {
   const s = document.getElementById('noteStatus');
   if (s) { s.style.color = '#e65100'; s.textContent = '● Modifications en cours...'; }
@@ -4608,9 +4658,9 @@ function noteChanged() {
 }
 
 // ── Indicateurs de saut de page dans l'éditeur (style Word) ─────────────
-function _updateEditPages() {
-  const ed = document.getElementById('n_editor');
-  const wrapper = document.getElementById('notePageWrapper');
+function _updateEditPages(editorId = 'n_editor', wrapperId = 'notePageWrapper') {
+  const ed = document.getElementById(editorId);
+  const wrapper = document.getElementById(wrapperId);
   if (!ed || !wrapper) return;
 
   wrapper.querySelectorAll('.pg-brk').forEach(el => el.remove());
@@ -4767,6 +4817,73 @@ function _paginateReadOnly(html) {
           <div style="height:${CONTENT_H}px;overflow:hidden;position:relative">
             <div style="position:absolute;top:0;left:0;right:0;padding:40px 64px;transform:translateY(-${p * CONTENT_H}px);font-family:'Times New Roman',serif;font-size:12pt;line-height:1.6;color:#000;word-break:break-word">
               ${html || '<p><br></p>'}
+            </div>
+          </div>
+          ${footer}
+        </div>`;
+    }
+    area.innerHTML = out;
+  }, 600);
+}
+
+// ── Pagination multi-pages (lecture seule) — Ordre du jour ───────────────
+function _paginateAgendaReadOnly(html) {
+  const area = document.getElementById('agendaPagedArea');
+  if (!area) return;
+
+  const sig = (html || '').length + '';
+  if (sig === _agPagSig && area.children.length > 0) return;
+  _agPagSig = sig;
+  if (_agPagTimer) { clearTimeout(_agPagTimer); _agPagTimer = null; }
+
+  const CONTENT_H = 944;
+  const todayFr = new Date().toLocaleDateString('fr-CA', {year:'numeric',month:'long',day:'numeric'});
+
+  const makeHeader = (pg, total) =>
+    `<div style="border-bottom:3px solid #1a237e;padding:10px 64px 8px;display:flex;align-items:center;gap:14px;user-select:none">
+      <img src="/Public/logo1.png" style="height:48px;width:48px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display='none'">
+      <div style="flex:1">
+        <div style="font-weight:800;font-size:11pt;color:#1a237e;letter-spacing:.3px">Association Haïtienne de Hamilton (AHH)</div>
+        <div style="font-size:8.5pt;color:#555;margin-top:1px">Ordre du jour</div>
+      </div>
+      <div style="font-size:8.5pt;color:#888;text-align:right">${todayFr}${total > 1 ? '<br><span style="font-size:7.5pt">Page&nbsp;'+pg+'&nbsp;/&nbsp;'+total+'</span>' : ''}</div>
+    </div>`;
+
+  const footer =
+    `<div style="border-top:2px solid #1a237e;padding:7px 64px;display:flex;justify-content:space-between;align-items:center;font-size:7.5pt;color:#888;user-select:none">
+      <span>Association Haïtienne de Hamilton — Hamilton, Ontario, Canada</span>
+      <span>Document officiel — confidentiel</span>
+    </div>`;
+
+  area.innerHTML =
+    `<div style="width:816px;max-width:calc(100vw - 40px);margin:0 auto;background:#fff;box-shadow:0 2px 20px rgba(0,0,0,.22)">
+      ${makeHeader(1, 1)}
+      <div id="_agendaMeasure" style="padding:40px 64px;font-family:'Times New Roman',serif;font-size:12pt;line-height:1.6;color:#000;word-break:break-word">
+        ${html || '<ul><li><br></li></ul>'}
+      </div>
+      ${footer}
+    </div>`;
+
+  _agPagTimer = setTimeout(() => {
+    _agPagTimer = null;
+    const m = document.getElementById('_agendaMeasure');
+    if (!m || !document.getElementById('agendaPagedArea')) return;
+    const totalH = m.scrollHeight;
+
+    if (totalH <= CONTENT_H) {
+      m.style.minHeight = CONTENT_H + 'px';
+      return;
+    }
+
+    const numPages = Math.ceil(totalH / CONTENT_H);
+    let out = '';
+    for (let p = 0; p < numPages; p++) {
+      out +=
+        `<div style="width:816px;max-width:calc(100vw - 40px);margin:${p > 0 ? '32px' : '0'} auto 0;background:#fff;box-shadow:0 2px 20px rgba(0,0,0,.22)">
+          ${makeHeader(p + 1, numPages)}
+          <div style="height:${CONTENT_H}px;overflow:hidden;position:relative">
+            <div style="position:absolute;top:0;left:0;right:0;padding:40px 64px;transform:translateY(-${p * CONTENT_H}px);font-family:'Times New Roman',serif;font-size:12pt;line-height:1.6;color:#000;word-break:break-word">
+              ${html || '<ul><li><br></li></ul>'}
             </div>
           </div>
           ${footer}
@@ -15230,11 +15347,11 @@ function openAgendaEditor(a) {
         </div>
 
         <!-- Listes uniquement -->
-        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('insertUnorderedList')" title="Liste à puces" ${readOnly?'disabled':''}>• ≡</button>
-        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('insertOrderedList')" title="Liste numérotée" ${readOnly?'disabled':''}>1. ≡</button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('insertUnorderedList');_fixListNesting('ag_editor');_collapseSelectionToEnd();_updateEditPages('ag_editor','agPageWrapper')" title="Liste à puces" ${readOnly?'disabled':''}>• ≡</button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('insertOrderedList');_fixListNesting('ag_editor');_collapseSelectionToEnd();_updateEditPages('ag_editor','agPageWrapper')" title="Liste numérotée" ${readOnly?'disabled':''}>1. ≡</button>
         <div style="width:1px;height:24px;background:#ddd;margin:0 4px"></div>
-        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('indent')" title="Sous-point (indenter)" ${readOnly?'disabled':''}>➡ Indenter</button>
-        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('outdent')" title="Remonter d'un niveau" ${readOnly?'disabled':''}>⬅ Désindenter</button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('indent');_fixListNesting('ag_editor');_collapseSelectionToEnd();_updateEditPages('ag_editor','agPageWrapper')" title="Sous-point (indenter)" ${readOnly?'disabled':''}>➡ Indenter</button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('outdent');_fixListNesting('ag_editor');_collapseSelectionToEnd();_updateEditPages('ag_editor','agPageWrapper')" title="Remonter d'un niveau" ${readOnly?'disabled':''}>⬅ Désindenter</button>
         <div style="width:1px;height:24px;background:#ddd;margin:0 4px"></div>
         <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('undo')" title="Annuler" ${readOnly?'disabled':''}>↩</button>
         <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('redo')" title="Rétablir" ${readOnly?'disabled':''}>↪</button>
@@ -15253,6 +15370,10 @@ function openAgendaEditor(a) {
           : a?.nb_signatures > 0 ? `<div style="text-align:center;padding:10px 16px;background:#fff3cd;color:#856404;font-weight:600;font-size:.82rem">⚠️ ${a.nb_signatures} signature(s) existante(s). Toute sauvegarde les annulera.</div>` : ''}
 
         <style>#ag_editor ul, #ag_editor ol { margin: 4px 0 4px 28px; padding: 0; } #ag_editor li { margin: 2px 0; }</style>
+        ${readOnly ? `
+        <div id="agendaPagedArea"></div>
+        <div id="ag_editor" style="display:none">${a?.contenu || ''}</div>
+        ` : `
         <div id="agPageWrapper" style="width:816px;max-width:calc(100vw - 40px);margin:0 auto;background:#fff;box-shadow:0 2px 20px rgba(0,0,0,.22);position:relative">
           <div style="border-bottom:3px solid #1a237e;padding:12px 64px 10px;display:flex;align-items:center;gap:14px;user-select:none">
             <img src="/Public/logo1.png" style="height:52px;width:52px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display='none'">
@@ -15263,26 +15384,33 @@ function openAgendaEditor(a) {
             <div style="font-size:9pt;color:#888;text-align:right">${new Date().toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'})}</div>
           </div>
           <div id="ag_editor" style="min-height:944px;padding:40px 64px;font-family:'Times New Roman',serif;font-size:12pt;line-height:1.6;color:#000;outline:none"
-            contenteditable="${!readOnly}" spellcheck="true">${a?.contenu || '<ul><li><br></li></ul>'}</div>
+            contenteditable="true" spellcheck="true" oninput="_updateEditPages('ag_editor','agPageWrapper')">${a?.contenu || '<ul><li><br></li></ul>'}</div>
           <div style="border-top:2px solid #1a237e;padding:8px 64px;display:flex;justify-content:space-between;align-items:center;font-size:8pt;color:#888;user-select:none">
             <span>Association Haïtienne de Hamilton — Hamilton, Ontario, Canada</span>
             <span>Document officiel — confidentiel</span>
           </div>
         </div>
+        `}
       </div>
     </div>
   `);
 
-  if (!readOnly) {
+  if (readOnly) {
+    setTimeout(() => _paginateAgendaReadOnly(a?.contenu || ''), 80);
+  } else {
     setTimeout(() => {
       const editor = document.getElementById('ag_editor');
       if (!editor) return;
       editor.focus();
+      _updateEditPages('ag_editor','agPageWrapper');
       // Tab / Shift+Tab pour indenter/désindenter comme un vrai document à puces
       editor.addEventListener('keydown', e => {
         if (e.key === 'Tab') {
           e.preventDefault();
           document.execCommand(e.shiftKey ? 'outdent' : 'indent');
+          _fixListNesting('ag_editor');
+          _collapseSelectionToEnd();
+          _updateEditPages('ag_editor','agPageWrapper');
         }
       });
     }, 50);
