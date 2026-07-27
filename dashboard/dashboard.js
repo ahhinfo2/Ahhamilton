@@ -465,6 +465,7 @@ async function buildSidebar() {
       USER.in_subcommittee ? { id:'subcommittees', icon:'◐', label:'Sous-comités' } : null,
       ['bienfaiteur','partenaire'].includes(USER.plan) ? { id:'mes_talents',  icon:'◈', label:'Mon talent' }   : null,
       ['bienfaiteur','partenaire'].includes(USER.plan) ? { id:'mes_annonces', icon:'◉', label:'Mes annonces' } : null,
+      { id:'repertoire',   icon:'👥', label:'Répertoire des membres' },
       { id:'annuaire',     icon:'✉️', label:'Courriel' },
       { id:'forum',        icon:'◫', label:'Forum' },
       // ── Mon espace membres ───────────────────────────────────────
@@ -586,7 +587,7 @@ function setActiveNav(viewId) {
   });
   const labels = {
     home:'Tableau de bord', activities:'Activités', members:'Membres', subcommittees:'Sous-comités',
-    finance:'Finance', invoices:'Factures', fournisseurs:'Fournisseurs', correspondance:'Correspondance', messages:'Messages', volunteer:'Heures de bénévolat',
+    finance:'Finance', invoices:'Factures', fournisseurs:'Fournisseurs', correspondance:'Correspondance', repertoire:'Répertoire des membres', messages:'Messages', volunteer:'Heures de bénévolat',
     notes:'Notes de réunion', reports:'Rapports', letters:'Lettres de recommandation',
     projects:'Projets', alerts:'Alertes', profile:'Mon profil', gallery_mgmt:'Gérer la galerie',
     talents_mgmt:'Nos talents', annonces_mgmt:'Petites annonces',
@@ -1177,7 +1178,7 @@ async function showView(viewId) {
     notes, reports, letters, projects, alerts, profile,
     gallery_mgmt, annuaire, talents_mgmt, annonces_mgmt, mes_talents, mes_annonces,
     inscriptions, paiements, recus, mon_paiement, mes_billets, testimonials_mgmt, videos_mgmt,
-    scanner, forum, newsletter, rapports_finance, documents_mgmt, sponsors_mgmt, equipe_mgmt, recus_archive, correspondance
+    scanner, forum, newsletter, rapports_finance, documents_mgmt, sponsors_mgmt, equipe_mgmt, recus_archive, correspondance, repertoire
   };
   const extViews = {
     'pending-orders': pendingOrders,
@@ -5703,6 +5704,50 @@ let _M = { members:[], checked:new Set(), starred:new Set(), view:'inbox', detai
 const _MC = { to:[], cc:[] };
 
 // ── Vue principale ──────────────────────────────────────────────────────────
+// ══ RÉPERTOIRE DES MEMBRES (consultable par tous les membres) ═══════════════
+async function repertoire() {
+  const data = await api('/annuaire').catch(() => []);
+  window._repertoireAll = data;
+  setContent(`
+    <div class="page-header">
+      <div><h2>👥 Répertoire des membres</h2><p>Retrouvez les membres de l'AHH Hamilton</p></div>
+    </div>
+    <input id="repSearch" type="text" class="members-search" style="max-width:320px;margin-bottom:16px" placeholder="🔍 Rechercher un membre…" oninput="filterRepertoire()"/>
+    <div id="repGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px"></div>
+  `);
+  filterRepertoire();
+}
+
+function filterRepertoire() {
+  const q = (document.getElementById('repSearch')?.value || '').toLowerCase().trim();
+  const data = (window._repertoireAll || []).filter(m => !q || `${m.prenom} ${m.nom}`.toLowerCase().includes(q));
+  renderRepertoire(data);
+}
+
+function renderRepertoire(data) {
+  const grid = document.getElementById('repGrid');
+  if (!grid) return;
+  const CARTE_ROLES = ['admin','tresoriere','secretaire','delegue'];
+  if (!data.length) { grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--muted);padding:32px">Aucun membre trouvé</p>'; return; }
+  grid.innerHTML = data.map(m => {
+    const initials = `${(m.prenom||'?')[0]}${(m.nom||'')[0]}`.toUpperCase();
+    const badge = CARTE_ROLES.includes(m.role) ? (m.titre_comite || roleName(m.role)) : (m.plan && m.plan !== 'gratuit' ? {bienfaiteur:'Bienfaiteur',partenaire:'Partenaire'}[m.plan] : '');
+    return `<div style="background:var(--card,#fff);border:1px solid var(--border);border-radius:14px;padding:16px;text-align:center">
+      <div style="width:64px;height:64px;border-radius:50%;margin:0 auto 10px;overflow:hidden;background:var(--off);display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--muted)">
+        ${m.photo_url ? `<img src="${BASE}${m.photo_url}" style="width:100%;height:100%;object-fit:cover"/>` : initials}
+      </div>
+      <div style="font-weight:700;font-size:.88rem">${escHtml(m.prenom)} ${escHtml(m.nom)}</div>
+      ${badge ? `<div style="font-size:.68rem;color:var(--g2);font-weight:600;margin-top:2px">${escHtml(badge)}</div>` : ''}
+      ${m.id !== USER.id ? `<button class="btn btn-sm btn-ghost" style="margin-top:8px" onclick="contactMember('${escHtml(m.email).replace(/'/g,"\\'")}')">✉️ Contacter</button>` : '<div style="font-size:.68rem;color:var(--muted);margin-top:8px">(Vous)</div>'}
+    </div>`;
+  }).join('');
+}
+
+async function contactMember(email) {
+  await showView('annuaire');
+  setTimeout(() => gmCompose({ to: email }), 300);
+}
+
 async function annuaire() {
   _M.members = await api('/annuaire');
   _M.view    = 'inbox';
@@ -7165,6 +7210,8 @@ async function profile() {
       </div>
     </div>` : ''}
 
+    <div class="table-card" id="depsCard" style="margin-bottom:18px"></div>
+
     ${icalData?.url ? `
     <div class="table-card" style="margin-bottom:18px">
       <div class="table-card-header"><h3>📅 Synchroniser mon calendrier</h3></div>
@@ -7190,6 +7237,8 @@ async function profile() {
       </div>
     </div>
   `);
+
+  loadDependentsCard();
 
   document.getElementById('pwForm').onsubmit = async e => {
     e.preventDefault();
@@ -7222,6 +7271,80 @@ async function profile() {
       } catch(ex) { toast(ex.message, 'error'); }
     });
   };
+}
+
+const DEPENDENT_LIENS = { enfant:'Enfant', conjoint:'Conjoint(e)', autre:'Autre' };
+
+async function loadDependentsCard() {
+  const deps = await api('/dependents').catch(() => []);
+  window._depsAll = deps;
+  renderDependentsCard();
+}
+
+function renderDependentsCard() {
+  const el = document.getElementById('depsCard');
+  if (!el) return;
+  const deps = window._depsAll || [];
+  el.innerHTML = `
+    <div class="table-card-header" style="display:flex;justify-content:space-between;align-items:center">
+      <h3 style="margin:0">👨‍👩‍👧 Personnes à charge</h3>
+      <button class="btn btn-sm btn-primary" onclick="openDependentForm()">+ Ajouter</button>
+    </div>
+    <div style="padding:${deps.length ? '8px 20px 16px' : '20px'}">
+      ${deps.length ? deps.map(d => `
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+          <div style="flex:1;min-width:0">
+            <strong>${escHtml(d.prenom)} ${escHtml(d.nom)}</strong>
+            <span style="font-size:.78rem;color:var(--muted);margin-left:6px">${DEPENDENT_LIENS[d.lien]||d.lien}${d.date_naissance ? ' · né(e) le ' + fmt(d.date_naissance) : ''}</span>
+          </div>
+          <button class="btn btn-sm btn-ghost" onclick="openDependentForm(window._depsAll.find(x=>x.id===${d.id}))" title="Modifier">✏️</button>
+          <button class="btn btn-sm btn-ghost" style="color:var(--red)" onclick="deleteDependent(${d.id})" title="Retirer">🗑</button>
+        </div>`).join('')
+      : `<p style="color:var(--muted);font-size:.85rem;margin:0">Aucune personne à charge enregistrée.</p>`}
+    </div>
+  `;
+}
+
+function openDependentForm(existing) {
+  const isEdit = !!existing;
+  openModal(isEdit ? 'Modifier la personne à charge' : 'Ajouter une personne à charge', `
+    <form id="depForm">
+      <div class="form-row">
+        <div class="form-group"><label>Prénom *</label><input id="dep_prenom" value="${escHtml(existing?.prenom||'')}" required/></div>
+        <div class="form-group"><label>Nom *</label><input id="dep_nom" value="${escHtml(existing?.nom||'')}" required/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Lien</label>
+          <select id="dep_lien">
+            <option value="enfant" ${existing?.lien==='enfant'?'selected':''}>Enfant</option>
+            <option value="conjoint" ${existing?.lien==='conjoint'?'selected':''}>Conjoint(e)</option>
+            <option value="autre" ${existing?.lien==='autre'?'selected':''}>Autre</option>
+          </select></div>
+        <div class="form-group"><label>Date de naissance</label><input type="date" id="dep_date" value="${(existing?.date_naissance||'').substring(0,10)}"/></div>
+      </div>
+      <div class="form-group"><label>Notes</label><textarea id="dep_notes" rows="2">${escHtml(existing?.notes||'')}</textarea></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Enregistrer</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('depForm').onsubmit = async e => {
+    e.preventDefault();
+    const body = { prenom: document.getElementById('dep_prenom').value.trim(), nom: document.getElementById('dep_nom').value.trim(),
+      lien: document.getElementById('dep_lien').value, date_naissance: document.getElementById('dep_date').value, notes: document.getElementById('dep_notes').value };
+    try {
+      if (isEdit) await api('/dependents/' + existing.id, { method:'PUT', body: JSON.stringify(body) });
+      else await api('/dependents', { method:'POST', body: JSON.stringify(body) });
+      closeModal(); toast('Enregistré'); loadDependentsCard();
+    } catch(ex) { toast(ex.message, 'error'); }
+  };
+}
+
+async function deleteDependent(id) {
+  if (!confirm('Retirer cette personne à charge ?')) return;
+  try { await api('/dependents/' + id, { method:'DELETE' }); toast('Retiré'); loadDependentsCard(); }
+  catch(ex) { toast(ex.message, 'error'); }
 }
 
 const SMS_OPERATEURS = [
@@ -12372,6 +12495,9 @@ async function carteMembreView() {
   const numMembre = String(me.id).padStart(5, '0');
   const qrText = `AHH-${numMembre}-${me.id}`;
   const qrUrl = await api('/qr?data=' + encodeURIComponent(qrText)).then(d => d.qr).catch(() => '');
+  const expDate = me.date_inscription ? new Date(me.date_inscription) : null;
+  if (expDate) expDate.setFullYear(expDate.getFullYear() + 2);
+  const isExpired = !CARTE_ROLES.includes(me.role) && !!expDate && new Date() > expDate;
 
   setContent(`
     <div class="page-header"><div><h2>🪪 Ma carte de membre</h2><p>Votre identité numérique AHH Hamilton</p></div></div>
@@ -12441,7 +12567,16 @@ async function carteMembreView() {
               </div>
             </div>
           </div>`
-        : `<div style="max-width:420px;margin:18px auto 0;padding:12px 16px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:12px;display:flex;gap:12px;align-items:center">
+        : isExpired
+          ? `<div style="max-width:420px;margin:18px auto 0;padding:14px 16px;background:#fff3e0;border:1px solid #ffcc80;border-radius:12px;display:flex;gap:12px;align-items:flex-start">
+              <span style="font-size:1.3rem;flex-shrink:0">⏰</span>
+              <div>
+                <div style="font-weight:700;font-size:.88rem;color:#e65100;margin-bottom:4px">Carte expirée</div>
+                <div style="font-size:.82rem;color:#6d4c41;line-height:1.45">Votre carte a atteint sa date d'expiration (2 ans). Renouvelez-la si votre cotisation est à jour.</div>
+                <button onclick="renewMyCard()" style="margin-top:10px;background:#e65100;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:.8rem;font-weight:700;cursor:pointer">🔄 Renouveler ma carte</button>
+              </div>
+            </div>`
+          : `<div style="max-width:420px;margin:18px auto 0;padding:12px 16px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:12px;display:flex;gap:12px;align-items:center">
             <span style="font-size:1.3rem">✅</span>
             <div style="font-size:.84rem;color:#1b5e20;font-weight:600">Carte valide</div>
             <div style="font-size:.8rem;color:#2e7d32">Photo approuvée par le comité</div>
@@ -12460,6 +12595,14 @@ function carteMembePrint() {
 
 async function carteMembeSave() {
   toast('Faites une capture d\'écran de la carte pour l\'enregistrer');
+}
+
+async function renewMyCard() {
+  try {
+    await api('/cartes/mine/renouveler', { method:'POST' });
+    toast('🪪 Carte renouvelée !');
+    carteMembreView();
+  } catch(ex) { toast(ex.message, 'error'); }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

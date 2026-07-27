@@ -1466,6 +1466,18 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS correspondance (
   date_creation TEXT DEFAULT CURRENT_TIMESTAMP
 )`); } catch {}
 
+// Personnes à charge (enfants/famille) rattachées à un membre
+try { db.exec(`CREATE TABLE IF NOT EXISTS dependents (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  prenom TEXT NOT NULL,
+  nom TEXT NOT NULL,
+  lien TEXT NOT NULL DEFAULT 'enfant',
+  date_naissance TEXT,
+  notes TEXT,
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
 init();
 
 module.exports = db;

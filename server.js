@@ -671,6 +671,36 @@ app.put('/api/auth/password', authMiddleware, (req, res) => {
   res.json({ message: 'Mot de passe mis à jour' });
 });
 
+// ── Personnes à charge (enfants/famille) — gérées par le membre lui-même ────
+app.get('/api/dependents', authMiddleware, (req, res) => {
+  const rows = db.prepare('SELECT * FROM dependents WHERE user_id = ? ORDER BY date_naissance').all(req.user.id);
+  res.json(rows);
+});
+
+app.post('/api/dependents', authMiddleware, (req, res) => {
+  const { prenom, nom, lien, date_naissance, notes } = req.body;
+  if (!prenom || !nom) return res.status(400).json({ error: 'Prénom et nom requis' });
+  const r = db.prepare('INSERT INTO dependents (user_id, prenom, nom, lien, date_naissance, notes) VALUES (?,?,?,?,?,?)')
+    .run(req.user.id, prenom.trim(), nom.trim(), lien||'enfant', date_naissance||'', notes||'');
+  res.status(201).json({ id: r.lastInsertRowid });
+});
+
+app.put('/api/dependents/:id', authMiddleware, (req, res) => {
+  const dep = db.prepare('SELECT * FROM dependents WHERE id = ?').get(req.params.id);
+  if (!dep || dep.user_id !== req.user.id) return res.status(404).json({ error: 'Introuvable' });
+  const { prenom, nom, lien, date_naissance, notes } = req.body;
+  db.prepare('UPDATE dependents SET prenom=?, nom=?, lien=?, date_naissance=?, notes=? WHERE id=?')
+    .run(prenom?.trim()||dep.prenom, nom?.trim()||dep.nom, lien||dep.lien, date_naissance??dep.date_naissance, notes??dep.notes, dep.id);
+  res.json({ message: 'Mise à jour' });
+});
+
+app.delete('/api/dependents/:id', authMiddleware, (req, res) => {
+  const dep = db.prepare('SELECT * FROM dependents WHERE id = ?').get(req.params.id);
+  if (!dep || dep.user_id !== req.user.id) return res.status(404).json({ error: 'Introuvable' });
+  db.prepare('DELETE FROM dependents WHERE id = ?').run(dep.id);
+  res.json({ ok: true });
+});
+
 // ══════════════════════════════════════════════════════════════════════════════
 // USERS
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1301,7 +1331,7 @@ app.delete('/api/activities/:id/register', authMiddleware, (req, res) => {
   res.json({ message: 'Inscription annulée' });
 });
 
-app.get('/api/activities/:id/registrations', authMiddleware, (req, res) => {
+app.get('/api/activities/:id/registrations', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const rows = db.prepare(`SELECT u.id, u.prenom, u.nom, u.email, u.telephone, ar.statut, ar.date_inscription
     FROM activity_registrations ar JOIN users u ON u.id = ar.user_id WHERE ar.activity_id = ?`).all(req.params.id);
   res.json(rows);
@@ -2744,8 +2774,8 @@ app.delete('/api/gallery/:id', authMiddleware, requireRole('admin', 'secretaire'
 // ── Annuaire membres (accessible à tous) ────────────────────────────────────
 app.get('/api/annuaire', authMiddleware, (req, res) => {
   const rows = db.prepare(`
-    SELECT id, prenom, nom, email, telephone, role
-    FROM users WHERE actif = 1 ORDER BY nom, prenom
+    SELECT id, prenom, nom, email, telephone, role, photo_url, titre_comite, plan
+    FROM users WHERE actif = 1 AND (phantom IS NULL OR phantom = 0) ORDER BY nom, prenom
   `).all();
   res.json(rows);
 });
@@ -7128,6 +7158,22 @@ app.post('/api/admin/cartes/:id/renouveler', authMiddleware, requireRole(...CART
   db.prepare('UPDATE users SET date_inscription=?, carte_notif_renouv=0 WHERE id=?').run(today, req.params.id);
   const u = db.prepare('SELECT prenom, nom FROM users WHERE id=?').get(req.params.id);
   createAlert(req.user.id, 'carte', `🪪 Carte renouvelée : ${u.prenom} ${u.nom}`, `Expire maintenant le ${carteExpiration(today)}`);
+  res.json({ ok: true, expiration: carteExpiration(today) });
+});
+
+// Renouvellement self-service — le membre peut renouveler sa propre carte s'il est à jour sur ses cotisations
+app.post('/api/cartes/mine/renouveler', authMiddleware, (req, res) => {
+  const u = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.id);
+  if (!u) return res.status(404).json({ error: 'Introuvable' });
+  if (CARTE_ROLES.includes(u.role)) return res.status(400).json({ error: 'Les cartes du comité ne nécessitent pas de renouvellement en libre-service' });
+  if (!u.carte_photo_approuvee) return res.status(400).json({ error: 'Votre photo doit d\'abord être approuvée par le comité' });
+  const moisCourant = new Date().toISOString().substring(0, 7);
+  const aJour = u.plan_paid_month && u.plan_paid_month >= moisCourant;
+  if (!aJour) return res.status(403).json({ error: 'Votre cotisation doit être à jour avant de renouveler votre carte — rendez-vous dans « Mes cotisations »' });
+  const today = new Date().toISOString().split('T')[0];
+  db.prepare('UPDATE users SET date_inscription=?, carte_notif_renouv=0 WHERE id=?').run(today, u.id);
+  getAdminsAndRole('admin').forEach(a =>
+    createAlert(a.id, 'carte', `🪪 Carte renouvelée (self-service) : ${u.prenom} ${u.nom}`, `Expire maintenant le ${carteExpiration(today)}`));
   res.json({ ok: true, expiration: carteExpiration(today) });
 });
 
