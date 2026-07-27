@@ -394,6 +394,7 @@ async function buildSidebar() {
       { id:'stats-growth',      icon:'📈', label:'Statistiques',       roles:EXEC },
       { id:'alerts',            icon:'◇', label:'Alertes',             roles:EXEC },
       { id:'votes',             icon:'🗳️', label:'Votes & Élections', roles:EXEC },
+      { id:'committee-elections', icon:'🗳️', label:'Élections de comité', roles:EXEC },
       { id:'parrainage',        icon:'🤝', label:'Parrainage',         roles: ALL },
       { id:'export-data',       icon:'📦', label:'Export / Sauvegarde', roles:['admin','secretaire','tresoriere'] },
       { id:'forms-mgmt',        icon:'📋', label:'Formulaires',        roles:EXEC },
@@ -597,7 +598,7 @@ function setActiveNav(viewId) {
     forum:'Forum', newsletter:'Infolettre', 'vente-personne':'Vendre (Cash)',
     'young-home':'Espace Jeunes', 'young-jobs':'Stages & Emplois',
     'young-trainings':'Formations', 'young-polls':'Sondages', 'young-stories':'Success Stories',
-    'votes':'Votes & Élections', 'parrainage':'Parrainage', 'stats-growth':'Statistiques',
+    'votes':'Votes & Élections', 'committee-elections':'Élections de comité', 'parrainage':'Parrainage', 'stats-growth':'Statistiques',
     'carte-membre':'Ma carte membre', 'actualites':'Actualités', 'notif-prefs':'Notifications',
     'carte-gestion':'Gestion des cartes', 'photos-membres':'Photos des membres', 'carte-scanner':'Lecteur de cartes', 'scanner-unified':'Lecteur QR',
     'journal-admin':'Journal d\'activité', 'mes-badges':'Mes badges', 'ambassadeur-admin':'Ambassadeur du mois',
@@ -1190,6 +1191,7 @@ async function showView(viewId) {
     'young-polls': youngPolls,
     'young-stories': youngStories,
     'votes': votesView,
+    'committee-elections': committeeElectionsView,
     'parrainage': parrainageView,
     'stats-growth': statsGrowthView,
     'carte-membre': carteMembreView,
@@ -12416,6 +12418,248 @@ async function voteResultats(id) {
 async function voteDelete(id) {
   if (!confirm('Supprimer ce vote ?')) return;
   await api(`/votes/${id}`, { method:'DELETE' }); toast('Vote supprimé'); votesView();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ÉLECTIONS DE COMITÉ — mini-comité électoral + vote public
+// ══════════════════════════════════════════════════════════════════════════════
+window._ceCandidates = [];
+window._ceCommittee = [];
+let _ceSearchTimer = null;
+
+async function committeeElectionsView() {
+  const elections = await api('/committee-elections').catch(() => []);
+  setContent(`
+    <div class="page-header">
+      <div><h2>🗳️ Élections de comité</h2><p>Mini-comité électoral indépendant, vote public sécurisé</p></div>
+      <div class="page-actions">${can.executive() ? '<button class="btn btn-primary" onclick="committeeElectionProposeForm()">+ Proposer une élection</button>' : ''}</div>
+    </div>
+    ${!elections.length ? '<div class="empty-state"><div class="es-icon">🗳️</div><p>Aucune élection de comité visible pour vous en ce moment</p></div>' :
+      elections.map(e => {
+        const badge = e.statut==='proposition' ? `<span style="background:#fff3cd;color:#856404;padding:2px 10px;border-radius:12px;font-size:.75rem;font-weight:700">📝 En approbation (${e.nb_approvals}/3)</span>`
+          : e.statut==='actif' ? `<span style="background:#e3f2fd;color:#1565c0;padding:2px 10px;border-radius:12px;font-size:.75rem;font-weight:700">⚙️ Préparation</span>`
+          : e.statut==='ouvert' ? `<span style="background:#e8f5e9;color:#1b5e20;padding:2px 10px;border-radius:12px;font-size:.75rem;font-weight:700">🟢 VOTE OUVERT</span>`
+          : `<span style="background:#fdecea;color:#c62828;padding:2px 10px;border-radius:12px;font-size:.75rem;font-weight:700">🔴 FERMÉ</span>`;
+        return `<div class="table-card" style="margin-bottom:14px;padding:18px;cursor:pointer" onclick="committeeElectionDetail(${e.id})">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+            <div>
+              <div style="font-weight:700">${escHtml(e.titre)} ${badge} ${e.is_committee_member?'<span style="font-size:.7rem;color:#6a1b9a">🔐 Vous êtes du mini-comité</span>':''}</div>
+              ${e.description ? `<div style="font-size:.82rem;color:var(--muted);margin-top:4px">${escHtml(e.description)}</div>` : ''}
+              <div style="font-size:.72rem;color:var(--muted);margin-top:4px">Proposée par ${escHtml(e.createur_nom||'')} · ${fmt(e.date_creation)}</div>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}`);
+}
+
+function committeeElectionProposeForm() {
+  window._ceCandidates = [];
+  window._ceCommittee = [];
+  openModal('🗳️ Proposer une élection de comité', `
+    <form id="ceForm">
+      <div class="form-group"><label>Titre *</label><input id="ce_titre" placeholder="Ex: Élection du comité exécutif 2027"/></div>
+      <div class="form-group"><label>Description</label><textarea id="ce_desc" rows="2"></textarea></div>
+      <div class="form-group" style="position:relative">
+        <label>Candidats (au moins 2)</label>
+        <input id="ce_cand_search" autocomplete="off" placeholder="Rechercher un membre…" oninput="_ceSearch('candidate', this.value)"/>
+        <div id="ce_cand_dropdown" style="position:absolute;top:100%;left:0;right:0;z-index:50;background:#fff;border:1px solid #ddd;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.15);max-height:180px;overflow-y:auto;display:none"></div>
+        <div id="ce_cand_chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+      </div>
+      <div class="form-group" style="position:relative">
+        <label>Mini-comité électoral (exactement 3, ne doivent pas être candidats)</label>
+        <input id="ce_comm_search" autocomplete="off" placeholder="Rechercher un membre…" oninput="_ceSearch('committee', this.value)"/>
+        <div id="ce_comm_dropdown" style="position:absolute;top:100%;left:0;right:0;z-index:50;background:#fff;border:1px solid #ddd;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.15);max-height:180px;overflow-y:auto;display:none"></div>
+        <div id="ce_comm_chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+      </div>
+      <p style="font-size:.78rem;color:var(--muted)">Une fois proposée, cette élection nécessitera 3 approbations (comité exécutif + candidats) avant que le mini-comité électoral ne devienne actif. Une fois actif, seuls ses 3 membres pourront voir et gérer l'élection — même la présidence n'y aura plus accès si elle n'en fait pas partie.</p>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Proposer</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('ceForm').onsubmit = async e => {
+    e.preventDefault();
+    if (window._ceCandidates.length < 2) return toast('Au moins 2 candidats requis', 'error');
+    if (window._ceCommittee.length !== 3) return toast('Exactement 3 membres du mini-comité électoral requis', 'error');
+    try {
+      await api('/committee-elections', { method:'POST', body: JSON.stringify({
+        titre: document.getElementById('ce_titre').value.trim(),
+        description: document.getElementById('ce_desc').value,
+        candidate_user_ids: window._ceCandidates.map(c=>c.id),
+        committee_user_ids: window._ceCommittee.map(c=>c.id),
+      })});
+      closeModal(); toast('✅ Élection proposée — en attente d\'approbation'); committeeElectionsView();
+    } catch(ex) { toast(ex.message, 'error'); }
+  };
+}
+
+function _ceSearch(kind, q) {
+  const dd = document.getElementById(kind==='candidate'?'ce_cand_dropdown':'ce_comm_dropdown');
+  clearTimeout(_ceSearchTimer);
+  if (!q || q.length < 2) { dd.style.display = 'none'; return; }
+  _ceSearchTimer = setTimeout(async () => {
+    try {
+      const members = await api('/members/search?q=' + encodeURIComponent(q));
+      if (!members || !members.length) { dd.style.display = 'none'; return; }
+      dd.innerHTML = members.map(m => `<div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:.88rem" onmouseover="this.style.background='#e3f2fd'" onmouseout="this.style.background=''" onclick="_cePick('${kind}',${m.id},'${escHtml(m.prenom)} ${escHtml(m.nom)}')"><strong>${escHtml(m.prenom)} ${escHtml(m.nom)}</strong> <span style="color:var(--muted);font-size:.78rem">${escHtml(m.email||'')}</span></div>`).join('');
+      dd.style.display = '';
+    } catch(e) { dd.style.display = 'none'; }
+  }, 250);
+}
+
+function _cePick(kind, id, nom) {
+  const cands = window._ceCandidates, comm = window._ceCommittee;
+  if (cands.some(c=>c.id===id) || comm.some(c=>c.id===id)) { toast('Ce membre est déjà sélectionné', 'error'); return; }
+  if (kind === 'candidate') cands.push({ id, nom });
+  else {
+    if (comm.length >= 3) { toast('Le mini-comité électoral doit compter exactement 3 membres', 'error'); return; }
+    comm.push({ id, nom });
+  }
+  document.getElementById(kind==='candidate'?'ce_cand_search':'ce_comm_search').value = '';
+  document.getElementById(kind==='candidate'?'ce_cand_dropdown':'ce_comm_dropdown').style.display = 'none';
+  _ceRenderChips();
+}
+
+function _ceRemove(kind, id) {
+  if (kind === 'candidate') window._ceCandidates = window._ceCandidates.filter(c=>c.id!==id);
+  else window._ceCommittee = window._ceCommittee.filter(c=>c.id!==id);
+  _ceRenderChips();
+}
+
+function _ceRenderChips() {
+  const chip = (kind, c) => `<span style="background:var(--off);border:1px solid var(--border);border-radius:20px;padding:4px 10px;font-size:.8rem;display:inline-flex;align-items:center;gap:6px">${escHtml(c.nom)}<span style="cursor:pointer;color:var(--red);font-weight:700" onclick="_ceRemove('${kind}',${c.id})">✕</span></span>`;
+  document.getElementById('ce_cand_chips').innerHTML = window._ceCandidates.map(c=>chip('candidate',c)).join('');
+  document.getElementById('ce_comm_chips').innerHTML = window._ceCommittee.map(c=>chip('committee',c)).join('');
+}
+
+async function committeeElectionDetail(id) {
+  let e;
+  try { e = await api('/committee-elections/' + id); }
+  catch(ex) { toast(ex.message, 'error'); return committeeElectionsView(); }
+
+  const pending = e.statut === 'proposition';
+  setContent(`
+    <div class="page-header">
+      <div><h2>🗳️ ${escHtml(e.titre)}</h2><p>${escHtml(e.description||'')}</p></div>
+      <div class="page-actions"><button class="btn btn-ghost" onclick="committeeElectionsView()">← Retour</button></div>
+    </div>
+
+    ${pending ? `
+      <div class="table-card" style="margin-bottom:16px">
+        <div class="table-card-header"><h3>📝 En attente d'approbation (${e.nb_approvals}/3)</h3></div>
+        <div style="padding:16px">
+          <p style="font-size:.85rem;color:var(--muted);margin-bottom:12px">Le comité exécutif et les candidats peuvent approuver la formation de ce mini-comité électoral. Après 3 approbations, seul ce mini-comité aura accès à l'élection — plus personne d'autre, y compris la présidence si elle n'en fait pas partie.</p>
+          ${e.approvals.length ? `<div style="margin-bottom:12px">${e.approvals.map(a=>`<div style="font-size:.82rem;padding:4px 0">✅ ${escHtml(a.nom)} — ${fmt(a.date_approbation)}</div>`).join('')}</div>` : ''}
+          ${!e.my_approval ? `<button class="btn btn-primary" onclick="_ceApprove(${id})">✅ Approuver</button>` : `<span style="color:#1b5e20;font-weight:600">✅ Vous avez déjà approuvé</span>`}
+        </div>
+      </div>
+      <div class="table-card">
+        <div class="table-card-header"><h3>Mini-comité électoral proposé</h3></div>
+        <div style="padding:16px">${e.committee.map(c=>`<span style="background:var(--off);border-radius:20px;padding:4px 12px;margin:0 6px 6px 0;display:inline-block;font-size:.85rem">${escHtml(c.prenom)} ${escHtml(c.nom)}</span>`).join('')}</div>
+      </div>
+      <div class="table-card" style="margin-top:16px">
+        <div class="table-card-header"><h3>Candidats</h3></div>
+        <div style="padding:16px">${e.candidates.map(c=>`<span style="background:var(--off);border-radius:20px;padding:4px 12px;margin:0 6px 6px 0;display:inline-block;font-size:.85rem">${escHtml(c.nom)}</span>`).join('')}</div>
+      </div>
+    ` : `
+      <div class="table-card" style="margin-bottom:16px">
+        <div class="table-card-header"><h3>🔗 Lien de vote public</h3></div>
+        <div style="padding:16px">
+          ${e.public_url ? `
+            <input readonly value="${e.public_url}" onclick="this.select()" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:10px"/>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-sm btn-outline" onclick="navigator.clipboard.writeText('${e.public_url}').then(()=>toast('Lien copié !'))">📋 Copier</button>
+              <a href="https://wa.me/?text=${encodeURIComponent('Votez pour l\'élection AHH « ' + e.titre + ' » : ' + e.public_url)}" target="_blank" class="btn btn-sm btn-outline">📱 Partager sur WhatsApp</a>
+            </div>` : `<button class="btn btn-primary btn-sm" onclick="_ceGenerateLink(${id})">Générer le lien public</button>`}
+          <div style="margin-top:14px">
+            ${e.statut==='ouvert'
+              ? `<button class="btn btn-sm btn-ghost" style="color:var(--red)" onclick="_ceStatut(${id},'ferme')">⏹ Fermer le vote</button>`
+              : e.statut==='ferme'
+                ? `<span style="color:var(--red);font-weight:600">🔴 Vote fermé</span>`
+                : `<button class="btn btn-sm btn-primary" onclick="_ceStatut(${id},'ouvert')">▶ Ouvrir le vote</button>`}
+            <button class="btn btn-sm btn-outline" onclick="_ceResults(${id})">📊 Résultats</button>
+          </div>
+        </div>
+      </div>
+      <div class="table-card">
+        <div class="table-card-header"><h3>Candidats</h3></div>
+        <div style="padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px">
+          ${e.candidates.map(c => `
+            <div style="border:1px solid var(--border);border-radius:12px;padding:12px;text-align:center">
+              <div style="width:72px;height:72px;border-radius:50%;margin:0 auto 8px;overflow:hidden;background:var(--off);display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--muted)">
+                ${c.photo_path ? `<img src="${c.photo_path}" style="width:100%;height:100%;object-fit:cover"/>` : (c.nom||'?')[0]}
+              </div>
+              <div style="font-weight:700;font-size:.85rem">${escHtml(c.nom)}</div>
+              ${c.bio ? `<div style="font-size:.72rem;color:var(--muted);margin-top:4px">${escHtml(c.bio)}</div>` : ''}
+              <button class="btn btn-sm btn-ghost" style="margin-top:8px" onclick="_ceEditCandidate(${id},${c.id},'${escHtml(c.nom).replace(/'/g,"\\'")}','${escHtml(c.bio||'').replace(/'/g,"\\'")}')">✏️ Photo / bio</button>
+            </div>`).join('')}
+        </div>
+      </div>
+    `}
+  `);
+}
+
+async function _ceApprove(id) {
+  try {
+    const r = await api('/committee-elections/' + id + '/approve', { method:'POST' });
+    toast(r.actif ? '✅ Mini-comité électoral maintenant actif !' : `✅ Approuvé (${r.nb_approvals}/3)`);
+    committeeElectionDetail(id);
+  } catch(ex) { toast(ex.message, 'error'); }
+}
+
+async function _ceGenerateLink(id) {
+  try { await api('/committee-elections/' + id + '/generate-link', { method:'POST' }); committeeElectionDetail(id); }
+  catch(ex) { toast(ex.message, 'error'); }
+}
+
+async function _ceStatut(id, statut) {
+  try { await api('/committee-elections/' + id + '/statut', { method:'PATCH', body: JSON.stringify({ statut }) }); toast(statut==='ouvert'?'🟢 Vote ouvert':'🔴 Vote fermé'); committeeElectionDetail(id); }
+  catch(ex) { toast(ex.message, 'error'); }
+}
+
+function _ceEditCandidate(electionId, candidateId, nom, bio) {
+  openModal('✏️ ' + nom, `
+    <form id="ceCandForm" enctype="multipart/form-data">
+      <div class="form-group"><label>Bio / mandat</label><textarea id="cec_bio" rows="3">${bio}</textarea></div>
+      <div class="form-group"><label>Photo</label><input type="file" id="cec_photo" accept="image/*"/></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Enregistrer</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('ceCandForm').onsubmit = async ev => {
+    ev.preventDefault();
+    const fd = new FormData();
+    fd.append('bio', document.getElementById('cec_bio').value);
+    const photo = document.getElementById('cec_photo').files[0];
+    if (photo) fd.append('photo', photo);
+    try {
+      await apiForm('/committee-elections/' + electionId + '/candidates/' + candidateId, fd, 'PUT');
+      closeModal(); toast('Candidat mis à jour'); committeeElectionDetail(electionId);
+    } catch(ex) { toast(ex.message, 'error'); }
+  };
+}
+
+async function _ceResults(id) {
+  try {
+    const r = await api('/committee-elections/' + id + '/results');
+    openModal('📊 Résultats', `
+      <p style="font-size:.82rem;color:var(--muted);margin-bottom:14px">${r.total} vote(s) au total</p>
+      ${r.resultats.map(res => `
+        <div style="margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;font-size:.84rem;margin-bottom:4px">
+            <span>${escHtml(res.nom)}</span>
+            <span style="font-weight:700">${res.nb} (${res.pct}%)</span>
+          </div>
+          <div style="background:var(--off);border-radius:6px;height:10px">
+            <div style="background:var(--g2);border-radius:6px;height:100%;width:${res.pct}%;transition:.3s"></div>
+          </div>
+        </div>`).join('') || '<p style="color:var(--muted)">Aucun vote pour le moment</p>'}
+      <button class="btn btn-ghost" style="margin-top:12px" onclick="closeModal()">Fermer</button>
+    `);
+  } catch(ex) { toast(ex.message, 'error'); }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

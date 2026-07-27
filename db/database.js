@@ -1512,6 +1512,54 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS agenda_signatures (
 // Lier un ordre du jour (non verrouillé) à une rencontre du comité
 try { db.exec('ALTER TABLE committee_meetings ADD COLUMN agenda_id INTEGER REFERENCES agendas(id)'); } catch {}
 
+// ── Élections de comité (mini-comité électoral, visibilité restreinte, vote public) ──
+try { db.exec(`CREATE TABLE IF NOT EXISTS committee_elections (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  titre TEXT NOT NULL,
+  description TEXT,
+  statut TEXT NOT NULL DEFAULT 'proposition',
+  cree_par INTEGER REFERENCES users(id),
+  public_token TEXT UNIQUE,
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+  date_ouverture TEXT,
+  date_fermeture TEXT
+)`); } catch {}
+
+try { db.exec(`CREATE TABLE IF NOT EXISTS committee_election_candidates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  election_id INTEGER NOT NULL REFERENCES committee_elections(id) ON DELETE CASCADE,
+  user_id INTEGER REFERENCES users(id),
+  nom TEXT NOT NULL,
+  bio TEXT DEFAULT '',
+  photo_path TEXT,
+  ordre INTEGER DEFAULT 0
+)`); } catch {}
+
+try { db.exec(`CREATE TABLE IF NOT EXISTS committee_election_committee (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  election_id INTEGER NOT NULL REFERENCES committee_elections(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  UNIQUE(election_id, user_id)
+)`); } catch {}
+
+try { db.exec(`CREATE TABLE IF NOT EXISTS committee_election_approvals (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  election_id INTEGER NOT NULL REFERENCES committee_elections(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  date_approbation TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(election_id, user_id)
+)`); } catch {}
+
+try { db.exec(`CREATE TABLE IF NOT EXISTS committee_election_votes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  election_id INTEGER NOT NULL REFERENCES committee_elections(id) ON DELETE CASCADE,
+  candidate_id INTEGER NOT NULL REFERENCES committee_election_candidates(id),
+  telephone TEXT NOT NULL,
+  nom_votant TEXT,
+  date_vote TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(election_id, telephone)
+)`); } catch {}
+
 init();
 
 module.exports = db;

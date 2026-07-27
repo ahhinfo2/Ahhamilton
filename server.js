@@ -365,6 +365,13 @@ const docsStorage = multer.diskStorage({
 });
 const uploadDoc = multer({ storage: docsStorage, limits: { fileSize: 50 * 1024 * 1024 }, fileFilter: docFilter });
 
+// ── Multer : photos des candidats (élections de comité) ─────────────────────
+const electionCandidateStorage = multer.diskStorage({
+  destination: (req, file, cb) => { const d = path.join(__dirname,'uploads','election-candidates'); fs.mkdirSync(d,{recursive:true}); cb(null,d); },
+  filename:    (req, file, cb) => cb(null, safeFilename(file))
+});
+const uploadElectionCandidate = multer({ storage: electionCandidateStorage, limits: { fileSize: 8 * 1024 * 1024 }, fileFilter: imageFilter });
+
 // ── Helper ──────────────────────────────────────────────────────────────────
 function createAlert(destinataireId, type, titre, contenu, sourceId = null) {
   db.prepare(`INSERT INTO alerts (destinataire_id, type, titre, contenu, source_id)
@@ -6822,6 +6829,204 @@ app.get('/api/votes/:id/resultats', authMiddleware, (req, res) => {
 app.delete('/api/votes/:id', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   db.prepare('DELETE FROM votes WHERE id=?').run(req.params.id);
   res.json({ ok: true });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ÉLECTIONS DE COMITÉ — mini-comité électoral, visibilité restreinte, vote public
+// ══════════════════════════════════════════════════════════════════════════════
+
+const EL_EXEC_ROLES = ['admin','tresoriere','secretaire','delegue'];
+
+function normalizePhone(p) {
+  return (p || '').replace(/\D/g, '').slice(-10);
+}
+
+function electionEligibleApprovers(electionId) {
+  const execIds = db.prepare("SELECT id FROM users WHERE role IN ('admin','tresoriere','secretaire','delegue') AND actif=1 AND (phantom IS NULL OR phantom=0)").all().map(u => u.id);
+  const candidateUserIds = db.prepare('SELECT user_id FROM committee_election_candidates WHERE election_id=? AND user_id IS NOT NULL').all(electionId).map(r => r.user_id);
+  return new Set([...execIds, ...candidateUserIds]);
+}
+
+function isElectionCommitteeMember(electionId, userId) {
+  return !!db.prepare('SELECT id FROM committee_election_committee WHERE election_id=? AND user_id=?').get(electionId, userId);
+}
+
+function canSeeElection(election, userId) {
+  if (isElectionCommitteeMember(election.id, userId)) return true;
+  if (election.statut === 'proposition') {
+    if (election.cree_par === userId) return true;
+    return electionEligibleApprovers(election.id).has(userId);
+  }
+  return false;
+}
+
+app.post('/api/committee-elections', authMiddleware, requireRole(...EL_EXEC_ROLES), (req, res) => {
+  const { titre, description, candidate_user_ids, committee_user_ids } = req.body;
+  if (!titre) return res.status(400).json({ error: 'Titre requis' });
+  if (!Array.isArray(candidate_user_ids) || candidate_user_ids.length < 2) return res.status(400).json({ error: 'Au moins 2 candidats requis' });
+  if (!Array.isArray(committee_user_ids) || committee_user_ids.length !== 3) return res.status(400).json({ error: 'Exactement 3 membres du mini-comité électoral requis' });
+  const overlap = committee_user_ids.some(id => candidate_user_ids.includes(id));
+  if (overlap) return res.status(400).json({ error: 'Un candidat ne peut pas faire partie du mini-comité électoral' });
+  if (new Set(committee_user_ids).size !== 3) return res.status(400).json({ error: 'Les 3 membres du mini-comité doivent être distincts' });
+
+  const r = db.prepare('INSERT INTO committee_elections (titre, description, cree_par) VALUES (?,?,?)')
+    .run(titre, description || '', req.user.id);
+  const electionId = r.lastInsertRowid;
+
+  const insCand = db.prepare('INSERT INTO committee_election_candidates (election_id, user_id, nom, ordre) VALUES (?,?,?,?)');
+  candidate_user_ids.forEach((uid, idx) => {
+    const u = db.prepare('SELECT prenom, nom FROM users WHERE id=?').get(uid);
+    if (u) insCand.run(electionId, uid, `${u.prenom} ${u.nom}`, idx);
+  });
+  const insComm = db.prepare('INSERT OR IGNORE INTO committee_election_committee (election_id, user_id) VALUES (?,?)');
+  committee_user_ids.forEach(uid => insComm.run(electionId, uid));
+
+  const eligible = electionEligibleApprovers(electionId);
+  eligible.forEach(uid => createAlert(uid, 'election', `🗳️ Proposition d'élection : ${titre}`, 'Un mini-comité électoral a été proposé — votre approbation est requise.', electionId));
+
+  res.status(201).json({ id: electionId });
+});
+
+app.get('/api/committee-elections', authMiddleware, (req, res) => {
+  const all = db.prepare(`SELECT ce.*, u.prenom||' '||u.nom AS createur_nom,
+    (SELECT COUNT(*) FROM committee_election_approvals WHERE election_id=ce.id) AS nb_approvals
+    FROM committee_elections ce LEFT JOIN users u ON u.id=ce.cree_par ORDER BY ce.date_creation DESC`).all();
+  const visible = all.filter(e => canSeeElection(e, req.user.id)).map(e => ({
+    ...e,
+    is_committee_member: isElectionCommitteeMember(e.id, req.user.id),
+    my_approval: !!db.prepare('SELECT id FROM committee_election_approvals WHERE election_id=? AND user_id=?').get(e.id, req.user.id),
+  }));
+  res.json(visible);
+});
+
+app.get('/api/committee-elections/:id', authMiddleware, (req, res) => {
+  const election = db.prepare(`SELECT ce.*, u.prenom||' '||u.nom AS createur_nom FROM committee_elections ce LEFT JOIN users u ON u.id=ce.cree_par WHERE ce.id=?`).get(req.params.id);
+  if (!election) return res.status(404).json({ error: 'Élection introuvable' });
+  if (!canSeeElection(election, req.user.id)) return res.status(403).json({ error: 'Accès réservé au mini-comité électoral' });
+
+  election.candidates = db.prepare('SELECT * FROM committee_election_candidates WHERE election_id=? ORDER BY ordre').all(req.params.id);
+  election.committee = db.prepare(`SELECT cec.user_id, u.prenom, u.nom FROM committee_election_committee cec JOIN users u ON u.id=cec.user_id WHERE cec.election_id=?`).all(req.params.id);
+  election.approvals = db.prepare(`SELECT a.user_id, a.date_approbation, u.prenom||' '||u.nom AS nom FROM committee_election_approvals a JOIN users u ON u.id=a.user_id WHERE a.election_id=?`).all(req.params.id);
+  election.nb_approvals = election.approvals.length;
+  election.is_committee_member = isElectionCommitteeMember(election.id, req.user.id);
+  election.my_approval = election.approvals.some(a => a.user_id === req.user.id);
+  if (election.public_token) election.public_url = `${process.env.SITE_URL || 'https://ahhamilton.ca'}/election-vote.html?token=${election.public_token}`;
+  res.json(election);
+});
+
+app.post('/api/committee-elections/:id/approve', authMiddleware, (req, res) => {
+  const election = db.prepare('SELECT * FROM committee_elections WHERE id=?').get(req.params.id);
+  if (!election) return res.status(404).json({ error: 'Élection introuvable' });
+  if (election.statut !== 'proposition') return res.status(400).json({ error: 'Cette élection n\'est plus en attente d\'approbation' });
+  if (!electionEligibleApprovers(election.id).has(req.user.id)) return res.status(403).json({ error: 'Vous n\'êtes pas éligible à approuver cette élection' });
+  try {
+    db.prepare('INSERT INTO committee_election_approvals (election_id, user_id) VALUES (?,?)').run(election.id, req.user.id);
+  } catch(e) {
+    return res.status(409).json({ error: 'Vous avez déjà approuvé' });
+  }
+  const { cnt } = db.prepare('SELECT COUNT(*) AS cnt FROM committee_election_approvals WHERE election_id=?').get(election.id);
+  let actif = false;
+  if (cnt >= 3) {
+    db.prepare("UPDATE committee_elections SET statut='actif' WHERE id=?").run(election.id);
+    actif = true;
+    const committee = db.prepare('SELECT user_id FROM committee_election_committee WHERE election_id=?').all(election.id);
+    committee.forEach(c => createAlert(c.user_id, 'election', `✅ Mini-comité électoral actif : ${election.titre}`, 'Vous pouvez maintenant préparer le formulaire électoral.', election.id));
+  }
+  res.json({ ok: true, nb_approvals: cnt, actif });
+});
+
+app.put('/api/committee-elections/:id/candidates/:candidateId', authMiddleware, uploadElectionCandidate.single('photo'), async (req, res) => {
+  const election = db.prepare('SELECT * FROM committee_elections WHERE id=?').get(req.params.id);
+  if (!election) return res.status(404).json({ error: 'Élection introuvable' });
+  if (!isElectionCommitteeMember(election.id, req.user.id)) return res.status(403).json({ error: 'Accès réservé au mini-comité électoral' });
+  const cand = db.prepare('SELECT * FROM committee_election_candidates WHERE id=? AND election_id=?').get(req.params.candidateId, election.id);
+  if (!cand) return res.status(404).json({ error: 'Candidat introuvable' });
+  const { bio } = req.body;
+  let photo_path = cand.photo_path;
+  if (req.file) {
+    await compressImage(req.file.path, 1000);
+    if (cand.photo_path) { try { fs.unlinkSync(path.join(__dirname, cand.photo_path)); } catch {} }
+    photo_path = `/uploads/election-candidates/${req.file.filename}`;
+  }
+  db.prepare('UPDATE committee_election_candidates SET bio=?, photo_path=? WHERE id=?').run(bio !== undefined ? bio : cand.bio, photo_path, cand.id);
+  res.json({ ok: true });
+});
+
+app.post('/api/committee-elections/:id/generate-link', authMiddleware, (req, res) => {
+  const election = db.prepare('SELECT * FROM committee_elections WHERE id=?').get(req.params.id);
+  if (!election) return res.status(404).json({ error: 'Élection introuvable' });
+  if (!isElectionCommitteeMember(election.id, req.user.id)) return res.status(403).json({ error: 'Accès réservé au mini-comité électoral' });
+  let token = election.public_token;
+  if (!token) {
+    token = _crypto.randomBytes(16).toString('hex');
+    db.prepare('UPDATE committee_elections SET public_token=? WHERE id=?').run(token, election.id);
+  }
+  res.json({ token, url: `${process.env.SITE_URL || 'https://ahhamilton.ca'}/election-vote.html?token=${token}` });
+});
+
+app.patch('/api/committee-elections/:id/statut', authMiddleware, (req, res) => {
+  const election = db.prepare('SELECT * FROM committee_elections WHERE id=?').get(req.params.id);
+  if (!election) return res.status(404).json({ error: 'Élection introuvable' });
+  if (!isElectionCommitteeMember(election.id, req.user.id)) return res.status(403).json({ error: 'Accès réservé au mini-comité électoral' });
+  const { statut } = req.body;
+  if (!['ouvert','ferme'].includes(statut)) return res.status(400).json({ error: 'Statut invalide' });
+  if (statut === 'ouvert') {
+    if (!election.public_token) return res.status(400).json({ error: 'Générez d\'abord le lien public' });
+    const nbCand = db.prepare('SELECT COUNT(*) AS c FROM committee_election_candidates WHERE election_id=?').get(election.id).c;
+    if (nbCand < 2) return res.status(400).json({ error: 'Au moins 2 candidats requis pour ouvrir le vote' });
+    db.prepare("UPDATE committee_elections SET statut='ouvert', date_ouverture=CURRENT_TIMESTAMP WHERE id=?").run(election.id);
+  } else {
+    db.prepare("UPDATE committee_elections SET statut='ferme', date_fermeture=CURRENT_TIMESTAMP WHERE id=?").run(election.id);
+  }
+  res.json({ ok: true, statut });
+});
+
+app.get('/api/committee-elections/:id/results', authMiddleware, (req, res) => {
+  const election = db.prepare('SELECT * FROM committee_elections WHERE id=?').get(req.params.id);
+  if (!election) return res.status(404).json({ error: 'Élection introuvable' });
+  if (!isElectionCommitteeMember(election.id, req.user.id)) return res.status(403).json({ error: 'Accès réservé au mini-comité électoral' });
+  const candidates = db.prepare('SELECT * FROM committee_election_candidates WHERE election_id=? ORDER BY ordre').all(election.id);
+  const counts = db.prepare('SELECT candidate_id, COUNT(*) AS nb FROM committee_election_votes WHERE election_id=? GROUP BY candidate_id').all(election.id);
+  const total = counts.reduce((s,c) => s+c.nb, 0);
+  const resultats = candidates.map(c => {
+    const nb = counts.find(x => x.candidate_id === c.id)?.nb || 0;
+    return { candidate_id: c.id, nom: c.nom, photo_path: c.photo_path, nb, pct: total ? Math.round(nb/total*100) : 0 };
+  }).sort((a,b) => b.nb - a.nb);
+  res.json({ total, resultats });
+});
+
+app.delete('/api/committee-elections/:id', authMiddleware, (req, res) => {
+  const election = db.prepare('SELECT * FROM committee_elections WHERE id=?').get(req.params.id);
+  if (!election) return res.status(404).json({ error: 'Élection introuvable' });
+  if (election.statut !== 'proposition') return res.status(403).json({ error: 'Impossible de supprimer une élection déjà approuvée' });
+  if (election.cree_par !== req.user.id && req.user.role !== 'admin') return res.status(403).json({ error: 'Accès refusé' });
+  db.prepare('DELETE FROM committee_elections WHERE id=?').run(election.id);
+  res.json({ ok: true });
+});
+
+// ── Vote public (sans compte) ────────────────────────────────────────────────
+app.get('/api/public/election/:token', (req, res) => {
+  const election = db.prepare("SELECT * FROM committee_elections WHERE public_token=? AND statut='ouvert'").get(req.params.token);
+  if (!election) return res.status(404).json({ error: 'Élection introuvable ou fermée' });
+  const candidates = db.prepare('SELECT id, nom, bio, photo_path FROM committee_election_candidates WHERE election_id=? ORDER BY ordre').all(election.id);
+  res.json({ titre: election.titre, description: election.description, candidates });
+});
+
+app.post('/api/public/election/:token/vote', (req, res) => {
+  const election = db.prepare("SELECT * FROM committee_elections WHERE public_token=? AND statut='ouvert'").get(req.params.token);
+  if (!election) return res.status(404).json({ error: 'Élection introuvable ou fermée' });
+  const { candidate_id, nom, telephone } = req.body;
+  const phone = normalizePhone(telephone);
+  if (!candidate_id || !phone || phone.length < 10) return res.status(400).json({ error: 'Numéro de cellulaire valide requis' });
+  const cand = db.prepare('SELECT id FROM committee_election_candidates WHERE id=? AND election_id=?').get(candidate_id, election.id);
+  if (!cand) return res.status(400).json({ error: 'Candidat invalide' });
+  try {
+    db.prepare('INSERT INTO committee_election_votes (election_id, candidate_id, telephone, nom_votant) VALUES (?,?,?,?)')
+      .run(election.id, candidate_id, phone, (nom||'').trim());
+    res.json({ ok: true });
+  } catch(e) {
+    res.status(409).json({ error: 'Ce numéro de cellulaire a déjà voté pour cette élection' });
+  }
 });
 
 // ══════════════════════════════════════════════════════════════════════════════

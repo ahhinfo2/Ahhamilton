@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Vote électoral | AHH</title>
+  <meta name="robots" content="noindex, nofollow"/>
+  <link rel="icon" type="image/png" href="Public/logo1.png"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --g1: #1b5e20; --g2: #2e7d32; --g3: #43a047;
+      --off: #f4f8f4; --text: #1a2e1a; --muted: #607060; --border: #d4e8d4;
+      --radius: 14px; --shadow: 0 4px 24px rgba(27,94,32,.12);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Poppins', sans-serif; color: var(--text); background: var(--off); line-height: 1.6; min-height: 100vh; }
+    .wrap { max-width: 640px; margin: 0 auto; padding: 32px 20px 60px; }
+    .header { text-align: center; margin-bottom: 24px; }
+    .header img { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; margin: 0 auto 10px; }
+    .header h1 { font-size: 1.3rem; color: var(--g1); }
+    .header p { color: var(--muted); font-size: .88rem; margin-top: 4px; }
+    .card { background: #fff; border-radius: var(--radius); box-shadow: var(--shadow); padding: 24px; margin-bottom: 16px; }
+    .election-title { font-size: 1.15rem; font-weight: 700; color: var(--g1); margin-bottom: 6px; }
+    .election-desc { font-size: .9rem; color: var(--muted); margin-bottom: 20px; }
+    .candidates { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px; }
+    .cand-card { border: 2px solid var(--border); border-radius: var(--radius); padding: 16px 12px; text-align: center; cursor: pointer; transition: .2s; background: #fff; }
+    .cand-card:hover { border-color: var(--g3); }
+    .cand-card.selected { border-color: var(--g1); background: #e8f5e9; }
+    .cand-photo { width: 76px; height: 76px; border-radius: 50%; object-fit: cover; margin: 0 auto 10px; background: var(--off); }
+    .cand-photo.placeholder { display: flex; align-items: center; justify-content: center; font-size: 1.6rem; font-weight: 800; color: var(--muted); }
+    .cand-nom { font-weight: 700; font-size: .92rem; }
+    .cand-bio { font-size: .76rem; color: var(--muted); margin-top: 4px; }
+    .form-group { margin-top: 18px; }
+    .form-group label { display: block; font-size: .82rem; font-weight: 600; margin-bottom: 6px; }
+    .form-group input { width: 100%; padding: 11px 14px; border: 1.5px solid var(--border); border-radius: 10px; font-size: .95rem; font-family: inherit; }
+    .btn { display: inline-block; width: 100%; padding: 13px; border: none; border-radius: 10px; font-size: 1rem; font-weight: 700; cursor: pointer; margin-top: 18px; background: var(--g2); color: #fff; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-outline { background: #fff; border: 2px solid var(--g2); color: var(--g2); }
+    .msg { text-align: center; padding: 40px 24px; }
+    .msg .icon { font-size: 3rem; margin-bottom: 12px; }
+    .msg h2 { color: var(--g1); margin-bottom: 8px; }
+    .msg p { color: var(--muted); font-size: .92rem; }
+    .error-box { background: #fdecea; color: #c62828; border-radius: 10px; padding: 10px 14px; font-size: .85rem; margin-top: 12px; display: none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <img src="Public/logo1.png" alt="AHH" onerror="this.style.display='none'"/>
+      <h1>Association Haïtienne de Hamilton</h1>
+      <p>Vote électoral officiel</p>
+    </div>
+    <div id="content" class="card">
+      <p style="text-align:center;color:var(--muted)">Chargement…</p>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const token = params.get('token');
+    let selectedCandidate = null;
+    let candidates = [];
+
+    async function load() {
+      const content = document.getElementById('content');
+      if (!token) { content.innerHTML = errorMsg('Lien invalide', "Ce lien de vote n'est pas valide."); return; }
+      try {
+        const res = await fetch('/api/public/election/' + encodeURIComponent(token));
+        if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Scrutin introuvable'); }
+        const data = await res.json();
+        candidates = data.candidates || [];
+        render(data);
+      } catch (e) {
+        content.innerHTML = errorMsg('Scrutin indisponible', e.message);
+      }
+    }
+
+    function errorMsg(title, text) {
+      return `<div class="msg"><div class="icon">⚠️</div><h2>${title}</h2><p>${text}</p></div>`;
+    }
+
+    function render(data) {
+      const content = document.getElementById('content');
+      content.innerHTML = `
+        <div class="election-title">${escapeHtml(data.titre)}</div>
+        ${data.description ? `<div class="election-desc">${escapeHtml(data.description)}</div>` : ''}
+        <div class="candidates" id="candGrid">
+          ${candidates.map(c => `
+            <div class="cand-card" id="cand-${c.id}" onclick="selectCandidate(${c.id})">
+              ${c.photo_path
+                ? `<img class="cand-photo" src="${c.photo_path}" alt="${escapeHtml(c.nom)}"/>`
+                : `<div class="cand-photo placeholder">${escapeHtml((c.nom||'?')[0])}</div>`}
+              <div class="cand-nom">${escapeHtml(c.nom)}</div>
+              ${c.bio ? `<div class="cand-bio">${escapeHtml(c.bio)}</div>` : ''}
+            </div>`).join('')}
+        </div>
+        <div class="form-group"><label>Votre nom complet</label><input type="text" id="v_nom" placeholder="Prénom Nom"/></div>
+        <div class="form-group"><label>Votre numéro de cellulaire *</label><input type="tel" id="v_tel" placeholder="(905) 555-1234"/></div>
+        <div class="error-box" id="voteError"></div>
+        <button class="btn" id="submitBtn" onclick="submitVote()" disabled>Choisissez un candidat pour voter</button>
+      `;
+    }
+
+    function selectCandidate(id) {
+      selectedCandidate = id;
+      document.querySelectorAll('.cand-card').forEach(el => el.classList.remove('selected'));
+      document.getElementById('cand-' + id).classList.add('selected');
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = false;
+      const c = candidates.find(x => x.id === id);
+      btn.textContent = 'Confirmer mon vote pour ' + (c ? c.nom : '');
+    }
+
+    async function submitVote() {
+      const errBox = document.getElementById('voteError');
+      errBox.style.display = 'none';
+      const tel = document.getElementById('v_tel').value.trim();
+      const nom = document.getElementById('v_nom').value.trim();
+      if (!selectedCandidate) return;
+      if (tel.replace(/\D/g,'').length < 10) {
+        errBox.textContent = 'Veuillez entrer un numéro de cellulaire valide (10 chiffres).';
+        errBox.style.display = 'block';
+        return;
+      }
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true; btn.textContent = 'Envoi…';
+      try {
+        const res = await fetch('/api/public/election/' + encodeURIComponent(token) + '/vote', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ candidate_id: selectedCandidate, nom, telephone: tel })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Erreur lors du vote');
+        showThankYou();
+      } catch (e) {
+        errBox.textContent = e.message;
+        errBox.style.display = 'block';
+        btn.disabled = false; btn.textContent = 'Confirmer mon vote';
+      }
+    }
+
+    function showThankYou() {
+      document.getElementById('content').innerHTML = `
+        <div class="msg">
+          <div class="icon">🎉</div>
+          <h2>Merci d'avoir voté !</h2>
+          <p>Votre vote a été enregistré avec succès.</p>
+        </div>`;
+      const wrap = document.querySelector('.wrap');
+      const cta = document.createElement('div');
+      cta.className = 'card';
+      cta.innerHTML = `
+        <p style="text-align:center;font-size:.92rem;margin-bottom:14px">Vous n'êtes pas encore membre de l'AHH Hamilton ?</p>
+        <a href="/adhesion.html" class="btn btn-outline" style="text-decoration:none;text-align:center">Rejoindre l'association →</a>
+      `;
+      wrap.appendChild(cta);
+    }
+
+    function escapeHtml(s) {
+      const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML;
+    }
+
+    load();
+  </script>
+</body>
+</html>
