@@ -14925,141 +14925,198 @@ async function meetingDelete(id) {
   } catch(e) { toast(e.message, true); }
 }
 
-// ══ MEETING AGENDAS ════════════════════════════════════════════════════════
+// ══ MEETING AGENDAS — document officiel (lettre AHH, listes uniquement) ═════
 async function meetingAgendasView() {
   try {
     const agendas = await api('/agendas');
-    const rows = (agendas || []).map(a => `<tr style="cursor:pointer" onclick="agendaDetail(${a.id})">
-      <td>${escHtml(a.titre)}</td>
-      <td>${fmt(a.date_reunion)}</td>
-      <td>${statusPill(a.statut)}</td>
-      <td>${escHtml(a.cree_par_nom || '–')}</td>
-    </tr>`).join('');
+    window._agendaData = {}; agendas.forEach(a => { window._agendaData[a.id] = a; });
+    const rows = (agendas || []).map(a => {
+      const locked = !!a.verrouille;
+      const signed = !!a.date_ma_signature;
+      const lockBadge = locked ? `<span style="background:#e8f5e9;color:#1b5e20;font-size:.72rem;padding:2px 9px;border-radius:12px;font-weight:600">🔒 Verrouillé — 2/2</span>` : '';
+      const sigBadge = signed && !locked ? `<span style="background:#e3f2fd;color:#1565c0;font-size:.72rem;padding:2px 9px;border-radius:12px;font-weight:600">✅ Vous avez signé</span>` : '';
+      const countBadge = a.nb_signatures > 0 && !locked ? `<span style="background:#fff3cd;color:#856404;font-size:.72rem;padding:2px 9px;border-radius:12px;font-weight:600">🖊 ${a.nb_signatures}/2</span>` : '';
+      return `<tr>
+        <td style="cursor:pointer" onclick="openAgendaEditor(window._agendaData[${a.id}])"><strong>${escHtml(a.titre)}</strong></td>
+        <td>${fmt(a.date_reunion)}</td>
+        <td>${lockBadge}${sigBadge}${countBadge}</td>
+        <td>${escHtml(a.createur_nom || '–')}</td>
+        <td style="white-space:nowrap">
+          <button class="btn btn-sm btn-outline" onclick="openAgendaEditor(window._agendaData[${a.id}])">${locked?'👁 Voir':'✏️ Ouvrir'}</button>
+          <a href="/api/agendas/${a.id}/download?token=${TOKEN}" target="_blank" class="btn btn-sm btn-ghost">⬇ PDF</a>
+          ${!locked ? `<button class="btn btn-sm btn-danger" onclick="deleteAgenda(${a.id})">🗑️</button>` : ''}
+        </td>
+      </tr>`;
+    }).join('');
 
     setContent(`
+      <div class="page-header">
+        <div><h2>📝 Ordres du jour</h2><p style="font-size:.82rem;color:var(--muted)">Document officiel AHH — rédigé en listes à puces ou numérotées</p></div>
+        <div class="page-actions"><button class="btn btn-primary" onclick="openAgendaEditor(null)">+ Nouvel ordre du jour</button></div>
+      </div>
       <div class="table-card">
-        <div class="table-card-header">
-          <h3>Ordres du jour</h3>
-          <button class="btn btn-primary btn-sm" onclick="agendaShowForm()">+ Nouvel ordre du jour</button>
-        </div>
-        <div id="agendaFormArea" style="padding:0 16px"></div>
         <div class="table-wrapper">
           <table class="data-table">
-            <thead><tr><th>Titre</th><th>Date réunion</th><th>Statut</th><th>Créé par</th></tr></thead>
-            <tbody>${rows || '<tr><td colspan="4" style="text-align:center;color:var(--muted)">Aucun ordre du jour</td></tr>'}</tbody>
+            <thead><tr><th>Titre</th><th>Date réunion</th><th>Statut</th><th>Créé par</th><th>Actions</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">Aucun ordre du jour</td></tr>'}</tbody>
           </table>
         </div>
-        <div id="agendaDetailArea" style="padding:16px"></div>
       </div>`);
   } catch(e) { toast(e.message, true); }
 }
 
-function agendaShowForm(existing) {
-  const a = existing || {};
-  document.getElementById('agendaFormArea').innerHTML = `
-    <div style="background:#f9f9f9;border-radius:10px;padding:16px;margin:12px 0;border:1px solid #e0e0e0">
-      <h4 style="margin:0 0 12px">${a.id ? 'Modifier l\'ordre du jour' : 'Nouvel ordre du jour'}</h4>
-      <div class="form-row">
-        <div class="form-group"><label>Titre *</label><input id="agTitre" value="${escHtml(a.titre || '')}"></div>
-        <div class="form-group"><label>Date de réunion</label><input id="agDate" type="date" value="${a.date_reunion ? a.date_reunion.substring(0,10) : ''}"></div>
-      </div>
-      <div class="form-group"><label>Statut</label>
-        <select id="agStatut">
-          <option value="brouillon" ${a.statut==='brouillon'?'selected':''}>Brouillon</option>
-          <option value="en_cours" ${a.statut==='en_cours'?'selected':''}>En cours</option>
-          <option value="approuve" ${a.statut==='approuve'?'selected':''}>Approuvé</option>
-        </select>
-      </div>
-      <div style="display:flex;gap:8px;margin-top:12px">
-        <button class="btn btn-primary btn-sm" onclick="agendaSave(${a.id || 'null'})">${a.id ? 'Mettre à jour' : 'Créer'}</button>
-        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('agendaFormArea').innerHTML=''">Annuler</button>
-      </div>
-    </div>`;
+async function deleteAgenda(id) {
+  if (!confirm('Supprimer cet ordre du jour ?')) return;
+  try { await api('/agendas/' + id, { method:'DELETE' }); toast('Ordre du jour supprimé'); await meetingAgendasView(); }
+  catch(e) { toast(e.message, true); }
 }
 
-async function agendaSave(id) {
+function openAgendaEditor(a) {
+  const agendaId = a?.id || null;
+  const readOnly = !!a?.verrouille;
+  const today = new Date().toISOString().slice(0,10);
+  const autoTitle = a?.titre || `Ordre du jour — ${new Date().toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'})}`;
+
+  setContent(`
+    <div id="agendaEditorShell" style="display:flex;flex-direction:column;height:calc(100vh - var(--strip-h) - 8px);background:#e0e0e0">
+      <div style="background:#fff;border-bottom:1px solid #d0d0d0;padding:8px 16px;display:flex;align-items:center;gap:4px;flex-wrap:wrap;box-shadow:0 1px 4px rgba(0,0,0,.08);position:sticky;top:0;z-index:10">
+        <div style="display:flex;gap:8px;align-items:center;margin-right:12px;padding-right:12px;border-right:1px solid #ddd;flex-wrap:wrap">
+          <input id="ag_titre" style="border:1px solid #ddd;border-radius:6px;padding:5px 10px;font-size:.88rem;font-weight:600;width:240px" placeholder="Titre de l'ordre du jour" value="${escHtml(autoTitle)}" ${readOnly?'disabled':''}/>
+          <input type="date" id="ag_date" style="border:1px solid #ddd;border-radius:6px;padding:5px 8px;font-size:.82rem" value="${a?.date_reunion?a.date_reunion.substring(0,10):today}" ${readOnly?'disabled':''}/>
+        </div>
+
+        <!-- Listes uniquement -->
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('insertUnorderedList')" title="Liste à puces" ${readOnly?'disabled':''}>• ≡</button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('insertOrderedList')" title="Liste numérotée" ${readOnly?'disabled':''}>1. ≡</button>
+        <div style="width:1px;height:24px;background:#ddd;margin:0 4px"></div>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('indent')" title="Sous-point (indenter)" ${readOnly?'disabled':''}>➡ Indenter</button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('outdent')" title="Remonter d'un niveau" ${readOnly?'disabled':''}>⬅ Désindenter</button>
+        <div style="width:1px;height:24px;background:#ddd;margin:0 4px"></div>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('undo')" title="Annuler" ${readOnly?'disabled':''}>↩</button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('redo')" title="Rétablir" ${readOnly?'disabled':''}>↪</button>
+
+        <div style="flex:1"></div>
+
+        <span id="agendaStatus" style="font-size:.75rem;color:var(--muted);margin-right:8px">${readOnly ? '🔒 Verrouillé' : ''}</span>
+        <button class="btn btn-sm btn-ghost" onclick="meetingAgendasView()" title="Fermer">✕ Fermer</button>
+        ${agendaId ? `<a href="/api/agendas/${agendaId}/download?token=${TOKEN}" target="_blank" class="btn btn-sm btn-outline">⬇ PDF</a>` : ''}
+        ${agendaId && !readOnly ? `<button class="btn btn-sm btn-ghost" style="color:#6a1b9a;border:1px solid #6a1b9a" onclick="openAgendaSignatureModal(${agendaId},'${escHtml(a?.titre||'').replace(/'/g,"\\'")}')">✍️ Signer</button>` : ''}
+        ${!readOnly ? `<button class="btn btn-sm btn-primary" onclick="saveAgendaEditor(${agendaId||'null'})">💾 Sauvegarder</button>` : ''}
+      </div>
+
+      <div style="flex:1;overflow-y:auto;padding:32px 0 48px;background:#e0e0e0">
+        ${readOnly ? `<div style="text-align:center;padding:12px;background:#e8f5e9;color:#1b5e20;font-weight:600;font-size:.85rem">🔒 Cet ordre du jour est verrouillé — lecture seule après 2 signatures</div>`
+          : a?.nb_signatures > 0 ? `<div style="text-align:center;padding:10px 16px;background:#fff3cd;color:#856404;font-weight:600;font-size:.82rem">⚠️ ${a.nb_signatures} signature(s) existante(s). Toute sauvegarde les annulera.</div>` : ''}
+
+        <style>#ag_editor ul, #ag_editor ol { margin: 4px 0 4px 28px; padding: 0; } #ag_editor li { margin: 2px 0; }</style>
+        <div id="agPageWrapper" style="width:816px;max-width:calc(100vw - 40px);margin:0 auto;background:#fff;box-shadow:0 2px 20px rgba(0,0,0,.22);position:relative">
+          <div style="border-bottom:3px solid #1a237e;padding:12px 64px 10px;display:flex;align-items:center;gap:14px;user-select:none">
+            <img src="/Public/logo1.png" style="height:52px;width:52px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display='none'">
+            <div style="flex:1">
+              <div style="font-weight:800;font-size:12pt;color:#1a237e;letter-spacing:.3px">Association Haïtienne de Hamilton (AHH)</div>
+              <div style="font-size:9pt;color:#555;margin-top:2px">Ordre du jour</div>
+            </div>
+            <div style="font-size:9pt;color:#888;text-align:right">${new Date().toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'})}</div>
+          </div>
+          <div id="ag_editor" style="min-height:944px;padding:40px 64px;font-family:'Times New Roman',serif;font-size:12pt;line-height:1.6;color:#000;outline:none"
+            contenteditable="${!readOnly}" spellcheck="true">${a?.contenu || '<ul><li><br></li></ul>'}</div>
+          <div style="border-top:2px solid #1a237e;padding:8px 64px;display:flex;justify-content:space-between;align-items:center;font-size:8pt;color:#888;user-select:none">
+            <span>Association Haïtienne de Hamilton — Hamilton, Ontario, Canada</span>
+            <span>Document officiel — confidentiel</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `);
+
+  if (!readOnly) {
+    setTimeout(() => {
+      const editor = document.getElementById('ag_editor');
+      if (!editor) return;
+      editor.focus();
+      // Tab / Shift+Tab pour indenter/désindenter comme un vrai document à puces
+      editor.addEventListener('keydown', e => {
+        if (e.key === 'Tab') {
+          e.preventDefault();
+          document.execCommand(e.shiftKey ? 'outdent' : 'indent');
+        }
+      });
+    }, 50);
+  }
+}
+
+async function saveAgendaEditor(id) {
+  const editor = document.getElementById('ag_editor');
+  if (!editor) return;
+  const body = {
+    titre: document.getElementById('ag_titre')?.value || 'Sans titre',
+    contenu: editor.innerHTML,
+    date_reunion: document.getElementById('ag_date')?.value || new Date().toISOString().slice(0,10),
+  };
   try {
-    const data = {
-      titre: document.getElementById('agTitre').value,
-      date_reunion: document.getElementById('agDate').value || null,
-      statut: document.getElementById('agStatut').value,
-    };
-    if (!data.titre) { toast('Le titre est requis', true); return; }
     if (id) {
-      await api('/agendas/' + id, { method:'PUT', body: JSON.stringify(data) });
-      toast('Ordre du jour mis à jour');
+      const r = await api('/agendas/' + id, { method:'PUT', body: JSON.stringify(body) });
+      if (r?.signatures_annulees > 0) toast('⚠️ Signatures annulées — le document a été modifié', true);
+      const s = document.getElementById('agendaStatus');
+      if (s) s.textContent = '✅ Sauvegardé ' + new Date().toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'});
+      else toast('Ordre du jour sauvegardé');
     } else {
-      await api('/agendas', { method:'POST', body: JSON.stringify(data) });
+      const r = await api('/agendas', { method:'POST', body: JSON.stringify(body) });
       toast('Ordre du jour créé');
+      const fresh = await api('/agendas/' + r.id);
+      openAgendaEditor(fresh);
     }
-    await meetingAgendasView();
   } catch(e) { toast(e.message, true); }
 }
 
-async function agendaDetail(id) {
-  try {
-    const agenda = await api('/agendas/' + id);
-    const items = agenda.items || [];
-    const itemsHtml = items.sort((a,b) => a.ordre - b.ordre).map((it, idx) => `
-      <div style="display:flex;align-items:flex-start;gap:12px;padding:10px;background:${idx % 2 === 0 ? '#fafafa' : '#fff'};border-radius:6px;margin-bottom:4px">
-        <span style="font-weight:700;color:var(--accent);min-width:24px">${it.ordre}.</span>
-        <div style="flex:1">
-          <div style="font-weight:600">${escHtml(it.texte)}</div>
-          <div style="font-size:.8rem;color:var(--muted);margin-top:2px">
-            ${it.duree ? it.duree + ' min' : ''} ${it.responsable ? '· ' + escHtml(it.responsable) : ''}
-          </div>
-          ${it.note ? `<div style="font-size:.8rem;color:#666;margin-top:4px;font-style:italic">${escHtml(it.note)}</div>` : ''}
-        </div>
-        <button class="btn btn-ghost btn-sm" onclick="agendaItemDelete(${id},${it.id})" style="padding:2px 6px;color:#c62828;font-size:.75rem">🗑️</button>
-      </div>`).join('');
-
-    const detailArea = document.getElementById('agendaDetailArea');
-    detailArea.innerHTML = `
-      <div style="border:1px solid #e0e0e0;border-radius:10px;padding:16px;margin-top:8px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <h4 style="margin:0">${escHtml(agenda.titre)}</h4>
-          <span style="font-size:.85rem;color:var(--muted)">${fmt(agenda.date_reunion)}</span>
-        </div>
-        ${itemsHtml || '<p style="color:var(--muted);text-align:center">Aucun point à l\'ordre du jour</p>'}
-        <div style="margin-top:16px;padding-top:12px;border-top:1px solid #eee">
-          <h5 style="margin:0 0 8px">Ajouter un point</h5>
-          <div class="form-row">
-            <div class="form-group"><label>Texte *</label><input id="aiTexte"></div>
-            <div class="form-group"><label>Ordre</label><input id="aiOrdre" type="number" value="${items.length + 1}"></div>
-          </div>
-          <div class="form-row">
-            <div class="form-group"><label>Durée (min)</label><input id="aiDuree" type="number"></div>
-            <div class="form-group"><label>Responsable</label><input id="aiResp"></div>
-          </div>
-          <div class="form-group"><label>Note</label><input id="aiNote"></div>
-          <button class="btn btn-primary btn-sm" onclick="agendaItemSave(${id})" style="margin-top:8px">Ajouter</button>
-        </div>
-      </div>`;
-  } catch(e) { toast(e.message, true); }
-}
-
-async function agendaItemSave(agendaId) {
-  try {
-    const data = {
-      texte: document.getElementById('aiTexte').value,
-      ordre: parseInt(document.getElementById('aiOrdre').value) || 1,
-      duree: parseInt(document.getElementById('aiDuree').value) || null,
-      responsable: document.getElementById('aiResp').value || null,
-      note: document.getElementById('aiNote').value || null,
+function openAgendaSignatureModal(agendaId, titre) {
+  openModal(`✍️ Signer — ${titre}`, `
+    <p style="font-size:.85rem;color:var(--muted);margin-bottom:12px">Dessinez votre signature dans la zone ci-dessous. Elle sera horodatée et liée à votre compte.<br>
+    <strong style="color:#1b5e20">⚠️ Après 2 signatures, l'ordre du jour sera verrouillé et ne pourra plus être modifié.</strong></p>
+    <canvas id="agendaSigCanvas" width="540" height="160" style="border:1px solid #ccc;border-radius:8px;cursor:crosshair;display:block;width:100%;touch-action:none"></canvas>
+    <div style="margin-top:8px;display:flex;gap:8px">
+      <button class="btn btn-sm btn-ghost" onclick="_clearAgendaCanvas()">🗑 Effacer</button>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="_saveAgendaSignature(${agendaId})">✅ Signer le document</button>
+      <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+    </div>
+  `);
+  setTimeout(() => {
+    const canvas = document.getElementById('agendaSigCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let drawing = false;
+    const getPos = e => {
+      const r = canvas.getBoundingClientRect();
+      const src = e.touches ? e.touches[0] : e;
+      return { x: (src.clientX - r.left) * (canvas.width / r.width), y: (src.clientY - r.top) * (canvas.height / r.height) };
     };
-    if (!data.texte) { toast('Le texte est requis', true); return; }
-    await api('/agendas/' + agendaId + '/items', { method:'POST', body: JSON.stringify(data) });
-    toast('Point ajouté');
-    await agendaDetail(agendaId);
-  } catch(e) { toast(e.message, true); }
+    canvas.addEventListener('mousedown', e => { drawing = true; const p = getPos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); });
+    canvas.addEventListener('mousemove', e => { if (!drawing) return; const p = getPos(e); ctx.lineWidth = 2.5; ctx.strokeStyle = '#1b5e20'; ctx.lineCap = 'round'; ctx.lineTo(p.x, p.y); ctx.stroke(); });
+    canvas.addEventListener('mouseup', () => { drawing = false; });
+    canvas.addEventListener('touchstart', e => { e.preventDefault(); drawing = true; const p = getPos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); }, { passive: false });
+    canvas.addEventListener('touchmove', e => { e.preventDefault(); if (!drawing) return; const p = getPos(e); ctx.lineWidth = 2.5; ctx.strokeStyle = '#1b5e20'; ctx.lineCap = 'round'; ctx.lineTo(p.x, p.y); ctx.stroke(); }, { passive: false });
+    canvas.addEventListener('touchend', () => { drawing = false; });
+  }, 50);
 }
-
-async function agendaItemDelete(agendaId, itemId) {
-  if (!confirm('Supprimer ce point ?')) return;
+function _clearAgendaCanvas() {
+  const c = document.getElementById('agendaSigCanvas');
+  if (c) c.getContext('2d').clearRect(0, 0, c.width, c.height);
+}
+async function _saveAgendaSignature(agendaId) {
+  const canvas = document.getElementById('agendaSigCanvas');
+  if (!canvas) return;
+  const blank = document.createElement('canvas'); blank.width = canvas.width; blank.height = canvas.height;
+  if (canvas.toDataURL() === blank.toDataURL()) return toast('Veuillez dessiner votre signature', true);
+  const signature_data = canvas.toDataURL('image/png');
   try {
-    await api('/agendas/' + agendaId + '/items/' + itemId, { method:'DELETE' });
-    toast('Point supprimé');
-    await agendaDetail(agendaId);
+    const r = await api(`/agendas/${agendaId}/sign`, { method:'POST', body: JSON.stringify({ signature_data }) });
+    closeModal();
+    if (r.verrouille) toast(`🔒 Ordre du jour verrouillé — ${r.nb_signatures} signatures collectées`);
+    else toast(`✅ Signature enregistrée (${r.nb_signatures}/2 pour verrouiller)`);
+    const fresh = await api('/agendas/' + agendaId);
+    openAgendaEditor(fresh);
   } catch(e) { toast(e.message, true); }
 }
 
@@ -16909,15 +16966,22 @@ async function committeeMeetingsView() {
   `);
 }
 
-function committeeMeetingCreate() {
+async function committeeMeetingCreate() {
   const now = new Date();
   const tzOffset = now.toLocaleString('en-CA', { timeZone:'America/Toronto', hour12:false, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
   const parts = tzOffset.match(/(\d{4})-(\d{2})-(\d{2}),?\s*(\d{2}):(\d{2})/);
   const defaultVal = parts ? `${parts[1]}-${parts[2]}-${parts[3]}T${parts[4]}:${parts[5]}` : '';
+  const agendas = await api('/agendas').catch(() => []);
+  const unlocked = agendas.filter(a => !a.verrouille);
   openModal('🤝 Nouvelle rencontre comité', `
     <div class="form-group"><label>Date et heure *</label><input type="datetime-local" id="cm_date" value="${defaultVal}" required/></div>
     <div class="form-group"><label>Lieu</label><input id="cm_lieu" placeholder="Ex: Bureau AHH, Zoom, etc."/></div>
-    <div class="form-group"><label>Notes</label><textarea id="cm_notes" rows="3" placeholder="Ordre du jour, remarques..."></textarea></div>
+    <div class="form-group"><label>Ordre du jour à lier</label>
+      <select id="cm_agenda">
+        <option value="">— Aucun —</option>
+        ${unlocked.map(a=>`<option value="${a.id}">${escHtml(a.titre)}</option>`).join('')}
+      </select></div>
+    <div class="form-group"><label>Notes</label><textarea id="cm_notes" rows="3" placeholder="Remarques..."></textarea></div>
     <div class="form-actions">
       <button class="btn btn-primary" onclick="_saveCommitteeMeeting()">Créer la rencontre</button>
       <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
@@ -16930,7 +16994,8 @@ async function _saveCommitteeMeeting() {
   if (!date_heure) return toast('Veuillez indiquer la date et l\'heure', true);
   try {
     const r = await api('/committee-meetings', { method:'POST', body: JSON.stringify({
-      date_heure, lieu: document.getElementById('cm_lieu')?.value || '', notes: document.getElementById('cm_notes')?.value || ''
+      date_heure, lieu: document.getElementById('cm_lieu')?.value || '', notes: document.getElementById('cm_notes')?.value || '',
+      agenda_id: parseInt(document.getElementById('cm_agenda')?.value) || null
     })});
     closeModal();
     toast('✅ Rencontre créée');
@@ -16947,7 +17012,7 @@ async function committeeMeetingDetail(id) {
     const checked = s => data.membres.find(m => m.id === u.id)?.statut === s ? 'checked' : '';
     return `<tr>
       <td><strong>${escHtml(u.prenom)} ${escHtml(u.nom)}</strong></td>
-      <td>${ROLE_LABELS_CM[u.role] || u.role}</td>
+      <td>${u.titre_comite || ROLE_LABELS_CM[u.role] || u.role}</td>
       <td style="text-align:center"><input type="radio" name="att_${u.id}" value="present" ${u.statut==='present'?'checked':''} ${locked?'disabled':''}></td>
       <td style="text-align:center"><input type="radio" name="att_${u.id}" value="absent" ${u.statut==='absent'?'checked':''} ${locked?'disabled':''}></td>
       <td style="text-align:center"><input type="radio" name="att_${u.id}" value="excuse" ${u.statut==='excuse'?'checked':''} ${locked?'disabled':''}></td>
@@ -16959,7 +17024,7 @@ async function committeeMeetingDetail(id) {
       <img src="${s.signature_data}" style="width:160px;height:60px;object-fit:contain;border:1px solid var(--border);border-radius:6px;background:#fff"/>
       <div>
         <div style="font-weight:700">${escHtml(s.nom_signataire)}</div>
-        <div style="font-size:.78rem;color:var(--muted)">${ROLE_LABELS_CM[s.role]||s.role}</div>
+        <div style="font-size:.78rem;color:var(--muted)">${s.titre_comite || ROLE_LABELS_CM[s.role] || s.role}</div>
         <div style="font-size:.78rem;color:#1b5e20">Signé le ${_fmtToronto(s.date_signature)}</div>
       </div>
     </div>
@@ -16982,6 +17047,17 @@ async function committeeMeetingDetail(id) {
     ${data.notes ? `<div class="table-card" style="margin-bottom:16px"><div style="padding:16px"><strong>Notes :</strong> ${escHtml(data.notes)}</div></div>` : ''}
 
     <div class="table-card" style="margin-bottom:16px">
+      <div style="padding:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-weight:700">📝 Ordre du jour :</span>
+        ${data.agenda_id
+          ? `<button class="btn btn-sm btn-outline" onclick="_openLinkedAgenda(${data.agenda_id})">${escHtml(data.agenda_titre||'Ouvrir')}${data.agenda_verrouille?' 🔒':''}</button>`
+          : `<span style="color:var(--muted);font-size:.85rem">Aucun</span>`}
+        ${!locked ? `<button class="btn btn-sm btn-ghost" onclick="_linkAgendaForm(${id},${data.agenda_id||'null'})">🔗 ${data.agenda_id?'Changer':'Lier un ordre du jour'}</button>` : ''}
+      </div>
+      <div id="cmAgendaLinkArea"></div>
+    </div>
+
+    <div class="table-card" style="margin-bottom:16px">
       <div class="table-card-header"><h3>📋 Présences</h3></div>
       <div class="table-wrapper">
         <table>
@@ -17000,6 +17076,36 @@ async function committeeMeetingDetail(id) {
       <div style="padding:16px">${sigsHtml}</div>
     </div>
   `);
+}
+
+async function _openLinkedAgenda(agendaId) {
+  try { const a = await api('/agendas/' + agendaId); openAgendaEditor(a); }
+  catch(e) { toast(e.message, true); }
+}
+
+async function _linkAgendaForm(meetingId, currentAgendaId) {
+  const area = document.getElementById('cmAgendaLinkArea');
+  if (!area) return;
+  const agendas = await api('/agendas').catch(() => []);
+  const unlocked = agendas.filter(a => !a.verrouille || a.id === currentAgendaId);
+  area.innerHTML = `
+    <div style="padding:0 16px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <select id="cmAgendaSelect" style="flex:1;min-width:200px">
+        <option value="">— Aucun —</option>
+        ${unlocked.map(a=>`<option value="${a.id}" ${a.id===currentAgendaId?'selected':''}>${escHtml(a.titre)}</option>`).join('')}
+      </select>
+      <button class="btn btn-sm btn-primary" onclick="_saveCmAgendaLink(${meetingId})">Enregistrer</button>
+      <button class="btn btn-sm btn-ghost" onclick="document.getElementById('cmAgendaLinkArea').innerHTML=''">Annuler</button>
+    </div>`;
+}
+
+async function _saveCmAgendaLink(meetingId) {
+  const val = document.getElementById('cmAgendaSelect')?.value;
+  try {
+    await api('/committee-meetings/' + meetingId, { method:'PUT', body: JSON.stringify({ agenda_id: val ? parseInt(val) : null }) });
+    toast('✅ Ordre du jour lié');
+    committeeMeetingDetail(meetingId);
+  } catch(e) { toast(e.message, true); }
 }
 
 async function _saveCmAttendance(meetingId) {

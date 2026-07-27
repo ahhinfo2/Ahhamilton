@@ -8553,71 +8553,148 @@ app.post('/api/tasks/:id/comments', authMiddleware, requireRole(...EXEC_ROLES), 
 
 app.get('/api/agendas', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
   const rows = db.prepare(`SELECT a.*, u.prenom || ' ' || u.nom AS createur_nom,
-    (SELECT COUNT(*) FROM agenda_items WHERE agenda_id = a.id) AS nb_items
+    (SELECT COUNT(*) FROM agenda_signatures WHERE agenda_id = a.id) AS nb_signatures,
+    (SELECT date_signature FROM agenda_signatures WHERE agenda_id = a.id AND user_id = ?) AS date_ma_signature
     FROM agendas a LEFT JOIN users u ON u.id = a.cree_par
-    ORDER BY a.date_reunion DESC`).all();
+    ORDER BY a.date_creation DESC`).all(req.user.id);
   res.json(rows);
 });
 
 app.get('/api/agendas/:id', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
   const agenda = db.prepare(`SELECT a.*, u.prenom || ' ' || u.nom AS createur_nom
     FROM agendas a LEFT JOIN users u ON u.id = a.cree_par WHERE a.id=?`).get(req.params.id);
-  if (!agenda) return res.status(404).json({ error: 'Agenda introuvable' });
-  const items = db.prepare(`SELECT ai.*, u.prenom || ' ' || u.nom AS responsable_nom
-    FROM agenda_items ai LEFT JOIN users u ON u.id = ai.responsable_id
-    WHERE ai.agenda_id=? ORDER BY ai.ordre`).all(req.params.id);
-  res.json({ ...agenda, items });
+  if (!agenda) return res.status(404).json({ error: 'Ordre du jour introuvable' });
+  agenda.signatures = db.prepare(`SELECT s.*, u.prenom||' '||u.nom AS nom_signataire, u.role, u.titre_comite
+    FROM agenda_signatures s JOIN users u ON u.id=s.user_id WHERE s.agenda_id=? ORDER BY s.date_signature`).all(req.params.id);
+  agenda.nb_signatures = agenda.signatures.length;
+  res.json(agenda);
 });
 
 app.post('/api/agendas', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
-  const { titre, date_reunion, statut } = req.body;
+  const { titre, date_reunion, statut, contenu } = req.body;
   if (!titre) return res.status(400).json({ error: 'Titre requis' });
-  const r = db.prepare('INSERT INTO agendas (titre, date_reunion, statut, cree_par) VALUES (?,?,?,?)')
-    .run(titre, date_reunion||null, statut||'brouillon', req.user.id);
+  const r = db.prepare('INSERT INTO agendas (titre, date_reunion, statut, contenu, cree_par) VALUES (?,?,?,?,?)')
+    .run(titre, date_reunion||null, statut||'brouillon', contenu||'', req.user.id);
   res.status(201).json({ id: r.lastInsertRowid });
 });
 
 app.put('/api/agendas/:id', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
-  const { titre, date_reunion, statut } = req.body;
-  const existing = db.prepare('SELECT id FROM agendas WHERE id=?').get(req.params.id);
-  if (!existing) return res.status(404).json({ error: 'Agenda introuvable' });
-  db.prepare('UPDATE agendas SET titre=?, date_reunion=?, statut=? WHERE id=?')
-    .run(titre, date_reunion||null, statut||'brouillon', req.params.id);
-  res.json({ message: 'Agenda mis à jour' });
+  const existing = db.prepare('SELECT * FROM agendas WHERE id=?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Ordre du jour introuvable' });
+  if (existing.verrouille) return res.status(403).json({ error: 'Ordre du jour verrouillé — impossible de modifier après 2 signatures' });
+  const { titre, date_reunion, statut, contenu } = req.body;
+  db.prepare('UPDATE agendas SET titre=?, date_reunion=?, statut=?, contenu=? WHERE id=?')
+    .run(titre || existing.titre, date_reunion||null, statut||existing.statut, contenu !== undefined ? contenu : existing.contenu, req.params.id);
+  // Toute modification annule les signatures existantes
+  const deleted = db.prepare('DELETE FROM agenda_signatures WHERE agenda_id=?').run(req.params.id);
+  res.json({ ok: true, signatures_annulees: deleted.changes });
 });
 
 app.delete('/api/agendas/:id', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
-  const existing = db.prepare('SELECT id FROM agendas WHERE id=?').get(req.params.id);
-  if (!existing) return res.status(404).json({ error: 'Agenda introuvable' });
+  const existing = db.prepare('SELECT id, verrouille FROM agendas WHERE id=?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Ordre du jour introuvable' });
+  if (existing.verrouille) return res.status(403).json({ error: 'Ordre du jour verrouillé, suppression impossible' });
+  db.prepare('UPDATE committee_meetings SET agenda_id=NULL WHERE agenda_id=?').run(req.params.id);
   db.prepare('DELETE FROM agendas WHERE id=?').run(req.params.id);
-  res.json({ message: 'Agenda supprimé' });
+  res.json({ message: 'Ordre du jour supprimé' });
 });
 
-// Agenda items
-app.post('/api/agendas/:id/items', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
-  const { texte, ordre, duree_minutes, responsable_id, note } = req.body;
-  if (!texte) return res.status(400).json({ error: 'Texte requis' });
-  const existing = db.prepare('SELECT id FROM agendas WHERE id=?').get(req.params.id);
-  if (!existing) return res.status(404).json({ error: 'Agenda introuvable' });
-  const r = db.prepare('INSERT INTO agenda_items (agenda_id, texte, ordre, duree_minutes, responsable_id, note) VALUES (?,?,?,?,?,?)')
-    .run(req.params.id, texte, ordre||0, duree_minutes||5, responsable_id||null, note||null);
-  res.status(201).json({ id: r.lastInsertRowid });
+// Signer un ordre du jour
+app.post('/api/agendas/:id/sign', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const { signature_data } = req.body;
+  if (!signature_data) return res.status(400).json({ error: 'Signature requise' });
+  const agenda = db.prepare('SELECT * FROM agendas WHERE id=?').get(req.params.id);
+  if (!agenda) return res.status(404).json({ error: 'Ordre du jour introuvable' });
+  if (agenda.verrouille) return res.status(403).json({ error: 'Ordre du jour déjà verrouillé' });
+  try {
+    db.prepare('INSERT OR REPLACE INTO agenda_signatures (agenda_id, user_id, signature_data, ip) VALUES (?,?,?,?)')
+      .run(agenda.id, req.user.id, signature_data, req.ip);
+    const { cnt } = db.prepare('SELECT COUNT(*) AS cnt FROM agenda_signatures WHERE agenda_id=?').get(agenda.id);
+    if (cnt >= 2) db.prepare('UPDATE agendas SET verrouille=1 WHERE id=?').run(agenda.id);
+    logAdmin(req.user.id, 'signature_agenda', `agenda ${agenda.id} — ${agenda.titre}`, agenda.id, 'agenda', req.ip);
+    res.json({ ok: true, verrouille: cnt >= 2, nb_signatures: cnt });
+  } catch(e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
-app.put('/api/agendas/:agendaId/items/:itemId', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
-  const { texte, ordre, duree_minutes, responsable_id, note } = req.body;
-  const existing = db.prepare('SELECT id FROM agenda_items WHERE id=? AND agenda_id=?').get(req.params.itemId, req.params.agendaId);
-  if (!existing) return res.status(404).json({ error: 'Item introuvable' });
-  db.prepare('UPDATE agenda_items SET texte=?, ordre=?, duree_minutes=?, responsable_id=?, note=? WHERE id=?')
-    .run(texte, ordre||0, duree_minutes||5, responsable_id||null, note||null, req.params.itemId);
-  res.json({ message: 'Item mis à jour' });
+app.get('/api/agendas/:id/signatures', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const rows = db.prepare(`SELECT s.*, u.prenom||' '||u.nom AS nom_signataire, u.role, u.titre_comite
+    FROM agenda_signatures s JOIN users u ON u.id=s.user_id WHERE s.agenda_id=? ORDER BY s.date_signature`).all(req.params.id);
+  res.json(rows);
 });
 
-app.delete('/api/agendas/:agendaId/items/:itemId', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
-  const existing = db.prepare('SELECT id FROM agenda_items WHERE id=? AND agenda_id=?').get(req.params.itemId, req.params.agendaId);
-  if (!existing) return res.status(404).json({ error: 'Item introuvable' });
-  db.prepare('DELETE FROM agenda_items WHERE id=?').run(req.params.itemId);
-  res.json({ message: 'Item supprimé' });
+// Télécharger un ordre du jour (HTML imprimable, lettre AHH)
+app.get('/api/agendas/:id/download', authMiddleware, requireRole(...EXEC_ROLES), (req, res) => {
+  const a = db.prepare(`SELECT ag.*, u.prenom||' '||u.nom AS createur_nom
+    FROM agendas ag LEFT JOIN users u ON u.id=ag.cree_par WHERE ag.id=?`).get(req.params.id);
+  if (!a) return res.status(404).send('Ordre du jour introuvable');
+  const sigs = db.prepare(`SELECT s.*, u.prenom||' '||u.nom AS nom_signataire, u.role, u.titre_comite
+    FROM agenda_signatures s JOIN users u ON u.id=s.user_id WHERE s.agenda_id=? ORDER BY s.date_signature`).all(req.params.id);
+  const ROLE_LABELS = { admin:'Administrateur', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Délégué' };
+  const fmt = d => { try { return new Date(d).toLocaleString('fr-CA', { timeZone:'America/Toronto', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' }); } catch { return d||''; } };
+  const siteUrl2 = process.env.SITE_URL || 'https://ahhamilton.ca';
+  const html = `<!DOCTYPE html><html lang="fr">
+<head><meta charset="UTF-8"><title>${a.titre||'Ordre du jour'}</title>
+<style>
+  @page{size:8.5in 11in;margin:0}
+  *{box-sizing:border-box}
+  body{font-family:'Times New Roman',serif;margin:0;padding:0;color:#000;font-size:12pt;line-height:1.6;background:#fff}
+  .page{width:8.5in;min-height:11in;margin:0 auto;display:flex;flex-direction:column}
+  .ahh-header{border-bottom:3px solid #1a237e;padding:12px 64px 10px;display:flex;align-items:center;gap:14px}
+  .ahh-header img{height:52px;width:52px;object-fit:cover;border-radius:8px;flex-shrink:0}
+  .ahh-header-text{flex:1}
+  .ahh-header-org{font-weight:800;font-size:12pt;color:#1a237e;letter-spacing:.3px}
+  .ahh-header-sub{font-size:9pt;color:#555;margin-top:2px}
+  .ahh-header-date{font-size:9pt;color:#888;text-align:right}
+  .content{flex:1;padding:36px 64px;min-height:900px}
+  .content ul, .content ol{margin:0 0 0 1.4em;padding:0}
+  .sig-section{border-top:2px solid #1a237e;padding-top:20px;margin-top:32px}
+  .sig-section h2{color:#1a237e;font-size:13pt}
+  .sig-card{display:flex;gap:20px;align-items:center;border:1px solid #ccc;border-radius:6px;padding:12px;margin-bottom:10px;page-break-inside:avoid}
+  .sig-img{width:180px;height:70px;object-fit:contain;border:1px solid #ddd;border-radius:4px;background:#fff;flex-shrink:0}
+  .sig-name{font-weight:bold;font-size:11pt}
+  .sig-role{font-size:9pt;color:#555}
+  .sig-date{font-size:9pt;color:#1a237e;margin-top:2px}
+  .locked{background:#e8eaf6;color:#1a237e;border:1px solid #9fa8da;border-radius:6px;padding:8px 16px;display:inline-block;font-size:9pt;font-weight:bold;margin-bottom:8px}
+  .ahh-footer{border-top:2px solid #1a237e;padding:8px 64px;display:flex;justify-content:space-between;font-size:8pt;color:#888;margin-top:auto}
+  @media print{.no-print{display:none}}
+</style></head>
+<body>
+<div class="page">
+<div class="ahh-header">
+  <img src="${siteUrl2}/Public/logo1.png" onerror="this.style.display='none'">
+  <div class="ahh-header-text">
+    <div class="ahh-header-org">Association Haïtienne de Hamilton (AHH)</div>
+    <div class="ahh-header-sub">Ordre du jour${a.titre ? ' — ' + a.titre : ''}</div>
+  </div>
+  <div class="ahh-header-date">
+    ${a.date_reunion ? new Date(a.date_reunion).toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'}) : new Date().toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'})}
+  </div>
+</div>
+<div class="content">${a.contenu||''}</div>
+${sigs.length ? `
+<div class="sig-section">
+  ${a.verrouille ? '<div class="locked">✅ Ordre du jour verrouillé — ' + sigs.length + ' signature(s)</div><br>' : ''}
+  <h2>Signatures</h2>
+  ${sigs.map(s => `<div class="sig-card">
+    <img class="sig-img" src="${s.signature_data}" alt="Signature">
+    <div>
+      <div class="sig-name">${s.nom_signataire}</div>
+      <div class="sig-role">${s.titre_comite || ROLE_LABELS[s.role] || s.role}</div>
+      <div class="sig-date">📅 Signé le ${fmt(s.date_signature)}</div>
+    </div>
+  </div>`).join('')}
+</div>` : ''}
+<div class="ahh-footer">
+  <span>Association Haïtienne de Hamilton — Hamilton, Ontario, Canada</span>
+  <span>Généré le ${fmt(new Date().toISOString())} — Document officiel confidentiel</span>
+</div>
+</div>
+<div style="text-align:center;margin:16px 0" class="no-print">
+  <button onclick="window.print()" style="padding:10px 24px;background:#1a237e;color:#fff;border:none;border-radius:6px;cursor:pointer">🖨 Imprimer / Sauvegarder PDF</button>
+</div>
+</body></html>`;
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(html);
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -10631,10 +10708,15 @@ app.get('/api/committee-meetings', authMiddleware, requireRole(...CM_ROLES), (re
 });
 
 app.post('/api/committee-meetings', authMiddleware, requireRole(...CM_ROLES), (req, res) => {
-  const { date_heure, lieu, notes } = req.body;
+  const { date_heure, lieu, notes, agenda_id } = req.body;
   if (!date_heure) return res.status(400).json({ error: 'Date et heure requises' });
-  const r = db.prepare('INSERT INTO committee_meetings (date_heure, lieu, notes, cree_par) VALUES (?,?,?,?)')
-    .run(date_heure, lieu || '', notes || '', req.user.id);
+  if (agenda_id) {
+    const ag = db.prepare('SELECT id, verrouille FROM agendas WHERE id=?').get(agenda_id);
+    if (!ag) return res.status(404).json({ error: 'Ordre du jour introuvable' });
+    if (ag.verrouille) return res.status(400).json({ error: 'Cet ordre du jour est verrouillé — impossible à lier' });
+  }
+  const r = db.prepare('INSERT INTO committee_meetings (date_heure, lieu, notes, agenda_id, cree_par) VALUES (?,?,?,?,?)')
+    .run(date_heure, lieu || '', notes || '', agenda_id || null, req.user.id);
   const meetingId = r.lastInsertRowid;
   const exec = db.prepare("SELECT id FROM users WHERE role IN ('admin','tresoriere','secretaire','delegue') AND actif=1 AND (phantom IS NULL OR phantom=0)").all();
   const ins = db.prepare('INSERT OR IGNORE INTO committee_meeting_attendance (meeting_id, user_id, statut) VALUES (?,?,?)');
@@ -10644,14 +10726,15 @@ app.post('/api/committee-meetings', authMiddleware, requireRole(...CM_ROLES), (r
 });
 
 app.get('/api/committee-meetings/:id', authMiddleware, requireRole(...CM_ROLES), (req, res) => {
-  const m = db.prepare(`SELECT cm.*, u.prenom||' '||u.nom AS createur_nom FROM committee_meetings cm LEFT JOIN users u ON u.id=cm.cree_par WHERE cm.id=?`).get(req.params.id);
+  const m = db.prepare(`SELECT cm.*, u.prenom||' '||u.nom AS createur_nom, ag.titre AS agenda_titre, ag.verrouille AS agenda_verrouille
+    FROM committee_meetings cm LEFT JOIN users u ON u.id=cm.cree_par LEFT JOIN agendas ag ON ag.id=cm.agenda_id WHERE cm.id=?`).get(req.params.id);
   if (!m) return res.status(404).json({ error: 'Rencontre introuvable' });
-  const exec = db.prepare("SELECT id, prenom, nom, role FROM users WHERE role IN ('admin','tresoriere','secretaire','delegue') AND actif=1 AND (phantom IS NULL OR phantom=0) ORDER BY CASE role WHEN 'admin' THEN 1 WHEN 'tresoriere' THEN 2 WHEN 'secretaire' THEN 3 WHEN 'delegue' THEN 4 END").all();
+  const exec = db.prepare("SELECT id, prenom, nom, role, titre_comite FROM users WHERE role IN ('admin','tresoriere','secretaire','delegue') AND actif=1 AND (phantom IS NULL OR phantom=0) ORDER BY CASE role WHEN 'admin' THEN 1 WHEN 'tresoriere' THEN 2 WHEN 'secretaire' THEN 3 WHEN 'delegue' THEN 4 END").all();
   const att = db.prepare('SELECT user_id, statut FROM committee_meeting_attendance WHERE meeting_id=?').all(m.id);
   const attMap = {};
   att.forEach(a => { attMap[a.user_id] = a.statut; });
   m.membres = exec.map(u => ({ ...u, statut: attMap[u.id] || 'absent' }));
-  m.signatures = db.prepare(`SELECT s.*, u.prenom||' '||u.nom AS nom_signataire, u.role FROM committee_meeting_signatures s JOIN users u ON u.id=s.user_id WHERE s.meeting_id=? ORDER BY s.date_signature`).all(m.id);
+  m.signatures = db.prepare(`SELECT s.*, u.prenom||' '||u.nom AS nom_signataire, u.role, u.titre_comite FROM committee_meeting_signatures s JOIN users u ON u.id=s.user_id WHERE s.meeting_id=? ORDER BY s.date_signature`).all(m.id);
   m.nb_signatures = m.signatures.length;
   res.json(m);
 });
@@ -10660,9 +10743,14 @@ app.put('/api/committee-meetings/:id', authMiddleware, requireRole(...CM_ROLES),
   const m = db.prepare('SELECT * FROM committee_meetings WHERE id=?').get(req.params.id);
   if (!m) return res.status(404).json({ error: 'Rencontre introuvable' });
   if (m.verrouille) return res.status(403).json({ error: 'Rencontre verrouillée' });
-  const { date_heure, lieu, notes } = req.body;
-  db.prepare('UPDATE committee_meetings SET date_heure=COALESCE(?,date_heure), lieu=COALESCE(?,lieu), notes=COALESCE(?,notes) WHERE id=?')
-    .run(date_heure || null, lieu !== undefined ? lieu : null, notes !== undefined ? notes : null, m.id);
+  const { date_heure, lieu, notes, agenda_id } = req.body;
+  if (agenda_id) {
+    const ag = db.prepare('SELECT id, verrouille FROM agendas WHERE id=?').get(agenda_id);
+    if (!ag) return res.status(404).json({ error: 'Ordre du jour introuvable' });
+    if (ag.verrouille) return res.status(400).json({ error: 'Cet ordre du jour est verrouillé — impossible à lier' });
+  }
+  db.prepare('UPDATE committee_meetings SET date_heure=COALESCE(?,date_heure), lieu=COALESCE(?,lieu), notes=COALESCE(?,notes), agenda_id=? WHERE id=?')
+    .run(date_heure || null, lieu !== undefined ? lieu : null, notes !== undefined ? notes : null, agenda_id !== undefined ? (agenda_id || null) : m.agenda_id, m.id);
   res.json({ ok: true });
 });
 
@@ -10718,10 +10806,10 @@ app.post('/api/committee-meetings/:id/sign', authMiddleware, requireRole(...CM_R
 app.get('/api/committee-meetings/:id/download', authMiddleware, requireRole(...CM_ROLES), (req, res) => {
   const m = db.prepare(`SELECT cm.*, u.prenom||' '||u.nom AS createur_nom FROM committee_meetings cm LEFT JOIN users u ON u.id=cm.cree_par WHERE cm.id=?`).get(req.params.id);
   if (!m) return res.status(404).send('Rencontre introuvable');
-  const exec = db.prepare("SELECT id, prenom, nom, role FROM users WHERE role IN ('admin','tresoriere','secretaire','delegue') AND actif=1 AND (phantom IS NULL OR phantom=0) ORDER BY CASE role WHEN 'admin' THEN 1 WHEN 'tresoriere' THEN 2 WHEN 'secretaire' THEN 3 WHEN 'delegue' THEN 4 END").all();
+  const exec = db.prepare("SELECT id, prenom, nom, role, titre_comite FROM users WHERE role IN ('admin','tresoriere','secretaire','delegue') AND actif=1 AND (phantom IS NULL OR phantom=0) ORDER BY CASE role WHEN 'admin' THEN 1 WHEN 'tresoriere' THEN 2 WHEN 'secretaire' THEN 3 WHEN 'delegue' THEN 4 END").all();
   const att = db.prepare('SELECT user_id, statut FROM committee_meeting_attendance WHERE meeting_id=?').all(m.id);
   const attMap = {}; att.forEach(a => { attMap[a.user_id] = a.statut; });
-  const sigs = db.prepare(`SELECT s.*, u.prenom||' '||u.nom AS nom_signataire, u.role FROM committee_meeting_signatures s JOIN users u ON u.id=s.user_id WHERE s.meeting_id=? ORDER BY s.date_signature`).all(m.id);
+  const sigs = db.prepare(`SELECT s.*, u.prenom||' '||u.nom AS nom_signataire, u.role, u.titre_comite FROM committee_meeting_signatures s JOIN users u ON u.id=s.user_id WHERE s.meeting_id=? ORDER BY s.date_signature`).all(m.id);
   const ROLE_LABELS = { admin:'Administrateur', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Délégué' };
   const fmt = d => { try { return new Date(d).toLocaleString('fr-CA', { timeZone:'America/Toronto', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' }); } catch { return d||''; } };
   const STATUS_LABELS = { present:'✅ Présent(e)', absent:'❌ Absent(e)', excuse:'🟡 Excusé(e)' };
@@ -10774,12 +10862,12 @@ app.get('/api/committee-meetings/:id/download', authMiddleware, requireRole(...C
   ${m.verrouille ? '<div class="locked">🔒 Document verrouillé : ' + sigs.length + ' signature(s)</div>' : ''}
   <table>
     <thead><tr><th>Membre</th><th>Rôle</th><th>Statut</th></tr></thead>
-    <tbody>${exec.map(u => '<tr><td>' + u.prenom + ' ' + u.nom + '</td><td>' + (ROLE_LABELS[u.role]||u.role) + '</td><td>' + (STATUS_LABELS[attMap[u.id]||'absent']) + '</td></tr>').join('')}</tbody>
+    <tbody>${exec.map(u => '<tr><td>' + u.prenom + ' ' + u.nom + '</td><td>' + (u.titre_comite || ROLE_LABELS[u.role] || u.role) + '</td><td>' + (STATUS_LABELS[attMap[u.id]||'absent']) + '</td></tr>').join('')}</tbody>
   </table>
 </div>
 ${sigs.length ? `<div class="sig-section" style="padding:0 64px 20px">
   <h2>Signatures</h2>
-  ${sigs.map(s => '<div class="sig-card"><img class="sig-img" src="' + s.signature_data + '" alt="Signature"><div><div class="sig-name">' + s.nom_signataire + '</div><div class="sig-role">' + (ROLE_LABELS[s.role]||s.role) + '</div><div class="sig-date">Signé le ' + fmt(s.date_signature) + '</div></div></div>').join('')}
+  ${sigs.map(s => '<div class="sig-card"><img class="sig-img" src="' + s.signature_data + '" alt="Signature"><div><div class="sig-name">' + s.nom_signataire + '</div><div class="sig-role">' + (s.titre_comite || ROLE_LABELS[s.role] || s.role) + '</div><div class="sig-date">Signé le ' + fmt(s.date_signature) + '</div></div></div>').join('')}
 </div>` : ''}
 <div class="ahh-footer">
   <span>Association Haïtienne de Hamilton, Hamilton, Ontario, Canada</span>

@@ -1496,6 +1496,22 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS presidence_delegations (
   date_expiration TEXT
 )`); } catch {}
 
+// Ordre du jour — devient un document officiel (lettre AHH, listes seulement) avec verrouillage 2 signatures
+try { db.exec("ALTER TABLE agendas ADD COLUMN contenu TEXT"); } catch {}
+try { db.exec("ALTER TABLE agendas ADD COLUMN verrouille INTEGER DEFAULT 0"); } catch {}
+try { db.exec(`CREATE TABLE IF NOT EXISTS agenda_signatures (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  agenda_id INTEGER NOT NULL REFERENCES agendas(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  signature_data TEXT NOT NULL,
+  date_signature TEXT DEFAULT CURRENT_TIMESTAMP,
+  ip TEXT,
+  UNIQUE(agenda_id, user_id)
+)`); } catch {}
+
+// Lier un ordre du jour (non verrouillé) à une rencontre du comité
+try { db.exec('ALTER TABLE committee_meetings ADD COLUMN agenda_id INTEGER REFERENCES agendas(id)'); } catch {}
+
 init();
 
 module.exports = db;
