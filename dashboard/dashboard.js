@@ -398,6 +398,7 @@ async function buildSidebar() {
       { id:'export-data',       icon:'📦', label:'Export / Sauvegarde', roles:['admin','secretaire','tresoriere'] },
       { id:'forms-mgmt',        icon:'📋', label:'Formulaires',        roles:EXEC },
       { id:'decision-registry', icon:'📒', label:'Registre décisions', roles:EXEC },
+      { id:'correspondance',    icon:'📨', label:'Correspondance',      roles:['admin','secretaire'] },
       { id:'policies',          icon:'📜', label:'Politiques',         roles:EXEC },
       { id:'email-templates',   icon:'✉️', label:'Modèles courriel',  roles:EXEC },
       { id:'annual-report',     icon:'📊', label:'Rapport annuel',    roles:EXEC },
@@ -585,7 +586,7 @@ function setActiveNav(viewId) {
   });
   const labels = {
     home:'Tableau de bord', activities:'Activités', members:'Membres', subcommittees:'Sous-comités',
-    finance:'Finance', invoices:'Factures', fournisseurs:'Fournisseurs', messages:'Messages', volunteer:'Heures de bénévolat',
+    finance:'Finance', invoices:'Factures', fournisseurs:'Fournisseurs', correspondance:'Correspondance', messages:'Messages', volunteer:'Heures de bénévolat',
     notes:'Notes de réunion', reports:'Rapports', letters:'Lettres de recommandation',
     projects:'Projets', alerts:'Alertes', profile:'Mon profil', gallery_mgmt:'Gérer la galerie',
     talents_mgmt:'Nos talents', annonces_mgmt:'Petites annonces',
@@ -1176,7 +1177,7 @@ async function showView(viewId) {
     notes, reports, letters, projects, alerts, profile,
     gallery_mgmt, annuaire, talents_mgmt, annonces_mgmt, mes_talents, mes_annonces,
     inscriptions, paiements, recus, mon_paiement, mes_billets, testimonials_mgmt, videos_mgmt,
-    scanner, forum, newsletter, rapports_finance, documents_mgmt, sponsors_mgmt, equipe_mgmt, recus_archive
+    scanner, forum, newsletter, rapports_finance, documents_mgmt, sponsors_mgmt, equipe_mgmt, recus_archive, correspondance
   };
   const extViews = {
     'pending-orders': pendingOrders,
@@ -2594,7 +2595,7 @@ async function members() {
       <div><h2>Membres</h2><p id="membersCount">${data.length} membres enregistrés</p></div>
       <div class="page-actions">
         ${can.adminOrSec() ? `<a href="/api/export/membres.csv" class="btn btn-ghost" style="font-size:.82rem" target="_blank">⬇ CSV</a>` : ''}
-        ${can.admin() ? '<button class="btn btn-primary" onclick="openMemberForm()">+ Ajouter un membre</button>' : ''}
+        ${can.adminOrSec() ? '<button class="btn btn-primary" onclick="openMemberForm()">+ Ajouter un membre</button>' : ''}
       </div>
     </div>
 
@@ -10253,6 +10254,133 @@ async function documentDelete(id) {
   if (!confirm('Supprimer ce document définitivement ?')) return;
   await api('/documents/'+id, { method:'DELETE' });
   documents_mgmt(); toast('Document supprimé');
+}
+
+// ══ CORRESPONDANCE OFFICIELLE (secrétariat) ═══════════════════════════════════
+const CORR_METHODES = { courriel:'✉️ Courriel', poste:'📮 Poste', main_propre:'🤝 En main propre', telephone:'📞 Téléphone' };
+const CORR_STATUTS = { classe:'Classé', en_attente_reponse:'⏳ En attente de réponse', repondu:'✅ Répondu' };
+
+async function correspondance() {
+  const canEdit = can.adminOrSec();
+  const data = await api('/correspondance').catch(() => []);
+  window._corrById = {}; data.forEach(c => window._corrById[c.id] = c);
+  setContent(`
+    <div class="page-header">
+      <div><h2>📨 Correspondance officielle</h2><p>Registre des lettres et courriers entrants/sortants du secrétariat</p></div>
+      ${canEdit ? `<div class="page-actions"><button class="btn btn-primary" onclick="openCorrespondanceForm()">+ Nouvelle entrée</button></div>` : ''}
+    </div>
+    <div class="table-card">
+      <div class="table-card-header" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <h3 style="margin:0">Registre</h3>
+        <input id="corrSearch" type="text" class="members-search" style="max-width:260px;margin:0" placeholder="🔍 Rechercher…" oninput="filterCorrespondance()"/>
+        <select id="corrType" class="members-filter" onchange="filterCorrespondance()" style="margin:0">
+          <option value="">Tous types</option>
+          <option value="sortant">Sortant</option>
+          <option value="entrant">Entrant</option>
+        </select>
+      </div>
+      <div class="table-wrapper"><table>
+        <thead><tr><th>Date</th><th>Type</th><th>Destinataire / Expéditeur</th><th>Objet</th><th>Méthode</th><th>Statut</th><th>Fichier</th>${canEdit ? '<th>Actions</th>' : ''}</tr></thead>
+        <tbody id="corrBody"></tbody>
+      </table></div>
+    </div>
+  `);
+  window._corrAll = data;
+  filterCorrespondance();
+}
+
+function filterCorrespondance() {
+  const q = (document.getElementById('corrSearch')?.value || '').toLowerCase().trim();
+  const type = document.getElementById('corrType')?.value || '';
+  const data = (window._corrAll || []).filter(c => {
+    if (type && c.type !== type) return false;
+    if (q && !`${c.objet} ${c.destinataire||''} ${c.expediteur||''} ${c.resume||''}`.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  renderCorrespondance(data);
+}
+
+function renderCorrespondance(data) {
+  const tbody = document.getElementById('corrBody');
+  if (!tbody) return;
+  const canEdit = can.adminOrSec();
+  if (!data.length) {
+    tbody.innerHTML = `<tr><td colspan="${canEdit?8:7}" style="text-align:center;color:var(--muted);padding:32px">Aucune correspondance enregistrée</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = data.map(c => `<tr>
+    <td>${fmt(c.date_correspondance)}</td>
+    <td>${pill(c.type==='sortant'?'Sortant':'Entrant', c.type==='sortant'?'bp-blue':'bp-green')}</td>
+    <td>${escHtml(c.type==='sortant' ? (c.destinataire||'–') : (c.expediteur||'–'))}</td>
+    <td><strong>${escHtml(c.objet)}</strong>${c.resume ? `<br><span style="font-size:.74rem;color:var(--muted)">${escHtml(c.resume)}</span>` : ''}</td>
+    <td style="font-size:.82rem">${CORR_METHODES[c.methode]||c.methode}</td>
+    <td>${pill(CORR_STATUTS[c.statut]||c.statut, c.statut==='en_attente_reponse'?'bp-orange':(c.statut==='repondu'?'bp-green':'bp-gray'))}</td>
+    <td>${c.fichier_path ? `<a href="/api/correspondance/${c.id}/download?token=${TOKEN}" class="btn btn-sm btn-ghost" download>📎 Voir</a>` : '–'}</td>
+    ${canEdit ? `<td style="white-space:nowrap">
+      <button class="btn btn-sm btn-ghost" onclick="openCorrespondanceForm(window._corrById[${c.id}])" title="Modifier">✏️</button>
+      <button class="btn btn-sm btn-ghost" style="color:var(--red)" onclick="correspondanceDelete(${c.id})" title="Supprimer">🗑</button>
+    </td>` : ''}
+  </tr>`).join('');
+}
+
+function openCorrespondanceForm(existing) {
+  const isEdit = !!existing;
+  openModal(isEdit ? 'Modifier la correspondance' : 'Nouvelle correspondance', `
+    <form id="corrForm" enctype="multipart/form-data">
+      <div class="form-row">
+        <div class="form-group"><label>Type *</label>
+          <select id="corr_type" onchange="document.getElementById('corr_dest_row').style.display=this.value==='sortant'?'':'none';document.getElementById('corr_exp_row').style.display=this.value==='entrant'?'':'none';">
+            <option value="sortant" ${existing?.type==='sortant'?'selected':''}>Sortant (envoyé par l'AHH)</option>
+            <option value="entrant" ${existing?.type==='entrant'?'selected':''}>Entrant (reçu par l'AHH)</option>
+          </select></div>
+        <div class="form-group"><label>Date *</label><input type="date" id="corr_date" value="${(existing?.date_correspondance||new Date().toISOString()).substring(0,10)}" required/></div>
+      </div>
+      <div class="form-group" id="corr_dest_row" style="display:${!existing||existing.type==='sortant'?'':'none'}">
+        <label>Destinataire</label><input id="corr_dest" value="${escHtml(existing?.destinataire||'')}" placeholder="ex: Ville de Hamilton"/></div>
+      <div class="form-group" id="corr_exp_row" style="display:${existing?.type==='entrant'?'':'none'}">
+        <label>Expéditeur</label><input id="corr_exp" value="${escHtml(existing?.expediteur||'')}" placeholder="ex: Ville de Hamilton"/></div>
+      <div class="form-group"><label>Objet *</label><input id="corr_objet" value="${escHtml(existing?.objet||'')}" required/></div>
+      <div class="form-group"><label>Résumé</label><textarea id="corr_resume" rows="2">${escHtml(existing?.resume||'')}</textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label>Méthode</label>
+          <select id="corr_methode">${Object.entries(CORR_METHODES).map(([k,l])=>`<option value="${k}" ${existing?.methode===k?'selected':''}>${l}</option>`).join('')}</select></div>
+        <div class="form-group"><label>Statut</label>
+          <select id="corr_statut">${Object.entries(CORR_STATUTS).map(([k,l])=>`<option value="${k}" ${existing?.statut===k?'selected':''}>${l}</option>`).join('')}</select></div>
+      </div>
+      <div class="form-group"><label>Fichier / scan (optionnel)</label>
+        ${existing?.fichier_path ? `<div style="margin-bottom:6px"><a href="/api/correspondance/${existing.id}/download?token=${TOKEN}" class="btn btn-sm btn-ghost" download>📎 Fichier actuel</a></div>` : ''}
+        <input type="file" id="corr_fichier" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"/></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Enregistrer</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('corrForm').onsubmit = async e => {
+    e.preventDefault();
+    const fd = new FormData();
+    fd.append('type', document.getElementById('corr_type').value);
+    fd.append('date_correspondance', document.getElementById('corr_date').value);
+    fd.append('destinataire', document.getElementById('corr_dest').value);
+    fd.append('expediteur', document.getElementById('corr_exp').value);
+    fd.append('objet', document.getElementById('corr_objet').value.trim());
+    fd.append('resume', document.getElementById('corr_resume').value);
+    fd.append('methode', document.getElementById('corr_methode').value);
+    fd.append('statut', document.getElementById('corr_statut').value);
+    const fichier = document.getElementById('corr_fichier').files[0];
+    if (fichier) fd.append('fichier', fichier);
+    try {
+      const url = '/correspondance' + (isEdit ? '/' + existing.id : '');
+      await apiForm(url, fd, isEdit ? 'PUT' : 'POST');
+      closeModal(); toast(isEdit ? 'Correspondance mise à jour' : 'Correspondance enregistrée'); correspondance();
+    } catch(ex) { toast(ex.message, 'error'); }
+  };
+}
+
+async function correspondanceDelete(id) {
+  if (!confirm('Supprimer cette entrée de correspondance ?')) return;
+  try { await api('/correspondance/'+id, { method:'DELETE' }); toast('Correspondance supprimée'); correspondance(); }
+  catch(ex) { toast(ex.message, 'error'); }
 }
 
 // ══ COMMANDITAIRES ═══════════════════════════════════════════════════════════

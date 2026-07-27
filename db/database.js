@@ -1449,6 +1449,23 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS annual_budgets (
   date_maj TEXT DEFAULT CURRENT_TIMESTAMP
 )`); } catch {}
 
+// Registre de correspondance officielle (lettres/courriers entrants et sortants du secrétariat)
+try { db.exec(`CREATE TABLE IF NOT EXISTS correspondance (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  type TEXT NOT NULL DEFAULT 'sortant',
+  date_correspondance TEXT NOT NULL,
+  destinataire TEXT,
+  expediteur TEXT,
+  objet TEXT NOT NULL,
+  resume TEXT,
+  methode TEXT DEFAULT 'courriel',
+  fichier_path TEXT,
+  fichier_nom TEXT,
+  statut TEXT DEFAULT 'classe',
+  cree_par INTEGER REFERENCES users(id),
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
 init();
 
 module.exports = db;

@@ -6242,6 +6242,52 @@ app.delete('/api/documents/:id', authMiddleware, requireRole('admin','secretaire
   res.json({ ok: true });
 });
 
+// ── Registre de correspondance officielle (secrétariat) ─────────────────────
+app.get('/api/correspondance', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  const rows = db.prepare(`SELECT c.*, u.prenom || ' ' || u.nom AS createur
+    FROM correspondance c LEFT JOIN users u ON u.id = c.cree_par
+    ORDER BY c.date_correspondance DESC`).all();
+  res.json(rows);
+});
+
+app.post('/api/correspondance', authMiddleware, requireRole('admin','secretaire'), uploadDoc.single('fichier'), (req, res) => {
+  const { type, date_correspondance, destinataire, expediteur, objet, resume, methode, statut } = req.body;
+  if (!objet || !date_correspondance) return res.status(400).json({ error: 'Objet et date requis' });
+  const r = db.prepare(`INSERT INTO correspondance (type, date_correspondance, destinataire, expediteur, objet, resume, methode, fichier_path, fichier_nom, statut, cree_par)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
+    .run(type||'sortant', date_correspondance, destinataire||'', expediteur||'', objet, resume||'', methode||'courriel',
+         req.file ? req.file.path : null, req.file ? req.file.originalname : null, statut||'classe', req.user.id);
+  res.status(201).json({ id: r.lastInsertRowid });
+});
+
+app.put('/api/correspondance/:id', authMiddleware, requireRole('admin','secretaire'), uploadDoc.single('fichier'), (req, res) => {
+  const c = db.prepare('SELECT * FROM correspondance WHERE id=?').get(req.params.id);
+  if (!c) return res.status(404).json({ error: 'Introuvable' });
+  const { type, date_correspondance, destinataire, expediteur, objet, resume, methode, statut } = req.body;
+  let fichier_path = c.fichier_path, fichier_nom = c.fichier_nom;
+  if (req.file) {
+    if (c.fichier_path) { try { fs.unlinkSync(c.fichier_path); } catch {} }
+    fichier_path = req.file.path; fichier_nom = req.file.originalname;
+  }
+  db.prepare(`UPDATE correspondance SET type=?, date_correspondance=?, destinataire=?, expediteur=?, objet=?, resume=?, methode=?, statut=?, fichier_path=?, fichier_nom=? WHERE id=?`)
+    .run(type||c.type, date_correspondance||c.date_correspondance, destinataire||'', expediteur||'', objet||c.objet, resume||'', methode||c.methode, statut||c.statut, fichier_path, fichier_nom, c.id);
+  res.json({ message: 'Mise à jour' });
+});
+
+app.delete('/api/correspondance/:id', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  const c = db.prepare('SELECT * FROM correspondance WHERE id=?').get(req.params.id);
+  if (!c) return res.status(404).json({ error: 'Introuvable' });
+  if (c.fichier_path) { try { fs.unlinkSync(c.fichier_path); } catch {} }
+  db.prepare('DELETE FROM correspondance WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+app.get('/api/correspondance/:id/download', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  const c = db.prepare('SELECT * FROM correspondance WHERE id=?').get(req.params.id);
+  if (!c || !c.fichier_path) return res.status(404).json({ error: 'Introuvable' });
+  res.download(c.fichier_path, c.fichier_nom || 'document');
+});
+
 // ── Cotisation en ligne (Stripe Checkout) ────────────────────────────────────
 app.post('/api/cotisations/checkout', authMiddleware, async (req, res) => {
   const stripeKey = (process.env.STRIPE_SECRET_KEY || '').trim();
