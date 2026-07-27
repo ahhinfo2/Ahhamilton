@@ -1044,6 +1044,21 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS committee_meeting_signatures (
   UNIQUE(meeting_id, user_id)
 )`); } catch {}
 
+// Commentaire libre + hash (anti-doublon) sur les reçus/factures
+try { db.exec("ALTER TABLE invoices ADD COLUMN commentaire TEXT"); } catch {}
+try { db.exec("ALTER TABLE invoices ADD COLUMN photo_hash TEXT"); } catch {}
+
+// Fermeture d'une ligne financière (projet/activité) — verrouillée après 2 signatures, comme les rencontres comité
+try { db.exec(`CREATE TABLE IF NOT EXISTS financial_line_signatures (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  financial_line_id INTEGER NOT NULL REFERENCES financial_lines(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  signature_data TEXT NOT NULL,
+  date_signature TEXT DEFAULT CURRENT_TIMESTAMP,
+  ip TEXT,
+  UNIQUE(financial_line_id, user_id)
+)`); } catch {}
+
 // ── Token iCal personnel par membre ───────────────────────────────────────
 try { db.exec("ALTER TABLE users ADD COLUMN ical_token TEXT"); } catch {}
 

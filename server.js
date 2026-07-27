@@ -1317,13 +1317,42 @@ app.get('/api/finance/lines', authMiddleware, requireRole('admin','tresoriere','
       COALESCE((SELECT SUM(t.montant) FROM transactions t WHERE t.financial_line_id = fl.id AND t.type = 'depense'), 0) AS depenses,
       COALESCE((SELECT SUM(t.montant) FROM transactions t WHERE t.financial_line_id = fl.id AND t.type = 'revenu'), 0) AS revenus,
       COALESCE((SELECT SUM(i.montant) FROM invoices i WHERE i.financial_line_id = fl.id AND i.statut = 'en_attente'), 0) AS depenses_en_attente,
-      COALESCE(fl.commanditaires, 0) AS commanditaires
+      COALESCE(fl.commanditaires, 0) AS commanditaires,
+      (SELECT COUNT(*) FROM financial_line_signatures s WHERE s.financial_line_id = fl.id) AS nb_signatures,
+      (SELECT date_signature FROM financial_line_signatures WHERE financial_line_id = fl.id AND user_id = ?) AS ma_signature
     FROM financial_lines fl
     LEFT JOIN activities a ON a.id = fl.activity_id
     LEFT JOIN projects p ON p.id = fl.project_id
     ORDER BY fl.date_creation DESC
-  `).all();
+  `).all(req.user.id);
   res.json(rows);
+});
+
+app.post('/api/finance/lines/:id/close-signature', authMiddleware, requireRole('admin','tresoriere'), (req, res) => {
+  const { signature_data } = req.body;
+  if (!signature_data) return res.status(400).json({ error: 'Signature requise' });
+  const fl = db.prepare('SELECT * FROM financial_lines WHERE id=?').get(req.params.id);
+  if (!fl) return res.status(404).json({ error: 'Ligne financière introuvable' });
+  if (fl.statut === 'termine') return res.status(403).json({ error: 'Ce projet est déjà fermé' });
+  try {
+    db.prepare('INSERT OR REPLACE INTO financial_line_signatures (financial_line_id, user_id, signature_data, ip) VALUES (?,?,?,?)')
+      .run(fl.id, req.user.id, signature_data, req.ip);
+    const { cnt } = db.prepare('SELECT COUNT(*) AS cnt FROM financial_line_signatures WHERE financial_line_id=?').get(fl.id);
+    if (cnt >= 2) db.prepare("UPDATE financial_lines SET statut='termine' WHERE id=?").run(fl.id);
+    res.json({ ok: true, ferme: cnt >= 2, nb_signatures: cnt });
+  } catch(e) { console.error('[FIN-SIGN]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
+});
+
+app.get('/api/finance/lines/:id/signatures', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  const sigs = db.prepare(`SELECT s.*, u.prenom||' '||u.nom AS nom_signataire, u.role FROM financial_line_signatures s
+    JOIN users u ON u.id=s.user_id WHERE s.financial_line_id=? ORDER BY s.date_signature`).all(req.params.id);
+  res.json(sigs);
+});
+
+app.post('/api/finance/lines/:id/reopen', authMiddleware, requireRole('admin'), (req, res) => {
+  db.prepare('DELETE FROM financial_line_signatures WHERE financial_line_id=?').run(req.params.id);
+  db.prepare("UPDATE financial_lines SET statut='actif' WHERE id=?").run(req.params.id);
+  res.json({ ok: true });
 });
 
 app.get('/api/finance/chart', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
@@ -1398,23 +1427,63 @@ app.get('/api/finance/invoices', authMiddleware, requireRole('admin','tresoriere
   res.json(rows);
 });
 
-app.post('/api/finance/invoices', authMiddleware, requireRole('tresoriere', 'admin'), upload.single('photo'), (req, res) => {
-  const { titre, fournisseur, montant, date_facture, financial_line_id } = req.body;
-  if (!titre) return res.status(400).json({ error: 'Titre requis' });
-  const photo_path = req.file ? `/uploads/invoices/${req.file.filename}` : null;
-  const r = db.prepare(`INSERT INTO invoices (titre, fournisseur, montant, date_facture, photo_path, financial_line_id, cree_par)
-    VALUES (?, ?, ?, ?, ?, ?, ?)`).run(titre, fournisseur||'', montant||0, date_facture||'', photo_path, financial_line_id||null, req.user.id);
+app.post('/api/finance/invoices', authMiddleware, requireRole('tresoriere', 'admin'), upload.single('photo'), async (req, res) => {
+  const { fournisseur, montant, date_facture, financial_line_id, commentaire } = req.body;
+  const titre = (req.body.titre || '').trim() || `Reçu ${new Date().toLocaleString('fr-CA')}`;
+
+  let photo_path = null, photo_hash = null;
+  if (req.file) {
+    photo_hash = _crypto.createHash('sha256').update(fs.readFileSync(req.file.path)).digest('hex');
+    const dup = db.prepare('SELECT id, titre FROM invoices WHERE photo_hash = ?').get(photo_hash);
+    if (dup) {
+      try { fs.unlinkSync(req.file.path); } catch {}
+      return res.status(409).json({ error: `Ce reçu a déjà été enregistré (« ${dup.titre} »).`, duplicate_id: dup.id });
+    }
+    await compressImage(req.file.path, 1600);
+    photo_path = `/uploads/invoices/${req.file.filename}`;
+  }
+
+  const r = db.prepare(`INSERT INTO invoices (titre, fournisseur, montant, date_facture, photo_path, photo_hash, financial_line_id, commentaire, cree_par)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(titre, fournisseur||'', montant||0, date_facture||'', photo_path, photo_hash, financial_line_id||null, commentaire||'', req.user.id);
 
   // Alert admins
   getAdminsAndRole('admin').forEach(a =>
     createAlert(a.id, 'depense', `Nouvelle facture : ${titre}`, `Fournisseur: ${fournisseur||'-'} | Montant: $${montant||0}`, r.lastInsertRowid));
-  res.status(201).json({ id: r.lastInsertRowid, photo_path });
+  res.status(201).json({ id: r.lastInsertRowid, photo_path, titre });
 });
 
-app.put('/api/finance/invoices/:id', authMiddleware, requireRole('tresoriere', 'admin'), (req, res) => {
-  const { statut } = req.body;
+app.put('/api/finance/invoices/:id', authMiddleware, requireRole('tresoriere', 'admin'), upload.single('photo'), async (req, res) => {
+  const { statut, titre, fournisseur, montant, date_facture, financial_line_id, commentaire } = req.body;
   const invoice = db.prepare('SELECT * FROM invoices WHERE id = ?').get(req.params.id);
   if (!invoice) return res.status(404).json({ error: 'Facture introuvable' });
+
+  // Édition des champs (titre, montant, commentaire, photo...) — indépendant du changement de statut
+  const editUpdates = []; const editVals = [];
+  if (titre !== undefined) { editUpdates.push('titre = ?'); editVals.push(titre.trim() || invoice.titre); }
+  if (fournisseur !== undefined) { editUpdates.push('fournisseur = ?'); editVals.push(fournisseur); }
+  if (montant !== undefined) { editUpdates.push('montant = ?'); editVals.push(montant); }
+  if (date_facture !== undefined) { editUpdates.push('date_facture = ?'); editVals.push(date_facture); }
+  if (financial_line_id !== undefined) { editUpdates.push('financial_line_id = ?'); editVals.push(financial_line_id || null); }
+  if (commentaire !== undefined) { editUpdates.push('commentaire = ?'); editVals.push(commentaire); }
+  if (req.file) {
+    const photo_hash = _crypto.createHash('sha256').update(fs.readFileSync(req.file.path)).digest('hex');
+    const dup = db.prepare('SELECT id, titre FROM invoices WHERE photo_hash = ? AND id != ?').get(photo_hash, invoice.id);
+    if (dup) {
+      try { fs.unlinkSync(req.file.path); } catch {}
+      return res.status(409).json({ error: `Ce reçu a déjà été enregistré (« ${dup.titre} »).`, duplicate_id: dup.id });
+    }
+    await compressImage(req.file.path, 1600);
+    if (invoice.photo_path) { try { fs.unlinkSync(path.join(__dirname, invoice.photo_path)); } catch {} }
+    editUpdates.push('photo_path = ?', 'photo_hash = ?');
+    editVals.push(`/uploads/invoices/${req.file.filename}`, photo_hash);
+  }
+  if (editUpdates.length) {
+    editVals.push(invoice.id);
+    db.prepare(`UPDATE invoices SET ${editUpdates.join(', ')} WHERE id = ?`).run(...editVals);
+  }
+
+  if (statut === undefined) return res.json({ message: 'Mise à jour' });
+
   db.prepare('UPDATE invoices SET statut = ? WHERE id = ?').run(statut, req.params.id);
   // Dès qu'une facture est approuvée → enregistrer la dépense dans la ligne financière
   const wasAlreadyApprovedOrPaid = ['approuve','paye'].includes(invoice.statut);

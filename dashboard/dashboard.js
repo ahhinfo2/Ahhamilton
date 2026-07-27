@@ -218,9 +218,9 @@ async function api(path, opts = {}) {
   }
 }
 
-async function apiForm(path, formData) {
+async function apiForm(path, formData, method = 'POST') {
   const res = await fetch(API + path, {
-    method: 'POST',
+    method,
     headers: { Authorization: `Bearer ${TOKEN}` },
     body: formData
   });
@@ -3353,8 +3353,15 @@ function renderFinLines(lines) {
       <td style="color:#0277bd;font-size:.86rem">${(l.commanditaires||0)>0?fmtMoney(l.commanditaires):'–'}</td>
       <td><strong style="color:${solde<0?'var(--red)':'var(--g2)'}">${fmtMoney(solde)}</strong></td>
       <td><strong style="color:${soldeTotal<0?'var(--red)':'#0277bd'}">${fmtMoney(soldeTotal)}</strong></td>
-      <td>${statusPill(l.statut)}</td>
-      <td><button class="btn btn-sm btn-ghost" onclick="viewTransactions(${l.id},'${l.titre.replace(/'/g,"\\'")}')">📊 Détails</button></td>
+      <td>${l.statut === 'termine' ? pill('🔒 Fermé', 'bp-gray') : statusPill(l.statut)}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-sm btn-ghost" onclick="viewTransactions(${l.id},'${l.titre.replace(/'/g,"\\'")}')">📊 Détails</button>
+        ${can.adminOrTre() ? (
+          l.statut === 'termine'
+            ? (can.admin() ? `<button class="btn btn-sm btn-ghost" onclick="_finReopenLine(${l.id})" title="Rouvrir le projet">🔓 Rouvrir</button>` : '')
+            : `<button class="btn btn-sm btn-ghost" onclick="_finCloseLineForm(${l.id},'${(l.activite||l.titre).replace(/'/g,"\\'")}')" title="Fermer le projet (2 signatures requises)">${l.ma_signature ? '✅' : '🔒'} Fermer (${l.nb_signatures||0}/2)</button>`
+        ) : ''}
+      </td>
     </tr>`;
   }).join('');
 }
@@ -3433,6 +3440,68 @@ function openTransactionForm(t, lines) {
   };
 }
 
+// ── Fermeture d'un projet/activité (2 signatures requises, comme les rencontres comité) ──
+async function _finCloseLineForm(lineId, titre) {
+  const sigs = await api('/finance/lines/' + lineId + '/signatures').catch(() => []);
+  openModal('🔒 Fermer le projet — ' + escHtml(titre), `
+    <p style="font-size:.85rem;color:var(--muted);margin-bottom:12px">
+      La fermeture d'un projet nécessite <strong>2 signatures</strong> de membres du comité (trésorière ou admin).<br>
+      <strong style="color:#1b5e20">⚠️ Une fois 2 signatures obtenues, le projet sera fermé et les lignes financières verrouillées.</strong></p>
+    ${sigs.length ? `<div style="margin-bottom:12px">${sigs.map(s => `<div style="font-size:.8rem;padding:6px 0;border-bottom:1px solid var(--border)">✅ <strong>${escHtml(s.nom_signataire)}</strong> — ${fmt(s.date_signature)}</div>`).join('')}</div>` : ''}
+    <canvas id="finSigCanvas" width="540" height="160" style="border:1px solid #ccc;border-radius:8px;cursor:crosshair;display:block;width:100%;touch-action:none"></canvas>
+    <div style="margin-top:8px;display:flex;gap:8px">
+      <button class="btn btn-sm btn-ghost" onclick="_clearFinCanvas()">🗑 Effacer</button>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="_saveFinLineSignature(${lineId})">✅ Signer</button>
+      <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+    </div>
+  `);
+  setTimeout(() => {
+    const canvas = document.getElementById('finSigCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let drawing = false;
+    const getPos = e => {
+      const r = canvas.getBoundingClientRect();
+      const src = e.touches ? e.touches[0] : e;
+      return { x: (src.clientX - r.left) * (canvas.width / r.width), y: (src.clientY - r.top) * (canvas.height / r.height) };
+    };
+    canvas.addEventListener('mousedown', e => { drawing = true; const p = getPos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); });
+    canvas.addEventListener('mousemove', e => { if (!drawing) return; const p = getPos(e); ctx.lineWidth = 2.5; ctx.strokeStyle = '#1b5e20'; ctx.lineCap = 'round'; ctx.lineTo(p.x, p.y); ctx.stroke(); });
+    canvas.addEventListener('mouseup', () => { drawing = false; });
+    canvas.addEventListener('touchstart', e => { e.preventDefault(); drawing = true; const p = getPos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); }, { passive: false });
+    canvas.addEventListener('touchmove', e => { e.preventDefault(); if (!drawing) return; const p = getPos(e); ctx.lineWidth = 2.5; ctx.strokeStyle = '#1b5e20'; ctx.lineCap = 'round'; ctx.lineTo(p.x, p.y); ctx.stroke(); }, { passive: false });
+    canvas.addEventListener('touchend', () => { drawing = false; });
+  }, 50);
+}
+
+function _clearFinCanvas() {
+  const c = document.getElementById('finSigCanvas');
+  if (c) c.getContext('2d').clearRect(0, 0, c.width, c.height);
+}
+
+async function _saveFinLineSignature(lineId) {
+  const canvas = document.getElementById('finSigCanvas');
+  if (!canvas) return;
+  const blank = document.createElement('canvas'); blank.width = canvas.width; blank.height = canvas.height;
+  if (canvas.toDataURL() === blank.toDataURL()) return toast('Veuillez dessiner votre signature', 'error');
+  const signature_data = canvas.toDataURL('image/png');
+  try {
+    const r = await api('/finance/lines/' + lineId + '/close-signature', { method:'POST', body: JSON.stringify({ signature_data }) });
+    closeModal();
+    if (r.ferme) toast('🔒 Projet fermé : ' + r.nb_signatures + ' signatures collectées');
+    else toast('✅ Signature enregistrée (' + r.nb_signatures + '/2 pour fermer)');
+    finance();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function _finReopenLine(lineId) {
+  if (!confirm('Rouvrir ce projet ? Les signatures seront effacées.')) return;
+  try { await api('/finance/lines/' + lineId + '/reopen', { method:'POST' }); toast('Projet rouvert'); finance(); }
+  catch(e) { toast(e.message, 'error'); }
+}
+
 function openAccountForm(acc) {
   openModal('Informations du compte', `
     <form id="accForm">
@@ -3462,6 +3531,7 @@ function openAccountForm(acc) {
 async function invoices() {
   const [data, lines] = await Promise.all([api('/finance/invoices'), api('/finance/lines')]);
   window._invoiceLines = lines;
+  window._invById = {}; data.forEach(i => window._invById[i.id] = i);
   setContent(`
     <div class="page-header">
       <div><h2>Factures</h2><p>Gestion des factures et reçus</p></div>
@@ -3470,14 +3540,15 @@ async function invoices() {
     <div class="table-card"><div class="table-wrapper"><table>
       <thead><tr><th>Titre</th><th>Fournisseur</th><th>Montant</th><th>Date</th><th>Activité / Projet</th><th>Statut</th><th>Photo</th>${can.adminOrTre() ? '<th>Actions</th>' : ''}</tr></thead>
       <tbody>${data.map(i=>`<tr>
-        <td><strong>${i.titre}</strong></td>
-        <td>${i.fournisseur||'–'}</td>
+        <td><strong>${escHtml(i.titre)}</strong>${i.commentaire ? `<br><span style="font-size:.74rem;color:var(--muted);font-style:italic">💬 ${escHtml(i.commentaire)}</span>` : ''}</td>
+        <td>${escHtml(i.fournisseur||'–')}</td>
         <td>${fmtMoney(i.montant)}</td>
         <td>${fmt(i.date_facture)}</td>
-        <td>${i.ligne||'–'}</td>
+        <td>${escHtml(i.ligne||'–')}</td>
         <td>${statusPill(i.statut)}</td>
         <td>${i.photo_path ? `<a href="${BASE}${i.photo_path}" target="_blank" class="btn btn-sm btn-ghost">📷 Voir</a>` : '–'}</td>
         ${can.adminOrTre() ? `<td style="white-space:nowrap">
+          <button class="btn btn-sm btn-ghost" onclick="openInvoiceForm(window._invoiceLines,window._invById[${i.id}])" title="Modifier">✏️</button>
           ${i.statut === 'en_attente' ? `
             <button class="btn btn-sm btn-primary" onclick="updateInvoiceStatus(${i.id},'approuve')" title="Approuver et enregistrer la dépense">✅ Approuver</button>
             <button class="btn btn-sm btn-ghost" onclick="updateInvoiceStatus(${i.id},'refuse')" style="color:var(--red)">✗ Refuser</button>` : ''}
@@ -3489,51 +3560,97 @@ async function invoices() {
   `);
 }
 
-function openInvoiceForm(lines) {
+function openInvoiceForm(lines, existing) {
+  window._invEditId = existing?.id || null;
   const actLines = lines.filter(l => l.activite);
   const prjLines = lines.filter(l => l.projet);
   const otherLines = lines.filter(l => !l.activite && !l.projet);
   const lineOptions = [
-    actLines.length ? `<optgroup label="Activités">${actLines.map(l=>`<option value="${l.id}">🗓 ${l.activite}</option>`).join('')}</optgroup>` : '',
-    prjLines.length ? `<optgroup label="Projets">${prjLines.map(l=>`<option value="${l.id}">◑ ${l.projet}</option>`).join('')}</optgroup>` : '',
-    otherLines.length ? `<optgroup label="Autres">${otherLines.map(l=>`<option value="${l.id}">${l.titre}</option>`).join('')}</optgroup>` : ''
+    actLines.length ? `<optgroup label="Activités">${actLines.map(l=>`<option value="${l.id}" ${existing?.financial_line_id===l.id?'selected':''}>🗓 ${l.activite}</option>`).join('')}</optgroup>` : '',
+    prjLines.length ? `<optgroup label="Projets">${prjLines.map(l=>`<option value="${l.id}" ${existing?.financial_line_id===l.id?'selected':''}>◑ ${l.projet}</option>`).join('')}</optgroup>` : '',
+    otherLines.length ? `<optgroup label="Autres">${otherLines.map(l=>`<option value="${l.id}" ${existing?.financial_line_id===l.id?'selected':''}>${l.titre}</option>`).join('')}</optgroup>` : ''
   ].join('');
-  openModal('Nouvelle facture / reçu', `
+  openModal(existing ? 'Modifier la facture / reçu' : 'Nouvelle facture / reçu', `
     <form id="invForm" enctype="multipart/form-data">
-      <div class="form-group"><label>Titre *</label><input id="inv_titre" required/></div>
+      <div class="form-group"><label>Titre</label><input id="inv_titre" value="${escHtml(existing?.titre||'')}" placeholder="Laisser vide = généré automatiquement"/></div>
       <div class="form-row">
-        <div class="form-group"><label>Fournisseur</label><input id="inv_four"/></div>
-        <div class="form-group"><label>Montant ($)</label><input type="number" step="0.01" id="inv_mont"/></div>
+        <div class="form-group"><label>Fournisseur</label><input id="inv_four" value="${escHtml(existing?.fournisseur||'')}"/></div>
+        <div class="form-group"><label>Montant ($)</label><input type="number" step="0.01" id="inv_mont" value="${existing?.montant??''}"/></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>Date facture</label><input type="date" id="inv_date"/></div>
+        <div class="form-group"><label>Date facture</label><input type="date" id="inv_date" value="${(existing?.date_facture||'').substring(0,10)}"/></div>
         <div class="form-group"><label>Activité ou Projet *</label>
           <select id="inv_line" required>
             <option value="">– Choisir –</option>
             ${lineOptions}
           </select></div>
       </div>
+      <div class="form-group"><label>Commentaire</label>
+        <textarea id="inv_comment" rows="2" placeholder="Note libre sur ce reçu...">${escHtml(existing?.commentaire||'')}</textarea></div>
       <div class="form-group"><label>Photo / Scan de la facture</label>
-        <input type="file" id="inv_photo" accept="image/*,application/pdf"/></div>
+        ${existing?.photo_path ? `<div style="margin-bottom:6px"><a href="${BASE}${existing.photo_path}" target="_blank" class="btn btn-sm btn-ghost">📷 Voir la photo actuelle</a></div>` : ''}
+        <input type="file" id="inv_photo" accept="image/*,application/pdf" capture="environment"/>
+        <p style="font-size:.72rem;color:var(--muted);margin-top:4px">📱 Prenez la photo directement avec votre cellulaire — elle sera enregistrée automatiquement, vous pourrez compléter les détails ensuite.</p>
+        <div id="inv_autosave_status" style="font-size:.78rem;margin-top:4px"></div>
+      </div>
       <div class="form-actions">
         <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
         <button type="submit" class="btn btn-primary">Enregistrer</button>
       </div>
     </form>
   `);
+
+  function collectFormData() {
+    const fd = new FormData();
+    fd.append('titre', document.getElementById('inv_titre').value.trim());
+    fd.append('fournisseur', document.getElementById('inv_four').value);
+    fd.append('montant', document.getElementById('inv_mont').value);
+    fd.append('date_facture', document.getElementById('inv_date').value);
+    fd.append('financial_line_id', document.getElementById('inv_line').value);
+    fd.append('commentaire', document.getElementById('inv_comment').value);
+    return fd;
+  }
+
+  // Auto-save dès qu'une photo est prise/choisie — pas besoin d'attendre le clic sur "Enregistrer"
+  document.getElementById('inv_photo').onchange = async function() {
+    const file = this.files[0];
+    if (!file) return;
+    const lineId = document.getElementById('inv_line').value;
+    if (!lineId) { toast('Choisissez d\'abord une activité ou un projet', 'error'); this.value = ''; return; }
+    const statusEl = document.getElementById('inv_autosave_status');
+    statusEl.textContent = '⏳ Enregistrement automatique...'; statusEl.style.color = 'var(--muted)';
+    const fd = collectFormData();
+    fd.append('photo', file);
+    try {
+      const url = '/finance/invoices' + (window._invEditId ? '/' + window._invEditId : '');
+      const method = window._invEditId ? 'PUT' : 'POST';
+      const data = await apiForm(url, fd, method);
+      if (!window._invEditId) window._invEditId = data.id;
+      if (data.titre) document.getElementById('inv_titre').value = data.titre;
+      statusEl.textContent = '✅ Photo enregistrée automatiquement — complétez les détails puis Enregistrer';
+      statusEl.style.color = 'var(--g2)';
+      toast('📷 Reçu sauvegardé automatiquement');
+    } catch(ex) {
+      statusEl.textContent = '❌ ' + ex.message;
+      statusEl.style.color = 'var(--red)';
+      toast(ex.message, 'error');
+      this.value = '';
+    }
+  };
+
   document.getElementById('invForm').onsubmit = async e => {
     e.preventDefault();
     const lineId = document.getElementById('inv_line').value;
     if (!lineId) { toast('Veuillez choisir une activité ou un projet', 'error'); return; }
-    const fd = new FormData();
-    fd.append('titre', document.getElementById('inv_titre').value);
-    fd.append('fournisseur', document.getElementById('inv_four').value);
-    fd.append('montant', document.getElementById('inv_mont').value);
-    fd.append('date_facture', document.getElementById('inv_date').value);
-    fd.append('financial_line_id', lineId);
+    const fd = collectFormData();
     const ph = document.getElementById('inv_photo').files[0];
-    if (ph) fd.append('photo', ph);
-    try { await apiForm('/finance/invoices', fd); closeModal(); toast('Facture enregistrée'); invoices(); }
+    if (ph && !window._invEditId) fd.append('photo', ph);
+    try {
+      const url = '/finance/invoices' + (window._invEditId ? '/' + window._invEditId : '');
+      const method = window._invEditId ? 'PUT' : 'POST';
+      await apiForm(url, fd, method);
+      closeModal(); toast(window._invEditId ? 'Facture mise à jour' : 'Facture enregistrée'); invoices();
+    }
     catch(ex) { toast(ex.message,'error'); }
   };
 }
