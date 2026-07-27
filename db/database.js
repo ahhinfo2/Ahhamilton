@@ -887,11 +887,12 @@ function init() {
   const COMMITTEE_PWD = 'AHH2026!';
   const hashCommittee = bcrypt.hashSync(COMMITTEE_PWD, 10);
   const committeeAccounts = [
-    { oldEmails: ['jean-carme@ahhamilton.ca'], email: 'presidente@ahhamilton.ca', prenom: 'Jean',    nom: 'Carme', role: 'admin'      },
-    { oldEmails: ['aviole@ahhamilton.ca'],     email: 'tresoriere@ahhamilton.ca', prenom: 'Aviole',  nom: 'AHH',   role: 'tresoriere' },
-    { oldEmails: ['jeens@ahhamilton.ca'],      email: 'secretaire@ahhamilton.ca', prenom: 'Pierre',  nom: 'Jeens', role: 'secretaire' },
-    { oldEmails: ['garry@ahhamilton.ca'],      email: 'delegue1@ahhamilton.ca',   prenom: 'Garry',   nom: 'AHH',   role: 'delegue'    },
-    { oldEmails: ['driscoll@ahhamilton.ca'],   email: 'delegue2@ahhamilton.ca',   prenom: 'Dricoll', nom: 'AHH',   role: 'delegue'    },
+    { oldEmails: ['jean-carme@ahhamilton.ca'], email: 'presidente@ahhamilton.ca', prenom: 'Jean',    nom: 'Carme',   role: 'admin',      titre_comite: 'Présidente'     },
+    { oldEmails: [],                           email: 'vp@ahhamilton.ca',        prenom: 'Jean',    nom: 'Raymond', role: 'admin',      titre_comite: 'Vice-Président' },
+    { oldEmails: ['aviole@ahhamilton.ca'],     email: 'tresoriere@ahhamilton.ca', prenom: 'Aviole',  nom: 'AHH',     role: 'tresoriere', titre_comite: 'Trésorière'     },
+    { oldEmails: ['jeens@ahhamilton.ca'],      email: 'secretaire@ahhamilton.ca', prenom: 'Pierre',  nom: 'Jeens',   role: 'secretaire', titre_comite: 'Secrétaire'     },
+    { oldEmails: ['garry@ahhamilton.ca'],      email: 'delegue1@ahhamilton.ca',   prenom: 'Garry',   nom: 'AHH',     role: 'delegue',    titre_comite: 'Délégué'        },
+    { oldEmails: ['driscoll@ahhamilton.ca'],   email: 'delegue2@ahhamilton.ca',   prenom: 'Dricoll', nom: 'AHH',     role: 'delegue',    titre_comite: 'Délégué'        },
   ];
   committeeAccounts.forEach(c => {
     let user = null;
@@ -900,8 +901,12 @@ function init() {
       if (user) break;
     }
     if (user) {
-      db.prepare('UPDATE users SET email = ?, password_hash = ?, actif = 1 WHERE id = ?')
-        .run(c.email, hashCommittee, user.id);
+      // Ne jamais écraser un titre déjà personnalisé manuellement par le comité
+      db.prepare("UPDATE users SET email = ?, password_hash = ?, actif = 1, titre_comite = COALESCE(NULLIF(titre_comite,''), ?) WHERE id = ?")
+        .run(c.email, hashCommittee, c.titre_comite, user.id);
+    } else {
+      db.prepare('INSERT INTO users (prenom, nom, email, password_hash, role, titre_comite) VALUES (?,?,?,?,?,?)')
+        .run(c.prenom, c.nom, c.email, hashCommittee, c.role, c.titre_comite);
     }
   });
   console.log('✅ Comptes comité synchronisés (mot de passe: AHH2026!)');
@@ -1476,6 +1481,19 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS dependents (
   date_naissance TEXT,
   notes TEXT,
   date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
+// Délégation de présidence (intérim) — un admin peut désigner un membre du comité
+// comme président(e) par intérim pendant une absence, sur le même principe que
+// les délégations de scan.
+try { db.exec(`CREATE TABLE IF NOT EXISTS presidence_delegations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  delegue_par INTEGER NOT NULL REFERENCES users(id),
+  motif TEXT,
+  actif INTEGER DEFAULT 1,
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+  date_expiration TEXT
 )`); } catch {}
 
 init();

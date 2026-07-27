@@ -8093,6 +8093,55 @@ app.delete('/api/scan-delegations/:id', authMiddleware, requireRole(...SCAN_EXEC
   res.json({ ok: true });
 });
 
+// ══════════════════════════════════════════════════════════════════════════════
+// DÉLÉGATION DE PRÉSIDENCE (INTÉRIM)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Créer une délégation de présidence (admin seulement — action sensible de gouvernance)
+app.post('/api/presidence-delegations', authMiddleware, requireRole('admin'), (req, res) => {
+  const { user_id, motif, date_expiration } = req.body;
+  if (!user_id) return res.status(400).json({ error: 'user_id requis' });
+  const user = db.prepare("SELECT id, prenom, nom, role FROM users WHERE id = ? AND actif = 1").get(user_id);
+  if (!user) return res.status(404).json({ error: 'Membre introuvable' });
+  if (!['admin','tresoriere','secretaire','delegue'].includes(user.role))
+    return res.status(400).json({ error: 'Seul un membre du comité peut recevoir une délégation de présidence' });
+  const existing = db.prepare('SELECT id FROM presidence_delegations WHERE actif = 1').get();
+  if (existing) return res.status(409).json({ error: 'Une délégation de présidence est déjà active — révoquez-la d\'abord' });
+  const result = db.prepare('INSERT INTO presidence_delegations (user_id, delegue_par, motif, date_expiration) VALUES (?,?,?,?)')
+    .run(user_id, req.user.id, motif || '', date_expiration || null);
+  getAdminsAndRole('admin').forEach(a =>
+    createAlert(a.id, 'presidence', `🎗️ Présidence par intérim : ${user.prenom} ${user.nom}`, motif || 'Délégation de présidence activée'));
+  res.json({ ok: true, id: result.lastInsertRowid });
+});
+
+// Lister l'historique des délégations de présidence (EXEC)
+app.get('/api/presidence-delegations', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  const rows = db.prepare(`SELECT pd.*, u.prenom, u.nom, u.titre_comite,
+    dp.prenom AS delegue_par_prenom, dp.nom AS delegue_par_nom
+    FROM presidence_delegations pd
+    JOIN users u ON u.id = pd.user_id
+    JOIN users dp ON dp.id = pd.delegue_par
+    ORDER BY pd.date_creation DESC`).all();
+  res.json(rows);
+});
+
+// Qui assure la présidence par intérim actuellement (EXEC)
+app.get('/api/presidence-delegations/active', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  const row = db.prepare(`SELECT pd.*, u.prenom, u.nom, u.titre_comite
+    FROM presidence_delegations pd JOIN users u ON u.id = pd.user_id
+    WHERE pd.actif = 1 AND (pd.date_expiration IS NULL OR pd.date_expiration > datetime('now'))
+    ORDER BY pd.date_creation DESC LIMIT 1`).get();
+  res.json(row || null);
+});
+
+// Révoquer une délégation de présidence (admin)
+app.delete('/api/presidence-delegations/:id', authMiddleware, requireRole('admin'), (req, res) => {
+  const d = db.prepare('SELECT id FROM presidence_delegations WHERE id = ?').get(req.params.id);
+  if (!d) return res.status(404).json({ error: 'Délégation introuvable' });
+  db.prepare('UPDATE presidence_delegations SET actif = 0 WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
 // Journal des scans
 app.get('/api/scan-logs', authMiddleware, (req, res) => {
   const actId = req.query.activity_id;

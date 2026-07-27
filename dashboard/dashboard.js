@@ -399,6 +399,7 @@ async function buildSidebar() {
       { id:'forms-mgmt',        icon:'📋', label:'Formulaires',        roles:EXEC },
       { id:'decision-registry', icon:'📒', label:'Registre décisions', roles:EXEC },
       { id:'correspondance',    icon:'📨', label:'Correspondance',      roles:['admin','secretaire'] },
+      { id:'presidence-delegation', icon:'🎗️', label:'Délégation présidence', roles:EXEC },
       { id:'policies',          icon:'📜', label:'Politiques',         roles:EXEC },
       { id:'email-templates',   icon:'✉️', label:'Modèles courriel',  roles:EXEC },
       { id:'annual-report',     icon:'📊', label:'Rapport annuel',    roles:EXEC },
@@ -605,7 +606,7 @@ function setActiveNav(viewId) {
     'tasks':'Tâches',
     'meeting-calendar':'Calendrier des réunions',
     'meeting-agendas':'Ordres du jour',
-    'decision-registry':'Registre des décisions',
+    'decision-registry':'Registre des décisions', 'presidence-delegation':'Délégation présidence',
     'policies':'Politiques et règlements',
     'email-templates':'Modèles de courriels',
     'export-data':'Export données',
@@ -1212,6 +1213,7 @@ async function showView(viewId) {
     'export-data': exportDataView,
     'annual-report': annualReportView,
     'scan-delegations': scanDelegationsListView,
+    'presidence-delegation': presidenceDelegationView,
     'forms-mgmt': formsMgmtView,
     'shop-mgmt': shopMgmtView,
     'committee-meetings': committeeMeetingsView,
@@ -1234,11 +1236,12 @@ async function home() {
   // Membres → afficher le calendrier personnalisé
   if (USER.role === 'member') { await memberHome(); return; }
 
-  const [stats, alerts, birthdays, members] = await Promise.all([
+  const [stats, alerts, birthdays, members, activePresidence] = await Promise.all([
     api('/stats'),
     api('/alerts'),
     can.adminOrSec() ? api('/membres/anniversaires').catch(() => []) : Promise.resolve([]),
     can.adminOrSec() ? api('/users').catch(() => []) : Promise.resolve([]),
+    api('/presidence-delegations/active').catch(() => null),
   ]);
   const upcoming = stats.prochaines_activites || [];
   const unreadAlerts = alerts.filter(a => !a.lu).slice(0, 4);
@@ -1273,6 +1276,17 @@ async function home() {
         ${roleEmoji[USER.role] || '👤'}
       </div>
     </div>
+
+    ${activePresidence ? `
+    <div class="table-card" style="margin-bottom:18px;border-left:4px solid #f9a825">
+      <div style="padding:14px 16px;display:flex;align-items:center;gap:12px">
+        <span style="font-size:1.4rem">🎗️</span>
+        <div style="flex:1;font-size:.86rem">
+          <strong>${escHtml(activePresidence.prenom)} ${escHtml(activePresidence.nom)}</strong> assure la présidence par intérim${activePresidence.motif ? ' — ' + escHtml(activePresidence.motif) : ''}
+        </div>
+        <button class="btn btn-sm btn-ghost" onclick="showView('presidence-delegation')">Détails →</button>
+      </div>
+    </div>` : ''}
 
     <!-- Stats cards -->
     <div class="cards-grid" style="margin-bottom:28px">
@@ -15550,6 +15564,106 @@ async function _sdRevoke(id) {
     await api('/scan-delegations/' + id, { method:'DELETE' });
     toast('Délégation révoquée');
     scanDelegationsListView();
+  } catch(e) { toast(e.message, true); }
+}
+
+// ══ DÉLÉGATION DE PRÉSIDENCE (INTÉRIM) ══════════════════════════════════════
+async function presidenceDelegationView() {
+  if (!can.executive()) { toast('Accès réservé au comité', true); return; }
+  try {
+    const [history, active] = await Promise.all([
+      api('/presidence-delegations'),
+      api('/presidence-delegations/active').catch(() => null)
+    ]);
+
+    setContent(`
+      <div class="page-header">
+        <div><h2>🎗️ Délégation de présidence</h2><p>Désignez un membre du comité comme président(e) par intérim pendant une absence.</p></div>
+      </div>
+
+      ${active ? `
+      <div class="table-card" style="margin-bottom:18px;border-left:4px solid #f9a825">
+        <div style="padding:16px;display:flex;align-items:center;gap:14px">
+          <span style="font-size:1.6rem">🎗️</span>
+          <div style="flex:1">
+            <div style="font-weight:700">Présidence par intérim active : ${escHtml(active.prenom)} ${escHtml(active.nom)}</div>
+            <div style="font-size:.82rem;color:var(--muted)">${active.motif ? escHtml(active.motif) + ' — ' : ''}depuis le ${fmt(active.date_creation)}${active.date_expiration ? ' · jusqu\'au ' + fmt(active.date_expiration) : ''}</div>
+          </div>
+          ${can.admin() ? `<button class="btn btn-ghost btn-sm" style="color:#c62828" onclick="_pdRevoke(${active.id})">Révoquer</button>` : ''}
+        </div>
+      </div>` : ''}
+
+      ${can.admin() && !active ? `
+      <div class="table-card" style="margin-bottom:18px">
+        <div class="table-card-header"><h3>Nouvelle délégation</h3></div>
+        <div style="padding:16px">
+          <div class="form-row">
+            <div class="form-group" style="position:relative">
+              <label>Membre du comité</label>
+              <input id="pdSearch" autocomplete="off" placeholder="Tapez un nom..." oninput="_taskSearchMember(this.value);document.getElementById('pdDropdown').id='taskAssigneDropdown'">
+              <input id="pdUserId" type="hidden">
+              <div id="pdDropdown" style="position:absolute;top:100%;left:0;right:0;z-index:50;background:#fff;border:1px solid #ddd;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.15);max-height:180px;overflow-y:auto;display:none"></div>
+            </div>
+            <div class="form-group">
+              <label>Jusqu'au (optionnel)</label>
+              <input type="date" id="pdExpiration">
+            </div>
+          </div>
+          <div class="form-group"><label>Motif</label><input id="pdMotif" placeholder="Ex. Vacances, congé maladie..."/></div>
+          <button class="btn btn-primary" onclick="_pdCreate()">Déléguer la présidence</button>
+        </div>
+      </div>` : ''}
+
+      <div class="table-card">
+        <div class="table-card-header"><h3>Historique</h3></div>
+        <div class="table-wrapper"><table>
+          <thead><tr><th>Membre</th><th>Délégué par</th><th>Motif</th><th>Début</th><th>Fin</th><th>Statut</th></tr></thead>
+          <tbody>
+            ${history.length ? history.map(d => `<tr>
+              <td><strong>${escHtml(d.prenom)} ${escHtml(d.nom)}</strong></td>
+              <td>${escHtml(d.delegue_par_prenom)} ${escHtml(d.delegue_par_nom)}</td>
+              <td>${escHtml(d.motif || '–')}</td>
+              <td>${fmt(d.date_creation)}</td>
+              <td>${d.date_expiration ? fmt(d.date_expiration) : '–'}</td>
+              <td>${d.actif ? pill('Active','bp-green') : pill('Terminée','bp-gray')}</td>
+            </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">Aucune délégation enregistrée</td></tr>'}
+          </tbody>
+        </table></div>
+      </div>
+    `);
+
+    setTimeout(() => {
+      const dd = document.getElementById('pdDropdown');
+      if (dd) {
+        dd.id = 'taskAssigneDropdown';
+        window._taskSelectMember = function(id, nom) {
+          document.getElementById('pdUserId').value = id;
+          document.getElementById('pdSearch').value = nom;
+          document.getElementById('taskAssigneDropdown').style.display = 'none';
+        };
+      }
+    }, 100);
+  } catch(e) { toast(e.message, true); }
+}
+
+async function _pdCreate() {
+  const userId = document.getElementById('pdUserId')?.value;
+  const motif = document.getElementById('pdMotif')?.value || '';
+  const expiration = document.getElementById('pdExpiration')?.value || null;
+  if (!userId) { toast('Sélectionnez un membre', true); return; }
+  try {
+    await api('/presidence-delegations', { method:'POST', body: JSON.stringify({ user_id: parseInt(userId), motif, date_expiration: expiration }) });
+    toast('✅ Présidence déléguée');
+    presidenceDelegationView();
+  } catch(e) { toast(e.message, true); }
+}
+
+async function _pdRevoke(id) {
+  if (!confirm('Révoquer cette délégation de présidence ?')) return;
+  try {
+    await api('/presidence-delegations/' + id, { method:'DELETE' });
+    toast('Délégation révoquée');
+    presidenceDelegationView();
   } catch(e) { toast(e.message, true); }
 }
 
