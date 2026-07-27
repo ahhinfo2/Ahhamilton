@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.0",
+    "archiver": "^7.0.1",
     "bcryptjs": "^2.4.3",
     "bwip-js": "^4.11.1",
     "compression": "^1.8.1",

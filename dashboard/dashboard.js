@@ -370,6 +370,7 @@ async function buildSidebar() {
       { id:'paiements',         icon:'◆', label:'Paiements',        roles:['admin','tresoriere','secretaire','delegue'] },
       { id:'finance',           icon:'◇', label:'Budget',            roles:['admin','tresoriere','secretaire','delegue'] },
       { id:'invoices',          icon:'◈', label:'Factures',          roles:['admin','tresoriere','secretaire','delegue'] },
+      { id:'recus_archive',     icon:'🗂️', label:'Archive reçus',    roles:['admin','tresoriere','secretaire','delegue'] },
       { id:'recus',             icon:'◉', label:'Reçus fiscaux',    roles:['admin','tresoriere','secretaire','delegue'] },
       { id:'rapports_finance',  icon:'📊', label:'Rapports finance', roles:['admin','tresoriere','secretaire','delegue'] },
     ]},
@@ -1175,7 +1176,7 @@ async function showView(viewId) {
     notes, reports, letters, projects, alerts, profile,
     gallery_mgmt, annuaire, talents_mgmt, annonces_mgmt, mes_talents, mes_annonces,
     inscriptions, paiements, recus, mon_paiement, mes_billets, testimonials_mgmt, videos_mgmt,
-    scanner, forum, newsletter, rapports_finance, documents_mgmt, sponsors_mgmt, equipe_mgmt
+    scanner, forum, newsletter, rapports_finance, documents_mgmt, sponsors_mgmt, equipe_mgmt, recus_archive
   };
   const extViews = {
     'pending-orders': pendingOrders,
@@ -3333,8 +3334,18 @@ function renderFinLines(lines) {
     const solde      = (l.budget_alloue||0) - (l.depenses||0) + (l.revenus||0);
     const soldeTotal = solde + (l.commanditaires||0);
     const pending    = l.depenses_en_attente||0;
+    const budget     = l.budget_alloue||0;
+    const pct        = budget > 0 ? Math.round((l.depenses||0) / budget * 100) : 0;
+    const barColor   = pct >= 100 ? 'var(--red)' : pct >= 80 ? '#e65100' : 'var(--g2)';
+    const progressBar = budget > 0 ? `
+      <div style="margin-top:6px;display:flex;align-items:center;gap:6px">
+        <div style="flex:1;background:var(--off);border-radius:20px;height:6px;overflow:hidden;min-width:60px">
+          <div style="height:100%;width:${Math.min(pct,100)}%;background:${barColor};border-radius:20px"></div>
+        </div>
+        <span style="font-size:.68rem;color:${barColor};font-weight:700;white-space:nowrap">${pct}%</span>
+      </div>` : '';
     return `<tr>
-      <td><strong>${l.activite||l.projet||l.titre}</strong><br><span style="font-size:.74rem;color:var(--muted)">${l.titre}</span></td>
+      <td><strong>${l.activite||l.projet||l.titre}</strong><br><span style="font-size:.74rem;color:var(--muted)">${l.titre}</span>${progressBar}</td>
       <td>${fmtMoney(l.budget_alloue)}</td>
       <td style="color:var(--red);font-size:.86rem">${fmtMoney(l.depenses)}</td>
       <td style="color:#e65100;font-size:.86rem">${pending>0?'⏳ '+fmtMoney(pending):'–'}</td>
@@ -3343,23 +3354,45 @@ function renderFinLines(lines) {
       <td><strong style="color:${solde<0?'var(--red)':'var(--g2)'}">${fmtMoney(solde)}</strong></td>
       <td><strong style="color:${soldeTotal<0?'var(--red)':'#0277bd'}">${fmtMoney(soldeTotal)}</strong></td>
       <td>${statusPill(l.statut)}</td>
-      <td><button class="btn btn-sm btn-ghost" onclick="viewTransactions(${l.id},'${l.titre.replace(/'/g,"\\'")}')">Transactions</button></td>
+      <td><button class="btn btn-sm btn-ghost" onclick="viewTransactions(${l.id},'${l.titre.replace(/'/g,"\\'")}')">📊 Détails</button></td>
     </tr>`;
   }).join('');
 }
 
 async function viewTransactions(lineId, titre) {
-  const data = await api(`/finance/transactions?line_id=${lineId}`);
-  openModal(`Transactions – ${titre}`, `
-    <div class="table-wrapper"><table>
+  const [transactions, allInvoices] = await Promise.all([
+    api(`/finance/transactions?line_id=${lineId}`),
+    api('/finance/invoices').catch(() => [])
+  ]);
+  const factures = allInvoices.filter(i => i.financial_line_id === lineId);
+
+  openModal(`📊 Détails – ${escHtml(titre)}`, `
+    <h4 style="margin:0 0 10px">Transactions (revenus & dépenses)</h4>
+    <div class="table-wrapper" style="margin-bottom:24px"><table>
       <thead><tr><th>Date</th><th>Type</th><th>Montant</th><th>Description</th><th>Méthode</th></tr></thead>
-      <tbody>${data.map(t=>`<tr>
+      <tbody>${transactions.map(t=>`<tr>
         <td>${fmt(t.date_transaction)}</td>
         <td>${pill(t.type,t.type==='depense'?'bp-red':'bp-green')}</td>
         <td><strong>${fmtMoney(t.montant)}</strong></td>
         <td>${t.description||'–'}</td>
         <td>${t.methode||'–'}</td>
       </tr>`).join('') || '<tr><td colspan="5" style="text-align:center">Aucune transaction</td></tr>'}</tbody>
+    </table></div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <h4 style="margin:0">Factures</h4>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal();showView('invoices')">📄 Voir toutes les factures →</button>
+    </div>
+    <div class="table-wrapper"><table>
+      <thead><tr><th>Titre</th><th>Fournisseur</th><th>Montant</th><th>Date</th><th>Statut</th><th>Photo</th></tr></thead>
+      <tbody>${factures.map(i=>`<tr>
+        <td><strong>${escHtml(i.titre)}</strong></td>
+        <td>${escHtml(i.fournisseur||'–')}</td>
+        <td>${fmtMoney(i.montant)}</td>
+        <td>${fmt(i.date_facture)}</td>
+        <td>${statusPill(i.statut)}</td>
+        <td>${i.photo_path ? `<a href="${BASE}${i.photo_path}" target="_blank" class="btn btn-sm btn-ghost">📷 Voir</a>` : '–'}</td>
+      </tr>`).join('') || '<tr><td colspan="6" style="text-align:center">Aucune facture</td></tr>'}</tbody>
     </table></div>
   `);
 }
@@ -3519,6 +3552,148 @@ async function deleteInvoice(id) {
   } catch (ex) {
     toast(ex.message, 'error');
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ARCHIVE DES REÇUS (factures photographiées, classées Année → Mois → Activité)
+// ══════════════════════════════════════════════════════════════════════════════
+async function recus_archive() {
+  const data = await api('/receipts-archive').catch(() => []);
+  window._raData = data;
+  window._raYear = null;
+  window._raMonth = null;
+  window._raLigne = null;
+  window._raSelected = new Set();
+  _raRender();
+}
+
+function _raLabel(r) {
+  return r.activite_titre || r.projet_titre || r.ligne_titre || 'Autres';
+}
+
+function _raSetPath(year, month, ligne) {
+  window._raYear = year; window._raMonth = month; window._raLigne = ligne;
+  window._raSelected = new Set();
+  _raRender();
+}
+
+const _RA_MOIS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+
+function _raRender() {
+  const data = window._raData || [];
+  const year = window._raYear, month = window._raMonth, ligne = window._raLigne;
+
+  const crumbs = [`<a href="javascript:void(0)" onclick="_raSetPath(null,null,null)" style="color:var(--g2)">🗂️ Archive des reçus</a>`];
+  if (year != null) crumbs.push(`<a href="javascript:void(0)" onclick="_raSetPath(${year},null,null)" style="color:var(--g2)">${year}</a>`);
+  if (month != null) crumbs.push(`<a href="javascript:void(0)" onclick="_raSetPath(${year},${month},null)" style="color:var(--g2)">${_RA_MOIS[month-1]}</a>`);
+  if (ligne != null) crumbs.push(`<span>${escHtml(ligne)}</span>`);
+
+  let body = '';
+
+  if (year == null) {
+    const byYear = {};
+    data.forEach(r => { const y = (r.date_facture||'').substring(0,4); if (!y) return; byYear[y] = (byYear[y]||0) + 1; });
+    const years = Object.keys(byYear).sort((a,b) => b - a);
+    body = years.length
+      ? `<div class="cards-grid">` + years.map(y => `
+        <div class="table-card" style="cursor:pointer;padding:22px;text-align:center" onclick="_raSetPath(${y},null,null)">
+          <div style="font-size:1.6rem;font-weight:800;color:var(--g2)">${y}</div>
+          <div style="color:var(--muted);font-size:.85rem">${byYear[y]} reçu(s)</div>
+        </div>`).join('') + `</div>`
+      : `<p style="color:var(--muted);text-align:center;padding:40px">Aucun reçu enregistré. Ajoutez une photo lors de la création d'une facture (section Factures).</p>`;
+  } else if (month == null) {
+    const byMonth = {};
+    data.filter(r => (r.date_facture||'').substring(0,4) === String(year)).forEach(r => {
+      const m = parseInt((r.date_facture||'').substring(5,7));
+      if (!m) return;
+      byMonth[m] = (byMonth[m]||0) + 1;
+    });
+    const months = Object.keys(byMonth).map(Number).sort((a,b) => a - b);
+    body = months.length
+      ? `<div class="cards-grid">` + months.map(m => `
+        <div class="table-card" style="cursor:pointer;padding:20px;text-align:center" onclick="_raSetPath(${year},${m},null)">
+          <div style="font-size:1.15rem;font-weight:800;color:var(--g2)">${_RA_MOIS[m-1]}</div>
+          <div style="color:var(--muted);font-size:.85rem">${byMonth[m]} reçu(s)</div>
+        </div>`).join('') + `</div>`
+      : `<p style="color:var(--muted);text-align:center;padding:40px">Aucun reçu pour ${year}</p>`;
+  } else if (ligne == null) {
+    const scoped = data.filter(r => (r.date_facture||'').substring(0,4) === String(year) && parseInt((r.date_facture||'').substring(5,7)) === month);
+    const byLigne = {};
+    scoped.forEach(r => { const l = _raLabel(r); byLigne[l] = (byLigne[l]||0) + 1; });
+    const lignes = Object.keys(byLigne).sort();
+    body = lignes.length
+      ? `<div class="cards-grid">` + lignes.map(l => `
+        <div class="table-card" style="cursor:pointer;padding:20px" onclick="_raSetPath(${year},${month},'${l.replace(/'/g,"\\'")}')">
+          <div style="font-weight:700">${escHtml(l)}</div>
+          <div style="color:var(--muted);font-size:.85rem">${byLigne[l]} reçu(s)</div>
+        </div>`).join('') + `</div>`
+      : `<p style="color:var(--muted);text-align:center;padding:40px">Aucun reçu pour ${_RA_MOIS[month-1]} ${year}</p>`;
+  } else {
+    const items = data.filter(r => (r.date_facture||'').substring(0,4) === String(year) && parseInt((r.date_facture||'').substring(5,7)) === month && _raLabel(r) === ligne);
+    window._raCurrentItems = items;
+    body = `
+      <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+        <button class="btn btn-outline btn-sm" onclick="_raSelectAll(true)">☑ Tout sélectionner</button>
+        <button class="btn btn-outline btn-sm" onclick="_raSelectAll(false)">☐ Tout désélectionner</button>
+        <button class="btn btn-primary btn-sm" onclick="_raDownloadSelected()">⬇ Télécharger la sélection</button>
+        <button class="btn btn-primary btn-sm" onclick="_raDownloadAll()">⬇ Télécharger tout (${items.length})</button>
+      </div>
+      <div class="cards-grid">` + items.map(r => `
+        <div class="table-card" style="padding:12px">
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <input type="checkbox" onchange="_raToggleSelect(${r.id},this.checked)" ${window._raSelected.has(r.id)?'checked':''} style="margin-top:6px;flex-shrink:0"/>
+            <div style="flex:1;min-width:0">
+              <img src="${BASE}${r.photo_path}" style="width:100%;height:120px;object-fit:cover;border-radius:8px;margin-bottom:8px;cursor:pointer" onclick="window.open('${BASE}${r.photo_path}','_blank')"/>
+              <div style="font-weight:600;font-size:.85rem">${escHtml(r.titre)}</div>
+              <div style="font-size:.78rem;color:var(--muted)">${fmt(r.date_facture)} · ${fmtMoney(r.montant)}</div>
+              <a href="${BASE}${r.photo_path}" download class="btn btn-ghost btn-sm" style="margin-top:6px;display:inline-block">⬇ Télécharger</a>
+            </div>
+          </div>
+        </div>`).join('') + `</div>`;
+  }
+
+  setContent(`
+    <div class="page-header"><div><h2>🗂️ Archive des reçus</h2><p>${crumbs.join(' › ')}</p></div></div>
+    ${body}
+  `);
+}
+
+function _raToggleSelect(id, checked) {
+  if (checked) window._raSelected.add(id); else window._raSelected.delete(id);
+}
+
+function _raSelectAll(all) {
+  const items = window._raCurrentItems || [];
+  window._raSelected = new Set(all ? items.map(i => i.id) : []);
+  _raRender();
+}
+
+async function _raDownloadSelected() {
+  const ids = [...(window._raSelected || [])];
+  if (!ids.length) { toast('Sélectionnez au moins un reçu', 'error'); return; }
+  await _raDownloadZip(ids);
+}
+
+async function _raDownloadAll() {
+  const ids = (window._raCurrentItems || []).map(i => i.id);
+  if (!ids.length) return;
+  await _raDownloadZip(ids);
+}
+
+async function _raDownloadZip(ids) {
+  try {
+    const res = await fetch(BASE + '/api/receipts-archive/zip', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + TOKEN },
+      body: JSON.stringify({ ids })
+    });
+    if (!res.ok) { const d = await res.json().catch(() => ({})); toast(d.error || 'Erreur de téléchargement', 'error'); return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'recus.zip';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  } catch(e) { toast('Erreur : ' + e.message, 'error'); }
 }
 
 // ══ MESSAGES ═══════════════════════════════════════════════════════════════

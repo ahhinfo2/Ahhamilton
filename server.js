@@ -1444,6 +1444,50 @@ app.delete('/api/finance/invoices/:id', authMiddleware, requireRole('tresoriere'
   res.json({ ok: true });
 });
 
+// ── Archive des reçus (factures photographiées, classées par date + activité) ──
+app.get('/api/receipts-archive', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT i.id, i.titre, i.fournisseur, i.montant, i.date_facture, i.photo_path, i.statut,
+        fl.titre AS ligne_titre, a.titre AS activite_titre, p.nom AS projet_titre
+      FROM invoices i
+      LEFT JOIN financial_lines fl ON fl.id = i.financial_line_id
+      LEFT JOIN activities a ON a.id = fl.activity_id
+      LEFT JOIN projects p ON p.id = fl.project_id
+      WHERE i.photo_path IS NOT NULL
+      ORDER BY i.date_facture DESC
+    `).all();
+    res.json(rows);
+  } catch(e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
+});
+
+app.post('/api/receipts-archive/zip', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: 'Aucun reçu sélectionné' });
+  const placeholders = ids.map(() => '?').join(',');
+  const rows = db.prepare(`SELECT id, titre, date_facture, photo_path FROM invoices WHERE id IN (${placeholders}) AND photo_path IS NOT NULL`).all(...ids);
+  if (!rows.length) return res.status(404).json({ error: 'Aucun reçu trouvé' });
+
+  const archiver = require('archiver');
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', `attachment; filename="recus_${Date.now()}.zip"`);
+  const archive = archiver('zip', { zlib: { level: 9 } });
+  archive.on('error', (err) => { console.error('[ZIP]', err.message); try { res.status(500).end(); } catch {} });
+  archive.pipe(res);
+  const usedNames = new Set();
+  for (const r of rows) {
+    const filePath = path.join(__dirname, r.photo_path.replace(/^\//, ''));
+    if (!fs.existsSync(filePath)) continue;
+    const ext = path.extname(filePath);
+    const base = `${(r.date_facture||'').substring(0,10) || 'sans-date'}_${(r.titre||'recu').replace(/[^a-zA-Z0-9\-_]/g,'_')}`;
+    let name = base + ext, i = 2;
+    while (usedNames.has(name)) { name = `${base}_${i}${ext}`; i++; }
+    usedNames.add(name);
+    archive.file(filePath, { name });
+  }
+  archive.finalize();
+});
+
 // ══════════════════════════════════════════════════════════════════════════════
 // MESSAGES
 // ══════════════════════════════════════════════════════════════════════════════
