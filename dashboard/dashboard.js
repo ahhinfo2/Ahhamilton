@@ -14,6 +14,8 @@ let _pagSig = '';
 let _pagTimer = null;
 let _agPagSig = '';
 let _agPagTimer = null;
+let _liveParaTimer = null;
+let _agLiveTimer = null;
 
 // ── PWA INSTALL PROMPT ──────────────────────────────────────────────────────
 let _pwaPrompt = null;
@@ -4359,10 +4361,10 @@ function _openNoteEditor(n, allActs, forceReadOnly) {
         <div style="width:1px;height:24px;background:#ddd;margin:0 4px"></div>
 
         <!-- Listes -->
-        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('insertUnorderedList');_fixListNesting('n_editor');_collapseSelectionToEnd()" title="Liste à puces">• ≡</button>
-        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('insertOrderedList');_fixListNesting('n_editor');_collapseSelectionToEnd()" title="Liste numérotée">1. ≡</button>
-        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('indent');_fixListNesting('n_editor');_collapseSelectionToEnd()" title="Sous-point (indenter)">➡ Indenter</button>
-        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('outdent');_fixListNesting('n_editor');_collapseSelectionToEnd()" title="Remonter d'un niveau">⬅ Désindenter</button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('insertUnorderedList');_fixListNesting('n_editor');_collapseSelectionToEnd();_updateLivePagination('n_editor','Notes de réunion officielle')" title="Liste à puces">• ≡</button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('insertOrderedList');_fixListNesting('n_editor');_collapseSelectionToEnd();_updateLivePagination('n_editor','Notes de réunion officielle')" title="Liste numérotée">1. ≡</button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('indent');_fixListNesting('n_editor');_collapseSelectionToEnd();_updateLivePagination('n_editor','Notes de réunion officielle')" title="Sous-point (indenter)">➡ Indenter</button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('outdent');_fixListNesting('n_editor');_collapseSelectionToEnd();_updateLivePagination('n_editor','Notes de réunion officielle')" title="Remonter d'un niveau">⬅ Désindenter</button>
 
         <!-- Séparateur -->
         <div style="width:1px;height:24px;background:#ddd;margin:0 4px"></div>
@@ -4447,7 +4449,7 @@ function _openNoteEditor(n, allActs, forceReadOnly) {
       _paginateReadOnly(ed.innerHTML);
     } else {
       _insertSessionMarker(noteId);
-      setTimeout(_updateEditPages, 200);
+      setTimeout(() => _updateLivePagination('n_editor', 'Notes de réunion officielle'), 200);
     }
   }, 80);
 
@@ -4485,6 +4487,7 @@ function _openNoteEditor(n, allActs, forceReadOnly) {
           document.execCommand(e.shiftKey ? 'outdent' : 'indent');
           _fixListNesting('n_editor');
           _collapseSelectionToEnd();
+          _updateLivePagination('n_editor', 'Notes de réunion officielle');
         }
       });
 
@@ -4641,10 +4644,107 @@ function _collapseSelectionToEnd() {
   sel.addRange(range);
 }
 
+// ── Pagination EN DIRECT (pendant l'édition) — feuilles visuellement séparées ──
+// Contrairement à _paginateReadOnly (qui découpe le HTML en plusieurs <div contenteditable>
+// distincts), on reste sur UN SEUL éditeur contenteditable pour ne rien casser dans le reste
+// du code (collage d'image, glisser-déposer, sauvegarde, correction...). On insère simplement
+// des blocs décoratifs "contenteditable=false" (repère de bas de page + espace gris + en-tête
+// de la page suivante) directement dans le flux, aux bons endroits mesurés — visuellement
+// identique à des pages séparées, sans jamais déplacer le vrai contenu entre plusieurs zones.
+function _makeSpacerEl(subtitle, nextPageNum) {
+  const el = document.createElement('div');
+  el.className = 'page-break-spacer';
+  el.setAttribute('contenteditable', 'false');
+  el.style.cssText = 'margin:0 -64px;user-select:none';
+  el.innerHTML = `
+    <div style="border-top:2px solid #1a237e;background:#fff;padding:8px 64px;display:flex;justify-content:space-between;align-items:center;font-size:8pt;color:#888;box-shadow:0 6px 10px -6px rgba(0,0,0,.15)">
+      <span>Association Haïtienne de Hamilton — Hamilton, Ontario, Canada</span>
+      <span>Document officiel — confidentiel</span>
+    </div>
+    <div style="height:32px;background:#e0e0e0"></div>
+    <div style="border-bottom:3px solid #1a237e;background:#fff;padding:12px 64px 10px;display:flex;align-items:center;gap:14px;box-shadow:0 -6px 10px -6px rgba(0,0,0,.15)">
+      <img src="/Public/logo1.png" style="height:52px;width:52px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display='none'">
+      <div style="flex:1">
+        <div style="font-weight:800;font-size:12pt;color:#1a237e;letter-spacing:.3px">Association Haïtienne de Hamilton (AHH)</div>
+        <div style="font-size:9pt;color:#555;margin-top:2px">${subtitle}</div>
+      </div>
+      <div style="font-size:9pt;color:#888;text-align:right">Page ${nextPageNum}</div>
+    </div>`;
+  return el;
+}
+
+function _updateLivePagination(editorId, subtitle, _depth) {
+  _depth = _depth || 0;
+  if (_depth > 40) return; // garde-fou anti-boucle infinie
+  const ed = document.getElementById(editorId);
+  if (!ed) return;
+  if (_depth === 0) ed.querySelectorAll('.page-break-spacer').forEach(s => s.remove());
+  const CONTENT_H = 944;
+
+  const children = Array.from(ed.children).filter(c => !c.classList.contains('page-break-spacer'));
+  if (!children.length) return;
+  const spacers = Array.from(ed.querySelectorAll('.page-break-spacer'));
+  const lastSpacer = spacers[spacers.length - 1];
+  const pageStartTop = lastSpacer ? (lastSpacer.offsetTop + lastSpacer.offsetHeight) : children[0].offsetTop;
+  const pageNum = spacers.length + 1;
+
+  for (const child of children) {
+    if (child.offsetTop < pageStartTop) continue; // déjà sur une page précédente, confirmée
+    const relBottom = (child.offsetTop - pageStartTop) + child.offsetHeight;
+    if (relBottom <= CONTENT_H) continue; // tient dans la page courante
+    const isFirstOnPage = child.offsetTop <= pageStartTop;
+
+    // Le bloc dépasse la page courante — si c'est une liste à puces/numérotée avec
+    // plusieurs éléments, on la scinde au bon <li> plutôt que de tout renvoyer en bloc
+    // (utile même si la liste est le tout premier — et seul — élément de la page).
+    if ((child.tagName === 'UL' || child.tagName === 'OL') && child.children.length > 1) {
+      const lis = Array.from(child.children);
+      let splitIdx = -1;
+      for (let j = 0; j < lis.length; j++) {
+        const liBottom = (lis[j].offsetTop - pageStartTop) + lis[j].offsetHeight;
+        if (liBottom <= CONTENT_H) splitIdx = j; else break;
+      }
+      if (splitIdx >= 0 && splitIdx < lis.length - 1) {
+        const newList = document.createElement(child.tagName);
+        if (child.tagName === 'OL') {
+          // Préserver la numérotation continue (ex: 34, 35... au lieu de recommencer à 1)
+          const prevStart = parseInt(child.getAttribute('start') || '1');
+          newList.setAttribute('start', String(prevStart + splitIdx + 1));
+        }
+        for (let j = splitIdx + 1; j < lis.length; j++) newList.appendChild(lis[j]);
+        child.parentNode.insertBefore(newList, child.nextSibling);
+        child.parentNode.insertBefore(_makeSpacerEl(subtitle, pageNum + 1), newList);
+        _updateLivePagination(editorId, subtitle, _depth + 1);
+        return;
+      }
+    }
+    // Bloc non scindable (paragraphe, image, ou liste à un seul élément/premier <li> déjà trop
+    // grand) — s'il n'est pas le premier élément de la page, on le renvoie en entier à la
+    // page suivante. S'il est seul sur sa page et ne peut pas être scindé, on le laisse tel
+    // quel (dépassement accepté plutôt que boucle infinie).
+    if (!isFirstOnPage) {
+      child.parentNode.insertBefore(_makeSpacerEl(subtitle, pageNum + 1), child);
+      _updateLivePagination(editorId, subtitle, _depth + 1);
+      return;
+    }
+  }
+}
+
+// Retire les repères de pagination avant sauvegarde — ils ne sont jamais persistés,
+// recalculés à chaque ouverture du document.
+function _getCleanContent(editorId) {
+  const ed = document.getElementById(editorId);
+  if (!ed) return '';
+  const clone = ed.cloneNode(true);
+  clone.querySelectorAll('.page-break-spacer').forEach(s => s.remove());
+  return clone.innerHTML;
+}
+
 function noteChanged() {
   const s = document.getElementById('noteStatus');
   if (s) { s.style.color = '#e65100'; s.textContent = '● Modifications en cours...'; }
-  _updateEditPages();
+  clearTimeout(_liveParaTimer);
+  _liveParaTimer = setTimeout(() => _updateLivePagination('n_editor', 'Notes de réunion officielle'), 500);
   clearTimeout(_noteDebounce);
   _noteDebounce = setTimeout(() => {
     const editor = document.getElementById('n_editor');
@@ -4983,7 +5083,7 @@ async function _doSaveNote(id, silent = false) {
   if (!editor) return;
   const body = {
     titre: document.getElementById('n_titre')?.value || 'Sans titre',
-    contenu: editor.innerHTML,
+    contenu: _getCleanContent('n_editor'),
     langue: document.getElementById('n_lang')?.value || 'fr',
     date_reunion: document.getElementById('n_date')?.value || new Date().toISOString().slice(0,10),
     activity_id: parseInt(document.getElementById('n_act')?.value) || null,
@@ -15347,11 +15447,11 @@ function openAgendaEditor(a) {
         </div>
 
         <!-- Listes uniquement -->
-        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('insertUnorderedList');_fixListNesting('ag_editor');_collapseSelectionToEnd();_updateEditPages('ag_editor','agPageWrapper')" title="Liste à puces" ${readOnly?'disabled':''}>• ≡</button>
-        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('insertOrderedList');_fixListNesting('ag_editor');_collapseSelectionToEnd();_updateEditPages('ag_editor','agPageWrapper')" title="Liste numérotée" ${readOnly?'disabled':''}>1. ≡</button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('insertUnorderedList');_fixListNesting('ag_editor');_collapseSelectionToEnd();_updateLivePagination('ag_editor','Ordre du jour')" title="Liste à puces" ${readOnly?'disabled':''}>• ≡</button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('insertOrderedList');_fixListNesting('ag_editor');_collapseSelectionToEnd();_updateLivePagination('ag_editor','Ordre du jour')" title="Liste numérotée" ${readOnly?'disabled':''}>1. ≡</button>
         <div style="width:1px;height:24px;background:#ddd;margin:0 4px"></div>
-        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('indent');_fixListNesting('ag_editor');_collapseSelectionToEnd();_updateEditPages('ag_editor','agPageWrapper')" title="Sous-point (indenter)" ${readOnly?'disabled':''}>➡ Indenter</button>
-        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('outdent');_fixListNesting('ag_editor');_collapseSelectionToEnd();_updateEditPages('ag_editor','agPageWrapper')" title="Remonter d'un niveau" ${readOnly?'disabled':''}>⬅ Désindenter</button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('indent');_fixListNesting('ag_editor');_collapseSelectionToEnd();_updateLivePagination('ag_editor','Ordre du jour')" title="Sous-point (indenter)" ${readOnly?'disabled':''}>➡ Indenter</button>
+        <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('outdent');_fixListNesting('ag_editor');_collapseSelectionToEnd();_updateLivePagination('ag_editor','Ordre du jour')" title="Remonter d'un niveau" ${readOnly?'disabled':''}>⬅ Désindenter</button>
         <div style="width:1px;height:24px;background:#ddd;margin:0 4px"></div>
         <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('undo')" title="Annuler" ${readOnly?'disabled':''}>↩</button>
         <button class="we-btn" onmousedown="event.preventDefault()" onclick="document.execCommand('redo')" title="Rétablir" ${readOnly?'disabled':''}>↪</button>
@@ -15384,7 +15484,7 @@ function openAgendaEditor(a) {
             <div style="font-size:9pt;color:#888;text-align:right">${new Date().toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'})}</div>
           </div>
           <div id="ag_editor" style="min-height:944px;padding:40px 64px;font-family:'Times New Roman',serif;font-size:12pt;line-height:1.6;color:#000;outline:none"
-            contenteditable="true" spellcheck="true" oninput="_updateEditPages('ag_editor','agPageWrapper')">${a?.contenu || '<ul><li><br></li></ul>'}</div>
+            contenteditable="true" spellcheck="true" oninput="agendaChanged()">${a?.contenu || '<ul><li><br></li></ul>'}</div>
           <div style="border-top:2px solid #1a237e;padding:8px 64px;display:flex;justify-content:space-between;align-items:center;font-size:8pt;color:#888;user-select:none">
             <span>Association Haïtienne de Hamilton — Hamilton, Ontario, Canada</span>
             <span>Document officiel — confidentiel</span>
@@ -15402,7 +15502,7 @@ function openAgendaEditor(a) {
       const editor = document.getElementById('ag_editor');
       if (!editor) return;
       editor.focus();
-      _updateEditPages('ag_editor','agPageWrapper');
+      _updateLivePagination('ag_editor', 'Ordre du jour');
       // Tab / Shift+Tab pour indenter/désindenter comme un vrai document à puces
       editor.addEventListener('keydown', e => {
         if (e.key === 'Tab') {
@@ -15410,11 +15510,16 @@ function openAgendaEditor(a) {
           document.execCommand(e.shiftKey ? 'outdent' : 'indent');
           _fixListNesting('ag_editor');
           _collapseSelectionToEnd();
-          _updateEditPages('ag_editor','agPageWrapper');
+          _updateLivePagination('ag_editor', 'Ordre du jour');
         }
       });
     }, 50);
   }
+}
+
+function agendaChanged() {
+  clearTimeout(_agLiveTimer);
+  _agLiveTimer = setTimeout(() => _updateLivePagination('ag_editor', 'Ordre du jour'), 500);
 }
 
 async function saveAgendaEditor(id) {
@@ -15422,7 +15527,7 @@ async function saveAgendaEditor(id) {
   if (!editor) return;
   const body = {
     titre: document.getElementById('ag_titre')?.value || 'Sans titre',
-    contenu: editor.innerHTML,
+    contenu: _getCleanContent('ag_editor'),
     date_reunion: document.getElementById('ag_date')?.value || new Date().toISOString().slice(0,10),
   };
   try {
