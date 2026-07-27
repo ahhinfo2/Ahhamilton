@@ -466,7 +466,6 @@ async function buildSidebar() {
       USER.in_subcommittee ? { id:'subcommittees', icon:'◐', label:'Sous-comités' } : null,
       ['bienfaiteur','partenaire'].includes(USER.plan) ? { id:'mes_talents',  icon:'◈', label:'Mon talent' }   : null,
       ['bienfaiteur','partenaire'].includes(USER.plan) ? { id:'mes_annonces', icon:'◉', label:'Mes annonces' } : null,
-      { id:'repertoire',   icon:'👥', label:'Répertoire des membres' },
       { id:'annuaire',     icon:'✉️', label:'Courriel' },
       { id:'forum',        icon:'◫', label:'Forum' },
       // ── Mon espace membres ───────────────────────────────────────
@@ -588,7 +587,7 @@ function setActiveNav(viewId) {
   });
   const labels = {
     home:'Tableau de bord', activities:'Activités', members:'Membres', subcommittees:'Sous-comités',
-    finance:'Finance', invoices:'Factures', fournisseurs:'Fournisseurs', correspondance:'Correspondance', repertoire:'Répertoire des membres', messages:'Messages', volunteer:'Heures de bénévolat',
+    finance:'Finance', invoices:'Factures', fournisseurs:'Fournisseurs', correspondance:'Correspondance', messages:'Messages', volunteer:'Heures de bénévolat',
     notes:'Notes de réunion', reports:'Rapports', letters:'Lettres de recommandation',
     projects:'Projets', alerts:'Alertes', profile:'Mon profil', gallery_mgmt:'Gérer la galerie',
     talents_mgmt:'Nos talents', annonces_mgmt:'Petites annonces',
@@ -1179,7 +1178,7 @@ async function showView(viewId) {
     notes, reports, letters, projects, alerts, profile,
     gallery_mgmt, annuaire, talents_mgmt, annonces_mgmt, mes_talents, mes_annonces,
     inscriptions, paiements, recus, mon_paiement, mes_billets, testimonials_mgmt, videos_mgmt,
-    scanner, forum, newsletter, rapports_finance, documents_mgmt, sponsors_mgmt, equipe_mgmt, recus_archive, correspondance, repertoire
+    scanner, forum, newsletter, rapports_finance, documents_mgmt, sponsors_mgmt, equipe_mgmt, recus_archive, correspondance
   };
   const extViews = {
     'pending-orders': pendingOrders,
@@ -5718,50 +5717,6 @@ let _M = { members:[], checked:new Set(), starred:new Set(), view:'inbox', detai
 const _MC = { to:[], cc:[] };
 
 // ── Vue principale ──────────────────────────────────────────────────────────
-// ══ RÉPERTOIRE DES MEMBRES (consultable par tous les membres) ═══════════════
-async function repertoire() {
-  const data = await api('/annuaire').catch(() => []);
-  window._repertoireAll = data;
-  setContent(`
-    <div class="page-header">
-      <div><h2>👥 Répertoire des membres</h2><p>Retrouvez les membres de l'AHH Hamilton</p></div>
-    </div>
-    <input id="repSearch" type="text" class="members-search" style="max-width:320px;margin-bottom:16px" placeholder="🔍 Rechercher un membre…" oninput="filterRepertoire()"/>
-    <div id="repGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px"></div>
-  `);
-  filterRepertoire();
-}
-
-function filterRepertoire() {
-  const q = (document.getElementById('repSearch')?.value || '').toLowerCase().trim();
-  const data = (window._repertoireAll || []).filter(m => !q || `${m.prenom} ${m.nom}`.toLowerCase().includes(q));
-  renderRepertoire(data);
-}
-
-function renderRepertoire(data) {
-  const grid = document.getElementById('repGrid');
-  if (!grid) return;
-  const CARTE_ROLES = ['admin','tresoriere','secretaire','delegue'];
-  if (!data.length) { grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--muted);padding:32px">Aucun membre trouvé</p>'; return; }
-  grid.innerHTML = data.map(m => {
-    const initials = `${(m.prenom||'?')[0]}${(m.nom||'')[0]}`.toUpperCase();
-    const badge = CARTE_ROLES.includes(m.role) ? (m.titre_comite || roleName(m.role)) : (m.plan && m.plan !== 'gratuit' ? {bienfaiteur:'Bienfaiteur',partenaire:'Partenaire'}[m.plan] : '');
-    return `<div style="background:var(--card,#fff);border:1px solid var(--border);border-radius:14px;padding:16px;text-align:center">
-      <div style="width:64px;height:64px;border-radius:50%;margin:0 auto 10px;overflow:hidden;background:var(--off);display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--muted)">
-        ${m.photo_url ? `<img src="${BASE}${m.photo_url}" style="width:100%;height:100%;object-fit:cover"/>` : initials}
-      </div>
-      <div style="font-weight:700;font-size:.88rem">${escHtml(m.prenom)} ${escHtml(m.nom)}</div>
-      ${badge ? `<div style="font-size:.68rem;color:var(--g2);font-weight:600;margin-top:2px">${escHtml(badge)}</div>` : ''}
-      ${m.id !== USER.id ? `<button class="btn btn-sm btn-ghost" style="margin-top:8px" onclick="contactMember('${escHtml(m.email).replace(/'/g,"\\'")}')">✉️ Contacter</button>` : '<div style="font-size:.68rem;color:var(--muted);margin-top:8px">(Vous)</div>'}
-    </div>`;
-  }).join('');
-}
-
-async function contactMember(email) {
-  await showView('annuaire');
-  setTimeout(() => gmCompose({ to: email }), 300);
-}
-
 async function annuaire() {
   _M.members = await api('/annuaire');
   _M.view    = 'inbox';
