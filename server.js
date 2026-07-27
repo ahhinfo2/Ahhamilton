@@ -1389,11 +1389,11 @@ app.get('/api/finance/transactions', authMiddleware, requireRole('admin','tresor
 });
 
 app.post('/api/finance/transactions', authMiddleware, requireRole('tresoriere', 'admin'), (req, res) => {
-  const { financial_line_id, type, montant, description, methode, reference, invoice_id } = req.body;
+  const { financial_line_id, type, montant, description, methode, reference, invoice_id, categorie } = req.body;
   if (!type || !montant) return res.status(400).json({ error: 'Type et montant requis' });
 
-  const r = db.prepare(`INSERT INTO transactions (financial_line_id, type, montant, description, methode, reference, invoice_id, cree_par)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(financial_line_id||null, type, montant, description||'', methode||'cash', reference||'', invoice_id||null, req.user.id);
+  const r = db.prepare(`INSERT INTO transactions (financial_line_id, type, montant, description, methode, reference, invoice_id, categorie, cree_par)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(financial_line_id||null, type, montant, description||'', methode||'cash', reference||'', invoice_id||null, categorie||'autre', req.user.id);
 
   if (type === 'depense') {
     // Update account balance
@@ -1405,6 +1405,119 @@ app.post('/api/finance/transactions', authMiddleware, requireRole('tresoriere', 
     db.prepare('UPDATE account_info SET solde = solde + ?, date_maj = CURRENT_TIMESTAMP WHERE id = 1').run(montant);
   }
   res.status(201).json({ id: r.lastInsertRowid });
+});
+
+// Modifier une transaction manuelle (pas liée à une facture — celles-ci se modifient via la facture)
+app.put('/api/finance/transactions/:id', authMiddleware, requireRole('tresoriere', 'admin'), (req, res) => {
+  const tx = db.prepare('SELECT * FROM transactions WHERE id = ?').get(req.params.id);
+  if (!tx) return res.status(404).json({ error: 'Transaction introuvable' });
+  if (tx.invoice_id) return res.status(400).json({ error: 'Cette transaction est liée à une facture — modifiez ou supprimez la facture plutôt.' });
+
+  const { financial_line_id, type, montant, description, methode, reference, categorie } = req.body;
+  const newType = type || tx.type;
+  const newMontant = montant !== undefined ? parseFloat(montant) : tx.montant;
+  if (!newMontant || newMontant <= 0) return res.status(400).json({ error: 'Montant invalide' });
+
+  const effect = (t, m) => t === 'depense' ? -m : (t === 'revenu' ? m : 0);
+  const soldeAdjust = effect(newType, newMontant) - effect(tx.type, tx.montant);
+  if (soldeAdjust !== 0) {
+    db.prepare('UPDATE account_info SET solde = solde + ?, date_maj = CURRENT_TIMESTAMP WHERE id = 1').run(soldeAdjust);
+  }
+
+  db.prepare(`UPDATE transactions SET financial_line_id=?, type=?, montant=?, description=?, methode=?, reference=?, categorie=? WHERE id=?`)
+    .run(financial_line_id !== undefined ? (financial_line_id||null) : tx.financial_line_id, newType, newMontant,
+         description !== undefined ? description : tx.description, methode || tx.methode,
+         reference !== undefined ? reference : tx.reference, categorie || tx.categorie, tx.id);
+
+  res.json({ message: 'Transaction mise à jour' });
+});
+
+// Supprimer une transaction manuelle (annule son effet sur le solde)
+app.delete('/api/finance/transactions/:id', authMiddleware, requireRole('tresoriere', 'admin'), (req, res) => {
+  const tx = db.prepare('SELECT * FROM transactions WHERE id = ?').get(req.params.id);
+  if (!tx) return res.status(404).json({ error: 'Transaction introuvable' });
+  if (tx.invoice_id) return res.status(400).json({ error: 'Cette transaction est liée à une facture — supprimez la facture plutôt.' });
+
+  const effect = tx.type === 'depense' ? -tx.montant : (tx.type === 'revenu' ? tx.montant : 0);
+  if (effect !== 0) db.prepare('UPDATE account_info SET solde = solde - ?, date_maj = CURRENT_TIMESTAMP WHERE id = 1').run(effect);
+  db.prepare('DELETE FROM transactions WHERE id = ?').run(tx.id);
+  res.json({ ok: true });
+});
+
+// Registre des fournisseurs (alimenté automatiquement par les factures)
+function upsertFournisseur(nom) {
+  const n = (nom || '').trim();
+  if (!n) return;
+  try { db.prepare('INSERT OR IGNORE INTO fournisseurs (nom) VALUES (?)').run(n); } catch {}
+}
+
+app.get('/api/finance/fournisseurs', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  const rows = db.prepare(`
+    SELECT f.*,
+      COUNT(i.id) AS nb_factures,
+      COALESCE(SUM(i.montant), 0) AS total_depense
+    FROM fournisseurs f
+    LEFT JOIN invoices i ON i.fournisseur = f.nom COLLATE NOCASE
+    GROUP BY f.id
+    ORDER BY total_depense DESC, f.nom ASC
+  `).all();
+  res.json(rows);
+});
+
+app.put('/api/finance/fournisseurs/:id', authMiddleware, requireRole('admin','tresoriere'), (req, res) => {
+  const f = db.prepare('SELECT * FROM fournisseurs WHERE id = ?').get(req.params.id);
+  if (!f) return res.status(404).json({ error: 'Fournisseur introuvable' });
+  const { nom, telephone, email, notes } = req.body;
+  const newNom = (nom || '').trim() || f.nom;
+  db.prepare('UPDATE fournisseurs SET nom=?, telephone=?, email=?, notes=? WHERE id=?')
+    .run(newNom, telephone||'', email||'', notes||'', f.id);
+  if (newNom !== f.nom) {
+    db.prepare('UPDATE invoices SET fournisseur = ? WHERE fournisseur = ? COLLATE NOCASE').run(newNom, f.nom);
+  }
+  res.json({ message: 'Fournisseur mis à jour' });
+});
+
+app.delete('/api/finance/fournisseurs/:id', authMiddleware, requireRole('admin'), (req, res) => {
+  db.prepare('DELETE FROM fournisseurs WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// Budget annuel global (revenus/dépenses prévus vs réel, toutes lignes confondues)
+app.get('/api/finance/annual-budget/:annee', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  const annee = parseInt(req.params.annee) || new Date().getFullYear();
+  const budget = db.prepare('SELECT * FROM annual_budgets WHERE annee = ?').get(annee) || { annee, budget_revenus: 0, budget_depenses: 0, notes: '' };
+  const actuals = db.prepare(`
+    SELECT
+      COALESCE(SUM(CASE WHEN type='revenu' THEN montant ELSE 0 END), 0) AS revenus_reel,
+      COALESCE(SUM(CASE WHEN type='depense' THEN montant ELSE 0 END), 0) AS depenses_reel
+    FROM transactions WHERE strftime('%Y', date_transaction) = ?
+  `).get(String(annee));
+  res.json({ ...budget, ...actuals });
+});
+
+app.put('/api/finance/annual-budget/:annee', authMiddleware, requireRole('admin','tresoriere'), (req, res) => {
+  const annee = parseInt(req.params.annee);
+  if (!annee) return res.status(400).json({ error: 'Année invalide' });
+  const { budget_revenus, budget_depenses, notes } = req.body;
+  const existing = db.prepare('SELECT id FROM annual_budgets WHERE annee = ?').get(annee);
+  if (existing) {
+    db.prepare('UPDATE annual_budgets SET budget_revenus=?, budget_depenses=?, notes=?, date_maj=CURRENT_TIMESTAMP WHERE annee=?')
+      .run(budget_revenus||0, budget_depenses||0, notes||'', annee);
+  } else {
+    db.prepare('INSERT INTO annual_budgets (annee, budget_revenus, budget_depenses, notes, cree_par) VALUES (?,?,?,?,?)')
+      .run(annee, budget_revenus||0, budget_depenses||0, notes||'', req.user.id);
+  }
+  res.json({ message: 'Budget annuel mis à jour' });
+});
+
+app.get('/api/finance/categories-breakdown', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  const annee = parseInt(req.query.annee) || new Date().getFullYear();
+  const rows = db.prepare(`
+    SELECT categorie, type, COALESCE(SUM(montant), 0) AS total
+    FROM transactions WHERE strftime('%Y', date_transaction) = ?
+    GROUP BY categorie, type ORDER BY total DESC
+  `).all(String(annee));
+  res.json(rows);
 });
 
 app.get('/api/finance/account', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
@@ -1428,7 +1541,7 @@ app.get('/api/finance/invoices', authMiddleware, requireRole('admin','tresoriere
 });
 
 app.post('/api/finance/invoices', authMiddleware, requireRole('tresoriere', 'admin'), upload.single('photo'), async (req, res) => {
-  const { fournisseur, montant, date_facture, financial_line_id, commentaire } = req.body;
+  const { fournisseur, montant, date_facture, financial_line_id, commentaire, categorie } = req.body;
   const titre = (req.body.titre || '').trim() || `Reçu ${new Date().toLocaleString('fr-CA')}`;
 
   let photo_path = null, photo_hash = null;
@@ -1443,8 +1556,9 @@ app.post('/api/finance/invoices', authMiddleware, requireRole('tresoriere', 'adm
     photo_path = `/uploads/invoices/${req.file.filename}`;
   }
 
-  const r = db.prepare(`INSERT INTO invoices (titre, fournisseur, montant, date_facture, photo_path, photo_hash, financial_line_id, commentaire, cree_par)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(titre, fournisseur||'', montant||0, date_facture||'', photo_path, photo_hash, financial_line_id||null, commentaire||'', req.user.id);
+  const r = db.prepare(`INSERT INTO invoices (titre, fournisseur, montant, date_facture, photo_path, photo_hash, financial_line_id, commentaire, categorie, cree_par)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(titre, fournisseur||'', montant||0, date_facture||'', photo_path, photo_hash, financial_line_id||null, commentaire||'', categorie||'autre', req.user.id);
+  upsertFournisseur(fournisseur);
 
   // Alert admins
   getAdminsAndRole('admin').forEach(a =>
@@ -1453,18 +1567,19 @@ app.post('/api/finance/invoices', authMiddleware, requireRole('tresoriere', 'adm
 });
 
 app.put('/api/finance/invoices/:id', authMiddleware, requireRole('tresoriere', 'admin'), upload.single('photo'), async (req, res) => {
-  const { statut, titre, fournisseur, montant, date_facture, financial_line_id, commentaire } = req.body;
+  const { statut, titre, fournisseur, montant, date_facture, financial_line_id, commentaire, categorie } = req.body;
   const invoice = db.prepare('SELECT * FROM invoices WHERE id = ?').get(req.params.id);
   if (!invoice) return res.status(404).json({ error: 'Facture introuvable' });
 
   // Édition des champs (titre, montant, commentaire, photo...) — indépendant du changement de statut
   const editUpdates = []; const editVals = [];
   if (titre !== undefined) { editUpdates.push('titre = ?'); editVals.push(titre.trim() || invoice.titre); }
-  if (fournisseur !== undefined) { editUpdates.push('fournisseur = ?'); editVals.push(fournisseur); }
+  if (fournisseur !== undefined) { editUpdates.push('fournisseur = ?'); editVals.push(fournisseur); upsertFournisseur(fournisseur); }
   if (montant !== undefined) { editUpdates.push('montant = ?'); editVals.push(montant); }
   if (date_facture !== undefined) { editUpdates.push('date_facture = ?'); editVals.push(date_facture); }
   if (financial_line_id !== undefined) { editUpdates.push('financial_line_id = ?'); editVals.push(financial_line_id || null); }
   if (commentaire !== undefined) { editUpdates.push('commentaire = ?'); editVals.push(commentaire); }
+  if (categorie !== undefined) { editUpdates.push('categorie = ?'); editVals.push(categorie || 'autre'); }
   if (req.file) {
     const photo_hash = _crypto.createHash('sha256').update(fs.readFileSync(req.file.path)).digest('hex');
     const dup = db.prepare('SELECT id, titre FROM invoices WHERE photo_hash = ? AND id != ?').get(photo_hash, invoice.id);

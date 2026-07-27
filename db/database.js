@@ -1423,6 +1423,32 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS alertes_urgentes (
   date_resolution TEXT
 )`); } catch {}
 
+// Catégorisation des transactions/factures (loyer, nourriture, transport...) pour les rapports
+try { db.exec("ALTER TABLE invoices ADD COLUMN categorie TEXT DEFAULT 'autre'"); } catch {}
+try { db.exec("ALTER TABLE transactions ADD COLUMN categorie TEXT DEFAULT 'autre'"); } catch {}
+
+// Registre des fournisseurs — alimenté automatiquement depuis le champ "fournisseur" des factures
+try { db.exec(`CREATE TABLE IF NOT EXISTS fournisseurs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nom TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  telephone TEXT,
+  email TEXT,
+  notes TEXT,
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
+// Budget annuel global (revenus/dépenses prévus pour l'année, comparés au réel)
+try { db.exec(`CREATE TABLE IF NOT EXISTS annual_budgets (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  annee INTEGER NOT NULL UNIQUE,
+  budget_revenus REAL DEFAULT 0,
+  budget_depenses REAL DEFAULT 0,
+  notes TEXT,
+  cree_par INTEGER REFERENCES users(id),
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+  date_maj TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
 init();
 
 module.exports = db;

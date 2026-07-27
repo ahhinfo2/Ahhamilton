@@ -585,7 +585,7 @@ function setActiveNav(viewId) {
   });
   const labels = {
     home:'Tableau de bord', activities:'Activités', members:'Membres', subcommittees:'Sous-comités',
-    finance:'Finance', invoices:'Factures', messages:'Messages', volunteer:'Heures de bénévolat',
+    finance:'Finance', invoices:'Factures', fournisseurs:'Fournisseurs', messages:'Messages', volunteer:'Heures de bénévolat',
     notes:'Notes de réunion', reports:'Rapports', letters:'Lettres de recommandation',
     projects:'Projets', alerts:'Alertes', profile:'Mon profil', gallery_mgmt:'Gérer la galerie',
     talents_mgmt:'Nos talents', annonces_mgmt:'Petites annonces',
@@ -1172,7 +1172,7 @@ async function showView(viewId) {
   setContent(skeletonRows(6));
   const views = {
     home, activities, members, subcommittees,
-    finance, invoices, messages, volunteer,
+    finance, invoices, fournisseurs, messages, volunteer,
     notes, reports, letters, projects, alerts, profile,
     gallery_mgmt, annuaire, talents_mgmt, annonces_mgmt, mes_talents, mes_annonces,
     inscriptions, paiements, recus, mon_paiement, mes_billets, testimonials_mgmt, videos_mgmt,
@@ -3132,11 +3132,36 @@ function scFilterPicker(q) {
 }
 
 // ══ FINANCE ════════════════════════════════════════════════════════════════
+const FIN_CATEGORIES = [
+  ['loyer','🏠 Loyer / Location de salle'],
+  ['nourriture','🍽️ Nourriture / Traiteur'],
+  ['materiel','📦 Matériel / Fournitures'],
+  ['transport','🚗 Transport'],
+  ['communication','📣 Communication / Marketing'],
+  ['assurance','🛡️ Assurance'],
+  ['frais_bancaires','🏦 Frais bancaires'],
+  ['dons','🎁 Dons reçus'],
+  ['cotisations','💳 Cotisations'],
+  ['commandites','🤝 Commandites'],
+  ['subventions','🏛️ Subventions'],
+  ['evenement','🎉 Événement / Activité'],
+  ['autre','📁 Autre'],
+];
+function finCatLabel(id) { return (FIN_CATEGORIES.find(c => c[0] === id) || FIN_CATEGORIES[FIN_CATEGORIES.length-1])[1]; }
+function finCatOptions(selected) {
+  return FIN_CATEGORIES.map(([id,label]) => `<option value="${id}" ${selected===id?'selected':''}>${label}</option>`).join('');
+}
+
 async function finance() {
-  const [lines, rep, summary, chartData] = await Promise.all([api('/finance/lines'), api('/finance/account'), api('/finance/summary').catch(() => ({})), api('/finance/chart').catch(() => [])]);
+  const annee = window._finAnnee || new Date().getFullYear();
+  const [lines, rep, summary, chartData, annualBudget] = await Promise.all([
+    api('/finance/lines'), api('/finance/account'), api('/finance/summary').catch(() => ({})),
+    api('/finance/chart').catch(() => []), api(`/finance/annual-budget/${annee}`).catch(() => null)
+  ]);
   window._finLines = lines;
   window._finRep   = rep;
   window._finAllLines = lines;
+  window._finAnnee = annee;
   const totalBudget = lines.reduce((s,l) => s + (l.budget_alloue||0), 0);
   const totalDep    = lines.reduce((s,l) => s + (l.depenses||0), 0);
   const totalRev    = lines.reduce((s,l) => s + (l.revenus||0), 0);
@@ -3148,6 +3173,7 @@ async function finance() {
       <div class="page-actions">
         ${can.adminOrTre() ? `<button class="btn btn-primary" onclick="openTransactionForm(null,window._finLines)">+ Transaction</button>` : ''}
         ${can.adminOrTre() ? `<button class="btn btn-outline" onclick="openAccountForm(window._finRep)">⚙️ Compte</button>` : ''}
+        <button class="btn btn-ghost" onclick="showView('fournisseurs')">🏢 Fournisseurs</button>
         <button class="btn btn-ghost" onclick="printFinance()">🖨️ PDF</button>
         <a href="/api/export/paiements.csv" class="btn btn-ghost" style="font-size:.82rem" target="_blank">⬇ CSV</a>
       </div>
@@ -3160,6 +3186,7 @@ async function finance() {
       <div class="fin-card"><div class="fc-val">${fmtMoney(totalRev)}</div><div class="fc-label">Total revenus</div></div>
       ${totalComm > 0 ? `<div class="fin-card"><div class="fc-val" style="color:#0277bd">${fmtMoney(totalComm)}</div><div class="fc-label">Commanditaires</div></div>` : ''}
     </div>
+    <div class="table-card" style="padding:16px;margin-bottom:20px" id="annualBudgetCard"></div>
     <div style="display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap">
       <div class="table-card" style="flex:1;min-width:280px;padding:16px">
         <h4 style="margin:0 0 10px;font-size:.88rem;color:var(--text)">Budget vs Dépenses</h4>
@@ -3194,7 +3221,86 @@ async function finance() {
     <p style="font-size:.78rem;color:var(--muted);margin-top:-8px">Institution: ${rep?.institution||'–'} · Compte: ${rep?.numero_compte||'–'} · Titulaire: ${rep?.nom_titulaire||'–'}</p>
   `);
   filterFinLines();
+  renderAnnualBudgetCard(annualBudget, annee);
   setTimeout(() => renderFinCharts(lines, chartData), 50);
+}
+
+function renderAnnualBudgetCard(b, annee) {
+  const el = document.getElementById('annualBudgetCard');
+  if (!el) return;
+  b = b || { budget_revenus:0, budget_depenses:0, revenus_reel:0, depenses_reel:0, notes:'' };
+  const thisYear = new Date().getFullYear();
+  const years = [thisYear+1, thisYear, thisYear-1, thisYear-2, thisYear-3];
+  const pctDep = b.budget_depenses > 0 ? Math.round(b.depenses_reel / b.budget_depenses * 100) : 0;
+  const pctRev = b.budget_revenus > 0 ? Math.round(b.revenus_reel / b.budget_revenus * 100) : 0;
+  const barDep = pctDep >= 100 ? 'var(--red)' : pctDep >= 80 ? '#e65100' : 'var(--g2)';
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <h4 style="margin:0;font-size:.88rem;color:var(--text)">📅 Budget annuel global</h4>
+      <div style="display:flex;align-items:center;gap:8px">
+        <select id="annualBudgetYear" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border)">
+          ${years.map(y=>`<option value="${y}" ${y===annee?'selected':''}>${y}</option>`).join('')}
+        </select>
+        ${can.adminOrTre() ? `<button class="btn btn-sm btn-outline" onclick="openAnnualBudgetForm(${annee}, window._finAnnualBudget)">✏️ Modifier</button>` : ''}
+      </div>
+    </div>
+    <div style="display:flex;gap:24px;flex-wrap:wrap">
+      <div style="flex:1;min-width:220px">
+        <div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px">
+          <span>Dépenses : ${fmtMoney(b.depenses_reel)} / ${fmtMoney(b.budget_depenses)}</span>
+          <strong style="color:${barDep}">${b.budget_depenses>0?pctDep+'%':'–'}</strong>
+        </div>
+        <div style="background:var(--off);border-radius:20px;height:8px;overflow:hidden">
+          <div style="height:100%;width:${Math.min(pctDep,100)}%;background:${barDep};border-radius:20px"></div>
+        </div>
+      </div>
+      <div style="flex:1;min-width:220px">
+        <div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:4px">
+          <span>Revenus : ${fmtMoney(b.revenus_reel)} / ${fmtMoney(b.budget_revenus)}</span>
+          <strong style="color:var(--g2)">${b.budget_revenus>0?pctRev+'%':'–'}</strong>
+        </div>
+        <div style="background:var(--off);border-radius:20px;height:8px;overflow:hidden">
+          <div style="height:100%;width:${Math.min(pctRev,100)}%;background:var(--g2);border-radius:20px"></div>
+        </div>
+      </div>
+    </div>
+    ${b.notes ? `<p style="font-size:.78rem;color:var(--muted);margin:10px 0 0">${escHtml(b.notes)}</p>` : ''}
+  `;
+  window._finAnnualBudget = b;
+  document.getElementById('annualBudgetYear').onchange = async function() {
+    window._finAnnee = parseInt(this.value);
+    const nb = await api(`/finance/annual-budget/${window._finAnnee}`).catch(() => null);
+    renderAnnualBudgetCard(nb, window._finAnnee);
+  };
+}
+
+function openAnnualBudgetForm(annee, existing) {
+  existing = existing || {};
+  openModal(`Budget annuel ${annee}`, `
+    <form id="annualBudgetForm">
+      <div class="form-row">
+        <div class="form-group"><label>Budget dépenses prévu ($)</label><input type="number" step="0.01" id="ab_dep" value="${existing.budget_depenses||0}"/></div>
+        <div class="form-group"><label>Budget revenus prévu ($)</label><input type="number" step="0.01" id="ab_rev" value="${existing.budget_revenus||0}"/></div>
+      </div>
+      <div class="form-group"><label>Notes</label><textarea id="ab_notes" rows="2">${escHtml(existing.notes||'')}</textarea></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Enregistrer</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('annualBudgetForm').onsubmit = async e => {
+    e.preventDefault();
+    const body = { budget_depenses: parseFloat(document.getElementById('ab_dep').value)||0,
+      budget_revenus: parseFloat(document.getElementById('ab_rev').value)||0,
+      notes: document.getElementById('ab_notes').value };
+    try {
+      await api(`/finance/annual-budget/${annee}`, { method:'PUT', body: JSON.stringify(body) });
+      closeModal(); toast('Budget annuel mis à jour');
+      const nb = await api(`/finance/annual-budget/${annee}`).catch(() => null);
+      renderAnnualBudgetCard(nb, annee);
+    } catch(ex) { toast(ex.message, 'error'); }
+  };
 }
 
 function renderFinCharts(lines, monthlyData) {
@@ -3372,18 +3478,26 @@ async function viewTransactions(lineId, titre) {
     api('/finance/invoices').catch(() => [])
   ]);
   const factures = allInvoices.filter(i => i.financial_line_id === lineId);
+  window._txByLine = {}; transactions.forEach(t => window._txByLine[t.id] = t);
+  window._txLines = window._finLines || [];
 
   openModal(`📊 Détails – ${escHtml(titre)}`, `
     <h4 style="margin:0 0 10px">Transactions (revenus & dépenses)</h4>
     <div class="table-wrapper" style="margin-bottom:24px"><table>
-      <thead><tr><th>Date</th><th>Type</th><th>Montant</th><th>Description</th><th>Méthode</th></tr></thead>
+      <thead><tr><th>Date</th><th>Type</th><th>Catégorie</th><th>Montant</th><th>Description</th><th>Méthode</th>${can.adminOrTre() ? '<th>Actions</th>' : ''}</tr></thead>
       <tbody>${transactions.map(t=>`<tr>
         <td>${fmt(t.date_transaction)}</td>
         <td>${pill(t.type,t.type==='depense'?'bp-red':'bp-green')}</td>
+        <td style="font-size:.78rem">${finCatLabel(t.categorie)}</td>
         <td><strong>${fmtMoney(t.montant)}</strong></td>
-        <td>${t.description||'–'}</td>
+        <td>${escHtml(t.description||'–')}</td>
         <td>${t.methode||'–'}</td>
-      </tr>`).join('') || '<tr><td colspan="5" style="text-align:center">Aucune transaction</td></tr>'}</tbody>
+        ${can.adminOrTre() ? `<td style="white-space:nowrap">
+          ${t.invoice_id ? '<span style="font-size:.72rem;color:var(--muted)">via facture</span>' : `
+            <button class="btn btn-sm btn-ghost" onclick="openTransactionForm(window._txByLine[${t.id}],window._txLines)" title="Modifier">✏️</button>
+            <button class="btn btn-sm btn-ghost" style="color:var(--red)" onclick="deleteTransaction(${t.id})" title="Supprimer">🗑</button>`}
+        </td>` : ''}
+      </tr>`).join('') || `<tr><td colspan="${can.adminOrTre()?7:6}" style="text-align:center">Aucune transaction</td></tr>`}</tbody>
     </table></div>
 
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -3391,39 +3505,51 @@ async function viewTransactions(lineId, titre) {
       <button class="btn btn-ghost btn-sm" onclick="closeModal();showView('invoices')">📄 Voir toutes les factures →</button>
     </div>
     <div class="table-wrapper"><table>
-      <thead><tr><th>Titre</th><th>Fournisseur</th><th>Montant</th><th>Date</th><th>Statut</th><th>Photo</th></tr></thead>
+      <thead><tr><th>Titre</th><th>Fournisseur</th><th>Catégorie</th><th>Montant</th><th>Date</th><th>Statut</th><th>Photo</th></tr></thead>
       <tbody>${factures.map(i=>`<tr>
         <td><strong>${escHtml(i.titre)}</strong></td>
         <td>${escHtml(i.fournisseur||'–')}</td>
+        <td style="font-size:.78rem">${finCatLabel(i.categorie)}</td>
         <td>${fmtMoney(i.montant)}</td>
         <td>${fmt(i.date_facture)}</td>
         <td>${statusPill(i.statut)}</td>
         <td>${i.photo_path ? `<a href="${BASE}${i.photo_path}" target="_blank" class="btn btn-sm btn-ghost">📷 Voir</a>` : '–'}</td>
-      </tr>`).join('') || '<tr><td colspan="6" style="text-align:center">Aucune facture</td></tr>'}</tbody>
+      </tr>`).join('') || '<tr><td colspan="7" style="text-align:center">Aucune facture</td></tr>'}</tbody>
     </table></div>
   `);
 }
 
 function openTransactionForm(t, lines) {
-  openModal('Nouvelle transaction', `
+  const isEdit = !!t;
+  openModal(isEdit ? 'Modifier la transaction' : 'Nouvelle transaction', `
     <form id="txForm">
       <div class="form-group"><label>Type *</label>
         <select id="tx_type">
-          <option value="depense">Dépense</option>
-          <option value="revenu">Revenu</option>
+          <option value="depense" ${t?.type==='depense'?'selected':''}>Dépense</option>
+          <option value="revenu" ${t?.type==='revenu'?'selected':''}>Revenu</option>
         </select></div>
       <div class="form-row">
-        <div class="form-group"><label>Montant *</label><input type="number" id="tx_montant" step="0.01" required/></div>
+        <div class="form-group"><label>Montant *</label><input type="number" id="tx_montant" step="0.01" value="${t?.montant??''}" required/></div>
         <div class="form-group"><label>Méthode</label>
-          <select id="tx_methode"><option>cash</option><option>cheque</option><option>virement</option><option>carte</option></select></div>
+          <select id="tx_methode">
+            <option ${t?.methode==='cash'?'selected':''}>cash</option>
+            <option ${t?.methode==='cheque'?'selected':''}>cheque</option>
+            <option ${t?.methode==='virement'?'selected':''}>virement</option>
+            <option ${t?.methode==='carte'?'selected':''}>carte</option>
+          </select></div>
       </div>
-      <div class="form-group"><label>Ligne financière</label>
-        <select id="tx_line"><option value="">– Générale –</option>
-          ${lines.map(l=>`<option value="${l.id}">${l.activite||l.titre}</option>`).join('')}
-        </select></div>
-      <div class="form-group"><label>Description</label><textarea id="tx_desc" rows="2"></textarea></div>
-      <div class="form-group"><label>Référence</label><input id="tx_ref" placeholder="N° chèque, reçu..."/></div>
+      <div class="form-row">
+        <div class="form-group"><label>Ligne financière</label>
+          <select id="tx_line"><option value="">– Générale –</option>
+            ${lines.map(l=>`<option value="${l.id}" ${t?.financial_line_id===l.id?'selected':''}>${l.activite||l.titre}</option>`).join('')}
+          </select></div>
+        <div class="form-group"><label>Catégorie</label>
+          <select id="tx_cat">${finCatOptions(t?.categorie||'autre')}</select></div>
+      </div>
+      <div class="form-group"><label>Description</label><textarea id="tx_desc" rows="2">${escHtml(t?.description||'')}</textarea></div>
+      <div class="form-group"><label>Référence</label><input id="tx_ref" placeholder="N° chèque, reçu..." value="${escHtml(t?.reference||'')}"/></div>
       <div class="form-actions">
+        ${isEdit ? `<button type="button" class="btn btn-ghost" style="color:var(--red)" onclick="deleteTransaction(${t.id})">🗑 Supprimer</button>` : ''}
         <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
         <button type="submit" class="btn btn-primary">Enregistrer</button>
       </div>
@@ -3433,11 +3559,23 @@ function openTransactionForm(t, lines) {
     e.preventDefault();
     const body = { type:document.getElementById('tx_type').value, montant:parseFloat(document.getElementById('tx_montant').value),
       methode:document.getElementById('tx_methode').value, description:document.getElementById('tx_desc').value,
-      reference:document.getElementById('tx_ref').value,
+      reference:document.getElementById('tx_ref').value, categorie:document.getElementById('tx_cat').value,
       financial_line_id:parseInt(document.getElementById('tx_line').value)||null };
-    try { await api('/finance/transactions', { method:'POST', body:JSON.stringify(body) });
-      closeModal(); toast('Transaction enregistrée'); finance(); } catch(ex) { toast(ex.message,'error'); }
+    try {
+      if (isEdit) await api(`/finance/transactions/${t.id}`, { method:'PUT', body:JSON.stringify(body) });
+      else await api('/finance/transactions', { method:'POST', body:JSON.stringify(body) });
+      closeModal(); toast(isEdit ? 'Transaction mise à jour' : 'Transaction enregistrée');
+      finance();
+    } catch(ex) { toast(ex.message,'error'); }
   };
+}
+
+async function deleteTransaction(id) {
+  if (!confirm('Supprimer cette transaction ? Son effet sur le solde sera annulé.')) return;
+  try {
+    await api(`/finance/transactions/${id}`, { method:'DELETE' });
+    closeModal(); toast('Transaction supprimée'); finance();
+  } catch(ex) { toast(ex.message, 'error'); }
 }
 
 // ── Fermeture d'un projet/activité (2 signatures requises, comme les rencontres comité) ──
@@ -3529,19 +3667,24 @@ function openAccountForm(acc) {
 
 // ══ INVOICES ═══════════════════════════════════════════════════════════════
 async function invoices() {
-  const [data, lines] = await Promise.all([api('/finance/invoices'), api('/finance/lines')]);
+  const [data, lines, fourns] = await Promise.all([api('/finance/invoices'), api('/finance/lines'), api('/finance/fournisseurs').catch(() => [])]);
   window._invoiceLines = lines;
+  window._invFournisseurs = fourns;
   window._invById = {}; data.forEach(i => window._invById[i.id] = i);
   setContent(`
     <div class="page-header">
       <div><h2>Factures</h2><p>Gestion des factures et reçus</p></div>
-      ${can.adminOrTre() ? `<div class="page-actions"><button class="btn btn-primary" onclick="openInvoiceForm(window._invoiceLines)">+ Nouvelle facture</button></div>` : ''}
+      <div class="page-actions">
+        <button class="btn btn-ghost" onclick="showView('fournisseurs')">🏢 Fournisseurs</button>
+        ${can.adminOrTre() ? `<button class="btn btn-primary" onclick="openInvoiceForm(window._invoiceLines)">+ Nouvelle facture</button>` : ''}
+      </div>
     </div>
     <div class="table-card"><div class="table-wrapper"><table>
-      <thead><tr><th>Titre</th><th>Fournisseur</th><th>Montant</th><th>Date</th><th>Activité / Projet</th><th>Statut</th><th>Photo</th>${can.adminOrTre() ? '<th>Actions</th>' : ''}</tr></thead>
+      <thead><tr><th>Titre</th><th>Fournisseur</th><th>Catégorie</th><th>Montant</th><th>Date</th><th>Activité / Projet</th><th>Statut</th><th>Photo</th>${can.adminOrTre() ? '<th>Actions</th>' : ''}</tr></thead>
       <tbody>${data.map(i=>`<tr>
         <td><strong>${escHtml(i.titre)}</strong>${i.commentaire ? `<br><span style="font-size:.74rem;color:var(--muted);font-style:italic">💬 ${escHtml(i.commentaire)}</span>` : ''}</td>
         <td>${escHtml(i.fournisseur||'–')}</td>
+        <td style="font-size:.78rem">${finCatLabel(i.categorie)}</td>
         <td>${fmtMoney(i.montant)}</td>
         <td>${fmt(i.date_facture)}</td>
         <td>${escHtml(i.ligne||'–')}</td>
@@ -3560,6 +3703,62 @@ async function invoices() {
   `);
 }
 
+async function fournisseurs() {
+  const data = await api('/finance/fournisseurs');
+  window._fournById = {}; data.forEach(f => window._fournById[f.id] = f);
+  setContent(`
+    <div class="page-header">
+      <div><h2>Fournisseurs</h2><p>Registre des fournisseurs — alimenté automatiquement depuis les factures</p></div>
+      <div class="page-actions"><button class="btn btn-ghost" onclick="showView('invoices')">← Retour aux factures</button></div>
+    </div>
+    <div class="table-card"><div class="table-wrapper"><table>
+      <thead><tr><th>Nom</th><th>Téléphone</th><th>Email</th><th>Nb factures</th><th>Total dépensé</th><th>Notes</th>${can.adminOrTre() ? '<th>Actions</th>' : ''}</tr></thead>
+      <tbody>${data.map(f=>`<tr>
+        <td><strong>${escHtml(f.nom)}</strong></td>
+        <td>${escHtml(f.telephone||'–')}</td>
+        <td>${escHtml(f.email||'–')}</td>
+        <td>${f.nb_factures}</td>
+        <td>${fmtMoney(f.total_depense)}</td>
+        <td style="font-size:.8rem;color:var(--muted)">${escHtml(f.notes||'–')}</td>
+        ${can.adminOrTre() ? `<td style="white-space:nowrap">
+          <button class="btn btn-sm btn-ghost" onclick="openFournisseurForm(window._fournById[${f.id}])" title="Modifier">✏️</button>
+          ${can.admin() ? `<button class="btn btn-sm btn-ghost" style="color:var(--red)" onclick="deleteFournisseur(${f.id})" title="Supprimer du registre">🗑</button>` : ''}
+        </td>` : ''}
+      </tr>`).join('') || `<tr><td colspan="${can.adminOrTre()?7:6}" style="text-align:center;color:var(--muted);padding:32px">Aucun fournisseur enregistré — ils s'ajoutent automatiquement à la création d'une facture</td></tr>`}</tbody>
+    </table></div></div>
+  `);
+}
+
+function openFournisseurForm(f) {
+  openModal('Modifier le fournisseur', `
+    <form id="fournForm">
+      <div class="form-group"><label>Nom *</label><input id="fourn_nom" value="${escHtml(f.nom)}" required/></div>
+      <div class="form-row">
+        <div class="form-group"><label>Téléphone</label><input id="fourn_tel" value="${escHtml(f.telephone||'')}"/></div>
+        <div class="form-group"><label>Email</label><input type="email" id="fourn_email" value="${escHtml(f.email||'')}"/></div>
+      </div>
+      <div class="form-group"><label>Notes</label><textarea id="fourn_notes" rows="2">${escHtml(f.notes||'')}</textarea></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Enregistrer</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('fournForm').onsubmit = async e => {
+    e.preventDefault();
+    const body = { nom: document.getElementById('fourn_nom').value.trim(), telephone: document.getElementById('fourn_tel').value,
+      email: document.getElementById('fourn_email').value, notes: document.getElementById('fourn_notes').value };
+    try { await api(`/finance/fournisseurs/${f.id}`, { method:'PUT', body:JSON.stringify(body) });
+      closeModal(); toast('Fournisseur mis à jour'); fournisseurs(); } catch(ex) { toast(ex.message,'error'); }
+  };
+}
+
+async function deleteFournisseur(id) {
+  if (!confirm('Retirer ce fournisseur du registre ? Les factures existantes ne sont pas affectées.')) return;
+  try { await api(`/finance/fournisseurs/${id}`, { method:'DELETE' }); toast('Fournisseur retiré'); fournisseurs(); }
+  catch(ex) { toast(ex.message, 'error'); }
+}
+
 function openInvoiceForm(lines, existing) {
   window._invEditId = existing?.id || null;
   const actLines = lines.filter(l => l.activite);
@@ -3570,11 +3769,15 @@ function openInvoiceForm(lines, existing) {
     prjLines.length ? `<optgroup label="Projets">${prjLines.map(l=>`<option value="${l.id}" ${existing?.financial_line_id===l.id?'selected':''}>◑ ${l.projet}</option>`).join('')}</optgroup>` : '',
     otherLines.length ? `<optgroup label="Autres">${otherLines.map(l=>`<option value="${l.id}" ${existing?.financial_line_id===l.id?'selected':''}>${l.titre}</option>`).join('')}</optgroup>` : ''
   ].join('');
+  const fourns = window._invFournisseurs || [];
   openModal(existing ? 'Modifier la facture / reçu' : 'Nouvelle facture / reçu', `
     <form id="invForm" enctype="multipart/form-data">
       <div class="form-group"><label>Titre</label><input id="inv_titre" value="${escHtml(existing?.titre||'')}" placeholder="Laisser vide = généré automatiquement"/></div>
       <div class="form-row">
-        <div class="form-group"><label>Fournisseur</label><input id="inv_four" value="${escHtml(existing?.fournisseur||'')}"/></div>
+        <div class="form-group"><label>Fournisseur</label>
+          <input id="inv_four" list="inv_four_list" value="${escHtml(existing?.fournisseur||'')}"/>
+          <datalist id="inv_four_list">${fourns.map(f=>`<option value="${escHtml(f.nom)}">`).join('')}</datalist>
+        </div>
         <div class="form-group"><label>Montant ($)</label><input type="number" step="0.01" id="inv_mont" value="${existing?.montant??''}"/></div>
       </div>
       <div class="form-row">
@@ -3585,6 +3788,8 @@ function openInvoiceForm(lines, existing) {
             ${lineOptions}
           </select></div>
       </div>
+      <div class="form-group"><label>Catégorie</label>
+        <select id="inv_cat">${finCatOptions(existing?.categorie||'autre')}</select></div>
       <div class="form-group"><label>Commentaire</label>
         <textarea id="inv_comment" rows="2" placeholder="Note libre sur ce reçu...">${escHtml(existing?.commentaire||'')}</textarea></div>
       <div class="form-group"><label>Photo / Scan de la facture</label>
@@ -3608,6 +3813,7 @@ function openInvoiceForm(lines, existing) {
     fd.append('date_facture', document.getElementById('inv_date').value);
     fd.append('financial_line_id', document.getElementById('inv_line').value);
     fd.append('commentaire', document.getElementById('inv_comment').value);
+    fd.append('categorie', document.getElementById('inv_cat').value);
     return fd;
   }
 
