@@ -1941,13 +1941,17 @@ app.post('/api/notes/:id/sign', authMiddleware, (req, res) => {
   const note = db.prepare('SELECT * FROM meeting_notes WHERE id=?').get(req.params.id);
   if (!note) return res.status(404).json({ error: 'Note introuvable' });
   if (note.verrouille) return res.status(403).json({ error: 'Note déjà verrouillée' });
+  const creatorSigned = !!db.prepare('SELECT id FROM note_signatures WHERE note_id=? AND user_id=?').get(note.id, note.auteur_id);
+  if (req.user.id !== note.auteur_id && !creatorSigned) {
+    return res.status(403).json({ error: 'L\'auteur de la note doit signer en premier, avant les 2 autres signatures requises.' });
+  }
   try {
     db.prepare(`INSERT OR REPLACE INTO note_signatures (note_id, user_id, signature_data, ip) VALUES (?,?,?,?)`)
       .run(note.id, req.user.id, signature_data, req.ip);
     const { cnt } = db.prepare('SELECT COUNT(*) AS cnt FROM note_signatures WHERE note_id=?').get(note.id);
-    if (cnt >= 2) db.prepare('UPDATE meeting_notes SET verrouille=1 WHERE id=?').run(note.id);
+    if (cnt >= 3) db.prepare('UPDATE meeting_notes SET verrouille=1 WHERE id=?').run(note.id);
     logAdmin(req.user.id, 'signature_note', `note ${note.id} — ${note.titre}`, note.id, 'note', req.ip);
-    res.json({ ok: true, verrouille: cnt >= 2, nb_signatures: cnt });
+    res.json({ ok: true, verrouille: cnt >= 3, nb_signatures: cnt });
   } catch(e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
@@ -8811,13 +8815,17 @@ app.post('/api/agendas/:id/sign', authMiddleware, requireRole(...EXEC_ROLES), (r
   const agenda = db.prepare('SELECT * FROM agendas WHERE id=?').get(req.params.id);
   if (!agenda) return res.status(404).json({ error: 'Ordre du jour introuvable' });
   if (agenda.verrouille) return res.status(403).json({ error: 'Ordre du jour déjà verrouillé' });
+  const creatorSigned = !!db.prepare('SELECT id FROM agenda_signatures WHERE agenda_id=? AND user_id=?').get(agenda.id, agenda.cree_par);
+  if (req.user.id !== agenda.cree_par && !creatorSigned) {
+    return res.status(403).json({ error: 'Le créateur de l\'ordre du jour doit signer en premier, avant les 2 autres signatures requises.' });
+  }
   try {
     db.prepare('INSERT OR REPLACE INTO agenda_signatures (agenda_id, user_id, signature_data, ip) VALUES (?,?,?,?)')
       .run(agenda.id, req.user.id, signature_data, req.ip);
     const { cnt } = db.prepare('SELECT COUNT(*) AS cnt FROM agenda_signatures WHERE agenda_id=?').get(agenda.id);
-    if (cnt >= 2) db.prepare('UPDATE agendas SET verrouille=1 WHERE id=?').run(agenda.id);
+    if (cnt >= 3) db.prepare('UPDATE agendas SET verrouille=1 WHERE id=?').run(agenda.id);
     logAdmin(req.user.id, 'signature_agenda', `agenda ${agenda.id} — ${agenda.titre}`, agenda.id, 'agenda', req.ip);
-    res.json({ ok: true, verrouille: cnt >= 2, nb_signatures: cnt });
+    res.json({ ok: true, verrouille: cnt >= 3, nb_signatures: cnt });
   } catch(e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
@@ -10998,13 +11006,34 @@ app.post('/api/committee-meetings/:id/sign', authMiddleware, requireRole(...CM_R
   const m = db.prepare('SELECT * FROM committee_meetings WHERE id=?').get(req.params.id);
   if (!m) return res.status(404).json({ error: 'Rencontre introuvable' });
   if (m.verrouille) return res.status(403).json({ error: 'Rencontre déjà verrouillée' });
+  const creatorSigned = !!db.prepare('SELECT id FROM committee_meeting_signatures WHERE meeting_id=? AND user_id=?').get(m.id, m.cree_par);
+  if (req.user.id !== m.cree_par && !creatorSigned) {
+    return res.status(403).json({ error: 'La personne qui a créé la rencontre doit signer en premier, avant les 2 autres signatures requises.' });
+  }
   try {
     db.prepare('INSERT OR REPLACE INTO committee_meeting_signatures (meeting_id, user_id, signature_data, ip) VALUES (?,?,?,?)')
       .run(m.id, req.user.id, signature_data, req.ip);
     const { cnt } = db.prepare('SELECT COUNT(*) AS cnt FROM committee_meeting_signatures WHERE meeting_id=?').get(m.id);
-    if (cnt >= 2) db.prepare('UPDATE committee_meetings SET verrouille=1 WHERE id=?').run(m.id);
+    let agendaAlsoLocked = false;
+    if (cnt >= 3) {
+      db.prepare('UPDATE committee_meetings SET verrouille=1 WHERE id=?').run(m.id);
+      // Verrouiller automatiquement l'ordre du jour lié, par les mêmes signataires
+      if (m.agenda_id) {
+        const agenda = db.prepare('SELECT * FROM agendas WHERE id=?').get(m.agenda_id);
+        if (agenda && !agenda.verrouille) {
+          const meetingSigs = db.prepare('SELECT user_id, signature_data, ip FROM committee_meeting_signatures WHERE meeting_id=?').all(m.id);
+          const insAgSig = db.prepare('INSERT OR IGNORE INTO agenda_signatures (agenda_id, user_id, signature_data, ip) VALUES (?,?,?,?)');
+          meetingSigs.forEach(s => insAgSig.run(agenda.id, s.user_id, s.signature_data, s.ip));
+          const { cnt: agCnt } = db.prepare('SELECT COUNT(*) AS cnt FROM agenda_signatures WHERE agenda_id=?').get(agenda.id);
+          if (agCnt >= 3) {
+            db.prepare('UPDATE agendas SET verrouille=1 WHERE id=?').run(agenda.id);
+            agendaAlsoLocked = true;
+          }
+        }
+      }
+    }
     logAdmin(req.user.id, 'committee_meeting_sign', `Signature rencontre comité #${m.id}`, m.id, 'committee_meeting', req.ip);
-    res.json({ ok: true, verrouille: cnt >= 2, nb_signatures: cnt });
+    res.json({ ok: true, verrouille: cnt >= 3, nb_signatures: cnt, agenda_verrouille: agendaAlsoLocked });
   } catch(e) { res.status(500).json({ error: 'Erreur serveur' }); }
 });
 

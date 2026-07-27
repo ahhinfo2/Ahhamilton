@@ -4235,11 +4235,11 @@ async function notes() {
       const locked = !!n.verrouille;
       const signed = !!n.date_ma_signature;
       const editingLabel = `<span class="editing-badge" style="background:#fff3cd;color:#856404;font-size:.72rem;padding:2px 8px;border-radius:12px;font-weight:600;${isEditing?'':'display:none'}">${isEditing?'✏️ '+escHtml(n.editing_by_nom||'Quelqu\'un')+' édite...':''}</span>`;
-      const lockBadge = locked ? `<span style="background:#e8f5e9;color:#1b5e20;font-size:.72rem;padding:2px 9px;border-radius:12px;font-weight:600">🔒 Verrouillée — 2/2 signatures</span>` : '';
+      const lockBadge = locked ? `<span style="background:#e8f5e9;color:#1b5e20;font-size:.72rem;padding:2px 9px;border-radius:12px;font-weight:600">🔒 Verrouillée — 3/3 signatures</span>` : '';
       const sigBadge = signed && !locked ? `<span style="background:#e3f2fd;color:#1565c0;font-size:.72rem;padding:2px 9px;border-radius:12px;font-weight:600">✅ Vous avez signé</span>` : '';
-      const countBadge = n.nb_signatures === 1 && !locked
-        ? `<span style="background:#fff3cd;color:#856404;font-size:.72rem;padding:2px 9px;border-radius:12px;font-weight:600">⚠️ 1/2 signature — toute modification annule</span>`
-        : n.nb_signatures >= 2 && !locked ? `<span style="background:#f3e5f5;color:#6a1b9a;font-size:.72rem;padding:2px 9px;border-radius:12px;font-weight:600">🖊 ${n.nb_signatures} signatures</span>` : '';
+      const countBadge = n.nb_signatures >= 1 && !locked
+        ? `<span style="background:#fff3cd;color:#856404;font-size:.72rem;padding:2px 9px;border-radius:12px;font-weight:600">🖊 ${n.nb_signatures}/3 signatures — toute modification annule</span>`
+        : '';
       const lastEditorLabel = n.last_editor_nom ? `Modifié par <strong>${escHtml(n.last_editor_nom)}</strong>` : `Créé par <strong>${escHtml(n.auteur||'')}</strong>`;
       return `
       <div class="table-card" data-note-id="${n.id}" style="margin-bottom:12px;${locked?'border-left:3px solid #1b5e20':isEditing?'border-left:3px solid #f9a825':''}">
@@ -4402,7 +4402,7 @@ function _openNoteEditor(n, allActs, forceReadOnly) {
       <!-- Zone de saisie style papier Word -->
       <div style="flex:1;overflow-y:auto;padding:32px 0 48px;background:#e0e0e0">
         ${n?.verrouille
-          ? `<div style="text-align:center;padding:12px;background:#e8f5e9;color:#1b5e20;font-weight:600;font-size:.85rem">🔒 Cette note est verrouillée — lecture seule après 2 signatures</div>`
+          ? `<div style="text-align:center;padding:12px;background:#e8f5e9;color:#1b5e20;font-weight:600;font-size:.85rem">🔒 Cette note est verrouillée — lecture seule après 3 signatures</div>`
           : forceReadOnly
             ? `<div style="text-align:center;padding:12px;background:#e3f2fd;color:#1565c0;font-weight:600;font-size:.85rem">👁 Mode lecture seule — un autre membre rédige cette note en ce moment</div>`
             : n?.nb_signatures > 0
@@ -5031,7 +5031,7 @@ function _insertSessionMarker(noteId) {
 function openNoteSignatureModal(noteId, titre) {
   openModal(`✍️ Signer — ${titre}`, `
     <p style="font-size:.85rem;color:var(--muted);margin-bottom:12px">Dessinez votre signature dans la zone ci-dessous. Elle sera horodatée et liée à votre compte.<br>
-    <strong style="color:#1b5e20">⚠️ Après 2 signatures, la note sera verrouillée et ne pourra plus être modifiée.</strong></p>
+    <strong style="color:#1b5e20">⚠️ L'auteur de la note doit signer en premier ; 2 autres membres du comité peuvent ensuite signer. Après 3 signatures, la note sera verrouillée et ne pourra plus être modifiée.</strong></p>
     <canvas id="noteSigCanvas" width="540" height="160" style="border:1px solid #ccc;border-radius:8px;cursor:crosshair;display:block;width:100%;touch-action:none"></canvas>
     <div style="margin-top:8px;display:flex;gap:8px">
       <button class="btn btn-sm btn-ghost" onclick="_clearNoteCanvas()">🗑 Effacer</button>
@@ -5073,7 +5073,7 @@ async function _saveNoteSignature(noteId) {
     const r = await api(`/notes/${noteId}/sign`, { method:'POST', body: JSON.stringify({ signature_data }) });
     closeModal();
     if (r.verrouille) toast(`🔒 Note verrouillée — ${r.nb_signatures} signatures collectées`);
-    else toast(`✅ Signature enregistrée (${r.nb_signatures}/2 pour verrouiller)`);
+    else toast(`✅ Signature enregistrée (${r.nb_signatures}/3 pour verrouiller)`);
     notes();
   } catch(e) { toast(e.message, true); }
 }
@@ -15394,9 +15394,9 @@ async function meetingAgendasView() {
     const rows = (agendas || []).map(a => {
       const locked = !!a.verrouille;
       const signed = !!a.date_ma_signature;
-      const lockBadge = locked ? `<span style="background:#e8f5e9;color:#1b5e20;font-size:.72rem;padding:2px 9px;border-radius:12px;font-weight:600">🔒 Verrouillé — 2/2</span>` : '';
+      const lockBadge = locked ? `<span style="background:#e8f5e9;color:#1b5e20;font-size:.72rem;padding:2px 9px;border-radius:12px;font-weight:600">🔒 Verrouillé — 3/3</span>` : '';
       const sigBadge = signed && !locked ? `<span style="background:#e3f2fd;color:#1565c0;font-size:.72rem;padding:2px 9px;border-radius:12px;font-weight:600">✅ Vous avez signé</span>` : '';
-      const countBadge = a.nb_signatures > 0 && !locked ? `<span style="background:#fff3cd;color:#856404;font-size:.72rem;padding:2px 9px;border-radius:12px;font-weight:600">🖊 ${a.nb_signatures}/2</span>` : '';
+      const countBadge = a.nb_signatures > 0 && !locked ? `<span style="background:#fff3cd;color:#856404;font-size:.72rem;padding:2px 9px;border-radius:12px;font-weight:600">🖊 ${a.nb_signatures}/3</span>` : '';
       return `<tr>
         <td style="cursor:pointer" onclick="openAgendaEditor(window._agendaData[${a.id}])"><strong>${escHtml(a.titre)}</strong></td>
         <td>${fmt(a.date_reunion)}</td>
@@ -15466,7 +15466,7 @@ function openAgendaEditor(a) {
       </div>
 
       <div style="flex:1;overflow-y:auto;padding:32px 0 48px;background:#e0e0e0">
-        ${readOnly ? `<div style="text-align:center;padding:12px;background:#e8f5e9;color:#1b5e20;font-weight:600;font-size:.85rem">🔒 Cet ordre du jour est verrouillé — lecture seule après 2 signatures</div>`
+        ${readOnly ? `<div style="text-align:center;padding:12px;background:#e8f5e9;color:#1b5e20;font-weight:600;font-size:.85rem">🔒 Cet ordre du jour est verrouillé — lecture seule après 3 signatures</div>`
           : a?.nb_signatures > 0 ? `<div style="text-align:center;padding:10px 16px;background:#fff3cd;color:#856404;font-weight:600;font-size:.82rem">⚠️ ${a.nb_signatures} signature(s) existante(s). Toute sauvegarde les annulera.</div>` : ''}
 
         <style>#ag_editor ul, #ag_editor ol { margin: 4px 0 4px 28px; padding: 0; } #ag_editor li { margin: 2px 0; }</style>
@@ -15549,7 +15549,7 @@ async function saveAgendaEditor(id) {
 function openAgendaSignatureModal(agendaId, titre) {
   openModal(`✍️ Signer — ${titre}`, `
     <p style="font-size:.85rem;color:var(--muted);margin-bottom:12px">Dessinez votre signature dans la zone ci-dessous. Elle sera horodatée et liée à votre compte.<br>
-    <strong style="color:#1b5e20">⚠️ Après 2 signatures, l'ordre du jour sera verrouillé et ne pourra plus être modifié.</strong></p>
+    <strong style="color:#1b5e20">⚠️ Le créateur de l'ordre du jour doit signer en premier ; 2 autres membres du comité peuvent ensuite signer. Après 3 signatures, l'ordre du jour sera verrouillé et ne pourra plus être modifié.</strong></p>
     <canvas id="agendaSigCanvas" width="540" height="160" style="border:1px solid #ccc;border-radius:8px;cursor:crosshair;display:block;width:100%;touch-action:none"></canvas>
     <div style="margin-top:8px;display:flex;gap:8px">
       <button class="btn btn-sm btn-ghost" onclick="_clearAgendaCanvas()">🗑 Effacer</button>
@@ -15591,7 +15591,7 @@ async function _saveAgendaSignature(agendaId) {
     const r = await api(`/agendas/${agendaId}/sign`, { method:'POST', body: JSON.stringify({ signature_data }) });
     closeModal();
     if (r.verrouille) toast(`🔒 Ordre du jour verrouillé — ${r.nb_signatures} signatures collectées`);
-    else toast(`✅ Signature enregistrée (${r.nb_signatures}/2 pour verrouiller)`);
+    else toast(`✅ Signature enregistrée (${r.nb_signatures}/3 pour verrouiller)`);
     const fresh = await api('/agendas/' + agendaId);
     openAgendaEditor(fresh);
   } catch(e) { toast(e.message, true); }
@@ -17428,7 +17428,7 @@ async function committeeMeetingsView() {
               <td>${escHtml(m.createur_nom || '')}</td>
               <td>${m.nb_presents}/${m.nb_total} présent(s)</td>
               <td>
-                ${m.verrouille ? '<span style="color:#1b5e20;font-weight:700">🔒 Verrouillée</span>' : `<span style="color:var(--muted)">${m.nb_signatures}/2</span>`}
+                ${m.verrouille ? '<span style="color:#1b5e20;font-weight:700">🔒 Verrouillée</span>' : `<span style="color:var(--muted)">${m.nb_signatures}/3</span>`}
                 ${m.date_ma_signature ? ' <span style="color:#1b5e20;font-size:.78rem">✅ Signé</span>' : ''}
               </td>
               <td>
@@ -17547,7 +17547,7 @@ async function committeeMeetingDetail(id) {
 
     <div class="table-card">
       <div class="table-card-header">
-        <h3>✍️ Signatures (${data.nb_signatures}/2)</h3>
+        <h3>✍️ Signatures (${data.nb_signatures}/3)</h3>
         ${!locked ? '<div class="tc-actions"><button class="btn btn-primary btn-sm" onclick="openCmSignModal(' + id + ')">✍️ Signer</button></div>' : ''}
       </div>
       <div style="padding:16px">${sigsHtml}</div>
@@ -17603,7 +17603,7 @@ async function _saveCmAttendance(meetingId) {
 function openCmSignModal(meetingId) {
   openModal('✍️ Signer la rencontre comité', `
     <p style="font-size:.85rem;color:var(--muted);margin-bottom:12px">Dessinez votre signature dans la zone ci-dessous. Elle sera horodatée et liée à votre compte.<br>
-    <strong style="color:#1b5e20">⚠️ Après 2 signatures, la rencontre sera verrouillée et ne pourra plus être modifiée.</strong></p>
+    <strong style="color:#1b5e20">⚠️ La personne qui a créé la rencontre doit signer en premier ; 2 autres membres du comité peuvent ensuite signer. Après 3 signatures, la rencontre sera verrouillée — et l'ordre du jour lié sera automatiquement verrouillé par les mêmes signataires.</strong></p>
     <canvas id="cmSigCanvas" width="540" height="160" style="border:1px solid #ccc;border-radius:8px;cursor:crosshair;display:block;width:100%;touch-action:none"></canvas>
     <div style="margin-top:8px;display:flex;gap:8px">
       <button class="btn btn-sm btn-ghost" onclick="_clearCmCanvas()">🗑 Effacer</button>
@@ -17646,8 +17646,11 @@ async function _saveCmSignature(meetingId) {
   try {
     const r = await api('/committee-meetings/' + meetingId + '/sign', { method:'POST', body: JSON.stringify({ signature_data }) });
     closeModal();
-    if (r.verrouille) toast('🔒 Rencontre verrouillée : ' + r.nb_signatures + ' signatures collectées');
-    else toast('✅ Signature enregistrée (' + r.nb_signatures + '/2 pour verrouiller)');
+    if (r.verrouille) {
+      toast('🔒 Rencontre verrouillée : ' + r.nb_signatures + ' signatures collectées' + (r.agenda_verrouille ? ' — ordre du jour lié verrouillé aussi' : ''));
+    } else {
+      toast('✅ Signature enregistrée (' + r.nb_signatures + '/3 pour verrouiller)');
+    }
     committeeMeetingDetail(meetingId);
   } catch(e) { toast(e.message, true); }
 }
