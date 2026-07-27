@@ -475,6 +475,7 @@ async function buildSidebar() {
       ['bienfaiteur','partenaire'].includes(USER.plan) ? { id:'mes_annonces', icon:'◉', label:'Mes annonces' } : null,
       { id:'annuaire',     icon:'✉️', label:'Courriel' },
       { id:'forum',        icon:'◫', label:'Forum' },
+      { id:'alertes-urgentes', icon:'🚨', label:'Alertes urgentes' },
       // ── Mon espace membres ───────────────────────────────────────
       { id:'carte-membre',  icon:'🪪', label:'Ma carte membre',   _section:'✨ Mon espace' },
       { id:'mon_paiement',  icon:'💳', label:'Mes cotisations' },
