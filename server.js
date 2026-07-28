@@ -4713,7 +4713,8 @@ app.post('/api/activities/:id/tickets/sell', authMiddleware, requireRole('admin'
 
   const vendeur = db.prepare('SELECT prenom, nom FROM users WHERE id = ?').get(req.user.id);
   const prixUnit = parseFloat(prix) || act.prix || 0;
-  const qrData = `Vendu par ${vendeur.prenom} ${vendeur.nom}\nTable ${table.numero}\n${act.titre}`;
+  const ticketUid = crypto.randomBytes(4).toString('hex');
+  const qrData = `Vendu par ${vendeur.prenom} ${vendeur.nom}\nTable ${table.numero}\n${act.titre}\n${ticketUid}`;
 
   const r = db.prepare(`INSERT INTO tickets (activity_id, table_id, acheteur_nom, acheteur_email, acheteur_telephone, vendu_par, qr_data, prix, methode_paiement, quantite)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
@@ -9935,7 +9936,7 @@ app.post('/api/scan/unified', authMiddleware, (req, res) => {
       const actNom = (actCheck && actCheck.titre) || ticket.activite || 'Activité #' + ticketActId;
       if (!actCheck || actCheck.statut === 'annulee' || actCheck.statut === 'supprimee') {
         db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details, ticket_id) VALUES (?,?,?,?,?,?)")
-          .run(ticketActId, req.user.id, qr_data, 'invalide', nomBilletRaw + ' | Activité supprimée/annulée', ticket.id);
+          .run(actCheck ? ticketActId : null, req.user.id, qr_data, 'invalide', nomBilletRaw + ' | Activité supprimée/annulée', ticket.id);
         return res.json({
           ok: false, type: 'ticket', status: 'supprimee',
           nom: nomBilletRaw,
@@ -10099,7 +10100,7 @@ app.post('/api/scan/unified', authMiddleware, (req, res) => {
     const act = db.prepare('SELECT * FROM activities WHERE id=?').get(parseInt(activity_id));
     if (!act) {
       db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details) VALUES (?,?,?,?,?)")
-        .run(parseInt(activity_id), req.user.id, qr_data, 'invalide', nomMembre + ' | Activité introuvable');
+        .run(null, req.user.id, qr_data, 'invalide', nomMembre + ' | Activité introuvable');
       return res.json({ ok: false, type: 'carte', status: 'invalide', nom: nomMembre, message: 'Activité introuvable ou supprimée', activite: 'Activité #' + activity_id, photo_url: member.photo_url || '' });
     }
     if (act.statut === 'annulee') {
@@ -10241,7 +10242,7 @@ app.post('/api/scan/unified', authMiddleware, (req, res) => {
 
       if (!act) {
         db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details) VALUES (?,?,?,?,?)")
-          .run(qrActId, req.user.id, qr_data, 'invalide', 'Activité supprimée');
+          .run(null, req.user.id, qr_data, 'invalide', 'Activité supprimée');
         return res.json({ ok: false, type: 'activite', status: 'supprimee', nom: '', message: 'Activité supprimée (ID #' + qrActId + ')', activite: 'Activité #' + qrActId });
       }
       if (act.statut === 'annulee') {

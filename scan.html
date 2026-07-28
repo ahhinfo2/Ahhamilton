@@ -926,7 +926,7 @@ function _replayHistory(idx) {
   if (d.prix) rows.push('<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.15)"><span style="opacity:.7">Prix</span><strong>' + d.prix.toFixed(2) + ' $</strong></div>');
   if (d.lieu) rows.push('<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.15)"><span style="opacity:.7">Lieu</span><strong>' + d.lieu + '</strong></div>');
 
-  document.getElementById('ovDetails').innerHTML = rows.length ? '<div style="background:rgba(0,0,0,.2);border-radius:14px;padding:8px 14px;margin:8px 0;font-size:.85rem;text-align:left">' + rows.join('') + '</div>' : '';
+  document.getElementById('ovSub').innerHTML = rows.length ? '<div style="background:rgba(0,0,0,.2);border-radius:14px;padding:8px 14px;margin:8px 0;font-size:.85rem;text-align:left">' + rows.join('') + '</div>' : '';
   document.getElementById('ovSub').textContent = h.time;
   clearTimeout(_overlayTimer);
 }
