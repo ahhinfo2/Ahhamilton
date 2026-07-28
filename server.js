@@ -9854,17 +9854,20 @@ app.post('/api/scan/unified', authMiddleware, (req, res) => {
 
   // ── Authorization: EXEC or active delegation ──
   const isExec = ['admin','tresoriere','secretaire','delegue'].includes(req.user.role);
+  let canScanBillets = isExec, canScanCartes = isExec;
   if (!isExec) {
     const delegSql = activity_id
-      ? "SELECT id, type FROM scan_delegations WHERE user_id=? AND actif=1 AND (activity_id IS NULL OR activity_id=?) AND (date_expiration IS NULL OR date_expiration > datetime('now'))"
-      : "SELECT id, type FROM scan_delegations WHERE user_id=? AND actif=1 AND (date_expiration IS NULL OR date_expiration > datetime('now'))";
+      ? "SELECT type FROM scan_delegations WHERE user_id=? AND actif=1 AND (activity_id IS NULL OR activity_id=?) AND (date_expiration IS NULL OR date_expiration > datetime('now'))"
+      : "SELECT type FROM scan_delegations WHERE user_id=? AND actif=1 AND (date_expiration IS NULL OR date_expiration > datetime('now'))";
     const delegParams = activity_id ? [req.user.id, activity_id] : [req.user.id];
-    const deleg = db.prepare(delegSql).get(...delegParams);
-    if (!deleg) {
+    const delegs = db.prepare(delegSql).all(...delegParams);
+    if (!delegs.length) {
       db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details) VALUES (?,?,?,?,?)")
         .run(activity_id || null, req.user.id, qr_data, 'invalide', 'Accès refusé');
       return res.status(403).json({ ok: false, type: 'error', status: 'refuse', message: 'Accès refusé — pas de délégation de scan' });
     }
+    canScanBillets = delegs.some(d => d.type === 'billets' || d.type === 'tous');
+    canScanCartes = delegs.some(d => d.type === 'cartes' || d.type === 'tous');
   }
 
   // ── Detect QR type ──
@@ -9911,6 +9914,12 @@ app.post('/api/scan/unified', authMiddleware, (req, res) => {
     `).get(ticketQr, qr_data);
 
     if (!ticket) return null; // not found as ticket
+
+    if (!canScanBillets) {
+      db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details, ticket_id) VALUES (?,?,?,?,?,?)")
+        .run(ticket.activity_id || null, req.user.id, qr_data, 'invalide', 'Accès refusé — pas de délégation de scan billets', ticket.id);
+      return res.status(403).json({ ok: false, type: 'error', status: 'refuse', message: 'Accès refusé — pas de délégation de scan billets' });
+    }
 
     // IMPORTANT: ticket.act_id vient du LEFT JOIN (null si activité supprimée)
     // ticket.activity_id vient de t.* (toujours la valeur originale)
@@ -10034,6 +10043,12 @@ app.post('/api/scan/unified', authMiddleware, (req, res) => {
       if (idMatch) userId = parseInt(idMatch[1]);
     }
     if (!userId || isNaN(userId)) return null; // not a card
+
+    if (!canScanCartes) {
+      db.prepare("INSERT INTO scan_logs (activity_id, scanner_id, code_scanne, resultat, details) VALUES (?,?,?,?,?)")
+        .run(activity_id || null, req.user.id, qr_data, 'invalide', 'Accès refusé — pas de délégation de scan cartes');
+      return res.status(403).json({ ok: false, type: 'error', status: 'refuse', message: 'Accès refusé — pas de délégation de scan cartes' });
+    }
 
     const member = db.prepare('SELECT id, prenom, nom, email, role, plan, photo_url, carte_photo_approuvee, date_inscription, actif FROM users WHERE id=?').get(userId);
     if (!member) {
