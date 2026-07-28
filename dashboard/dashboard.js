@@ -2935,7 +2935,7 @@ async function subcommittees() {
           const initials = (m.prenom[0] + m.nom[0]).toUpperCase();
           const isChef = m.id === sc.chef_id;
           return '<div class="sc-avatar' + (isChef ? ' sc-avatar--chef' : '') +
-            '" style="background:' + col.bg + '" title="' + m.prenom + ' ' + m.nom + (isChef ? ' (chef)' : '') + '">' +
+            '" style="background:' + col.bg + '" title="' + escHtml(m.prenom) + ' ' + escHtml(m.nom) + (isChef ? ' (chef)' : '') + '">' +
             initials + '</div>';
         }).join('');
         const extraCount = sc.membres.length > 6 ? sc.membres.length - 6 : 0;
@@ -2947,7 +2947,7 @@ async function subcommittees() {
           return '<div class="sc-member-row">' +
             '<div class="sc-member-av" style="background:' + col.bg + '">' + initials + '</div>' +
             '<div class="sc-member-info">' +
-              '<div class="sc-member-name">' + m.prenom + ' ' + m.nom + '</div>' +
+              '<div class="sc-member-name">' + escHtml(m.prenom) + ' ' + escHtml(m.nom) + '</div>' +
               '<div class="sc-member-role">' + roleName(m.role) +
                 (isChef ? ' · <span class="sc-chef-tag" style="color:' + col.bg + '">👑 Chef</span>' : '') +
               '</div>' +
@@ -7006,7 +7006,7 @@ function renderMessages(msgs, append) {
     return `<div class="chat-msg ${isMe ? 'me' : ''}">
       ${!isMe ? `<div class="chat-avatar-sm">${initials}</div>` : ''}
       <div class="chat-bubble">
-        ${!isMe ? `<div class="chat-bubble-name">${m.prenom} ${m.nom}</div>` : ''}
+        ${!isMe ? `<div class="chat-bubble-name">${escapeHtml(m.prenom)} ${escapeHtml(m.nom)}</div>` : ''}
         <div class="chat-bubble-text">${escapeHtml(m.content)}</div>
         <div class="chat-bubble-time">${time}</div>
       </div>
@@ -8035,11 +8035,11 @@ async function talents_mgmt() {
                     : `<span style="font-size:2rem">${cat.emoji}</span>`}
                 </div>
                 <div class="tmc-body">
-                  <div class="tmc-name">${t.nom}</div>
-                  <div class="tmc-spec">${t.specialite || cat.label}</div>
-                  ${t.telephone ? `<div class="tmc-info">📞 ${t.telephone}</div>` : ''}
-                  ${t.site_web ? `<div class="tmc-info">🌐 <a href="${t.site_web}" target="_blank" style="color:var(--g2)">${t.site_web}</a></div>` : ''}
-                  <div class="tmc-member">👤 ${t.prenom} ${t.nom}</div>
+                  <div class="tmc-name">${escHtml(t.nom)}</div>
+                  <div class="tmc-spec">${escHtml(t.specialite) || cat.label}</div>
+                  ${t.telephone ? `<div class="tmc-info">📞 ${escHtml(t.telephone)}</div>` : ''}
+                  ${t.site_web ? `<div class="tmc-info">🌐 <a href="${escHtml(t.site_web)}" target="_blank" style="color:var(--g2)">${escHtml(t.site_web)}</a></div>` : ''}
+                  <div class="tmc-member">👤 ${escHtml(t.prenom)} ${escHtml(t.nom)}</div>
                   <div style="margin-top:6px">
                     ${t.statut === 'en_attente' ? '<span style="background:#fff8e1;color:#f57f17;font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:50px">⏳ En attente</span>' : t.statut === 'rejete' ? '<span style="background:#fdecea;color:#c62828;font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:50px">❌ Refusée</span>' : '<span style="background:#e8f5e9;color:#1b5e20;font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:50px">✅ Publiée</span>'}
                   </div>
@@ -8064,7 +8064,7 @@ function openTalentForm(t) {
       <div class="form-row">
         <div class="form-group">
           <label>Nom affiché *</label>
-          <input id="tf_nom" value="${t?.nom||''}" required placeholder="Lesly Rénovation"/>
+          <input id="tf_nom" value="${escHtml(t?.nom||'')}" required placeholder="Lesly Rénovation"/>
         </div>
         <div class="form-group">
           <label>Catégorie *</label>
@@ -8075,25 +8075,25 @@ function openTalentForm(t) {
       </div>
       <div class="form-group">
         <label>Spécialité / Sous-titre</label>
-        <input id="tf_spec" value="${t?.specialite||''}" placeholder="ex: Peinture intérieure, plomberie…"/>
+        <input id="tf_spec" value="${escHtml(t?.specialite||'')}" placeholder="ex: Peinture intérieure, plomberie…"/>
       </div>
       <div class="form-group">
         <label>Description</label>
-        <textarea id="tf_desc" rows="3">${t?.description||''}</textarea>
+        <textarea id="tf_desc" rows="3">${escHtml(t?.description||'')}</textarea>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label>Téléphone</label>
-          <input id="tf_tel" value="${t?.telephone||''}" placeholder="905-000-0000"/>
+          <input id="tf_tel" value="${escHtml(t?.telephone||'')}" placeholder="905-000-0000"/>
         </div>
         <div class="form-group">
           <label>Site web</label>
-          <input id="tf_web" value="${t?.site_web||''}" placeholder="https://…"/>
+          <input id="tf_web" value="${escHtml(t?.site_web||'')}" placeholder="https://…"/>
         </div>
       </div>
       <div class="form-group">
         <label>Adresse</label>
-        <input id="tf_addr" value="${t?.adresse||''}" placeholder="Hamilton, ON"/>
+        <input id="tf_addr" value="${escHtml(t?.adresse||'')}" placeholder="Hamilton, ON"/>
       </div>
       <div class="form-group">
         <label>Photo professionnelle</label>
@@ -8179,8 +8179,8 @@ async function annonces_mgmt() {
             const cat = ANNONCE_CATS.find(c => c.key === a.categorie) || { emoji:'📦', label:'Autre' };
             const prixLabel = a.gratuit ? '🎁 Gratuit' : (a.prix ? '$' + a.prix : '–');
             return `<tr>
-              <td><strong>${a.titre}</strong></td>
-              <td>${a.prenom} ${a.nom}
+              <td><strong>${escHtml(a.titre)}</strong></td>
+              <td>${escHtml(a.prenom)} ${escHtml(a.nom)}
                 <br/><small style="color:var(--muted)">${pill(a.plan||'gratuit','bp-blue')}</small>
               </td>
               <td>${cat.emoji} ${cat.label}</td>
@@ -9042,7 +9042,7 @@ function recusFiltrer() {
       ? '<span style="font-size:.72rem;background:#e8f5e9;color:#1b5e20;padding:1px 7px;border-radius:10px;margin-left:6px">' + m.plan + '</span>' : '';
     return '<label style="display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--border)">' +
       '<input type="checkbox" ' + checked + ' onchange="recusToggle(' + m.id + ',this.checked)" style="width:16px;height:16px;cursor:pointer"/>' +
-      '<span style="flex:1">' + m.prenom + ' ' + m.nom + planBadge + ' <span style="color:var(--muted);font-size:.81rem">— ' + m.email + '</span></span>' +
+      '<span style="flex:1">' + escHtml(m.prenom) + ' ' + escHtml(m.nom) + planBadge + ' <span style="color:var(--muted);font-size:.81rem">— ' + escHtml(m.email) + '</span></span>' +
       '</label>';
   }).join('');
   recusUpdateCount();
@@ -9724,7 +9724,7 @@ async function rappModalEnRetard(allCotis) {
     (retards.length ? retards.map(m =>
       '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)' + (m.periodes.length >= 2 ? ';background:#fff8f8' : '') + '">' +
       '<div style="width:32px;height:32px;border-radius:50%;background:#ffebee;color:#c62828;display:flex;align-items:center;justify-content:center;font-size:.63rem;font-weight:700;flex-shrink:0">' + (m.nom[0] || '').toUpperCase() + (m.nom.split(' ')[1]?.[0] || '').toUpperCase() + '</div>' +
-      '<div style="flex:1"><strong>' + m.nom + '</strong><div style="font-size:.74rem;color:var(--muted)">' + m.email + '</div></div>' +
+      '<div style="flex:1"><strong>' + escHtml(m.nom) + '</strong><div style="font-size:.74rem;color:var(--muted)">' + escHtml(m.email) + '</div></div>' +
       planBadge(m.plan) +
       '<div style="text-align:right;min-width:70px"><div style="font-weight:700;color:#c62828">$' + m.total.toFixed(2) + '</div><div style="font-size:.72rem;color:var(--muted)">' + m.periodes.length + ' mois</div></div>' +
       (m.periodes.length >= 2 ? '<span style="font-size:.67rem;background:#ffebee;color:#c62828;padding:2px 7px;border-radius:8px;white-space:nowrap">Chronique</span>' : '') +
@@ -10224,7 +10224,7 @@ async function rappModalBenevolat() {
         '<thead><tr style="background:#f8f8f8;position:sticky;top:0"><th style="padding:8px 12px;text-align:left">Bénévole</th><th style="padding:8px;text-align:center">Heures</th><th style="padding:8px;text-align:right">Valeur ($' + TAUX + '/h)</th></tr></thead><tbody>' +
         members.map(m =>
           '<tr style="border-top:1px solid var(--border)">' +
-          '<td style="padding:8px 12px"><strong>' + m.nom + '</strong></td>' +
+          '<td style="padding:8px 12px"><strong>' + escHtml(m.nom) + '</strong></td>' +
           '<td style="padding:8px;text-align:center;font-weight:700">' + m.heures + 'h</td>' +
           '<td style="padding:8px;text-align:right;color:#2e7d32;font-weight:700">$' + (m.heures * TAUX).toFixed(2) + '</td>' +
           '</tr>').join('') +
@@ -11883,8 +11883,8 @@ async function reports() {
       '<div class="table-wrapper"><table>' +
         '<thead><tr><th>Nom</th><th>Courriel</th><th>Rôle</th><th>Plan</th><th>Activités</th><th>Total payé</th><th>Inscription</th></tr></thead>' +
         '<tbody>' + membresRpt.map(m =>
-          '<tr><td><strong>' + m.prenom + ' ' + m.nom + '</strong></td>' +
-          '<td>' + m.email + '</td>' +
+          '<tr><td><strong>' + escHtml(m.prenom) + ' ' + escHtml(m.nom) + '</strong></td>' +
+          '<td>' + escHtml(m.email) + '</td>' +
           '<td>' + pill(roleName(m.role), m.role==='admin'?'bp-orange':'bp-blue') + '</td>' +
           '<td>' + pill(m.plan||'gratuit', m.plan==='bienfaiteur'?'bp-orange':m.plan==='partenaire'?'bp-green':'bp-gray') + '</td>' +
           '<td>' + (m.nb_activites||0) + '</td>' +
@@ -11903,7 +11903,7 @@ function renderPlanRows(membres, filter) {
   if (filter === 'payés')  filtered = membres.filter(m => m.plan !== 'gratuit' && m.paye_mois > 0);
   if (filter === 'retard') filtered = membres.filter(m => m.plan !== 'gratuit' && m.paye_mois === 0);
   return filtered.map(m =>
-    '<tr><td><strong>' + m.prenom + ' ' + m.nom + '</strong><br/><small style="color:var(--muted)">' + m.email + '</small></td>' +
+    '<tr><td><strong>' + escHtml(m.prenom) + ' ' + escHtml(m.nom) + '</strong><br/><small style="color:var(--muted)">' + escHtml(m.email) + '</small></td>' +
     '<td>' + pill(m.plan||'gratuit', m.plan==='bienfaiteur'?'bp-orange':m.plan==='partenaire'?'bp-green':'bp-gray') + '</td>' +
     '<td>' + (m.paye_mois > 0 ? '<span style="color:var(--g2);font-weight:600">✅ Payé</span>' : '<span style="color:var(--red);font-weight:600">❌ Non payé</span>') + '</td>' +
     '<td>' + (m.plan_unpaid_count||0) + '/2</td>' +

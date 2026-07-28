@@ -1780,11 +1780,13 @@ app.post('/api/messages', authMiddleware, (req, res) => {
   const { sujet, contenu, destinataires } = req.body;
   if (!contenu || !destinataires?.length) return res.status(400).json({ error: 'Contenu et destinataires requis' });
 
+  const isExecSender = ['admin','tresoriere','secretaire','delegue'].includes(req.user.role);
   let targets = [];
-  if (destinataires[0] === 'all') {
-    targets = db.prepare('SELECT id FROM users WHERE actif = 1 AND id != ? AND (phantom IS NULL OR phantom = 0)').all(req.user.id).map(u => u.id);
-  } else if (destinataires[0] === 'members') {
-    targets = db.prepare("SELECT id FROM users WHERE role = 'member' AND actif = 1").all().map(u => u.id);
+  if (destinataires[0] === 'all' || destinataires[0] === 'members') {
+    if (!isExecSender) return res.status(403).json({ error: 'Accès refusé — diffusion réservée au comité' });
+    targets = destinataires[0] === 'all'
+      ? db.prepare('SELECT id FROM users WHERE actif = 1 AND id != ? AND (phantom IS NULL OR phantom = 0)').all(req.user.id).map(u => u.id)
+      : db.prepare("SELECT id FROM users WHERE role = 'member' AND actif = 1").all().map(u => u.id);
   } else {
     targets = destinataires;
   }
@@ -1915,9 +1917,16 @@ app.post('/api/notes', authMiddleware, (req, res) => {
   res.status(201).json({ id: r.lastInsertRowid });
 });
 
+// Une note n'est visible/modifiable que par son auteur ou un membre du comité exécutif
+function canAccessNote(req, note) {
+  return !!note && (note.auteur_id === req.user.id || ['admin','tresoriere','secretaire','delegue'].includes(req.user.role));
+}
+
 app.put('/api/notes/:id', authMiddleware, (req, res) => {
-  const note = db.prepare('SELECT verrouille FROM meeting_notes WHERE id=?').get(req.params.id);
-  if (note?.verrouille) return res.status(403).json({ error: 'Note verrouillée — impossible de modifier après 2 signatures' });
+  const note = db.prepare('SELECT verrouille, auteur_id FROM meeting_notes WHERE id=?').get(req.params.id);
+  if (!note) return res.status(404).json({ error: 'Note introuvable' });
+  if (!canAccessNote(req, note)) return res.status(403).json({ error: 'Accès refusé' });
+  if (note.verrouille) return res.status(403).json({ error: 'Note verrouillée — impossible de modifier après 2 signatures' });
   const { titre, contenu, contenu_corrige, langue, date_reunion, activity_id } = req.body;
   // Bloquer la sauvegarde de JSON brut dans le contenu
   if (contenu && /[{[,]"(qr_token|budget_prevu|paiement_requis|rabais_json|payment_status)"/.test(contenu)) {
@@ -1969,6 +1978,7 @@ app.get('/api/notes/:id/download', authMiddleware, (req, res) => {
     FROM meeting_notes n LEFT JOIN users u ON u.id=n.auteur_id LEFT JOIN activities a ON a.id=n.activity_id
     WHERE n.id=?`).get(req.params.id);
   if (!n) return res.status(404).send('Note introuvable');
+  if (!canAccessNote(req, n)) return res.status(403).send('Accès refusé');
   const sigs = db.prepare(`SELECT ns.*, u.prenom||' '||u.nom AS nom_signataire, u.role
     FROM note_signatures ns JOIN users u ON u.id=ns.user_id WHERE ns.note_id=? ORDER BY ns.date_signature`).all(req.params.id);
   const ROLE_LABELS = { admin:'Administrateur', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Délégué', member:'Membre' };
@@ -2042,6 +2052,7 @@ ${sigs.length ? `
 app.get('/api/notes/:id/attestation', authMiddleware, (req, res) => {
   const n = db.prepare(`SELECT n.*, u.prenom||' '||u.nom AS auteur FROM meeting_notes n LEFT JOIN users u ON u.id=n.auteur_id WHERE n.id=?`).get(req.params.id);
   if (!n) return res.status(404).send('Note introuvable');
+  if (!canAccessNote(req, n)) return res.status(403).send('Accès refusé');
   const sigs = db.prepare(`SELECT ns.*, u.prenom||' '||u.nom AS nom_signataire, u.role
     FROM note_signatures ns JOIN users u ON u.id=ns.user_id WHERE ns.note_id=? ORDER BY ns.date_signature`).all(req.params.id);
   const ROLE_LABELS = { admin:'Administrateur', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Délégué', member:'Membre' };
@@ -2098,6 +2109,9 @@ ${sigs.length === 0 ? '<p style="color:#999;font-style:italic">Aucune signature.
 
 // Marquer "en train d'éditer"
 app.post('/api/notes/:id/editing', authMiddleware, (req, res) => {
+  const note = db.prepare('SELECT auteur_id FROM meeting_notes WHERE id=?').get(req.params.id);
+  if (!note) return res.status(404).json({ error: 'Note introuvable' });
+  if (!canAccessNote(req, note)) return res.status(403).json({ error: 'Accès refusé' });
   db.prepare("UPDATE meeting_notes SET editing_by=?, editing_since=CURRENT_TIMESTAMP WHERE id=?").run(req.user.id, req.params.id);
   res.json({ ok: true });
 });
@@ -2116,6 +2130,7 @@ app.get('/api/notes/:id', authMiddleware, (req, res) => {
     LEFT JOIN users eb ON eb.id = n.editing_by
     WHERE n.id=?`).get(req.params.id);
   if (!n) return res.status(404).json({ error: 'Introuvable' });
+  if (!canAccessNote(req, n)) return res.status(403).json({ error: 'Accès refusé' });
   res.json(n);
 });
 
@@ -2154,6 +2169,7 @@ app.get('/api/notes/:id/contributions', authMiddleware, (req, res) => {
 app.post('/api/notes/:id/merge', authMiddleware, (req, res) => {
   const note = db.prepare('SELECT * FROM meeting_notes WHERE id=?').get(req.params.id);
   if (!note) return res.status(404).json({ error: 'Note introuvable' });
+  if (!canAccessNote(req, note)) return res.status(403).json({ error: 'Accès refusé' });
   if (note.verrouille) return res.status(403).json({ error: 'Note verrouillée' });
   const contribs = db.prepare(`
     SELECT nc.*, u.prenom||' '||u.nom AS nom
@@ -3323,7 +3339,7 @@ const attachmentStorage = multer.diskStorage({
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
-  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
+  filename: (req, file, cb) => cb(null, safeFilename(file))
 });
 const uploadAttachment = multer({ storage: attachmentStorage, limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -3359,7 +3375,7 @@ const talentStorage = multer.diskStorage({
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
-  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
+  filename: (req, file, cb) => cb(null, safeFilename(file))
 });
 const uploadTalent = multer({ storage: talentStorage, limits: { fileSize: 8 * 1024 * 1024 } });
 
@@ -3514,7 +3530,7 @@ const paymentStorage = multer.diskStorage({
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
-  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
+  filename: (req, file, cb) => cb(null, safeFilename(file))
 });
 const uploadPayment = multer({ storage: paymentStorage, limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -4091,7 +4107,7 @@ app.get('/api/talents/all', authMiddleware, requireRole('admin','secretaire'), (
 // POST — créer une fiche talent (admin = approuvé direct, membre = en_attente)
 app.post('/api/talents', authMiddleware, uploadTalent.single('photo'), async (req, res) => {
   const { nom, categorie, specialite, description, telephone, adresse, site_web, user_id } = req.body;
-  const targetUserId = parseInt(user_id) || req.user.id;
+  const targetUserId = (can_admin(req) && parseInt(user_id)) || req.user.id;
 
   if (!can_admin(req) && !isPlanOk(targetUserId))
     return res.status(403).json({ error: 'Plan bienfaiteur ($10/mois) requis pour s\'afficher dans les talents.' });
@@ -4254,7 +4270,7 @@ const annonceStorage = multer.diskStorage({
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
-  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
+  filename: (req, file, cb) => cb(null, safeFilename(file))
 });
 const uploadAnnonce = multer({ storage: annonceStorage, limits: { fileSize: 8 * 1024 * 1024 } });
 
@@ -8387,7 +8403,7 @@ const formImageStorage = multer.diskStorage({
     fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
-  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
+  filename: (req, file, cb) => cb(null, safeFilename(file))
 });
 const uploadFormImage = multer({ storage: formImageStorage, limits: { fileSize: 15 * 1024 * 1024 } });
 
@@ -10513,7 +10529,7 @@ const memberPhotoStorage = multer.diskStorage({
     fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
-  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
+  filename: (req, file, cb) => cb(null, safeFilename(file))
 });
 const uploadMemberPhoto = multer({ storage: memberPhotoStorage, limits: { fileSize: 15 * 1024 * 1024 } });
 
