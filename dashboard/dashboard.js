@@ -13655,7 +13655,7 @@ async function _startHtml5Scanner() {
     try {
       await new Promise((resolve, reject) => {
         const s = document.createElement('script');
-        s.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+        s.src = '/Public/html5-qrcode.min.js';
         s.onload = resolve; s.onerror = reject;
         document.head.appendChild(s);
       });
@@ -13678,8 +13678,15 @@ async function _startHtml5Scanner() {
       () => {}
     );
   } catch(e) {
+    console.warn('[Scanner html5-qrcode]', e && e.message || e);
     const msg = document.getElementById('carteReaderMsg');
-    if (msg) { msg.style.display='block'; msg.textContent='Caméra non disponible — utilisez la saisie manuelle.'; }
+    const permissionDenied = /NotAllowedError|Permission denied/i.test(String(e && e.message || e));
+    if (msg) {
+      msg.style.display = 'block';
+      msg.textContent = permissionDenied
+        ? 'Accès à la caméra refusé — autorisez la caméra pour ce site dans les réglages du navigateur, ou utilisez la saisie manuelle.'
+        : 'Caméra non disponible — utilisez la saisie manuelle.';
+    }
     const el = document.getElementById('carteReader');
     if (el) el.innerHTML = '<div style="padding:40px;text-align:center;font-size:2rem">📷</div>';
   }
