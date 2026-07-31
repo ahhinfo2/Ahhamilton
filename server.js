@@ -1597,8 +1597,8 @@ app.post('/api/finance/invoices', authMiddleware, requireRole('admin', 'tresorie
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(titre, fournisseur||'', montant||0, date_facture||'', photo_path, photo_hash, financial_line_id||null, commentaire||'', categorie||'autre', req.user.id);
   upsertFournisseur(fournisseur);
 
-  // Alert admins
-  getAdminsAndRole('admin').forEach(a =>
+  // Alerter la trésorière (doit valider) + la présidente et le VP (role=admin)
+  [...getAdminsAndRole('admin'), ...getAdminsAndRole('tresoriere')].forEach(a =>
     createAlert(a.id, 'depense', `Nouvelle facture : ${titre}`, `Fournisseur: ${fournisseur||'-'} | Montant: $${montant||0}`, r.lastInsertRowid));
   res.status(201).json({ id: r.lastInsertRowid, photo_path, titre });
 });
@@ -6195,21 +6195,24 @@ app.get('/api/sidebar-counts', authMiddleware, (req, res) => {
   const counts = {};
   try {
     if (isExec) {
-      counts.inscriptions = db.prepare("SELECT COUNT(*) AS c FROM users WHERE actif=1 AND (approved IS NULL OR approved=0)").get()?.c || 0;
+      counts.inscriptions = db.prepare("SELECT COUNT(*) AS c FROM pending_registrations WHERE statut='en_attente'").get()?.c || 0;
       counts.photos_attente = db.prepare("SELECT COUNT(*) AS c FROM users WHERE photo_url IS NOT NULL AND photo_url != '' AND (carte_photo_approuvee IS NULL OR carte_photo_approuvee=0)").get()?.c || 0;
       counts.cartes_expirees = db.prepare("SELECT COUNT(*) AS c FROM users WHERE actif=1 AND date_inscription IS NOT NULL AND date(date_inscription, '+2 years') < date('now')").get()?.c || 0;
       counts.carte_gestion = counts.photos_attente + counts.cartes_expirees;
       counts.tasks = db.prepare("SELECT COUNT(*) AS c FROM tasks WHERE statut IN ('en_cours','a_faire') AND (assigne_a=? OR cree_par=?)").get(req.user.id, req.user.id)?.c || 0;
-      counts.notes = db.prepare("SELECT COUNT(*) AS c FROM meeting_notes WHERE statut='brouillon'").get()?.c || 0;
+      counts.notes = db.prepare("SELECT COUNT(*) AS c FROM meeting_notes WHERE verrouille=0 OR verrouille IS NULL").get()?.c || 0;
       counts.pending_orders = db.prepare("SELECT COUNT(*) AS c FROM tickets WHERE payment_status='pending'").get()?.c || 0;
-      counts.forms = db.prepare("SELECT COUNT(*) AS c FROM form_responses WHERE statut='nouveau'").get()?.c || 0;
-      counts.alerts = db.prepare("SELECT COUNT(*) AS c FROM alerts WHERE resolved=0").get()?.c || 0;
+      counts.forms = db.prepare("SELECT COUNT(*) AS c FROM form_responses WHERE date_reponse > COALESCE((SELECT derniere_connexion FROM users WHERE id=?), '2000-01-01')").get(req.user.id)?.c || 0;
+      counts.alerts = db.prepare("SELECT COUNT(*) AS c FROM alerts WHERE lu=0 AND destinataire_id=?").get(req.user.id)?.c || 0;
       counts.paiements = db.prepare("SELECT COUNT(*) AS c FROM payments WHERE statut='en_attente'").get()?.c || 0;
-      counts.invoices = db.prepare("SELECT COUNT(*) AS c FROM invoices WHERE statut='envoyee'").get()?.c || 0;
+    }
+    // Nouvelles factures à valider — visible seulement pour la trésorière, la présidente et le VP (role=admin)
+    if (['admin','tresoriere'].includes(req.user.role)) {
+      counts.invoices = db.prepare("SELECT COUNT(*) AS c FROM invoices WHERE statut='en_attente'").get()?.c || 0;
     }
     // Compteurs pour tout le monde
     counts.courriel = db.prepare("SELECT COUNT(*) AS c FROM message_recipients WHERE destinataire_id=? AND lu=0 AND supprime=0").get(req.user.id)?.c || 0;
-    counts.forum = db.prepare("SELECT COUNT(*) AS c FROM forum_posts WHERE created_at > COALESCE((SELECT derniere_connexion FROM users WHERE id=?), '2000-01-01')").get(req.user.id)?.c || 0;
+    counts.forum = db.prepare("SELECT COUNT(*) AS c FROM forum_posts WHERE date_creation > COALESCE((SELECT derniere_connexion FROM users WHERE id=?), '2000-01-01')").get(req.user.id)?.c || 0;
     counts.mes_billets = db.prepare("SELECT COUNT(*) AS c FROM tickets WHERE user_id=? AND payment_status='paid' AND statut='actif' AND checked_in=0").get(req.user.id)?.c || 0;
   } catch(e) { console.error('[sidebar-counts]', e.message); }
   res.json(counts);
