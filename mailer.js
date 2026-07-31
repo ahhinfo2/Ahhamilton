@@ -524,6 +524,40 @@ async function sendCarteRenewal(user, expirationDate) {
   return sendMail({ to, subject, html });
 }
 
+async function sendCartePhotoManquante(user) {
+  const prenom = user.prenom || 'cher membre';
+  const html = wrap('🪪 Complétez votre carte de membre', `
+    <p>Bonjour <strong>${esc(prenom)}</strong>,</p>
+    <p>Nous avons remarqué qu'aucune photo n'est associée à votre carte de membre AHH — une photo est nécessaire pour valider votre carte et pouvoir l'utiliser lors de nos activités.</p>
+    <p><strong>Comment l'ajouter :</strong></p>
+    <ol style="color:#3a3a3a;font-size:.9rem;line-height:1.8;margin:0 0 14px;padding-left:20px">
+      <li>Connectez-vous à votre espace membre</li>
+      <li>Allez dans <strong>Mon profil</strong></li>
+      <li>Cliquez sur l'icône 📷 sur votre photo pour en téléverser une nouvelle</li>
+    </ol>
+    <div style="text-align:center;margin:24px 0">
+      <a href="${siteUrl}/dashboard/login.html" class="btn">Mettre à jour ma photo</a>
+    </div>
+    <p style="font-size:.84rem;color:#555">Une fois ajoutée, votre photo sera examinée et approuvée par le comité pour valider votre carte.</p>
+    <hr class="divider"/>
+    <p style="font-size:.82rem;color:#888">Merci de votre collaboration,<br/><strong>Le Comité de l'Association Haïtienne de Hamilton</strong></p>
+  `);
+  await sendMail({ to: user.email, subject: '🪪 Complétez votre carte de membre AHH — photo manquante', html });
+}
+
+async function sendActivityBulkEmail(user, activiteTitre, sujet, message, expediteurNom) {
+  const html = wrap(sujet, `
+    <p>Bonjour <strong>${esc(user.prenom || '')}</strong>,</p>
+    <p>${esc(message).replace(/\n/g, '<br/>')}</p>
+    <hr class="divider"/>
+    <p style="font-size:.82rem;color:#888">
+      Ce message concerne votre inscription à : <strong>${esc(activiteTitre)}</strong><br/>
+      Envoyé par ${esc(expediteurNom)} au nom du Comité de l'Association Haïtienne de Hamilton.
+    </p>
+  `);
+  await sendMail({ to: user.email, subject: `${sujet} — ${activiteTitre}`, html });
+}
+
 async function sendRappelExpiration(user, joursRestants, montant, mois) {
   const urgence = joursRestants <= 1 ? '🚨 DERNIER JOUR' : joursRestants <= 7 ? '⚠️ Urgent' : '📅 Rappel';
   const label = joursRestants <= 1 ? 'aujourd\'hui' : joursRestants <= 7 ? `dans ${joursRestants} jours` : 'dans 30 jours';
@@ -593,5 +627,5 @@ module.exports = {
   sendRecuFiscal, sendRecuFiscalAuto, sendRappelExpiration,
   sendInscriptionActivite, sendNouvelleAdhesion, sendInvitation, sendHeuresBenevolat,
   sendBilletInterac, sendBilletQR, sendNouvelleCommandeBillet, sendExternalEmail,
-  sendCarteRenewal, sendAnniversaire, SMS_GATEWAYS
+  sendCarteRenewal, sendAnniversaire, sendCartePhotoManquante, sendActivityBulkEmail, SMS_GATEWAYS
 };

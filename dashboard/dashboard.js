@@ -2585,6 +2585,7 @@ async function launchActivity(id, titre) {
 async function viewRegistrations(id, titre) {
   const data = await api(`/activities/${id}/registrations`);
   openModal(`Inscriptions – ${titre}`, `
+    ${data.length && can.executive() ? `<div style="text-align:right;margin-bottom:10px"><button class="btn btn-outline btn-sm" onclick="openEmailInscritsForm(${id},'${titre.replace(/'/g,"\\'")}')">✉️ Envoyer un courriel aux inscrits</button></div>` : ''}
     <div class="table-wrapper"><table>
       <thead><tr><th>Nom</th><th>Courriel</th><th>Téléphone</th><th>Statut</th><th>Date</th></tr></thead>
       <tbody>
@@ -2592,6 +2593,31 @@ async function viewRegistrations(id, titre) {
       </tbody>
     </table></div>
   `);
+}
+
+function openEmailInscritsForm(activityId, titre) {
+  openModal(`Courriel aux inscrits – ${escHtml(titre)}`, `
+    <form id="emailInscritsForm">
+      <div class="form-group"><label>Sujet *</label><input id="ei_sujet" required placeholder="Ex. Rappel important pour l'activité"/></div>
+      <div class="form-group"><label>Message *</label><textarea id="ei_message" rows="6" required placeholder="Votre message aux inscrits..."></textarea></div>
+      <p style="font-size:.78rem;color:var(--muted)">Le courriel sera envoyé individuellement à chaque personne inscrite, signé en votre nom au nom du comité.</p>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Envoyer</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('emailInscritsForm').onsubmit = async e => {
+    e.preventDefault();
+    const sujet = document.getElementById('ei_sujet').value.trim();
+    const message = document.getElementById('ei_message').value.trim();
+    if (!sujet || !message) return;
+    try {
+      const r = await api(`/activities/${activityId}/registrations/email`, { method:'POST', body: JSON.stringify({ sujet, message }) });
+      closeModal();
+      toast('✉️ Courriel envoyé à ' + r.envoyes + '/' + r.total + ' inscrit(s)' + (r.erreurs ? ' (' + r.erreurs + ' erreur(s))' : ''));
+    } catch(ex) { toast(ex.message, 'error'); }
+  };
 }
 
 async function registerActivity(id) {
@@ -13087,7 +13113,7 @@ async function carteGestionView() {
   setContent(`
     <div class="page-header">
       <div><h2>🪪 Gestion des cartes membres</h2><p>Photos · Expirations · Connexions · Profils</p></div>
-      <div class="page-actions" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-outline" onclick="openVolunteerLetterForm()">📝 Lettre bénévolat</button><button class="btn btn-outline" onclick="carteGestionView()">↻ Actualiser</button></div>
+      <div class="page-actions" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-outline" onclick="notifierPhotoManquante()">✉️ Rappel photo manquante</button><button class="btn btn-outline" onclick="openVolunteerLetterForm()">📝 Lettre bénévolat</button><button class="btn btn-outline" onclick="carteGestionView()">↻ Actualiser</button></div>
     </div>
     <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
       <input type="text" id="cgSearch" placeholder="🔍 Rechercher nom, email, rôle..." oninput="_cgFilter()" style="flex:1;min-width:200px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:.84rem"/>
@@ -13509,6 +13535,18 @@ async function _cgRelanceConnexion(id, prenom) {
   try {
     var r = await api('/users/' + id + '/relance-connexion', { method:'POST' });
     toast('✉️ ' + (r.message || 'Courriel envoyé'));
+  } catch (e) {
+    toast('⚠️ ' + (e.message || 'Erreur lors de l\'envoi'), 'error');
+  }
+}
+
+async function notifierPhotoManquante() {
+  var sansPhoto = (window._carteMembers || []).filter(function(m) { return !m.photo_url; });
+  if (!sansPhoto.length) { toast('Aucun membre sans photo — rien à envoyer'); return; }
+  if (!confirm('Envoyer un courriel expliquant comment ajouter une photo à ' + sansPhoto.length + ' membre(s) sans photo sur leur carte ?')) return;
+  try {
+    var r = await api('/admin/cartes/notifier-sans-photo', { method:'POST' });
+    toast('✉️ Courriel envoyé à ' + r.envoyes + '/' + r.total + ' membre(s)' + (r.erreurs ? ' (' + r.erreurs + ' erreur(s))' : ''));
   } catch (e) {
     toast('⚠️ ' + (e.message || 'Erreur lors de l\'envoi'), 'error');
   }

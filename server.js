@@ -1344,6 +1344,26 @@ app.get('/api/activities/:id/registrations', authMiddleware, requireRole('admin'
   res.json(rows);
 });
 
+// Envoyer un courriel personnalisé à tous les inscrits d'une activité
+app.post('/api/activities/:id/registrations/email', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), async (req, res) => {
+  const { sujet, message } = req.body;
+  if (!sujet || !message) return res.status(400).json({ error: 'Sujet et message requis' });
+  const act = db.prepare('SELECT titre FROM activities WHERE id = ?').get(req.params.id);
+  if (!act) return res.status(404).json({ error: 'Activité introuvable' });
+  const rows = db.prepare(`SELECT u.id, u.prenom, u.email FROM activity_registrations ar
+    JOIN users u ON u.id = ar.user_id WHERE ar.activity_id = ?`).all(req.params.id);
+  if (!rows.length) return res.status(400).json({ error: 'Aucun inscrit pour cette activité' });
+  const sender = db.prepare('SELECT prenom, nom FROM users WHERE id = ?').get(req.user.id);
+
+  let envoyes = 0, erreurs = 0;
+  for (const r of rows) {
+    try { await mailer.sendActivityBulkEmail(r, act.titre, sujet, message, `${sender.prenom} ${sender.nom}`); envoyes++; }
+    catch(e) { erreurs++; console.error(`[EMAIL-INSCRITS] ${r.email}:`, e.message); }
+  }
+  logAdmin(req.user.id, 'email_inscrits', `Courriel "${sujet}" envoyé à ${envoyes}/${rows.length} inscrits de "${act.titre}"`, req.params.id, 'activity', req.ip);
+  res.json({ ok: true, envoyes, erreurs, total: rows.length });
+});
+
 // ══════════════════════════════════════════════════════════════════════════════
 // FINANCE
 // ══════════════════════════════════════════════════════════════════════════════
@@ -7299,6 +7319,21 @@ app.get('/api/admin/cartes', authMiddleware, requireRole(...CARTE_ROLES), (req, 
     return { ...m, expiration, days_left: daysLeft };
   });
   res.json(result);
+});
+
+// Envoyer un rappel par courriel à tous les membres actifs sans photo sur leur carte
+app.post('/api/admin/cartes/notifier-sans-photo', authMiddleware, requireRole(...CARTE_ROLES), async (req, res) => {
+  const membres = db.prepare(`SELECT id, prenom, nom, email FROM users
+    WHERE actif=1 AND (phantom IS NULL OR phantom=0) AND (photo_url IS NULL OR photo_url='')`).all();
+  if (!membres.length) return res.json({ ok: true, envoyes: 0, erreurs: 0, total: 0 });
+
+  let envoyes = 0, erreurs = 0;
+  for (const m of membres) {
+    try { await mailer.sendCartePhotoManquante(m); envoyes++; }
+    catch(e) { erreurs++; console.error(`[NOTIF-PHOTO] ${m.email}:`, e.message); }
+  }
+  logAdmin(req.user.id, 'notif_photo_manquante', `Rappel photo carte envoyé à ${envoyes}/${membres.length} membres`, null, 'users', req.ip);
+  res.json({ ok: true, envoyes, erreurs, total: membres.length });
 });
 
 app.post('/api/admin/cartes/:id/approuver-photo', authMiddleware, requireRole(...CARTE_ROLES), (req, res) => {
