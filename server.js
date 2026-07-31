@@ -1577,7 +1577,7 @@ app.get('/api/finance/invoices', authMiddleware, requireRole('admin','tresoriere
   res.json(rows);
 });
 
-app.post('/api/finance/invoices', authMiddleware, requireRole('tresoriere', 'admin'), upload.single('photo'), async (req, res) => {
+app.post('/api/finance/invoices', authMiddleware, requireRole('admin', 'tresoriere', 'secretaire', 'delegue'), upload.single('photo'), async (req, res) => {
   const { fournisseur, montant, date_facture, financial_line_id, commentaire, categorie } = req.body;
   const titre = (req.body.titre || '').trim() || `Reçu ${new Date().toLocaleString('fr-CA')}`;
 
@@ -1603,10 +1603,19 @@ app.post('/api/finance/invoices', authMiddleware, requireRole('tresoriere', 'adm
   res.status(201).json({ id: r.lastInsertRowid, photo_path, titre });
 });
 
-app.put('/api/finance/invoices/:id', authMiddleware, requireRole('tresoriere', 'admin'), upload.single('photo'), async (req, res) => {
+app.put('/api/finance/invoices/:id', authMiddleware, requireRole('admin', 'tresoriere', 'secretaire', 'delegue'), upload.single('photo'), async (req, res) => {
   const { statut, titre, fournisseur, montant, date_facture, financial_line_id, commentaire, categorie } = req.body;
   const invoice = db.prepare('SELECT * FROM invoices WHERE id = ?').get(req.params.id);
   if (!invoice) return res.status(404).json({ error: 'Facture introuvable' });
+
+  const isTresoriere = req.user.role === 'tresoriere';
+  const isOwnPending = req.user.id === invoice.cree_par && invoice.statut === 'en_attente';
+  if (!isTresoriere && req.user.role !== 'admin' && !isOwnPending) {
+    return res.status(403).json({ error: 'Accès refusé — vous ne pouvez modifier que vos propres factures en attente' });
+  }
+  if (statut !== undefined && !isTresoriere) {
+    return res.status(403).json({ error: 'Seule la trésorière peut valider une facture' });
+  }
 
   // Édition des champs (titre, montant, commentaire, photo...) — indépendant du changement de statut
   const editUpdates = []; const editVals = [];
@@ -1638,12 +1647,14 @@ app.put('/api/finance/invoices/:id', authMiddleware, requireRole('tresoriere', '
 
   db.prepare('UPDATE invoices SET statut = ? WHERE id = ?').run(statut, req.params.id);
   // Dès qu'une facture est approuvée → enregistrer la dépense dans la ligne financière
+  // (relire la facture pour tenir compte d'une ligne/montant attaché dans ce même appel)
+  const invoiceAfterEdits = db.prepare('SELECT * FROM invoices WHERE id = ?').get(req.params.id);
   const wasAlreadyApprovedOrPaid = ['approuve','paye'].includes(invoice.statut);
-  if (statut === 'approuve' && !wasAlreadyApprovedOrPaid && invoice.financial_line_id) {
+  if (statut === 'approuve' && !wasAlreadyApprovedOrPaid && invoiceAfterEdits.financial_line_id) {
     db.prepare(`INSERT INTO transactions (financial_line_id, type, montant, description, methode, invoice_id, cree_par)
       VALUES (?, 'depense', ?, ?, 'facture', ?, ?)`)
-      .run(invoice.financial_line_id, invoice.montant, `Facture approuvée: ${invoice.titre}`, invoice.id, req.user.id);
-    db.prepare('UPDATE account_info SET solde = solde - ?, date_maj = CURRENT_TIMESTAMP WHERE id = 1').run(invoice.montant);
+      .run(invoiceAfterEdits.financial_line_id, invoiceAfterEdits.montant, `Facture approuvée: ${invoiceAfterEdits.titre}`, invoiceAfterEdits.id, req.user.id);
+    db.prepare('UPDATE account_info SET solde = solde - ?, date_maj = CURRENT_TIMESTAMP WHERE id = 1').run(invoiceAfterEdits.montant);
   }
   res.json({ message: 'Mise à jour' });
 });

@@ -3700,29 +3700,34 @@ async function invoices() {
       <div><h2>Factures</h2><p>Gestion des factures et reçus</p></div>
       <div class="page-actions">
         <button class="btn btn-ghost" onclick="showView('fournisseurs')">🏢 Fournisseurs</button>
-        ${can.adminOrTre() ? `<button class="btn btn-primary" onclick="openInvoiceForm(window._invoiceLines)">+ Nouvelle facture</button>` : ''}
+        ${can.executive() ? `<button class="btn btn-primary" onclick="openInvoiceForm(window._invoiceLines)">+ Nouvelle facture</button>` : ''}
       </div>
     </div>
     <div class="table-card"><div class="table-wrapper"><table>
-      <thead><tr><th>Titre</th><th>Fournisseur</th><th>Catégorie</th><th>Montant</th><th>Date</th><th>Activité / Projet</th><th>Statut</th><th>Photo</th>${can.adminOrTre() ? '<th>Actions</th>' : ''}</tr></thead>
-      <tbody>${data.map(i=>`<tr>
+      <thead><tr><th>Titre</th><th>Fournisseur</th><th>Catégorie</th><th>Montant</th><th>Date</th><th>Activité / Projet</th><th>Créé par</th><th>Statut</th><th>Photo</th>${can.executive() ? '<th>Actions</th>' : ''}</tr></thead>
+      <tbody>${data.map(i=>{
+        const isTresoriere = USER.role === 'tresoriere';
+        const canEditRow = can.adminOrTre() || (i.cree_par === USER.id && i.statut === 'en_attente');
+        const actions = [
+          canEditRow ? `<button class="btn btn-sm btn-ghost" onclick="openInvoiceForm(window._invoiceLines,window._invById[${i.id}])" title="Modifier">✏️</button>` : '',
+          (isTresoriere && i.statut === 'en_attente') ? `<button class="btn btn-sm btn-primary" onclick="approveInvoice(${i.id})" title="Approuver et enregistrer la dépense">✅ Approuver</button>
+            <button class="btn btn-sm btn-ghost" onclick="updateInvoiceStatus(${i.id},'refuse')" style="color:var(--red)">✗ Refuser</button>` : '',
+          (isTresoriere && i.statut === 'approuve') ? `<button class="btn btn-sm btn-accent" onclick="updateInvoiceStatus(${i.id},'paye')" title="Marquer comme payé">💰 Payé</button>` : '',
+          can.adminOrTre() ? `<button class="btn btn-sm btn-ghost" onclick="deleteInvoice(${i.id})" style="color:var(--red)" title="Supprimer et annuler les effets financiers">🗑</button>` : ''
+        ].join('');
+        return `<tr>
         <td><strong>${escHtml(i.titre)}</strong>${i.commentaire ? `<br><span style="font-size:.74rem;color:var(--muted);font-style:italic">💬 ${escHtml(i.commentaire)}</span>` : ''}</td>
         <td>${escHtml(i.fournisseur||'–')}</td>
         <td style="font-size:.78rem">${finCatLabel(i.categorie)}</td>
         <td>${fmtMoney(i.montant)}</td>
         <td>${fmt(i.date_facture)}</td>
-        <td>${escHtml(i.ligne||'–')}</td>
+        <td>${escHtml(i.ligne||'Autres')}</td>
+        <td style="font-size:.82rem">${escHtml(i.createur||'–')}</td>
         <td>${statusPill(i.statut)}</td>
         <td>${i.photo_path ? `<a href="${BASE}${i.photo_path}" target="_blank" class="btn btn-sm btn-ghost">📷 Voir</a>` : '–'}</td>
-        ${can.adminOrTre() ? `<td style="white-space:nowrap">
-          <button class="btn btn-sm btn-ghost" onclick="openInvoiceForm(window._invoiceLines,window._invById[${i.id}])" title="Modifier">✏️</button>
-          ${i.statut === 'en_attente' ? `
-            <button class="btn btn-sm btn-primary" onclick="updateInvoiceStatus(${i.id},'approuve')" title="Approuver et enregistrer la dépense">✅ Approuver</button>
-            <button class="btn btn-sm btn-ghost" onclick="updateInvoiceStatus(${i.id},'refuse')" style="color:var(--red)">✗ Refuser</button>` : ''}
-          ${i.statut === 'approuve' ? `<button class="btn btn-sm btn-accent" onclick="updateInvoiceStatus(${i.id},'paye')" title="Marquer comme payé">💰 Payé</button>` : ''}
-          <button class="btn btn-sm btn-ghost" onclick="deleteInvoice(${i.id})" style="color:var(--red)" title="Supprimer et annuler les effets financiers">🗑</button>
-        </td>` : '<td>–</td>'}
-      </tr>`).join('')}</tbody>
+        ${can.executive() ? `<td style="white-space:nowrap">${actions || '–'}</td>` : ''}
+      </tr>`;
+      }).join('')}</tbody>
     </table></div></div>
   `);
 }
@@ -3806,9 +3811,9 @@ function openInvoiceForm(lines, existing) {
       </div>
       <div class="form-row">
         <div class="form-group"><label>Date facture</label><input type="date" id="inv_date" value="${(existing?.date_facture||'').substring(0,10)}"/></div>
-        <div class="form-group"><label>Activité ou Projet *</label>
-          <select id="inv_line" required>
-            <option value="">– Choisir –</option>
+        <div class="form-group"><label>Activité ou Projet</label>
+          <select id="inv_line">
+            <option value="">– Autres / non assigné –</option>
             ${lineOptions}
           </select></div>
       </div>
@@ -3845,8 +3850,6 @@ function openInvoiceForm(lines, existing) {
   document.getElementById('inv_photo').onchange = async function() {
     const file = this.files[0];
     if (!file) return;
-    const lineId = document.getElementById('inv_line').value;
-    if (!lineId) { toast('Choisissez d\'abord une activité ou un projet', 'error'); this.value = ''; return; }
     const statusEl = document.getElementById('inv_autosave_status');
     statusEl.textContent = '⏳ Enregistrement automatique...'; statusEl.style.color = 'var(--muted)';
     const fd = collectFormData();
@@ -3870,8 +3873,6 @@ function openInvoiceForm(lines, existing) {
 
   document.getElementById('invForm').onsubmit = async e => {
     e.preventDefault();
-    const lineId = document.getElementById('inv_line').value;
-    if (!lineId) { toast('Veuillez choisir une activité ou un projet', 'error'); return; }
     const fd = collectFormData();
     const ph = document.getElementById('inv_photo').files[0];
     if (ph && !window._invEditId) fd.append('photo', ph);
@@ -3888,6 +3889,39 @@ function openInvoiceForm(lines, existing) {
 async function updateInvoiceStatus(id, statut) {
   await api(`/finance/invoices/${id}`, { method:'PUT', body: JSON.stringify({ statut }) });
   toast('Statut mis à jour'); invoices();
+}
+
+// Approuver une facture — si elle n'est pas encore rattachée à une ligne budgétaire (« Autres »),
+// laisse la trésorière en choisir une avant de valider (optionnel, elle peut laisser « Autres »)
+function approveInvoice(id) {
+  const inv = window._invById[id];
+  if (inv && inv.financial_line_id) { updateInvoiceStatus(id, 'approuve'); return; }
+  const lines = window._invoiceLines || [];
+  const actLines = lines.filter(l => l.activite);
+  const prjLines = lines.filter(l => l.projet);
+  const otherLines = lines.filter(l => !l.activite && !l.projet);
+  const lineOptions = [
+    actLines.length ? `<optgroup label="Activités">${actLines.map(l=>`<option value="${l.id}">🗓 ${escHtml(l.activite)}</option>`).join('')}</optgroup>` : '',
+    prjLines.length ? `<optgroup label="Projets">${prjLines.map(l=>`<option value="${l.id}">◑ ${escHtml(l.projet)}</option>`).join('')}</optgroup>` : '',
+    otherLines.length ? `<optgroup label="Autres">${otherLines.map(l=>`<option value="${l.id}">${escHtml(l.titre)}</option>`).join('')}</optgroup>` : ''
+  ].join('');
+  openModal('Approuver la facture', `
+    <p style="color:var(--muted);font-size:.88rem">Cette facture n'est rattachée à aucune activité ou projet. Vous pouvez l'attacher à une ligne budgétaire maintenant, ou l'approuver telle quelle (elle restera classée « Autres »).</p>
+    <div class="form-group"><label>Ligne budgétaire (optionnel)</label>
+      <select id="apinv_line"><option value="">– Laisser « Autres » –</option>${lineOptions}</select></div>
+    <div class="form-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+      <button type="button" class="btn btn-primary" onclick="_confirmApproveInvoice(${id})">✅ Approuver</button>
+    </div>
+  `);
+}
+
+async function _confirmApproveInvoice(id) {
+  const financial_line_id = document.getElementById('apinv_line').value;
+  const body = { statut: 'approuve' };
+  if (financial_line_id) body.financial_line_id = financial_line_id;
+  try { await api(`/finance/invoices/${id}`, { method:'PUT', body: JSON.stringify(body) });
+    closeModal(); toast('Facture approuvée'); invoices(); } catch(ex) { toast(ex.message, 'error'); }
 }
 
 async function deleteInvoice(id) {
