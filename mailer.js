@@ -1,6 +1,11 @@
 // ── Module email centralisé — AHH ────────────────────────────────────────
 require('dotenv').config();
 const nodemailer = require('nodemailer');
+const path = require('path');
+const fs = require('fs');
+
+const LOGO_PATH = path.join(__dirname, 'Public', 'logo1.png');
+const LOGO_CID = 'ahhlogo';
 
 const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, ORG_SMTP_PASS, IMAP_HOST, IMAP_PORT, SITE_URL } = process.env;
 
@@ -72,7 +77,7 @@ function wrap(titre, corps) {
 </style></head><body>
 <div class="wrap">
   <div class="hdr">
-    <img src="${siteUrl}/Public/logo1.png" alt="AHH"/>
+    <img src="cid:${LOGO_CID}" alt="AHH"/>
     <h1>Association Haïtienne de Hamilton</h1>
   </div>
   <div class="body">
@@ -98,7 +103,10 @@ async function sendMail({ to, subject, html, text, from, replyTo, attachments })
   }
   // Version texte brut automatique si absente (améliore la délivrabilité et réduit le spam)
   const plainText = text || (html ? html.replace(/<style[\s\S]*?<\/style>/gi,'').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim() : '');
-  await t.sendMail({ from: from || FROM, to, subject, html, text: plainText, replyTo, attachments, encoding: 'utf-8', textEncoding: 'base64' });
+  // Le logo est intégré (cid) plutôt que chargé à distance — s'affiche même si SITE_URL est mal configuré ou injoignable
+  const logoAttachment = (html && html.includes(`cid:${LOGO_CID}`) && fs.existsSync(LOGO_PATH))
+    ? [{ filename: 'logo1.png', path: LOGO_PATH, cid: LOGO_CID }] : [];
+  await t.sendMail({ from: from || FROM, to, subject, html, text: plainText, replyTo, attachments: [...logoAttachment, ...(attachments || [])], encoding: 'utf-8', textEncoding: 'base64' });
   console.log(`✉️  Email envoyé → ${to} | ${subject}`);
 }
 
@@ -366,7 +374,7 @@ async function sendBilletQR(email, prenom, activite, billet, qrBase64, qrPublicU
     <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;border:2px solid #1b5e20;border-radius:16px;overflow:hidden">
       <!-- En-tête vert -->
       <div style="background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:20px;text-align:center">
-        <img src="${siteUrl}/Public/logo1.png" width="60" height="60" alt="AHH" style="border-radius:10px;margin-bottom:8px;display:block;margin:0 auto 8px"/>
+        <img src="cid:${LOGO_CID}" width="60" height="60" alt="AHH" style="border-radius:10px;margin-bottom:8px;display:block;margin:0 auto 8px"/>
         <div style="color:#fff;font-size:1.1rem;font-weight:700">Association Haïtienne de Hamilton</div>
         <div style="color:rgba(255,255,255,.8);font-size:.8rem;margin-top:2px">Billet d'entrée</div>
       </div>
