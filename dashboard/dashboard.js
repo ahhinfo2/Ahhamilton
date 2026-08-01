@@ -3818,6 +3818,28 @@ async function deleteFournisseur(id) {
   catch(ex) { toast(ex.message, 'error'); }
 }
 
+// Analyse IA d'un reçu déjà photographié — remplit les champs vides sans jamais écraser une valeur saisie.
+// Réutilisée à la fois par l'auto-save au choix de la photo et par la relance automatique à la réouverture
+// d'un brouillon (le flux mobile peut être interrompu par l'app caméra native avant la fin de l'analyse).
+async function _runAiAutoFill(invoiceId, statusEl) {
+  statusEl.textContent = '🤖 Analyse du reçu en cours...';
+  try {
+    const ai = await api(`/ai/scan-recu/${invoiceId}`, { method:'POST' });
+    if (ai.ok) {
+      const four = document.getElementById('inv_four'), mont = document.getElementById('inv_mont'),
+            date = document.getElementById('inv_date'), cat = document.getElementById('inv_cat');
+      if (ai.fournisseur && !four.value) four.value = ai.fournisseur;
+      if (ai.montant && (!mont.value || parseFloat(mont.value) === 0)) mont.value = ai.montant;
+      if (ai.date_facture && !date.value) date.value = ai.date_facture;
+      if (ai.categorie && cat) cat.value = ai.categorie;
+      statusEl.textContent = '🤖 Détails extraits automatiquement — vérifiez avant d\'enregistrer';
+      toast('🤖 Détails du reçu pré-remplis — vérifiez avant d\'enregistrer');
+    } else {
+      statusEl.textContent = '✅ Photo enregistrée — complétez les détails puis Enregistrer';
+    }
+  } catch { statusEl.textContent = '✅ Photo enregistrée — complétez les détails puis Enregistrer'; }
+}
+
 function openInvoiceForm(lines, existing) {
   window._invEditId = existing?.id || null;
   const actLines = lines.filter(l => l.activite);
@@ -3864,6 +3886,13 @@ function openInvoiceForm(lines, existing) {
     </form>
   `);
 
+  // Reprise auto de l'analyse IA : une photo déjà attachée mais un formulaire encore vide signale
+  // un flux d'origine interrompu (ex. app caméra native sur mobile) — on relance l'extraction sans action de l'utilisateur.
+  if (existing?.photo_path && !existing?.fournisseur && !existing?.montant) {
+    const statusEl = document.getElementById('inv_autosave_status');
+    if (statusEl) _runAiAutoFill(window._invEditId, statusEl);
+  }
+
   function collectFormData() {
     const fd = new FormData();
     fd.append('titre', document.getElementById('inv_titre').value.trim());
@@ -3894,23 +3923,7 @@ function openInvoiceForm(lines, existing) {
       statusEl.style.color = 'var(--g2)';
       toast('📷 Reçu sauvegardé automatiquement');
 
-      // Tenter de pré-remplir le formulaire à partir du contenu de la photo (IA) — ne touche jamais un champ déjà rempli
-      statusEl.textContent = '🤖 Analyse du reçu en cours...';
-      try {
-        const ai = await api(`/ai/scan-recu/${window._invEditId}`, { method:'POST' });
-        if (ai.ok) {
-          const four = document.getElementById('inv_four'), mont = document.getElementById('inv_mont'),
-                date = document.getElementById('inv_date'), cat = document.getElementById('inv_cat');
-          if (ai.fournisseur && !four.value) four.value = ai.fournisseur;
-          if (ai.montant && !mont.value) mont.value = ai.montant;
-          if (ai.date_facture && !date.value) date.value = ai.date_facture;
-          if (ai.categorie && cat) cat.value = ai.categorie;
-          statusEl.textContent = '🤖 Détails extraits automatiquement — vérifiez avant d\'enregistrer';
-          toast('🤖 Détails du reçu pré-remplis — vérifiez avant d\'enregistrer');
-        } else {
-          statusEl.textContent = '✅ Photo enregistrée — complétez les détails puis Enregistrer';
-        }
-      } catch { statusEl.textContent = '✅ Photo enregistrée — complétez les détails puis Enregistrer'; }
+      await _runAiAutoFill(window._invEditId, statusEl);
     } catch(ex) {
       statusEl.textContent = '❌ ' + ex.message;
       statusEl.style.color = 'var(--red)';

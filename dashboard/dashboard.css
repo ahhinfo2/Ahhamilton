@@ -18,12 +18,13 @@ a{text-decoration:none;color:inherit}
 img{display:block;max-width:100%}
 
 /* ── SITE NAV STRIP ────────────────────────────────────────────────────── */
-:root { --strip-h: 58px; }
+:root { --strip-h: calc(58px + env(safe-area-inset-top, 0px)); }
 
 .site-nav-strip {
   position: fixed;
   top: 0; left: 0; right: 0;
   height: var(--strip-h);
+  padding-top: env(safe-area-inset-top, 0px);
   z-index: 300;
   background: #ffffff;
   border-bottom: 2px solid var(--border);
