@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Impression billets DYMO | AHH</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f0;padding:20px}
+
+  .controls{background:#fff;border-radius:12px;padding:16px 20px;margin-bottom:20px;
+    display:flex;align-items:center;gap:12px;flex-wrap:wrap;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+  .controls h2{font-size:1rem;color:#1b5e20;flex:1}
+  .btn{padding:9px 20px;border:none;border-radius:8px;cursor:pointer;font-size:.88rem;font-weight:600;font-family:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+  .btn-print{background:#1b5e20;color:#fff}
+  .btn-back{background:#eee;color:#333}
+  .count{font-size:.82rem;color:#666}
+  .hint{background:#fff8e1;border:1px solid #ffc107;border-radius:8px;padding:10px 14px;font-size:.8rem;color:#5a4a00;margin-bottom:16px;line-height:1.5}
+
+  /* ── APERÇU À L'ÉCRAN (chaque étiquette encadrée pour se repérer) ── */
+  #labelsList{display:flex;flex-direction:column;gap:10px}
+  .dymo-label{
+    width:89mm;height:28mm;
+    border:1px dashed #ccc;background:#fff;
+    display:flex;align-items:center;gap:2.5mm;padding:1.5mm 2.5mm;
+    overflow:hidden;
+  }
+  .dymo-qr{width:24mm;height:24mm;flex-shrink:0}
+  .dymo-qr img{width:100%;height:100%;display:block}
+  .dymo-info{flex:1;min-width:0;color:#000}
+  .dymo-org{font-size:6.5pt;text-transform:uppercase;letter-spacing:.03em;color:#000;font-weight:700}
+  .dymo-titre{font-size:9.5pt;font-weight:800;line-height:1.15;margin-top:1mm;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .dymo-buyer{font-size:7.5pt;color:#000;margin-top:1mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dymo-code{font-size:6.5pt;color:#333;font-family:'Consolas',monospace;margin-top:.5mm}
+
+  /* ── IMPRESSION : une étiquette = une page, format exact de l'étiquette DYMO ── */
+  @media print{
+    @page{ size:89mm 28mm; margin:0; }
+    body{background:#fff;padding:0;margin:0}
+    .controls,.hint{display:none}
+    #labelsList{gap:0}
+    .dymo-label{
+      border:none;width:89mm;height:28mm;
+      page-break-after:always; break-after:page;
+    }
+    .dymo-label:last-child{page-break-after:auto}
+  }
+</style>
+</head>
+<body>
+<div class="controls">
+  <h2 id="pageTitle">⏳ Chargement des billets...</h2>
+  <span class="count" id="pageCount"></span>
+  <button class="btn btn-print" onclick="window.print()">🖨️ Imprimer</button>
+  <a href="javascript:history.back()" class="btn btn-back">← Retour</a>
+</div>
+<div class="hint">
+  📏 Format étiquette DYMO Adresse — 1⅛" × 3½" (28 × 89 mm).
+  Dans la boîte d'impression : sélectionnez l'imprimante <strong>DYMO LabelWriter 450</strong>,
+  le format de papier <strong>28mm x 89mm</strong> (ou « Adresse »), et mettez l'échelle à <strong>100 %</strong>
+  (pas de « Ajuster à la page »).
+</div>
+<div id="labelsList"></div>
+
+<script>
+const API = location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? 'http://localhost:3001/api' : '/api';
+const BASE = location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? 'http://localhost:3001' : '';
+const token = localStorage.getItem('ahh_token');
+const params = new URLSearchParams(location.search);
+const ids = (params.get('ids') || '').split(',').map(s => s.trim()).filter(Boolean);
+const s = t => String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+async function load() {
+  if (!ids.length) { document.getElementById('pageTitle').textContent = 'Aucun billet spécifié.'; return; }
+  const tickets = [];
+  for (const id of ids) {
+    try {
+      const r = await fetch(`${API}/tickets/${id}/view`, { headers: token ? { Authorization: 'Bearer ' + token } : {} });
+      if (r.ok) tickets.push(await r.json());
+    } catch(e) {}
+  }
+  if (!tickets.length) { document.getElementById('pageTitle').textContent = 'Aucun billet trouvé.'; return; }
+  document.title = `Billets DYMO | ${tickets[0].activite || 'AHH'}`;
+  document.getElementById('pageTitle').textContent = `Billets DYMO | ${tickets[0].activite || 'AHH'}`;
+  document.getElementById('pageCount').textContent = tickets.length + ' étiquette(s)';
+
+  document.getElementById('labelsList').innerHTML = tickets.map(t => {
+    const ticketToken = (t.qr_data || '').replace('TICKET:', '');
+    const qrSrc = `${BASE}/uploads/qr/${ticketToken}.png`;
+    return `
+    <div class="dymo-label">
+      <div class="dymo-qr"><img src="${qrSrc}" alt="QR" onerror="this.style.display='none'"/></div>
+      <div class="dymo-info">
+        <div class="dymo-org">AHH Hamilton</div>
+        <div class="dymo-titre">${s(t.activite||'')}</div>
+        <div class="dymo-buyer">${s(t.acheteur_nom||'Anonyme')}</div>
+        <div class="dymo-code">${s(t.barcode_data||'')}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+load();
+</script>
+</body>
+</html>
