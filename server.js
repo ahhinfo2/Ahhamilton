@@ -2323,13 +2323,13 @@ app.post('/api/ai/scan-recu/:invoiceId', authMiddleware, requireRole('admin','tr
     const client = new Anthropic.Anthropic();
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 512,
+      max_tokens: 1024,
       messages: [{
         role: 'user',
         content: [
           { type: 'image', source: { type: 'base64', media_type: mediaTypes[ext], data: imgBuffer.toString('base64') } },
           { type: 'text', text: `Analyse cette photo de facture/reçu et extrais les informations en JSON UNIQUEMENT (sans markdown, sans texte autour) selon ce format exact :
-{"fournisseur": "nom du commerce/fournisseur, ou null si illisible", "montant": nombre du montant total en dollars sans symbole, ou null, "date_facture": "AAAA-MM-JJ, ou null", "categorie": "une valeur parmi: loyer, nourriture, materiel, transport, communication, assurance, frais_bancaires, evenement, autre"}` }
+{"fournisseur": "nom du commerce/fournisseur, ou null si illisible", "montant": nombre du montant total en dollars sans symbole, ou null, "date_facture": "AAAA-MM-JJ, ou null", "categorie": "une valeur parmi: loyer, nourriture, materiel, transport, communication, assurance, frais_bancaires, evenement, autre", "articles": "liste concise des articles/produits achetés tels qu'indiqués sur le reçu, séparés par des virgules (ex: '4x Gobelets plastique, Gobelets salle de bain, Pailles en papier'), ou null si illisible"}` }
         ]
       }]
     });

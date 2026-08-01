@@ -1012,6 +1012,24 @@ function closeModal() {
   if (fab) fab.style.display = '';
 }
 
+// Visionneuse de photo en superposition — jamais de navigation vers l'URL brute de l'image.
+// En PWA installée (mode standalone), un lien target="_blank" vers une image du même domaine
+// remplace toute l'app par l'image nue, sans aucun contrôle pour revenir en arrière.
+function openPhotoLightbox(url) {
+  if (/\.pdf(\?|$)/i.test(url)) { window.open(url, '_blank'); return; }
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML = `
+    <button style="position:absolute;top:calc(14px + env(safe-area-inset-top,0px));right:14px;background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:50%;width:38px;height:38px;font-size:1.2rem;cursor:pointer">✕</button>
+    <img src="${url}" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:6px"/>
+  `;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector('button').onclick = close;
+  overlay.onclick = e => { if (e.target === overlay) close(); };
+  document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', esc); } });
+}
+
 // ── Recadrage de photo avant envoi (overlay indépendant, ne touche pas setContent) ──
 // Rendu par canvas (glisser-déplacer + molette/pincement pour zoomer, comme Canva) :
 // l'aperçu et l'image exportée utilisent exactement le même bitmap et les mêmes
@@ -3567,7 +3585,7 @@ async function viewTransactions(lineId, titre) {
         <td>${fmtMoney(i.montant)}</td>
         <td>${fmt(i.date_facture)}</td>
         <td>${statusPill(i.statut)}</td>
-        <td>${i.photo_path ? `<a href="${BASE}${i.photo_path}" target="_blank" class="btn btn-sm btn-ghost">📷 Voir</a>` : '–'}</td>
+        <td>${i.photo_path ? `<button type="button" onclick="openPhotoLightbox('${BASE}${i.photo_path}')" class="btn btn-sm btn-ghost">📷 Voir</button>` : '–'}</td>
       </tr>`).join('') || '<tr><td colspan="7" style="text-align:center">Aucune facture</td></tr>'}</tbody>
     </table></div>
   `);
@@ -3754,7 +3772,7 @@ async function invoices() {
         <td>${escHtml(i.ligne||'Autres')}</td>
         <td style="font-size:.82rem">${escHtml(i.createur||'–')}</td>
         <td>${statusPill(i.statut)}</td>
-        <td>${i.photo_path ? `<a href="${BASE}${i.photo_path}" target="_blank" class="btn btn-sm btn-ghost">📷 Voir</a>` : '–'}</td>
+        <td>${i.photo_path ? `<button type="button" onclick="openPhotoLightbox('${BASE}${i.photo_path}')" class="btn btn-sm btn-ghost">📷 Voir</button>` : '–'}</td>
         ${can.executive() ? `<td style="white-space:nowrap">${actions || '–'}</td>` : ''}
       </tr>`;
       }).join('')}</tbody>
@@ -3827,11 +3845,13 @@ async function _runAiAutoFill(invoiceId, statusEl) {
     const ai = await api(`/ai/scan-recu/${invoiceId}`, { method:'POST' });
     if (ai.ok) {
       const four = document.getElementById('inv_four'), mont = document.getElementById('inv_mont'),
-            date = document.getElementById('inv_date'), cat = document.getElementById('inv_cat');
+            date = document.getElementById('inv_date'), cat = document.getElementById('inv_cat'),
+            comment = document.getElementById('inv_comment');
       if (ai.fournisseur && !four.value) four.value = ai.fournisseur;
       if (ai.montant && (!mont.value || parseFloat(mont.value) === 0)) mont.value = ai.montant;
       if (ai.date_facture && !date.value) date.value = ai.date_facture;
       if (ai.categorie && cat) cat.value = ai.categorie;
+      if (ai.articles && comment && !comment.value.trim()) comment.value = ai.articles;
       statusEl.textContent = '🤖 Détails extraits automatiquement — vérifiez avant d\'enregistrer';
       toast('🤖 Détails du reçu pré-remplis — vérifiez avant d\'enregistrer');
     } else {
@@ -3874,7 +3894,7 @@ function openInvoiceForm(lines, existing) {
       <div class="form-group"><label>Commentaire</label>
         <textarea id="inv_comment" rows="2" placeholder="Note libre sur ce reçu...">${escHtml(existing?.commentaire||'')}</textarea></div>
       <div class="form-group"><label>Photo / Scan de la facture</label>
-        ${existing?.photo_path ? `<div style="margin-bottom:6px"><a href="${BASE}${existing.photo_path}" target="_blank" class="btn btn-sm btn-ghost">📷 Voir la photo actuelle</a></div>` : ''}
+        ${existing?.photo_path ? `<div style="margin-bottom:6px"><button type="button" onclick="openPhotoLightbox('${BASE}${existing.photo_path}')" class="btn btn-sm btn-ghost">📷 Voir la photo actuelle</button></div>` : ''}
         <input type="file" id="inv_photo" accept="image/*,application/pdf" capture="environment"/>
         <p style="font-size:.72rem;color:var(--muted);margin-top:4px">📱 Prenez la photo directement avec votre cellulaire — elle sera enregistrée automatiquement, vous pourrez compléter les détails ensuite.</p>
         <div id="inv_autosave_status" style="font-size:.78rem;margin-top:4px"></div>
@@ -8981,7 +9001,7 @@ async function paiements() {
           ' · ' + (p.methode||'–') + ' · ' + (p.mois||'–') + '</small>' +
           (p.note ? '<br/><small style="color:var(--muted)">Note: ' + p.note + '</small>' : '') + '</div>' +
           '<div class="tc-actions">' +
-            (p.proof_path ? '<a class="btn btn-ghost btn-sm" href="' + BASE + p.proof_path + '" target="_blank">🧾 Preuve</a>' : '') +
+            (p.proof_path ? '<button type="button" class="btn btn-ghost btn-sm" onclick="openPhotoLightbox(\'' + BASE + p.proof_path + '\')">🧾 Preuve</button>' : '') +
             (can.adminOrTre() ? '<button class="btn btn-primary btn-sm" onclick="approuverPaiement(' + p.id + ')">✅ Approuver</button>' : '') +
             (can.adminOrTre() ? '<button class="btn btn-danger btn-sm" onclick="rejeterPaiement(' + p.id + ')">❌ Rejeter</button>' : '') +
           '</div></div></div>'
