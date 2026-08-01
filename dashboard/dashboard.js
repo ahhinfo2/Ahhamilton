@@ -12242,8 +12242,8 @@ async function ventePersonne() {
             </div>
 
             <div style="display:flex;gap:10px;flex-wrap:wrap">
-              <button class="btn btn-outline" onclick="vpAction('generer')">🖨️ Pré-imprimer (sans vente)</button>
-              <button class="btn btn-primary" onclick="vpAction('vendre')">💵 Vendre maintenant</button>
+              <button id="vpBtnGenerer" class="btn btn-outline" onclick="vpAction('generer')">🖨️ Pré-imprimer (sans vente)</button>
+              <button id="vpBtnVendre" class="btn btn-primary" onclick="vpAction('vendre')">💵 Vendre maintenant</button>
             </div>
           </div>
           <div id="vpTickets" style="margin-top:20px"></div>
@@ -12312,11 +12312,19 @@ async function vpAction(mode) {
   const nb = parseInt(document.getElementById('vpNb').value) || 1;
   const prix = parseFloat(document.getElementById('vpPrix').value) || 0;
   if (!actId) return toast('Choisissez une activité', true);
+
+  const btnGen = document.getElementById('vpBtnGenerer'), btnVen = document.getElementById('vpBtnVendre');
+  const container = document.getElementById('vpTickets');
+  // Génère un QR + écrit un fichier par billet côté serveur — pour de grosses quantités (100-200),
+  // ça peut prendre bien plus que le délai par défaut de l'appel api(). On bloque les boutons pour
+  // éviter un double-clic pendant l'attente (qui créerait des billets en double).
+  if (btnGen) btnGen.disabled = true;
+  if (btnVen) btnVen.disabled = true;
+  if (nb > 20) container.innerHTML = `<div style="color:var(--muted);font-size:.85rem">⏳ Génération de ${nb} billets en cours — patientez, ça peut prendre jusqu'à une minute...</div>`;
   try {
-    const r = await api(`/activities/${actId}/vendre`, { method: 'POST', body: JSON.stringify({ acheteur_nom: nom, nb_billets: nb, prix_unitaire: prix, mode }) });
+    const r = await api(`/activities/${actId}/vendre`, { method: 'POST', timeout: 60000, body: JSON.stringify({ acheteur_nom: nom, nb_billets: nb, prix_unitaire: prix, mode }) });
     const ids = r.tickets.map(t => t.id).join(',');
     const label = mode === 'generer' ? 'pré-imprimé(s)' : 'vendu(s)';
-    const container = document.getElementById('vpTickets');
     container.innerHTML =
       `<div style="background:${mode==='vendre'?'#e8f5e9':'#fff8e1'};border-radius:10px;padding:12px 16px;margin-bottom:12px;font-size:.85rem">
         ${mode==='vendre'?'✅':'🖨️'} <strong>${r.tickets.length} billet(s) ${label}</strong>${mode==='vendre'?' — revenu enregistré':' — vente à confirmer'}
@@ -12327,7 +12335,13 @@ async function vpAction(mode) {
       </div>`;
     toast(r.tickets.length + ' billet(s) ' + label);
     vpRefreshGeneres();
-  } catch(e) { toast('Erreur : ' + e.message, true); }
+  } catch(e) {
+    container.innerHTML = '';
+    toast('Erreur : ' + e.message, true);
+  } finally {
+    if (btnGen) btnGen.disabled = false;
+    if (btnVen) btnVen.disabled = false;
+  }
 }
 
 async function vpMarquerVendu(ticketId) {
