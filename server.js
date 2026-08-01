@@ -2307,6 +2307,41 @@ La lettre doit être formelle, chaleureuse et mettre en valeur les contributions
   res.json({ id: r.lastInsertRowid, contenu, membre: `${membre.prenom} ${membre.nom}` });
 });
 
+// Analyser la photo d'une facture déjà enregistrée pour pré-remplir fournisseur/montant/date/catégorie
+app.post('/api/ai/scan-recu/:invoiceId', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), async (req, res) => {
+  const invoice = db.prepare('SELECT photo_path FROM invoices WHERE id = ?').get(req.params.invoiceId);
+  if (!invoice || !invoice.photo_path) return res.status(404).json({ error: 'Photo introuvable' });
+  if (!process.env.ANTHROPIC_API_KEY) return res.json({ ok: false, note: 'API key non configurée' });
+
+  const ext = path.extname(invoice.photo_path).toLowerCase();
+  const mediaTypes = { '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.png':'image/png', '.webp':'image/webp' };
+  if (!mediaTypes[ext]) return res.json({ ok: false, note: 'Format non pris en charge pour l\'analyse (PDF)' });
+
+  try {
+    const imgBuffer = fs.readFileSync(path.join(__dirname, invoice.photo_path));
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic.Anthropic();
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 512,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mediaTypes[ext], data: imgBuffer.toString('base64') } },
+          { type: 'text', text: `Analyse cette photo de facture/reçu et extrais les informations en JSON UNIQUEMENT (sans markdown, sans texte autour) selon ce format exact :
+{"fournisseur": "nom du commerce/fournisseur, ou null si illisible", "montant": nombre du montant total en dollars sans symbole, ou null, "date_facture": "AAAA-MM-JJ, ou null", "categorie": "une valeur parmi: loyer, nourriture, materiel, transport, communication, assurance, frais_bancaires, evenement, autre"}` }
+        ]
+      }]
+    });
+    const raw = response.content[0].text.trim().replace(/^```json\s*|\s*```$/g, '');
+    const extracted = JSON.parse(raw);
+    res.json({ ok: true, ...extracted });
+  } catch (e) {
+    console.error('[AI-SCAN-RECU]', e.message);
+    res.json({ ok: false, note: 'Analyse impossible' });
+  }
+});
+
 app.get('/api/ai/recommendations', authMiddleware, (req, res) => {
   const isAdmin = ['admin', 'secretaire'].includes(req.user.role);
   const q = isAdmin

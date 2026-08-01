@@ -3893,6 +3893,24 @@ function openInvoiceForm(lines, existing) {
       statusEl.textContent = '✅ Photo enregistrée automatiquement — complétez les détails puis Enregistrer';
       statusEl.style.color = 'var(--g2)';
       toast('📷 Reçu sauvegardé automatiquement');
+
+      // Tenter de pré-remplir le formulaire à partir du contenu de la photo (IA) — ne touche jamais un champ déjà rempli
+      statusEl.textContent = '🤖 Analyse du reçu en cours...';
+      try {
+        const ai = await api(`/ai/scan-recu/${window._invEditId}`, { method:'POST' });
+        if (ai.ok) {
+          const four = document.getElementById('inv_four'), mont = document.getElementById('inv_mont'),
+                date = document.getElementById('inv_date'), cat = document.getElementById('inv_cat');
+          if (ai.fournisseur && !four.value) four.value = ai.fournisseur;
+          if (ai.montant && !mont.value) mont.value = ai.montant;
+          if (ai.date_facture && !date.value) date.value = ai.date_facture;
+          if (ai.categorie && cat) cat.value = ai.categorie;
+          statusEl.textContent = '🤖 Détails extraits automatiquement — vérifiez avant d\'enregistrer';
+          toast('🤖 Détails du reçu pré-remplis — vérifiez avant d\'enregistrer');
+        } else {
+          statusEl.textContent = '✅ Photo enregistrée — complétez les détails puis Enregistrer';
+        }
+      } catch { statusEl.textContent = '✅ Photo enregistrée — complétez les détails puis Enregistrer'; }
     } catch(ex) {
       statusEl.textContent = '❌ ' + ex.message;
       statusEl.style.color = 'var(--red)';
