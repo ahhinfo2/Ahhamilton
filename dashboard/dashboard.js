@@ -3855,9 +3855,13 @@ async function _runAiAutoFill(invoiceId, statusEl) {
       statusEl.textContent = '🤖 Détails extraits automatiquement — vérifiez avant d\'enregistrer';
       toast('🤖 Détails du reçu pré-remplis — vérifiez avant d\'enregistrer');
     } else {
-      statusEl.textContent = '✅ Photo enregistrée — complétez les détails puis Enregistrer';
+      statusEl.textContent = ai.note ? `⚠️ Analyse IA indisponible (${ai.note}) — complétez les détails manuellement` : '✅ Photo enregistrée — complétez les détails puis Enregistrer';
+      statusEl.style.color = ai.note ? 'var(--red)' : '';
     }
-  } catch { statusEl.textContent = '✅ Photo enregistrée — complétez les détails puis Enregistrer'; }
+  } catch (ex) {
+    statusEl.textContent = '⚠️ Analyse IA impossible (' + (ex.message || 'erreur réseau') + ') — complétez les détails manuellement';
+    statusEl.style.color = 'var(--red)';
+  }
 }
 
 function openInvoiceForm(lines, existing) {
