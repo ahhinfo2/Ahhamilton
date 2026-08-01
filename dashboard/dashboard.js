@@ -991,6 +991,8 @@ document.addEventListener('click', function askNotif() {
 // ── MODAL (rendu inline dans la page) ─────────────────────────────────────
 function openModal(title, bodyHtml, size) {
   window._modalReturnViewId = window._currentViewId || 'home';
+  const fab = document.querySelector('.fab-scanner');
+  if (fab) fab.style.display = 'none';
   setContent(
     `<div style="padding-bottom:40px" class="modal-inline-wrap">
       <div style="display:flex;align-items:center;gap:14px;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid var(--border)" class="no-print">
@@ -1006,6 +1008,8 @@ function closeModal() {
   const vid = window._modalReturnViewId || 'home';
   window._modalReturnViewId = null;
   showView(vid);
+  const fab = document.querySelector('.fab-scanner');
+  if (fab) fab.style.display = '';
 }
 
 // ── Recadrage de photo avant envoi (overlay indépendant, ne touche pas setContent) ──
