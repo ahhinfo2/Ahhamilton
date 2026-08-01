@@ -6,6 +6,7 @@ let   TOKEN = null;
 
 // ── NOTES STATE (déclarés tôt — référencés par setContent dès le chargement) ─
 let _notesRefreshInterval = null;
+let _invoicesRefreshInterval = null;
 let _noteAutoSave = null;
 let _noteEditingId = null;
 let _noteSyncInterval = null;
@@ -3738,46 +3739,66 @@ function openAccountForm(acc) {
 }
 
 // ══ INVOICES ═══════════════════════════════════════════════════════════════
+function _invoiceRowsHtml(data) {
+  return data.map(i=>{
+    const isTresoriere = USER.role === 'tresoriere';
+    const canEditRow = can.adminOrTre() || (i.cree_par === USER.id && i.statut === 'en_attente');
+    const actions = [
+      canEditRow ? `<button class="btn btn-sm btn-ghost" onclick="openInvoiceForm(window._invoiceLines,window._invById[${i.id}])" title="Modifier">✏️</button>` : '',
+      (isTresoriere && i.statut === 'en_attente') ? `<button class="btn btn-sm btn-primary" onclick="approveInvoice(${i.id})" title="Approuver et enregistrer la dépense">✅ Approuver</button>
+        <button class="btn btn-sm btn-ghost" onclick="updateInvoiceStatus(${i.id},'refuse')" style="color:var(--red)">✗ Refuser</button>` : '',
+      (isTresoriere && i.statut === 'approuve') ? `<button class="btn btn-sm btn-accent" onclick="updateInvoiceStatus(${i.id},'paye')" title="Marquer comme payé">💰 Payé</button>` : '',
+      can.adminOrTre() ? `<button class="btn btn-sm btn-ghost" onclick="deleteInvoice(${i.id})" style="color:var(--red)" title="Supprimer et annuler les effets financiers">🗑</button>` : ''
+    ].join('');
+    return `<tr>
+    <td><strong>${escHtml(i.titre)}</strong>${i.commentaire ? `<br><span style="font-size:.74rem;color:var(--muted);font-style:italic">💬 ${escHtml(i.commentaire)}</span>` : ''}</td>
+    <td>${escHtml(i.fournisseur||'–')}</td>
+    <td style="font-size:.78rem">${finCatLabel(i.categorie)}</td>
+    <td>${fmtMoney(i.montant)}</td>
+    <td>${fmt(i.date_facture)}</td>
+    <td>${escHtml(i.ligne||'Autres')}</td>
+    <td style="font-size:.82rem">${escHtml(i.createur||'–')}</td>
+    <td>${statusPill(i.statut)}</td>
+    <td>${i.photo_path ? `<button type="button" onclick="openPhotoLightbox('${BASE}${i.photo_path}')" class="btn btn-sm btn-ghost">📷 Voir</button>` : '–'}</td>
+    ${can.executive() ? `<td style="white-space:nowrap">${actions || '–'}</td>` : ''}
+  </tr>`;
+  }).join('');
+}
+
 async function invoices() {
   const [data, lines, fourns] = await Promise.all([api('/finance/invoices'), api('/finance/lines'), api('/finance/fournisseurs').catch(() => [])]);
   window._invoiceLines = lines;
   window._invFournisseurs = fourns;
   window._invById = {}; data.forEach(i => window._invById[i.id] = i);
   setContent(`
-    <div class="page-header">
-      <div><h2>Factures</h2><p>Gestion des factures et reçus</p></div>
-      <div class="page-actions">
-        <button class="btn btn-ghost" onclick="showView('fournisseurs')">🏢 Fournisseurs</button>
-        ${can.executive() ? `<button class="btn btn-primary" onclick="openInvoiceForm(window._invoiceLines)">+ Nouvelle facture</button>` : ''}
+    <div id="invoicesView">
+      <div class="page-header">
+        <div><h2>Factures</h2><p>Gestion des factures et reçus</p></div>
+        <div class="page-actions">
+          <button class="btn btn-ghost" onclick="showView('fournisseurs')">🏢 Fournisseurs</button>
+          ${can.executive() ? `<button class="btn btn-primary" onclick="openInvoiceForm(window._invoiceLines)">+ Nouvelle facture</button>` : ''}
+        </div>
       </div>
+      <div class="table-card"><div class="table-wrapper"><table>
+        <thead><tr><th>Titre</th><th>Fournisseur</th><th>Catégorie</th><th>Montant</th><th>Date</th><th>Activité / Projet</th><th>Créé par</th><th>Statut</th><th>Photo</th>${can.executive() ? '<th>Actions</th>' : ''}</tr></thead>
+        <tbody id="invoicesTbody">${_invoiceRowsHtml(data)}</tbody>
+      </table></div></div>
     </div>
-    <div class="table-card"><div class="table-wrapper"><table>
-      <thead><tr><th>Titre</th><th>Fournisseur</th><th>Catégorie</th><th>Montant</th><th>Date</th><th>Activité / Projet</th><th>Créé par</th><th>Statut</th><th>Photo</th>${can.executive() ? '<th>Actions</th>' : ''}</tr></thead>
-      <tbody>${data.map(i=>{
-        const isTresoriere = USER.role === 'tresoriere';
-        const canEditRow = can.adminOrTre() || (i.cree_par === USER.id && i.statut === 'en_attente');
-        const actions = [
-          canEditRow ? `<button class="btn btn-sm btn-ghost" onclick="openInvoiceForm(window._invoiceLines,window._invById[${i.id}])" title="Modifier">✏️</button>` : '',
-          (isTresoriere && i.statut === 'en_attente') ? `<button class="btn btn-sm btn-primary" onclick="approveInvoice(${i.id})" title="Approuver et enregistrer la dépense">✅ Approuver</button>
-            <button class="btn btn-sm btn-ghost" onclick="updateInvoiceStatus(${i.id},'refuse')" style="color:var(--red)">✗ Refuser</button>` : '',
-          (isTresoriere && i.statut === 'approuve') ? `<button class="btn btn-sm btn-accent" onclick="updateInvoiceStatus(${i.id},'paye')" title="Marquer comme payé">💰 Payé</button>` : '',
-          can.adminOrTre() ? `<button class="btn btn-sm btn-ghost" onclick="deleteInvoice(${i.id})" style="color:var(--red)" title="Supprimer et annuler les effets financiers">🗑</button>` : ''
-        ].join('');
-        return `<tr>
-        <td><strong>${escHtml(i.titre)}</strong>${i.commentaire ? `<br><span style="font-size:.74rem;color:var(--muted);font-style:italic">💬 ${escHtml(i.commentaire)}</span>` : ''}</td>
-        <td>${escHtml(i.fournisseur||'–')}</td>
-        <td style="font-size:.78rem">${finCatLabel(i.categorie)}</td>
-        <td>${fmtMoney(i.montant)}</td>
-        <td>${fmt(i.date_facture)}</td>
-        <td>${escHtml(i.ligne||'Autres')}</td>
-        <td style="font-size:.82rem">${escHtml(i.createur||'–')}</td>
-        <td>${statusPill(i.statut)}</td>
-        <td>${i.photo_path ? `<button type="button" onclick="openPhotoLightbox('${BASE}${i.photo_path}')" class="btn btn-sm btn-ghost">📷 Voir</button>` : '–'}</td>
-        ${can.executive() ? `<td style="white-space:nowrap">${actions || '–'}</td>` : ''}
-      </tr>`;
-      }).join('')}</tbody>
-    </table></div></div>
   `);
+
+  // Rafraîchissement automatique — pour voir en direct les nouvelles factures soumises par d'autres
+  // membres du comité, sans avoir à recharger la page manuellement. S'arrête tout seul dès que la
+  // liste n'est plus affichée (navigation ailleurs ou modal ouvert par-dessus).
+  clearInterval(_invoicesRefreshInterval);
+  _invoicesRefreshInterval = setInterval(async () => {
+    const tbody = document.getElementById('invoicesTbody');
+    if (!tbody || window._modalReturnViewId) { clearInterval(_invoicesRefreshInterval); _invoicesRefreshInterval = null; return; }
+    try {
+      const fresh = await api('/finance/invoices');
+      window._invById = {}; fresh.forEach(i => window._invById[i.id] = i);
+      tbody.innerHTML = _invoiceRowsHtml(fresh);
+    } catch {}
+  }, 15000);
 }
 
 async function fournisseurs() {
