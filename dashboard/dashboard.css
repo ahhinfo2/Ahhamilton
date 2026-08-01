@@ -476,7 +476,7 @@ tr:hover td{background:#f8fdf8}
   .table-wrapper { -webkit-overflow-scrolling:touch }
 }
 @media(max-width:600px){
-  .content{padding:12px;padding-bottom:76px}
+  .content{padding:12px;padding-bottom:calc(76px + env(safe-area-inset-bottom, 0px))}
   .cards-grid{grid-template-columns:1fr 1fr}
   .page-header{flex-direction:column;gap:10px;align-items:flex-start}
   .page-actions{flex-wrap:wrap;gap:8px}
@@ -1101,7 +1101,6 @@ html.dark .search-results { background: var(--white); }
   /* Tronquer le chip si trop long */
   .user-chip { max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .search-wrap { display: none; }
-  .content { padding: 12px; }
   .cards-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .stat-card { padding: 14px 12px; }
   .sc-value { font-size: 1.4rem; }
