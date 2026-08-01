@@ -6256,7 +6256,10 @@ app.get('/api/sidebar-counts', authMiddleware, (req, res) => {
       counts.carte_gestion = counts.photos_attente + counts.cartes_expirees;
       counts.tasks = db.prepare("SELECT COUNT(*) AS c FROM tasks WHERE statut IN ('en_cours','a_faire') AND (assigne_a=? OR cree_par=?)").get(req.user.id, req.user.id)?.c || 0;
       counts.notes = db.prepare("SELECT COUNT(*) AS c FROM meeting_notes WHERE verrouille=0 OR verrouille IS NULL").get()?.c || 0;
-      counts.pending_orders = db.prepare("SELECT COUNT(*) AS c FROM tickets WHERE payment_status='pending'").get()?.c || 0;
+      counts.pending_orders = db.prepare(`SELECT COUNT(*) AS c FROM (
+        SELECT t.order_token FROM tickets t JOIN activities a ON a.id = t.activity_id
+        WHERE t.payment_status='pending' AND t.order_token IS NOT NULL GROUP BY t.order_token
+      )`).get()?.c || 0;
       counts.forms = db.prepare("SELECT COUNT(*) AS c FROM form_responses WHERE date_reponse > COALESCE((SELECT derniere_connexion FROM users WHERE id=?), '2000-01-01')").get(req.user.id)?.c || 0;
       counts.alerts = db.prepare("SELECT COUNT(*) AS c FROM alerts WHERE lu=0 AND destinataire_id=?").get(req.user.id)?.c || 0;
       counts.paiements = db.prepare("SELECT COUNT(*) AS c FROM payments WHERE statut='en_attente'").get()?.c || 0;
