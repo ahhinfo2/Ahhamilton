@@ -3750,8 +3750,8 @@ function _invoiceRowsHtml(data) {
       (isTresoriere && i.statut === 'approuve') ? `<button class="btn btn-sm btn-accent" onclick="updateInvoiceStatus(${i.id},'paye')" title="Marquer comme payé">💰 Payé</button>` : '',
       can.adminOrTre() ? `<button class="btn btn-sm btn-ghost" onclick="deleteInvoice(${i.id})" style="color:var(--red)" title="Supprimer et annuler les effets financiers">🗑</button>` : ''
     ].join('');
-    return `<tr>
-    <td><strong>${escHtml(i.titre)}</strong>${i.commentaire ? `<br><span style="font-size:.74rem;color:var(--muted);font-style:italic">💬 ${escHtml(i.commentaire)}</span>` : ''}</td>
+    return `<tr${canEditRow ? ` class="inv-row-clickable" onclick="if(!event.target.closest('button')) openInvoiceForm(window._invoiceLines,window._invById[${i.id}])"` : ''}>
+    <td><strong>${escHtml(i.titre)}</strong>${i.commentaire ? `<br><span class="inv-comment-trunc" title="${escHtml(i.commentaire)}">💬 ${escHtml(i.commentaire)}</span>` : ''}</td>
     <td>${escHtml(i.fournisseur||'–')}</td>
     <td style="font-size:.78rem">${finCatLabel(i.categorie)}</td>
     <td>${fmtMoney(i.montant)}</td>
