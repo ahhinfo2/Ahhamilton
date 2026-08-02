@@ -12411,6 +12411,9 @@ async function vpRefreshGeneres() {
         </label>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn btn-sm btn-primary" onclick="vpSaisirTalons()">🎫 Saisir les talons</button>
+          <button id="vpBtnPrintSel" class="btn btn-sm btn-outline" style="display:none" onclick="vpImprimerSelection('standard')">🖨️ Imprimer la sélection (<span id="vpPrintSelCount">0</span>)</button>
+          <button id="vpBtnPrintSelSmall" class="btn btn-sm btn-outline" style="display:none" onclick="vpImprimerSelection('small')" title="Format petit">🗂</button>
+          <button id="vpBtnPrintSelDymo" class="btn btn-sm btn-outline" style="display:none" onclick="vpImprimerSelection('dymo')" title="Étiquettes DYMO">🏷️</button>
           <button id="vpBtnDelSel" class="btn btn-sm" style="display:none;color:#c62828;border-color:#ffd5d5;background:#fff5f5" onclick="vpSupprimerSelection('${actId}')">🗑 Supprimer la sélection (<span id="vpSelCount">0</span>)</button>
           <button class="btn btn-sm" style="color:#c62828;border-color:#ffd5d5;background:#fff5f5" onclick="vpAnnulerNonVendus('${actId}')">🗑 Annuler tous</button>
         </div>
@@ -12437,12 +12440,25 @@ function vpToggleSelectAll(cb) {
 
 function vpUpdateSelCount() {
   const n = document.querySelectorAll('.vp-ticket-cb:checked').length;
-  const btn = document.getElementById('vpBtnDelSel');
   document.getElementById('vpSelCount').textContent = n;
-  btn.style.display = n > 0 ? 'inline-flex' : 'none';
+  document.getElementById('vpPrintSelCount').textContent = n;
+  const disp = n > 0 ? 'inline-flex' : 'none';
+  document.getElementById('vpBtnDelSel').style.display = disp;
+  document.getElementById('vpBtnPrintSel').style.display = disp;
+  document.getElementById('vpBtnPrintSelSmall').style.display = disp;
+  document.getElementById('vpBtnPrintSelDymo').style.display = disp;
   const all = document.querySelectorAll('.vp-ticket-cb').length;
   const selectAll = document.getElementById('vpSelectAll');
   if (selectAll) selectAll.checked = n > 0 && n === all;
+}
+
+function vpImprimerSelection(format) {
+  const ids = [...document.querySelectorAll('.vp-ticket-cb:checked')].map(el => el.value);
+  if (!ids.length) return;
+  const url = format === 'small' ? `/print-tickets.html?ids=${ids.join(',')}&size=small`
+    : format === 'dymo' ? `/print-tickets-dymo.html?ids=${ids.join(',')}`
+    : `/print-tickets.html?ids=${ids.join(',')}`;
+  window.open(url, '_blank');
 }
 
 async function vpSupprimerUn(ticketId, actId) {
