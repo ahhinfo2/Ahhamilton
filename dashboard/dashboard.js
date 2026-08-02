@@ -12341,8 +12341,8 @@ async function vpRefreshVendus() {
         </label>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button id="vpBtnPrintVenduSel" class="btn btn-sm btn-outline" style="display:none" onclick="vpImprimerSelectionVendus('standard')">🖨️ Imprimer la sélection (<span id="vpPrintVenduSelCount">0</span>)</button>
-          <button id="vpBtnPrintVenduSelSmall" class="btn btn-sm btn-outline" style="display:none" onclick="vpImprimerSelectionVendus('small')" title="Format petit">🗂</button>
-          <button id="vpBtnPrintVenduSelDymo" class="btn btn-sm btn-outline" style="display:none" onclick="vpImprimerSelectionVendus('dymo')" title="Étiquettes DYMO">🏷️</button>
+          <button id="vpBtnPrintVenduSelSmall" class="btn btn-sm btn-outline" style="display:none" onclick="vpImprimerSelectionVendus('small')" title="Format petit">🗂 Petit</button>
+          <button id="vpBtnPrintVenduSelDymo" class="btn btn-sm btn-outline" style="display:none;font-weight:700;color:#7b1fa2;border-color:#e1bee7;background:#f9f0fb" onclick="vpImprimerSelectionVendus('dymo')" title="Étiquettes DYMO">🏷️ DYMO</button>
           <button id="vpBtnDelVenduSel" class="btn btn-sm" style="display:none;color:#c62828;border-color:#ffd5d5;background:#fff5f5" onclick="vpSupprimerVendusSelection('${actId}')">🗑 Supprimer la sélection (<span id="vpVenduSelCount">0</span>) — annule aussi le revenu</button>
         </div>
       </div>
@@ -12430,8 +12430,8 @@ async function vpRefreshGeneres() {
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn btn-sm btn-primary" onclick="vpSaisirTalons()">🎫 Saisir les talons</button>
           <button id="vpBtnPrintSel" class="btn btn-sm btn-outline" style="display:none" onclick="vpImprimerSelection('standard')">🖨️ Imprimer la sélection (<span id="vpPrintSelCount">0</span>)</button>
-          <button id="vpBtnPrintSelSmall" class="btn btn-sm btn-outline" style="display:none" onclick="vpImprimerSelection('small')" title="Format petit">🗂</button>
-          <button id="vpBtnPrintSelDymo" class="btn btn-sm btn-outline" style="display:none" onclick="vpImprimerSelection('dymo')" title="Étiquettes DYMO">🏷️</button>
+          <button id="vpBtnPrintSelSmall" class="btn btn-sm btn-outline" style="display:none" onclick="vpImprimerSelection('small')" title="Format petit">🗂 Petit</button>
+          <button id="vpBtnPrintSelDymo" class="btn btn-sm btn-outline" style="display:none;font-weight:700;color:#7b1fa2;border-color:#e1bee7;background:#f9f0fb" onclick="vpImprimerSelection('dymo')" title="Étiquettes DYMO">🏷️ DYMO</button>
           <button id="vpBtnDelSel" class="btn btn-sm" style="display:none;color:#c62828;border-color:#ffd5d5;background:#fff5f5" onclick="vpSupprimerSelection('${actId}')">🗑 Supprimer la sélection (<span id="vpSelCount">0</span>)</button>
           <button class="btn btn-sm" style="color:#c62828;border-color:#ffd5d5;background:#fff5f5" onclick="vpAnnulerNonVendus('${actId}')">🗑 Annuler tous</button>
         </div>
