@@ -5943,6 +5943,15 @@ app.post('/api/activities/:id/annuler-non-vendus', authMiddleware, requireRole('
   res.json({ ok: true, annules: r.changes });
 });
 
+// POST — annuler un seul billet généré (pré-imprimé, pas encore vendu)
+app.post('/api/tickets/:id/annuler', authMiddleware, requireRole('admin','tresoriere','secretaire'), (req, res) => {
+  const t = db.prepare('SELECT * FROM tickets WHERE id=?').get(req.params.id);
+  if (!t) return res.status(404).json({ error: 'Billet introuvable' });
+  if (t.statut !== 'genere') return res.status(400).json({ error: 'Ce billet n\'est plus en attente (déjà vendu ou annulé)' });
+  db.prepare("UPDATE tickets SET statut='annule' WHERE id=?").run(t.id);
+  res.json({ ok: true });
+});
+
 // GET — billets générés (non encore vendus) d'une activité
 app.get('/api/activities/:id/billets-generes', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const tickets = db.prepare("SELECT id, barcode_data, acheteur_nom, prix, vendu_par FROM tickets WHERE activity_id=? AND statut='genere' ORDER BY id").all(req.params.id);

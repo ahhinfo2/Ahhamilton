@@ -12286,15 +12286,19 @@ async function vpRefreshGeneres() {
       return;
     }
     list.innerHTML =
-      `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px">
-        <span style="font-size:.82rem;color:var(--muted)">${tickets.length} billet(s) non vendu(s)</span>
+      `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:.82rem;color:var(--muted);cursor:pointer">
+          <input type="checkbox" id="vpSelectAll" onchange="vpToggleSelectAll(this)"/> Tout sélectionner (${tickets.length})
+        </label>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn btn-sm btn-primary" onclick="vpSaisirTalons()">🎫 Saisir les talons</button>
+          <button id="vpBtnDelSel" class="btn btn-sm" style="display:none;color:#c62828;border-color:#ffd5d5;background:#fff5f5" onclick="vpSupprimerSelection('${actId}')">🗑 Supprimer la sélection (<span id="vpSelCount">0</span>)</button>
           <button class="btn btn-sm" style="color:#c62828;border-color:#ffd5d5;background:#fff5f5" onclick="vpAnnulerNonVendus('${actId}')">🗑 Annuler tous</button>
         </div>
       </div>` +
       tickets.map(t => `
         <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+          <input type="checkbox" class="vp-ticket-cb" value="${t.id}" onchange="vpUpdateSelCount()"/>
           <div style="flex:1;min-width:0">
             <div style="font-weight:600;font-size:.84rem">${escHtml(t.acheteur_nom||'Anonyme')}</div>
             <div style="font-size:.72rem;font-family:monospace;color:#777">${t.barcode_data}</div>
@@ -12302,8 +12306,46 @@ async function vpRefreshGeneres() {
           <div style="font-weight:700;color:var(--g2);font-size:.85rem">$${(t.prix||0).toFixed(2)}</div>
           <button class="btn btn-sm btn-primary" onclick="vpMarquerVendu(${t.id})" title="Marquer comme vendu">✅ Vendu</button>
           <a href="/ticket.html?id=${t.id}" target="_blank" class="btn btn-sm btn-ghost" title="Imprimer">🖨️</a>
+          <button class="btn btn-sm btn-ghost" style="color:#c62828" onclick="vpSupprimerUn(${t.id},'${actId}')" title="Supprimer ce billet">🗑</button>
         </div>`).join('');
   } catch(e) { list.innerHTML = '<div style="color:var(--red)">Erreur: ' + e.message + '</div>'; }
+}
+
+function vpToggleSelectAll(cb) {
+  document.querySelectorAll('.vp-ticket-cb').forEach(el => el.checked = cb.checked);
+  vpUpdateSelCount();
+}
+
+function vpUpdateSelCount() {
+  const n = document.querySelectorAll('.vp-ticket-cb:checked').length;
+  const btn = document.getElementById('vpBtnDelSel');
+  document.getElementById('vpSelCount').textContent = n;
+  btn.style.display = n > 0 ? 'inline-flex' : 'none';
+  const all = document.querySelectorAll('.vp-ticket-cb').length;
+  const selectAll = document.getElementById('vpSelectAll');
+  if (selectAll) selectAll.checked = n > 0 && n === all;
+}
+
+async function vpSupprimerUn(ticketId, actId) {
+  if (!confirm('Supprimer ce billet pré-imprimé ?')) return;
+  try {
+    await api(`/tickets/${ticketId}/annuler`, { method: 'POST' });
+    toast('Billet supprimé');
+    vpRefreshGeneres();
+  } catch(e) { toast('Erreur : ' + e.message, true); }
+}
+
+async function vpSupprimerSelection(actId) {
+  const ids = [...document.querySelectorAll('.vp-ticket-cb:checked')].map(el => el.value);
+  if (!ids.length) return;
+  if (!confirm(`Supprimer ${ids.length} billet(s) pré-imprimé(s) sélectionné(s) ?`)) return;
+  let ok = 0, erreurs = 0;
+  for (const id of ids) {
+    try { await api(`/tickets/${id}/annuler`, { method: 'POST' }); ok++; }
+    catch(e) { erreurs++; }
+  }
+  toast(ok + ' billet(s) supprimé(s)' + (erreurs ? ` (${erreurs} erreur(s))` : ''));
+  vpRefreshGeneres();
 }
 
 async function vpAction(mode) {
