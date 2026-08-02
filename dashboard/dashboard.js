@@ -1995,10 +1995,10 @@ function renderActivitiesTable(data) {
     const isArchived = a.statut === 'archivee';
     return `<tr>
       <td><strong><a href="javascript:void(0)" onclick="openActivityDetail(${a.id})" style="color:inherit;text-decoration:none;border-bottom:1px dashed #ccc;cursor:pointer">${escHtml(a.titre)}</a></strong></td>
-      <td>${a.type}</td>
-      <td>${fmt(a.date_debut)}</td>
-      <td>${a.lieu||'–'}</td>
-      <td>
+      <td data-label="Type">${a.type}</td>
+      <td data-label="Date">${fmt(a.date_debut)}</td>
+      <td data-label="Lieu">${a.lieu||'–'}</td>
+      <td data-label="Participants">
         <div style="font-size:.82rem;font-weight:600">${a.nb_inscrits}${a.max_participants ? '/'+a.max_participants : ''}</div>
         ${a.max_participants > 0 ? (() => {
           const pct = Math.min(100, Math.round((a.nb_inscrits / a.max_participants) * 100));
@@ -2006,9 +2006,9 @@ function renderActivitiesTable(data) {
           return `<div style="margin-top:3px;background:#e8f5e9;border-radius:4px;height:5px;overflow:hidden;width:80px"><div style="height:100%;width:${pct}%;background:${color};border-radius:4px"></div></div><div style="font-size:.66rem;color:${color};font-weight:700">${pct}%</div>`;
         })() : ''}
       </td>
-      <td>${statusPill(a.statut)}</td>
-      <td>
-        <div style="display:flex;align-items:center;gap:6px;flex-wrap:nowrap">
+      <td data-label="Statut">${statusPill(a.statut)}</td>
+      <td data-label="Actions">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
         ${canCreateActivity() ? `
           <button class="btn btn-sm btn-outline" onclick="openActivityForm(window._actById[${a.id}])" title="Modifier">✏️ Modifier</button>
           <button class="btn btn-sm btn-ghost" title="Numériser billets" onclick="openScanner(${a.id})">📷 Numériser</button>
