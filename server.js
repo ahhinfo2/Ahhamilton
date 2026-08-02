@@ -1394,6 +1394,30 @@ app.post('/api/activities/:id/generer-heures-benevoles', authMiddleware, require
   res.status(201).json({ message: `${crees} bénévole(s) ajouté(s) — ${ignores} déjà existant(s)`, crees, ignores, heures });
 });
 
+// Répare les inscriptions manquantes pour une activité : relie chaque personne ayant déjà des
+// heures de bénévolat (approuvées ou en attente — un rejet n'y donne pas droit) sur cette
+// activité mais qui n'apparaît pas dans activity_registrations (cas créés avant l'ajout de
+// l'auto-inscription sur POST/PUT /api/volunteer).
+app.post('/api/activities/:id/reparer-inscriptions-benevoles', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  const actId = parseInt(req.params.id);
+  const act = db.prepare('SELECT * FROM activities WHERE id = ?').get(actId);
+  if (!act) return res.status(404).json({ error: 'Activité introuvable' });
+
+  const beneficiaires = db.prepare(`
+    SELECT DISTINCT user_id FROM volunteer_hours
+    WHERE activity_id = ? AND statut IN ('approuve','en_attente')
+  `).all(actId);
+
+  let crees = 0, ignores = 0;
+  beneficiaires.forEach(v => {
+    const r = db.prepare("INSERT OR IGNORE INTO activity_registrations (activity_id, user_id, statut) VALUES (?, ?, 'benevole')")
+      .run(actId, v.user_id);
+    if (r.changes) crees++; else ignores++;
+  });
+
+  res.json({ message: `${crees} inscription(s) corrigée(s) — ${ignores} déjà en règle`, crees, ignores });
+});
+
 app.delete('/api/activities/:id/register', authMiddleware, (req, res) => {
   const actId = parseInt(req.params.id);
   const reg = db.prepare('SELECT * FROM activity_registrations WHERE activity_id = ? AND user_id = ?').get(actId, req.user.id);

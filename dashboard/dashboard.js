@@ -1967,6 +1967,7 @@ function renderActivitiesTable(data) {
               <div class="act-menu-item" onclick="closeActMenus();manageActivityPhotos(${a.id},'${a.titre.replace(/'/g,"\\'")}')">🖼 Photos</div>
               <div class="act-menu-item" onclick="closeActMenus();openActivityDetail(${a.id})">🚗 Covoiturage</div>
               ${a.type === 'benevolat' && can.adminOrSec() ? '<div class="act-menu-item" onclick="closeActMenus();genererHeuresBenevoles(' + a.id + ',\'' + a.titre.replace(/'/g,"\\'") + '\')">🤝 Générer les heures des bénévoles</div>' : ''}
+              ${a.type === 'benevolat' && can.adminOrSec() ? '<div class="act-menu-item" onclick="closeActMenus();reparerInscriptionsBenevoles(' + a.id + ',\'' + a.titre.replace(/'/g,"\\'") + '\')">🔧 Corriger les inscriptions bénévoles</div>' : ''}
               <div style="border-top:1px solid var(--border);margin:4px 0"></div>
               <div class="act-menu-item" onclick="closeActMenus();openScanDelegation(${a.id},'${a.titre.replace(/'/g,"\\'")}')">📱 Déléguer un lecteur</div>
               <div class="act-menu-item" onclick="closeActMenus();viewScanLogs(${a.id},'${a.titre.replace(/'/g,"\\'")}')">📋 Journal des scans</div>
@@ -2753,6 +2754,15 @@ async function genererHeuresBenevoles(actId, titre) {
       activities();
     } catch(ex) { toast(ex.message, 'error'); }
   };
+}
+
+async function reparerInscriptionsBenevoles(actId, titre) {
+  if (!confirm(`Corriger les inscriptions de « ${titre} » ?\n\nToute personne ayant déjà des heures de bénévolat (approuvées ou en attente) pour cette activité, mais absente de sa liste d'inscrits, sera ajoutée comme inscrite.`)) return;
+  try {
+    const r = await api(`/activities/${actId}/reparer-inscriptions-benevoles`, { method:'POST' });
+    toast('🔧 ' + r.message);
+    activities();
+  } catch(ex) { toast(ex.message, 'error'); }
 }
 
 async function _comiteInscrireBenevole(actId) {
