@@ -1330,46 +1330,57 @@ async function home() {
       <div><div style="font-size:.83rem;font-weight:600">${escHtml(m.prenom)} ${escHtml(m.nom)}</div><div style="font-size:.72rem;color:var(--muted)">${fmt(m.date_inscription)}</div></div>
     </div>`).join('') || '<div style="padding:12px 16px;font-size:.82rem;color:var(--muted)">Aucun nouveau membre</div>';
 
-  const mobileLabelMap = { 'Nouvelle activité':'Activité', 'Envoyer un message':'Message', 'Heures bénévolat':'Heures', 'Gérer la galerie':'Galerie', 'Voir la finance':'Finance' };
-  const mobileQuickActionsHtml = quickActions.filter(a => a.cls !== 'qa-green').map(a => `
-    <button class="quick-action-btn ${a.cls || ''}" onclick="${a.action}">
-      <span class="qa-icon">${a.icon}</span>
-      <span class="qa-label">${mobileLabelMap[a.label] || a.label}</span>
-    </button>`).join('');
+  const birthdaysHtml = birthdays.slice(0,6).map(m => {
+    const parts = m.date_naissance ? m.date_naissance.split('-') : null;
+    const age = parts ? new Date().getFullYear() - parseInt(parts[0]) : null;
+    const jour = parts ? parseInt(parts[2]) : '?';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 16px;border-bottom:1px solid var(--border)">
+      <div style="width:32px;height:32px;background:var(--accent);color:#000;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:800;flex-shrink:0">${jour}</div>
+      ${m.photo_url ? `<img src="${BASE}${m.photo_url}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0"/>` : `<div style="width:28px;height:28px;border-radius:50%;background:var(--g3);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0">${(m.prenom||'?')[0]}</div>`}
+      <div style="flex:1"><div style="font-size:.83rem;font-weight:600">${escHtml(m.prenom)} ${escHtml(m.nom)}</div>${age ? `<div style="font-size:.72rem;color:var(--muted)">${age} ans</div>` : ''}</div>
+    </div>`;
+  }).join('');
 
   const mobileHomeHtml = `
     <div class="mobile-home-only">
       <div class="mobile-stats-top">
-        <div class="stat-card mobile-stat-quiet"><div class="sc-icon">✉️</div><div class="sc-value">${stats.messages_non_lus}</div><div class="sc-label">Message${stats.messages_non_lus>1?'s':''} non lu${stats.messages_non_lus>1?'s':''}</div></div>
-        ${can.financeView()
-          ? `<div class="stat-card card-navy"><div class="sc-icon">💳</div><div class="sc-value">${fmtMoney(stats.solde||0)}</div><div class="sc-label">Solde</div></div>`
-          : `<div class="stat-card card-gold"><div class="sc-icon">🤝</div><div class="sc-value">${stats.total_heures}h</div><div class="sc-label">Bénévolat</div></div>`}
+        <div class="stat-card card-blue"><div class="sc-icon">👥</div><div class="sc-value">${stats.total_membres}</div><div class="sc-label">Membres actifs</div></div>
+        <div class="stat-card card-gold"><div class="sc-icon">🤝</div><div class="sc-value">${stats.total_heures}h</div><div class="sc-label">Bénévolat</div></div>
       </div>
 
       <div class="home-tabbar">
         <button class="active" onclick="_homeTab(this,0)"><span class="ht-i">⚡</span>Actions</button>
-        ${can.adminOrSec() ? `<button onclick="_homeTab(this,1)"><span class="ht-i">🔔</span>Alertes${unreadAlerts.length ? ` <span class="ht-badge">${unreadAlerts.length}</span>` : ''}</button>` : ''}
-        ${can.adminOrSec() ? `<button onclick="_homeTab(this,2)"><span class="ht-i">👤</span>Membres</button>` : ''}
+        <button onclick="_homeTab(this,1)"><span class="ht-i">📅</span>Activités</button>
+        ${can.adminOrSec() ? `<button onclick="_homeTab(this,2)"><span class="ht-i">🔔</span>Alertes${unreadAlerts.length ? ` <span class="ht-badge">${unreadAlerts.length}</span>` : ''}</button>` : ''}
+        ${can.adminOrSec() ? `<button onclick="_homeTab(this,3)"><span class="ht-i">👤</span>Membres</button>` : ''}
       </div>
 
       <div class="home-tabpanel active" data-ht="0">
-        <div class="mobile-qa-grid">${mobileQuickActionsHtml}</div>
+        <div class="mobile-qa-grid">${quickActionsHtml}</div>
       </div>
-      ${can.adminOrSec() ? `
+
       <div class="home-tabpanel" data-ht="1">
+        <div class="table-card" style="margin-bottom:14px">
+          <div class="table-card-header">
+            <h3>📅 Prochaines activités</h3>
+            <button class="btn btn-sm btn-ghost" onclick="showView('activities')">Toutes →</button>
+          </div>
+          <div style="padding:8px 0">${upcomingHtml}</div>
+        </div>
+        ${can.adminOrSec() && birthdays.length ? `
+        <div class="table-card">
+          <div class="table-card-header"><h3>🎂 Anniversaires ce mois</h3><span style="font-size:.78rem;color:var(--muted)">${new Date().toLocaleString('fr-CA',{month:'long'})}</span></div>
+          <div style="padding:4px 0">${birthdaysHtml}</div>
+        </div>` : ''}
+      </div>
+
+      ${can.adminOrSec() ? `
+      <div class="home-tabpanel" data-ht="2">
         <div class="table-card">${alertsHtml}</div>
       </div>
-      <div class="home-tabpanel" data-ht="2">
+      <div class="home-tabpanel" data-ht="3">
         <div class="table-card">${derniersMembresHtml}</div>
       </div>` : ''}
-
-      <div class="table-card">
-        <div class="table-card-header">
-          <h3>📅 Prochaines activités</h3>
-          <button class="btn btn-sm btn-ghost" onclick="showView('activities')">Toutes →</button>
-        </div>
-        <div style="padding:8px 0">${upcomingHtml}</div>
-      </div>
     </div>
   `;
 
@@ -1500,18 +1511,7 @@ async function home() {
       ${can.adminOrSec() && birthdays.length ? `
       <div class="table-card">
         <div class="table-card-header"><h3>🎂 Anniversaires ce mois</h3><span style="font-size:.78rem;color:var(--muted)">${new Date().toLocaleString('fr-CA',{month:'long'})}</span></div>
-        <div style="padding:4px 0">
-          ${birthdays.slice(0,6).map(m => {
-            const parts = m.date_naissance ? m.date_naissance.split('-') : null;
-            const age = parts ? new Date().getFullYear() - parseInt(parts[0]) : null;
-            const jour = parts ? parseInt(parts[2]) : '?';
-            return `<div style="display:flex;align-items:center;gap:10px;padding:8px 16px;border-bottom:1px solid var(--border)">
-              <div style="width:32px;height:32px;background:var(--accent);color:#000;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:800;flex-shrink:0">${jour}</div>
-              ${m.photo_url ? `<img src="${BASE}${m.photo_url}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0"/>` : `<div style="width:28px;height:28px;border-radius:50%;background:var(--g3);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0">${(m.prenom||'?')[0]}</div>`}
-              <div style="flex:1"><div style="font-size:.83rem;font-weight:600">${escHtml(m.prenom)} ${escHtml(m.nom)}</div>${age ? `<div style="font-size:.72rem;color:var(--muted)">${age} ans</div>` : ''}</div>
-            </div>`;
-          }).join('')}
-        </div>
+        <div style="padding:4px 0">${birthdaysHtml}</div>
       </div>` : ''}
 
       ${can.adminOrSec() && overdueMembers.length ? `
