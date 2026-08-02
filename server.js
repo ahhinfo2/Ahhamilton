@@ -1263,6 +1263,7 @@ app.delete('/api/activities/:id', authMiddleware, requireRole('admin','secretair
 
     db.prepare('DELETE FROM activity_registrations WHERE activity_id = ?').run(actId);
     db.prepare('DELETE FROM activity_photos WHERE activity_id = ?').run(actId);
+    db.prepare('DELETE FROM volunteer_hours WHERE activity_id = ?').run(actId);
     db.prepare('DELETE FROM activities WHERE id = ?').run(actId);
 
     res.json({ message: 'Activité supprimée' });

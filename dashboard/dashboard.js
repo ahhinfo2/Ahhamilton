@@ -4353,6 +4353,17 @@ function openMessageForm(allUsers) {
 }
 
 // ══ VOLUNTEER ══════════════════════════════════════════════════════════════
+function _volBuildParActivite(data) {
+  const parActivite = {};
+  data.forEach(v => {
+    const key = v.activity_id || 'none';
+    if (!parActivite[key]) parActivite[key] = { activityId: v.activity_id||null, titre: v.activite || '— Sans activité —', heures: 0, benevoles: new Set(), enAttente: 0 };
+    if (v.statut === 'approuve') { parActivite[key].heures += v.heures; parActivite[key].benevoles.add(v.user_id); }
+    else if (v.statut === 'en_attente') { parActivite[key].enAttente++; parActivite[key].benevoles.add(v.user_id); }
+  });
+  return parActivite;
+}
+
 async function volunteer() {
   const [data, allUsers, allActs] = await Promise.all([
     api('/volunteer'),
@@ -4361,20 +4372,27 @@ async function volunteer() {
   ]);
   window._volAllUsers = allUsers;
   window._volAllActs = allActs;
+  window._volData = data;
   const approuvees = data.filter(v=>v.statut==='approuve');
   const totalApp = approuvees.reduce((s,v)=>s+v.heures,0);
 
   // Regroupement par activité — sert à la fois aux cartes de rapport (comité) et au résumé
   // personnel (membre), puisque pour un membre non-comité, /api/volunteer ne renvoie déjà que
-  // ses propres entrées.
-  const parActivite = {};
-  approuvees.forEach(v => {
-    const key = v.activite || '— Sans activité —';
-    if (!parActivite[key]) parActivite[key] = { heures: 0, benevoles: new Set() };
-    parActivite[key].heures += v.heures;
-    parActivite[key].benevoles.add(v.user_id);
-  });
-  const activitesTriees = Object.entries(parActivite).sort((a,b) => b[1].heures - a[1].heures);
+  // ses propres entrées. On regroupe TOUTES les entrées (pas seulement approuvées) afin qu'une
+  // activité avec des inscriptions en attente apparaisse quand même comme ligne cliquable.
+  const parActivite = _volBuildParActivite(data);
+  window._volParActivite = parActivite;
+  const activitesTriees = Object.entries(parActivite).sort((a,b) => (b[1].heures - a[1].heures) || (b[1].enAttente - a[1].enAttente));
+
+  const cardHtml = ([key, agg]) => `
+        <div onclick="_volActivityDetail('${key}')" style="cursor:pointer;background:var(--off);border:1px solid var(--border);border-radius:12px;padding:16px 18px;transition:box-shadow .15s" onmouseover="this.style.boxShadow='0 2px 10px rgba(0,0,0,.08)'" onmouseout="this.style.boxShadow='none'">
+          <div style="font-size:1.4rem;font-weight:800;color:var(--g1)">${agg.heures}h</div>
+          <div style="font-size:.82rem;font-weight:600;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(agg.titre)}">${escHtml(agg.titre)}</div>
+          <div style="font-size:.74rem;color:var(--muted);margin-top:2px;display:flex;gap:6px;align-items:center">
+            ${agg.benevoles.size} bénévole${agg.benevoles.size>1?'s':''}
+            ${agg.enAttente ? `<span style="background:#fff3e0;color:#e65100;border-radius:20px;padding:1px 8px;font-weight:700;font-size:.68rem">${agg.enAttente} en attente</span>` : ''}
+          </div>
+        </div>`;
 
   const cardsHtml = can.adminOrSec()
     ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-bottom:22px">
@@ -4382,23 +4400,14 @@ async function volunteer() {
           <div style="font-size:1.6rem;font-weight:800">${totalApp}h</div>
           <div style="font-size:.78rem;opacity:.9;margin-top:2px">Total approuvé — toutes activités</div>
         </div>
-        ${activitesTriees.map(([titre, agg]) => `
-        <div style="background:var(--off);border:1px solid var(--border);border-radius:12px;padding:16px 18px">
-          <div style="font-size:1.4rem;font-weight:800;color:var(--g1)">${agg.heures}h</div>
-          <div style="font-size:.82rem;font-weight:600;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(titre)}">${escHtml(titre)}</div>
-          <div style="font-size:.74rem;color:var(--muted);margin-top:2px">${agg.benevoles.size} bénévole${agg.benevoles.size>1?'s':''}</div>
-        </div>`).join('')}
+        ${activitesTriees.map(cardHtml).join('')}
       </div>`
     : `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-bottom:22px">
         <div style="background:var(--g1);color:#fff;border-radius:12px;padding:16px 18px">
           <div style="font-size:1.6rem;font-weight:800">${totalApp}h</div>
           <div style="font-size:.78rem;opacity:.9;margin-top:2px">Mon total approuvé</div>
         </div>
-        ${activitesTriees.map(([titre, agg]) => `
-        <div style="background:var(--off);border:1px solid var(--border);border-radius:12px;padding:16px 18px">
-          <div style="font-size:1.4rem;font-weight:800;color:var(--g1)">${agg.heures}h</div>
-          <div style="font-size:.82rem;font-weight:600;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(titre)}">${escHtml(titre)}</div>
-        </div>`).join('')}
+        ${activitesTriees.map(cardHtml).join('')}
       </div>`;
 
   setContent(`
@@ -4427,6 +4436,56 @@ async function volunteer() {
       </tr>`).join('')}</tbody>
     </table></div></div>
   `);
+}
+
+function _volActivityDetail(key) {
+  const agg = (window._volParActivite || {})[key];
+  if (!agg) return;
+  const entries = (window._volData || []).filter(v => String(v.activity_id || 'none') === String(key));
+  entries.sort((a,b) => (a.statut==='en_attente'?0:1) - (b.statut==='en_attente'?0:1));
+  openModal(`🤝 ${escHtml(agg.titre)}`, `
+    <div style="display:flex;gap:14px;margin-bottom:20px;flex-wrap:wrap">
+      <div style="background:var(--g1);color:#fff;border-radius:12px;padding:12px 18px">
+        <div style="font-size:1.3rem;font-weight:800">${agg.heures}h</div>
+        <div style="font-size:.74rem;opacity:.9">Total approuvé</div>
+      </div>
+      <div style="background:var(--off);border:1px solid var(--border);border-radius:12px;padding:12px 18px">
+        <div style="font-size:1.3rem;font-weight:800;color:var(--g1)">${agg.benevoles.size}</div>
+        <div style="font-size:.74rem;color:var(--muted)">Bénévole${agg.benevoles.size>1?'s':''}</div>
+      </div>
+      ${agg.enAttente ? `<div style="background:#fff3e0;border-radius:12px;padding:12px 18px">
+        <div style="font-size:1.3rem;font-weight:800;color:#e65100">${agg.enAttente}</div>
+        <div style="font-size:.74rem;color:#e65100">En attente d'approbation</div>
+      </div>` : ''}
+    </div>
+    <div class="table-card"><div class="table-wrapper"><table>
+      <thead><tr><th>Membre</th><th>Heures</th><th>Date</th><th>Description</th><th>Statut</th>${can.adminOrSec() ? '<th>Actions</th>' : ''}</tr></thead>
+      <tbody>${entries.map(v => `<tr>
+        <td>${escHtml(v.membre||USER.prenom+' '+USER.nom)}</td>
+        <td><strong>${v.heures}h</strong></td>
+        <td>${fmt(v.date_service)}</td>
+        <td>${escHtml(v.description||'–')}</td>
+        <td>${statusPill(v.statut)}</td>
+        ${can.adminOrSec() ? `<td style="display:flex;gap:4px;flex-wrap:wrap">
+          ${v.statut==='en_attente' ? `
+          <button class="btn btn-sm btn-primary" onclick="_approveVolInModal(${v.id},'approuve','${key}')">✅</button>
+          <button class="btn btn-sm btn-danger" onclick="_approveVolInModal(${v.id},'rejete','${key}')">❌</button>` : ''}
+          ${can.admin() ? `<button class="btn btn-sm" style="color:var(--red);border:1px solid var(--red);background:transparent" onclick="deleteVol(${v.id})">🗑</button>` : ''}
+        </td>` : ''}
+      </tr>`).join('')}</tbody>
+    </table></div></div>
+    <div class="form-actions"><button type="button" class="btn btn-ghost" onclick="closeModal()">Fermer</button></div>
+  `);
+}
+
+async function _approveVolInModal(id, statut, key) {
+  try {
+    await api(`/volunteer/${id}/approve`, { method:'PUT', body:JSON.stringify({ statut }) });
+    toast(statut==='approuve' ? '✅ Heures approuvées' : 'Rejeté');
+    window._volData = await api('/volunteer');
+    window._volParActivite = _volBuildParActivite(window._volData);
+    _volActivityDetail(key);
+  } catch(ex) { toast(ex.message, 'error'); }
 }
 
 function openVolForm(allUsers, allActs) {
