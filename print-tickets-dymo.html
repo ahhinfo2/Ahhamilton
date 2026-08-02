@@ -17,31 +17,32 @@
   .count{font-size:.82rem;color:#666}
   .hint{background:#fff8e1;border:1px solid #ffc107;border-radius:8px;padding:10px 14px;font-size:.8rem;color:#5a4a00;margin-bottom:16px;line-height:1.5}
 
-  /* ── APERÇU À L'ÉCRAN (chaque étiquette encadrée pour se repérer) ── */
-  #labelsList{display:flex;flex-direction:column;gap:10px}
+  /* ── APERÇU À L'ÉCRAN (chaque étiquette encadrée pour se repérer) ──
+     Portrait, comme le ruban DYMO réel : largeur fixe du ruban (28mm), la longueur (89mm)
+     défile dans le sens de l'impression — donc étiquette haute et étroite, pas large et basse. */
+  #labelsList{display:flex;flex-wrap:wrap;gap:10px}
   .dymo-label{
-    width:89mm;height:28mm;
+    width:28mm;height:89mm;
     border:1px dashed #ccc;background:#fff;
-    display:flex;align-items:center;gap:2.5mm;padding:1.5mm 2.5mm;
+    display:flex;flex-direction:column;align-items:center;
+    padding:2.5mm 1.5mm;
     overflow:hidden;
   }
-  .dymo-qr{width:24mm;height:24mm;flex-shrink:0}
+  .dymo-logo{width:9mm;height:9mm;border-radius:50%;object-fit:cover;flex-shrink:0}
+  .dymo-titre{font-size:8pt;font-weight:800;line-height:1.2;text-align:center;color:#000;
+    margin-top:2mm;
+    display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+  .dymo-qr{width:24mm;height:24mm;margin-top:auto;margin-bottom:1mm}
   .dymo-qr img{width:100%;height:100%;display:block}
-  .dymo-info{flex:1;min-width:0;color:#000}
-  .dymo-org{font-size:6.5pt;text-transform:uppercase;letter-spacing:.03em;color:#000;font-weight:700}
-  .dymo-titre{font-size:9.5pt;font-weight:800;line-height:1.15;margin-top:1mm;
-    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-  .dymo-buyer{font-size:7.5pt;color:#000;margin-top:1mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .dymo-code{font-size:6.5pt;color:#333;font-family:'Consolas',monospace;margin-top:.5mm}
 
-  /* ── IMPRESSION : une étiquette = une page, format exact de l'étiquette DYMO ── */
+  /* ── IMPRESSION : une étiquette = une page, format exact de l'étiquette DYMO (portrait) ── */
   @media print{
-    @page{ size:89mm 28mm; margin:0; }
+    @page{ size:28mm 89mm; margin:0; }
     body{background:#fff;padding:0;margin:0}
     .controls,.hint{display:none}
     #labelsList{gap:0}
     .dymo-label{
-      border:none;width:89mm;height:28mm;
+      border:none;width:28mm;height:89mm;
       page-break-after:always; break-after:page;
     }
     .dymo-label:last-child{page-break-after:auto}
@@ -56,9 +57,9 @@
   <a href="javascript:history.back()" class="btn btn-back">← Retour</a>
 </div>
 <div class="hint">
-  📏 Format étiquette DYMO Adresse — 1⅛" × 3½" (28 × 89 mm).
+  📏 Format étiquette DYMO — 28 × 89 mm, <strong>portrait</strong> (le ruban fait 28mm de large, l'étiquette défile sur 89mm).
   Dans la boîte d'impression : sélectionnez l'imprimante <strong>DYMO LabelWriter 450</strong>,
-  le format de papier <strong>28mm x 89mm</strong> (ou « Adresse »), et mettez l'échelle à <strong>100 %</strong>
+  le format de papier <strong>28mm x 89mm</strong> (ou « Adresse »), orientation <strong>portrait</strong>, et mettez l'échelle à <strong>100 %</strong>
   (pas de « Ajuster à la page »).
 </div>
 <div id="labelsList"></div>
@@ -90,13 +91,9 @@ async function load() {
     const qrSrc = `${BASE}/uploads/qr/${ticketToken}.png`;
     return `
     <div class="dymo-label">
+      <img class="dymo-logo" src="/Public/logo1.png" alt="AHH"/>
+      <div class="dymo-titre">${s(t.activite||'')}</div>
       <div class="dymo-qr"><img src="${qrSrc}" alt="QR" onerror="this.style.display='none'"/></div>
-      <div class="dymo-info">
-        <div class="dymo-org">AHH Hamilton</div>
-        <div class="dymo-titre">${s(t.activite||'')}</div>
-        <div class="dymo-buyer">${s(t.acheteur_nom||'Anonyme')}</div>
-        <div class="dymo-code">${s(t.barcode_data||'')}</div>
-      </div>
     </div>`;
   }).join('');
 
