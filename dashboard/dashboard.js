@@ -1343,43 +1343,42 @@ async function home() {
 
   const mobileHomeHtml = `
     <div class="mobile-home-only">
-      <div class="mobile-stats-top">
-        <div class="stat-card card-blue"><div class="sc-icon">👥</div><div class="sc-value">${stats.total_membres}</div><div class="sc-label">Membres actifs</div></div>
-        <div class="stat-card card-gold"><div class="sc-icon">🤝</div><div class="sc-value">${stats.total_heures}h</div><div class="sc-label">Bénévolat</div></div>
+      <div class="m-stat-strip">
+        <div class="seg"><div class="v">${stats.total_membres}</div><div class="l">Membres</div></div>
+        <div class="seg"><div class="v">${stats.total_activites}</div><div class="l">Activités</div></div>
+        <div class="seg"><div class="v">${stats.total_heures}h</div><div class="l">Bénévolat</div></div>
+        <div class="seg"><div class="v">${stats.messages_non_lus}</div><div class="l">Messages</div></div>
+        ${can.financeView() ? `<div class="seg"><div class="v">${fmtMoney(stats.solde||0)}</div><div class="l">Solde</div></div>` : ''}
       </div>
 
-      <div class="home-tabbar">
-        <button class="active" onclick="_homeTab(this,0)"><span class="ht-i">⚡</span>Actions</button>
-        <button onclick="_homeTab(this,1)"><span class="ht-i">📅</span>Activités</button>
-        ${can.adminOrSec() ? `<button onclick="_homeTab(this,2)"><span class="ht-i">🔔</span>Alertes${unreadAlerts.length ? ` <span class="ht-badge">${unreadAlerts.length}</span>` : ''}</button>` : ''}
-        ${can.adminOrSec() ? `<button onclick="_homeTab(this,3)"><span class="ht-i">👤</span>Membres</button>` : ''}
+      <div class="m-acc open">
+        <div class="m-acc-head" onclick="this.parentElement.classList.toggle('open')"><span>⚡ Actions rapides</span><span class="m-acc-chev">▾</span></div>
+        <div class="m-acc-body"><div class="mobile-qa-grid" style="margin-top:10px">${quickActionsHtml}</div></div>
       </div>
 
-      <div class="home-tabpanel active" data-ht="0">
-        <div class="mobile-qa-grid">${quickActionsHtml}</div>
-      </div>
-
-      <div class="home-tabpanel" data-ht="1">
-        <div class="table-card" style="margin-bottom:14px">
-          <div class="table-card-header">
-            <h3>📅 Prochaines activités</h3>
-            <button class="btn btn-sm btn-ghost" onclick="showView('activities')">Toutes →</button>
+      <div class="m-acc">
+        <div class="m-acc-head" onclick="this.parentElement.classList.toggle('open')"><span>📅 Prochaines activités</span><span class="m-acc-chev">▾</span></div>
+        <div class="m-acc-body">
+          <div class="table-card" style="margin-top:10px">
+            <div class="table-card-header"><h3>📅 Prochaines activités</h3><button class="btn btn-sm btn-ghost" onclick="showView('activities')">Toutes →</button></div>
+            <div style="padding:8px 0">${upcomingHtml}</div>
           </div>
-          <div style="padding:8px 0">${upcomingHtml}</div>
+          ${can.adminOrSec() && birthdays.length ? `
+          <div class="table-card">
+            <div class="table-card-header"><h3>🎂 Anniversaires ce mois</h3><span style="font-size:.78rem;color:var(--muted)">${new Date().toLocaleString('fr-CA',{month:'long'})}</span></div>
+            <div style="padding:4px 0">${birthdaysHtml}</div>
+          </div>` : ''}
         </div>
-        ${can.adminOrSec() && birthdays.length ? `
-        <div class="table-card">
-          <div class="table-card-header"><h3>🎂 Anniversaires ce mois</h3><span style="font-size:.78rem;color:var(--muted)">${new Date().toLocaleString('fr-CA',{month:'long'})}</span></div>
-          <div style="padding:4px 0">${birthdaysHtml}</div>
-        </div>` : ''}
       </div>
 
       ${can.adminOrSec() ? `
-      <div class="home-tabpanel" data-ht="2">
-        <div class="table-card">${alertsHtml}</div>
+      <div class="m-acc">
+        <div class="m-acc-head" onclick="this.parentElement.classList.toggle('open')"><span>🔔 Alertes${unreadAlerts.length ? ` <span class="m-acc-badge">${unreadAlerts.length}</span>` : ''}</span><span class="m-acc-chev">▾</span></div>
+        <div class="m-acc-body"><div class="table-card" style="margin-top:10px">${alertsHtml}</div></div>
       </div>
-      <div class="home-tabpanel" data-ht="3">
-        <div class="table-card">${derniersMembresHtml}</div>
+      <div class="m-acc">
+        <div class="m-acc-head" onclick="this.parentElement.classList.toggle('open')"><span>👤 Derniers membres</span><span class="m-acc-chev">▾</span></div>
+        <div class="m-acc-body"><div class="table-card" style="margin-top:10px">${derniersMembresHtml}</div></div>
       </div>` : ''}
     </div>
   `;
@@ -1533,15 +1532,6 @@ async function home() {
   // Charger météo Hamilton en arrière-plan
   fetchWeather();
   if (can.executive()) _loadCountdownControl();
-}
-
-function _homeTab(btn, idx) {
-  const bar = btn.parentElement;
-  [...bar.children].forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  const container = bar.closest('.mobile-home-only');
-  if (!container) return;
-  container.querySelectorAll('.home-tabpanel').forEach(p => p.classList.toggle('active', Number(p.dataset.ht) === idx));
 }
 
 async function fetchWeather() {
@@ -14139,27 +14129,27 @@ async function carteGestionView() {
     </div>
 
     <div class="mobile-page-only" id="cgBodyMobile">
-      ${membres.map(function(m) {
+      ${membres.slice().sort(function(a,b){
+        const pa = a.photo_url && !a.carte_photo_approuvee ? 1 : 0;
+        const pb = b.photo_url && !b.carte_photo_approuvee ? 1 : 0;
+        return pb - pa;
+      }).map(function(m) {
         const conn = connMap[m.id] || {};
         const dj = m.days_left;
         const initials = ((m.prenom||'?')[0] + ((m.nom||'')[0]||'')).toUpperCase();
         const photoStatus = m.photo_url ? (m.carte_photo_approuvee ? 'approved' : 'pending') : 'none';
         const searchData = ((m.prenom||'')+' '+(m.nom||'')+' '+(m.email||'')+' '+(m.role||'')+' '+(m.plan||'')+' '+(m.telephone||'')).toLowerCase();
         const isInactif = m.actif === 0 || m.actif === false;
+        const needsAction = m.photo_url && !m.carte_photo_approuvee;
         const expBadge = !m.expiration ? ''
           : dj < 0 ? '<span class="pill" style="background:#fdecea;color:#c62828;font-size:.68rem;font-weight:800;padding:2px 8px;border-radius:20px">⛔ Expirée</span>'
           : dj <= 30 ? '<span class="pill" style="background:#fff3e0;color:#e65100;font-size:.68rem;font-weight:800;padding:2px 8px;border-radius:20px">⚠️ ' + dj + 'j</span>'
           : '<span class="pill" style="background:#e3f2ea;color:#1b5e20;font-size:.68rem;font-weight:800;padding:2px 8px;border-radius:20px">✅ ' + dj + 'j</span>';
-        let actionsHtml;
-        if (m.photo_url && !m.carte_photo_approuvee) {
-          actionsHtml = '<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();_cgApprovePhoto(' + m.id + ')">✅ Approuver photo</button>' +
-            '<button class="btn btn-sm btn-ghost" style="color:#c62828" onclick="event.stopPropagation();_cgRefusPhotoModal(' + m.id + ',\'' + escHtml(m.prenom+' '+m.nom).replace(/'/g,"\\'") + '\')">✉️ Refuser</button>';
-        } else if (m.photo_url && m.carte_photo_approuvee) {
-          actionsHtml = '<button class="btn btn-sm btn-ghost" style="color:#e65100" onclick="event.stopPropagation();_cgDesapprouverPhoto(' + m.id + ')">↩️ Désapprouver photo</button>';
-        } else {
-          actionsHtml = '<label class="btn btn-sm btn-outline" style="cursor:pointer" onclick="event.stopPropagation()">📷 Ajouter photo<input type="file" accept="image/*" style="display:none" onchange="_cgUploadPhoto(' + m.id + ',this.files[0])"/></label>';
-        }
-        return '<div class="m-item cg-row" data-id="' + m.id + '" style="' + (isInactif?'opacity:.6':'') + '" data-search="' + escHtml(searchData) + '" data-role="' + (m.role||'') + '" data-photo="' + photoStatus + '" data-plan="' + (m.plan||'gratuit') + '" data-actif="' + (isInactif?'0':'1') + '" data-nom="' + escHtml(((m.prenom||'')+' '+(m.nom||'')).toLowerCase()) + '" data-connexions="' + (conn.nb_connexions||0) + '" data-derniere="' + (conn.derniere_connexion||'') + '" data-expiration="' + (m.days_left!=null?m.days_left:9999) + '" data-inscription="' + (m.date_inscription||'') + '" onclick="_cgOpenProfile(' + m.id + ')">' +
+        const actionsHtml = needsAction
+          ? '<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();_cgApprovePhoto(' + m.id + ')">✅ Approuver photo</button>' +
+            '<button class="btn btn-sm btn-ghost" style="color:#c62828" onclick="event.stopPropagation();_cgRefusPhotoModal(' + m.id + ',\'' + escHtml(m.prenom+' '+m.nom).replace(/'/g,"\\'") + '\')">✉️ Refuser</button>'
+          : '';
+        return '<div class="m-item cg-row" data-id="' + m.id + '" style="' + (isInactif?'opacity:.6;':'') + (needsAction?'border:1.5px solid #f9a825;background:#fff8e1':'') + '" data-search="' + escHtml(searchData) + '" data-role="' + (m.role||'') + '" data-photo="' + photoStatus + '" data-plan="' + (m.plan||'gratuit') + '" data-actif="' + (isInactif?'0':'1') + '" data-nom="' + escHtml(((m.prenom||'')+' '+(m.nom||'')).toLowerCase()) + '" data-connexions="' + (conn.nb_connexions||0) + '" data-derniere="' + (conn.derniere_connexion||'') + '" data-expiration="' + (m.days_left!=null?m.days_left:9999) + '" data-inscription="' + (m.date_inscription||'') + '" onclick="_cgOpenProfile(' + m.id + ')">' +
           '<div class="m-item-top">' +
             '<div style="display:flex;gap:9px;align-items:center;min-width:0">' +
               (m.photo_url
@@ -14167,9 +14157,9 @@ async function carteGestionView() {
                 : '<div style="width:34px;height:34px;border-radius:50%;background:var(--g2);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0">' + initials + '</div>') +
               '<div style="min-width:0"><div class="m-item-title">' + escHtml(m.prenom) + ' ' + escHtml(m.nom) + '</div><div class="m-item-sub">' + (roleLabel[m.role]||m.role) + ' · ' + (planLabel[m.plan]||m.plan||'Gratuit') + '</div></div>' +
             '</div>' +
-            expBadge +
+            (needsAction ? '<span class="pill" style="background:#f9a825;color:#000;font-size:.62rem;font-weight:800;padding:2px 8px;border-radius:20px;white-space:nowrap">⚠️ Action requise</span>' : expBadge) +
           '</div>' +
-          '<div class="m-item-actions">' + actionsHtml + '</div>' +
+          (actionsHtml ? '<div class="m-item-actions">' + actionsHtml + '</div>' : '') +
         '</div>';
       }).join('') || '<div class="m-empty">Aucun membre</div>'}
     </div>

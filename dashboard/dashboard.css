@@ -1718,20 +1718,23 @@ html.dark .search-results { background: var(--white); }
 .quick-action-btn.qa-gold:hover,.quick-action-btn.qa-purple:hover,
 .quick-action-btn.qa-green:hover { transform:translateY(-3px); box-shadow:0 6px 20px rgba(0,0,0,.28); border-color:transparent; }
 
-/* ── Accueil mobile/PWA : stats + onglets ───────────────────────────────── */
+/* ── Accueil mobile/PWA : bandeau de stats + accordéon ──────────────────── */
 .mobile-home-only { display:none; }
-.mobile-stats-top { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; }
-.stat-card.mobile-stat-quiet { background:var(--white); border:1.5px solid var(--border); }
-.stat-card.mobile-stat-quiet .sc-value { color:var(--text); }
-.stat-card.mobile-stat-quiet .sc-label { color:var(--muted); }
-.home-tabbar { display:flex; gap:3px; background:var(--off); border:1px solid var(--border); border-radius:12px; padding:4px; margin-bottom:14px; }
-.home-tabbar button { flex:1; border:none; background:transparent; padding:9px 4px; border-radius:9px; font-family:'Poppins',sans-serif; font-size:.72rem; font-weight:700; color:var(--muted); cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:2px; position:relative; }
-.home-tabbar button.active { background:var(--white); color:var(--g1); box-shadow:0 1px 4px rgba(0,0,0,.1); }
-.home-tabbar .ht-i { font-size:.95rem; }
-.home-tabbar .ht-badge { position:absolute; top:1px; right:8px; background:#e53935; color:#fff; font-size:.58rem; font-weight:800; border-radius:10px; padding:1px 5px; line-height:1.3; }
-.home-tabpanel { display:none; }
-.home-tabpanel.active { display:block; }
-.mobile-qa-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; }
+.mobile-qa-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+
+.m-stat-strip { display:flex; background:var(--white); border:1px solid var(--border); border-radius:14px; overflow:hidden; margin-bottom:14px; }
+.m-stat-strip .seg { flex:1; padding:10px 6px; text-align:center; }
+.m-stat-strip .seg + .seg { border-left:1px solid var(--border); }
+.m-stat-strip .seg .v { font-size:.92rem; font-weight:800; color:var(--g1); font-variant-numeric:tabular-nums; }
+.m-stat-strip .seg .l { font-size:.6rem; color:var(--muted); font-weight:700; text-transform:uppercase; }
+
+.m-acc { background:var(--white); border:1px solid var(--border); border-radius:14px; margin-bottom:10px; overflow:hidden; }
+.m-acc-head { display:flex; align-items:center; justify-content:space-between; padding:13px 14px; cursor:pointer; font-size:.85rem; font-weight:700; }
+.m-acc-chev { color:var(--muted); font-size:.75rem; transition:transform .2s; }
+.m-acc.open .m-acc-chev { transform:rotate(180deg); }
+.m-acc-body { max-height:0; overflow:hidden; padding:0 14px; transition:max-height .25s ease; }
+.m-acc.open .m-acc-body { max-height:2000px; padding-bottom:14px; }
+.m-acc-badge { background:#e53935; color:#fff; font-size:.62rem; font-weight:800; border-radius:10px; padding:1px 7px; margin-left:4px; }
 
 /* ── Composants mobile partagés : recherche, filtres, listes compactes ──── */
 .m-searchbar { display:flex; align-items:center; gap:8px; background:var(--white); border:1.5px solid var(--border); border-radius:11px; padding:9px 12px; margin-bottom:10px; }
