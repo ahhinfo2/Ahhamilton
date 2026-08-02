@@ -87,8 +87,7 @@ async function load() {
   document.getElementById('pageCount').textContent = tickets.length + ' étiquette(s)';
 
   document.getElementById('labelsList').innerHTML = tickets.map(t => {
-    const ticketToken = (t.qr_data || '').replace('TICKET:', '');
-    const qrSrc = `${BASE}/uploads/qr/${ticketToken}.png`;
+    const qrSrc = `${API}/tickets/${t.id}/qr-noir`;
     const dateStr = t.date_debut ? new Date(t.date_debut).toLocaleDateString('fr-CA', { day:'numeric', month:'short' }) : '';
     return `
     <div class="dymo-label">

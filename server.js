@@ -4863,6 +4863,23 @@ app.get('/api/tickets/:id/qr', async (req, res) => {
   } catch(e) { res.status(500).send('Erreur QR'); }
 });
 
+// QR en noir pur — pour l'impression thermique monochrome (DYMO LabelWriter). Le vert de marque
+// utilisé ailleurs (#1b5e20) n'a pas assez de contraste une fois converti en niveaux de gris par
+// une imprimante thermique directe, ce qui rend le QR imprimé difficile ou impossible à scanner.
+app.get('/api/tickets/:id/qr-noir', async (req, res) => {
+  const ticket = db.prepare('SELECT * FROM tickets WHERE id = ?').get(req.params.id);
+  if (!ticket) return res.status(404).send('Billet introuvable');
+  try {
+    const svgRaw = await QRCode.toString(ticket.qr_data || String(ticket.id), {
+      type: 'svg', width: 260, margin: 2,
+      color: { dark: '#000000', light: '#ffffff' }
+    });
+    res.set('Content-Type', 'image/svg+xml');
+    res.set('Cache-Control', 'no-cache');
+    res.send(svgRaw);
+  } catch(e) { res.status(500).send('Erreur QR'); }
+});
+
 // Présents en direct pour une activité
 app.get('/api/activities/:id/live', authMiddleware, requireRole('admin','delegue','secretaire','tresoriere'), (req, res) => {
   const actId = parseInt(req.params.id);
