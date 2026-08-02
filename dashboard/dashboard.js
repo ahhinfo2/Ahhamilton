@@ -2823,7 +2823,7 @@ function openMemberForm(u = null) {
       <div class="form-group"><label>Courriel *</label><input type="email" id="m_email" value="${u?.email||''}" required/></div>
       <div class="form-row">
         <div class="form-group"><label>Téléphone</label><input id="m_tel" value="${u?.telephone||''}"/></div>
-        <div class="form-group"><label>Date naissance</label><input type="date" id="m_dob" value="${u?.date_naissance||''}"/></div>
+        <div class="form-group"><label>Date naissance</label><div style="display:flex;gap:6px">${htmlDobSelects('m_dob')}</div></div>
       </div>
       <div class="form-group"><label>Adresse</label><input id="m_addr" value="${u?.adresse||''}"/></div>
       ${can.admin() ? `<div class="form-group"><label>Rôle</label>
@@ -2852,11 +2852,12 @@ function openMemberForm(u = null) {
       </div>
     </form>
   `);
+  fillDobSelects('m_dob', u?.date_naissance);
   document.getElementById('memForm').onsubmit = async e => {
     e.preventDefault();
     const body = { prenom:document.getElementById('m_prenom').value, nom:document.getElementById('m_nom').value,
       email:document.getElementById('m_email').value, telephone:document.getElementById('m_tel').value,
-      adresse:document.getElementById('m_addr').value, date_naissance:document.getElementById('m_dob').value };
+      adresse:document.getElementById('m_addr').value, date_naissance:readDobValue('m_dob') };
     if (can.admin()) {
       body.role = document.getElementById('m_role').value;
       body.email_org = document.getElementById('m_email_org').value.trim() || '';
@@ -7649,7 +7650,7 @@ function openDependentForm(existing) {
             <option value="conjoint" ${existing?.lien==='conjoint'?'selected':''}>Conjoint(e)</option>
             <option value="autre" ${existing?.lien==='autre'?'selected':''}>Autre</option>
           </select></div>
-        <div class="form-group"><label>Date de naissance</label><input type="date" id="dep_date" value="${(existing?.date_naissance||'').substring(0,10)}"/></div>
+        <div class="form-group"><label>Date de naissance</label><div style="display:flex;gap:6px">${htmlDobSelects('dep_date')}</div></div>
       </div>
       <div class="form-group"><label>Notes</label><textarea id="dep_notes" rows="2">${escHtml(existing?.notes||'')}</textarea></div>
       <div class="form-actions">
@@ -7658,10 +7659,11 @@ function openDependentForm(existing) {
       </div>
     </form>
   `);
+  fillDobSelects('dep_date', existing?.date_naissance);
   document.getElementById('depForm').onsubmit = async e => {
     e.preventDefault();
     const body = { prenom: document.getElementById('dep_prenom').value.trim(), nom: document.getElementById('dep_nom').value.trim(),
-      lien: document.getElementById('dep_lien').value, date_naissance: document.getElementById('dep_date').value, notes: document.getElementById('dep_notes').value };
+      lien: document.getElementById('dep_lien').value, date_naissance: readDobValue('dep_date'), notes: document.getElementById('dep_notes').value };
     try {
       if (isEdit) await api('/dependents/' + existing.id, { method:'PUT', body: JSON.stringify(body) });
       else await api('/dependents', { method:'POST', body: JSON.stringify(body) });
@@ -7704,7 +7706,7 @@ function openEditProfile(u, nameLocked) {
       ${nameLocked ? `<p style="font-size:.75rem;color:var(--muted);margin-top:-8px;margin-bottom:14px">🔒 Votre nom ne peut plus être modifié après l'approbation de votre photo. Contactez le comité si nécessaire.</p>` : ''}
       <div class="form-group"><label>Téléphone</label><input id="ep_tel" placeholder="514-555-1234" value="${u.telephone||''}"/></div>
       <div class="form-group"><label>Adresse</label><input id="ep_addr" value="${u.adresse||''}"/></div>
-      <div class="form-group"><label>Date de naissance</label><input type="date" id="ep_dob" value="${u.date_naissance||''}"/></div>
+      <div class="form-group"><label>Date de naissance</label><div style="display:flex;gap:6px">${htmlDobSelects('ep_dob')}</div></div>
       <div class="form-group"><label>Bio</label><textarea id="ep_bio">${u.bio||''}</textarea></div>
       <div class="form-group">
         <label>📱 Opérateur cellulaire (pour les SMS)</label>
@@ -7721,13 +7723,14 @@ function openEditProfile(u, nameLocked) {
       </div>
     </form>
   `);
+  fillDobSelects('ep_dob', u.date_naissance);
   document.getElementById('editProf').onsubmit = async e => {
     e.preventDefault();
     try {
       await api(`/users/${u.id}`, { method:'PUT', body: JSON.stringify({
         prenom:document.getElementById('ep_prenom').value, nom:document.getElementById('ep_nom').value,
         telephone:document.getElementById('ep_tel').value, adresse:document.getElementById('ep_addr').value,
-        date_naissance:document.getElementById('ep_dob').value, bio:document.getElementById('ep_bio').value,
+        date_naissance:readDobValue('ep_dob'), bio:document.getElementById('ep_bio').value,
         operateur: document.getElementById('ep_op').value || null,
         sms_notifs: document.getElementById('ep_sms').checked ? 1 : 0 })});
       const freshUser = await api('/auth/me');
@@ -11711,6 +11714,40 @@ function escHtml(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+// Sélecteurs jour/mois/année pour une date de naissance — un <input type="date"> forcerait à
+// cliquer la flèche « précédent » du calendrier des dizaines de fois pour remonter à l'année de
+// naissance. htmlDobSelects() génère le markup, fillDobSelects() le peuple + pré-sélectionne une
+// valeur ISO existante, readDobValue() relit la valeur ISO (yyyy-mm-dd) au moment de la soumission.
+function htmlDobSelects(prefix) {
+  return `<select id="${prefix}_day" style="flex:1"></select>
+    <select id="${prefix}_month" style="flex:1.6"></select>
+    <select id="${prefix}_year" style="flex:1"></select>`;
+}
+function fillDobSelects(prefix, isoValue) {
+  const dayEl = document.getElementById(prefix + '_day');
+  const monthEl = document.getElementById(prefix + '_month');
+  const yearEl = document.getElementById(prefix + '_year');
+  if (!dayEl || !monthEl || !yearEl) return;
+  const mois = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  dayEl.innerHTML = '<option value="">Jour</option>' + Array.from({length:31}, (_,i) => i+1).map(d => `<option value="${String(d).padStart(2,'0')}">${d}</option>`).join('');
+  monthEl.innerHTML = '<option value="">Mois</option>' + mois.map((m,i) => `<option value="${String(i+1).padStart(2,'0')}">${m}</option>`).join('');
+  const curYear = new Date().getFullYear();
+  yearEl.innerHTML = '<option value="">Année</option>' + Array.from({length:111}, (_,i) => curYear - i).map(y => `<option value="${y}">${y}</option>`).join('');
+  const iso = (isoValue || '').substring(0, 10);
+  if (iso) {
+    const [y, m, d] = iso.split('-');
+    if (y) yearEl.value = y;
+    if (m) monthEl.value = m;
+    if (d) dayEl.value = d;
+  }
+}
+function readDobValue(prefix) {
+  const y = document.getElementById(prefix + '_year')?.value;
+  const m = document.getElementById(prefix + '_month')?.value;
+  const d = document.getElementById(prefix + '_day')?.value;
+  return (y && m && d) ? `${y}-${m}-${d}` : '';
+}
+
 async function sendExternalEmailMsg() {
   var to      = document.getElementById('extEmailTo').value.trim();
   var subject = document.getElementById('extEmailSubject').value.trim();
@@ -12260,6 +12297,17 @@ async function ventePersonne() {
           Sélectionnez une activité pour voir les billets pré-imprimés non vendus.
         </div>
       </div>
+    </div>
+
+    <!-- Billets déjà vendus (cash + en ligne) pour l'activité choisie -->
+    <div class="table-card" style="margin-top:20px">
+      <div class="table-card-header">
+        <h3>✅ Billets vendus</h3>
+        <button class="btn btn-sm btn-ghost" id="vpVendusRefreshBtn" onclick="vpRefreshVendus()" style="display:none">↻ Actualiser</button>
+      </div>
+      <div id="vpVendusList" style="padding:16px;color:var(--muted);font-size:.85rem">
+        Sélectionnez une activité pour voir les billets déjà vendus.
+      </div>
     </div>`);
 }
 
@@ -12271,7 +12319,35 @@ function vpLoadActivity() {
   document.getElementById('vpForm').style.display = 'block';
   document.getElementById('vpTickets').innerHTML = '';
   document.getElementById('vpRefreshBtn').style.display = 'inline-flex';
+  document.getElementById('vpVendusRefreshBtn').style.display = 'inline-flex';
   vpRefreshGeneres();
+  vpRefreshVendus();
+}
+
+async function vpRefreshVendus() {
+  const actId = document.getElementById('vpActivite').value;
+  if (!actId) return;
+  const list = document.getElementById('vpVendusList');
+  list.innerHTML = '<div style="color:var(--muted)">⏳ Chargement...</div>';
+  try {
+    const tickets = await api(`/activities/${actId}/tickets`);
+    if (!tickets.length) {
+      list.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted)">Aucun billet vendu pour cette activité</div>';
+      return;
+    }
+    list.innerHTML = `<div style="font-size:.82rem;color:var(--muted);margin-bottom:10px">${tickets.length} billet(s) vendu(s)</div>
+      <div class="table-wrapper"><table>
+        <thead><tr><th>Acheteur</th><th>Vendeur</th><th>Méthode</th><th>Prix</th><th>Code</th><th>QR</th></tr></thead>
+        <tbody>${tickets.map(t => `<tr>
+          <td><strong>${escHtml(t.acheteur_nom||'Anonyme')}</strong>${t.acheteur_email ? `<br><small style="color:var(--muted)">${escHtml(t.acheteur_email)}</small>` : ''}</td>
+          <td>${escHtml(t.vendeur_nom||'En ligne')}</td>
+          <td>${escHtml(t.methode_paiement||'–')}</td>
+          <td>$${(t.prix||0).toFixed(2)}</td>
+          <td style="font-family:monospace;font-size:.76rem">${escHtml(t.barcode_data||'')}</td>
+          <td><button class="btn btn-sm btn-ghost" onclick="window.open('${BASE}/api/tickets/${t.id}/qr','_blank')" title="Voir le QR">📱</button></td>
+        </tr>`).join('')}</tbody>
+      </table></div>`;
+  } catch(e) { list.innerHTML = '<div style="color:var(--red)">Erreur: ' + e.message + '</div>'; }
 }
 
 async function vpRefreshGeneres() {
@@ -12378,6 +12454,7 @@ async function vpAction(mode) {
       </div>`;
     toast(r.tickets.length + ' billet(s) ' + label);
     vpRefreshGeneres();
+    if (mode === 'vendre') vpRefreshVendus();
   } catch(e) {
     container.innerHTML = '';
     toast('Erreur : ' + e.message, true);
@@ -12392,6 +12469,7 @@ async function vpMarquerVendu(ticketId) {
     await api(`/tickets/${ticketId}/marquer-vendu`, { method: 'POST' });
     toast('✅ Billet marqué vendu — revenu enregistré');
     vpRefreshGeneres();
+    vpRefreshVendus();
   } catch(e) { toast('Erreur : ' + e.message, true); }
 }
 
