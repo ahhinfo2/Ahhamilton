@@ -12339,7 +12339,12 @@ async function vpRefreshVendus() {
         <label style="display:flex;align-items:center;gap:6px;font-size:.82rem;color:var(--muted);cursor:pointer">
           <input type="checkbox" id="vpVenduSelectAll" onchange="vpVenduToggleSelectAll(this)"/> ${tickets.length} billet(s) vendu(s) — tout sélectionner
         </label>
-        <button id="vpBtnDelVenduSel" class="btn btn-sm" style="display:none;color:#c62828;border-color:#ffd5d5;background:#fff5f5" onclick="vpSupprimerVendusSelection('${actId}')">🗑 Supprimer la sélection (<span id="vpVenduSelCount">0</span>) — annule aussi le revenu</button>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button id="vpBtnPrintVenduSel" class="btn btn-sm btn-outline" style="display:none" onclick="vpImprimerSelectionVendus('standard')">🖨️ Imprimer la sélection (<span id="vpPrintVenduSelCount">0</span>)</button>
+          <button id="vpBtnPrintVenduSelSmall" class="btn btn-sm btn-outline" style="display:none" onclick="vpImprimerSelectionVendus('small')" title="Format petit">🗂</button>
+          <button id="vpBtnPrintVenduSelDymo" class="btn btn-sm btn-outline" style="display:none" onclick="vpImprimerSelectionVendus('dymo')" title="Étiquettes DYMO">🏷️</button>
+          <button id="vpBtnDelVenduSel" class="btn btn-sm" style="display:none;color:#c62828;border-color:#ffd5d5;background:#fff5f5" onclick="vpSupprimerVendusSelection('${actId}')">🗑 Supprimer la sélection (<span id="vpVenduSelCount">0</span>) — annule aussi le revenu</button>
+        </div>
       </div>
       <div class="table-wrapper"><table>
         <thead><tr><th></th><th>Acheteur</th><th>Vendeur</th><th>Méthode</th><th>Prix</th><th>Code</th><th>QR</th><th></th></tr></thead>
@@ -12364,12 +12369,25 @@ function vpVenduToggleSelectAll(cb) {
 
 function vpVenduUpdateSelCount() {
   const n = document.querySelectorAll('.vp-vendu-cb:checked').length;
-  const btn = document.getElementById('vpBtnDelVenduSel');
   document.getElementById('vpVenduSelCount').textContent = n;
-  btn.style.display = n > 0 ? 'inline-flex' : 'none';
+  document.getElementById('vpPrintVenduSelCount').textContent = n;
+  const disp = n > 0 ? 'inline-flex' : 'none';
+  document.getElementById('vpBtnDelVenduSel').style.display = disp;
+  document.getElementById('vpBtnPrintVenduSel').style.display = disp;
+  document.getElementById('vpBtnPrintVenduSelSmall').style.display = disp;
+  document.getElementById('vpBtnPrintVenduSelDymo').style.display = disp;
   const all = document.querySelectorAll('.vp-vendu-cb').length;
   const selectAll = document.getElementById('vpVenduSelectAll');
   if (selectAll) selectAll.checked = n > 0 && n === all;
+}
+
+function vpImprimerSelectionVendus(format) {
+  const ids = [...document.querySelectorAll('.vp-vendu-cb:checked')].map(el => el.value);
+  if (!ids.length) return;
+  const url = format === 'small' ? `/print-tickets.html?ids=${ids.join(',')}&size=small`
+    : format === 'dymo' ? `/print-tickets-dymo.html?ids=${ids.join(',')}`
+    : `/print-tickets.html?ids=${ids.join(',')}`;
+  window.open(url, '_blank');
 }
 
 async function vpSupprimerVendu(ticketId) {
