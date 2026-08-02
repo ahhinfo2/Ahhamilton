@@ -1009,6 +1009,7 @@ function openModal(title, bodyHtml, size) {
 function closeModal() {
   const vid = window._modalReturnViewId || 'home';
   window._modalReturnViewId = null;
+  window._cgProfileOpenFor = null;
   showView(vid);
   const fab = document.querySelector('.fab-scanner');
   if (fab) fab.style.display = '';
@@ -13973,10 +13974,20 @@ function _cgSort(col) {
   rows.forEach(function(r) { tbody.appendChild(r); });
 }
 
+async function _cgReturnAfterAction(id) {
+  if (window._cgProfileOpenFor === id) {
+    window._carteMembers = await api('/admin/cartes').catch(() => window._carteMembers);
+    _cgOpenProfile(id);
+  } else {
+    carteGestionView();
+  }
+}
+
 async function _cgOpenProfile(id) {
   try {
     const m = (window._carteMembers || []).find(function(x) { return x.id === id; });
     if (!m) return;
+    window._cgProfileOpenFor = id;
     const h = await api(`/members/${id}/history`).catch(() => null);
     const nomEsc = escHtml(m.prenom + ' ' + m.nom).replace(/'/g, "\\'");
 
@@ -14198,7 +14209,7 @@ function _cgEditInfo(id) {
       ${['admin','tresoriere','secretaire','delegue'].includes(m.role) ? `<div class="form-group"><label>Titre affiché sur la carte de membre</label><input id="cgei_titre" value="${escHtml(m.titre_comite||'')}" placeholder="Ex. Présidente, Vice-président, Conseiller..."/></div>` : ''}
       <p style="font-size:.78rem;color:var(--muted);margin:-4px 0 14px">Le comité peut modifier ces informations en tout temps, peu importe l'état de la carte.</p>
       <div class="form-actions">
-        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="button" class="btn btn-ghost" onclick="_cgOpenProfile(${id})">Annuler</button>
         <button type="submit" class="btn btn-primary">Enregistrer</button>
       </div>
     </form>
@@ -14216,8 +14227,8 @@ function _cgEditInfo(id) {
         ...(titreInput ? { titre_comite: titreInput.value.trim() } : {})
       })});
       toast('Informations mises à jour');
-      closeModal();
-      carteGestionView();
+      window._carteMembers = await api('/admin/cartes').catch(() => window._carteMembers);
+      _cgOpenProfile(id);
     } catch(ex) { toast(ex.message, true); }
   };
 }
@@ -14243,7 +14254,7 @@ async function _cgApprovePhoto(id) {
   try {
     await api('/admin/cartes/' + id + '/approuver-photo', { method:'POST' });
     toast('✅ Photo approuvée');
-    carteGestionView();
+    _cgReturnAfterAction(id);
   } catch(e) { toast(e.message, true); }
 }
 
@@ -14262,7 +14273,7 @@ async function _cgDesapprouverPhoto(id) {
   try {
     await api('/admin/cartes/' + id + '/desapprouver-photo', { method:'POST' });
     toast('↩️ Photo désapprouvée — le membre devra la faire valider à nouveau');
-    carteGestionView();
+    _cgReturnAfterAction(id);
   } catch(e) { toast(e.message, true); }
 }
 
@@ -14290,7 +14301,7 @@ function _cgRefusPhotoModal(id, nom) {
     </label>
     <div style="display:flex;gap:8px;margin-top:20px">
       <button class="btn btn-danger" onclick="_cgEnvoyerRefus(${id})">✉️ Envoyer le refus</button>
-      <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn btn-ghost" onclick="window._cgProfileOpenFor===${id}?_cgOpenProfile(${id}):closeModal()">Annuler</button>
     </div>
   `);
 }
@@ -14303,8 +14314,7 @@ async function _cgEnvoyerRefus(id) {
   try {
     await api('/admin/cartes/' + id + '/refus-photo', { method:'POST', body: JSON.stringify({ raisons, message_perso, supprimer }) });
     toast('✉️ Refus envoyé — courriel transmis au membre');
-    closeModal();
-    carteGestionView();
+    _cgReturnAfterAction(id);
   } catch(e) { toast(e.message, true); }
 }
 function _cgZoomPhoto(url, id, approuve, nom) {
@@ -14341,7 +14351,7 @@ async function carteRenouveler(id, nom) {
   if (!confirm('Renouveler la carte de ' + nom + ' pour 2 ans ?')) return;
   var r = await api('/admin/cartes/' + id + '/renouveler', { method:'POST' });
   toast('✅ Carte renouvelée jusqu\'au ' + fmt(r.expiration));
-  carteGestionView();
+  _cgReturnAfterAction(id);
 }
 
 async function _cgRelanceConnexion(id, prenom) {
