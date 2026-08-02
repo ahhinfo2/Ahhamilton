@@ -195,7 +195,11 @@
           </div>
           <div class="form-group">
             <label data-i18n="Date de naissance">Date de naissance</label>
-            <input type="date" id="adh_dob"/>
+            <div style="display:flex;gap:6px">
+              <select id="adh_dob_day" style="flex:1"></select>
+              <select id="adh_dob_month" style="flex:1.6"></select>
+              <select id="adh_dob_year" style="flex:1"></select>
+            </div>
           </div>
         </div>
         <div class="form-group">
@@ -258,6 +262,21 @@
   <script src="nav-auth.js"></script>
   <script src="casl-consent.js"></script>
   <script>
+    // Sélecteurs jour/mois/année pour la date de naissance — un <input type="date"> forcerait
+    // à cliquer la flèche « précédent » du calendrier des dizaines de fois pour remonter à l'année
+    // de naissance ; ici on choisit directement l'année dans une liste.
+    (function fillDobSelects() {
+      const dayEl = document.getElementById('adh_dob_day');
+      const monthEl = document.getElementById('adh_dob_month');
+      const yearEl = document.getElementById('adh_dob_year');
+      if (!dayEl || !monthEl || !yearEl) return;
+      const mois = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+      dayEl.innerHTML = '<option value="">Jour</option>' + Array.from({length:31}, (_,i) => i+1).map(d => `<option value="${String(d).padStart(2,'0')}">${d}</option>`).join('');
+      monthEl.innerHTML = '<option value="">Mois</option>' + mois.map((m,i) => `<option value="${String(i+1).padStart(2,'0')}">${m}</option>`).join('');
+      const curYear = new Date().getFullYear();
+      yearEl.innerHTML = '<option value="">Année</option>' + Array.from({length:111}, (_,i) => curYear - i).map(y => `<option value="${y}">${y}</option>`).join('');
+    })();
+
     // Pré-remplir email depuis URL ?email=xxx (invitation du comité)
     (function() {
       var params = new URLSearchParams(window.location.search);
@@ -301,7 +320,10 @@
             nom: document.getElementById('adh_nom').value.trim(),
             email: document.getElementById('adh_email').value.trim(),
             telephone: document.getElementById('adh_tel').value.trim(),
-            date_naissance: document.getElementById('adh_dob').value,
+            date_naissance: (function() {
+              const y = document.getElementById('adh_dob_year').value, m = document.getElementById('adh_dob_month').value, d = document.getElementById('adh_dob_day').value;
+              return (y && m && d) ? `${y}-${m}-${d}` : '';
+            })(),
             adresse: document.getElementById('adh_addr').value.trim(),
             plan: planMap[typeRaw] || 'gratuit',
             source: document.getElementById('adh_source').value,

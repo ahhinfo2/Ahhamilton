@@ -122,7 +122,11 @@
         </div>
         <div class="form-group">
           <label>Date de naissance</label>
-          <input type="date" id="date_naissance"/>
+          <div style="display:flex;gap:6px">
+            <select id="dob_day" style="flex:1"></select>
+            <select id="dob_month" style="flex:1.6"></select>
+            <select id="dob_year" style="flex:1"></select>
+          </div>
         </div>
         <hr class="divider"/>
         <p class="section-label">Coordonnées</p>
@@ -173,6 +177,21 @@
   </script>
   <script>
     const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001/api' : '/api';
+
+    // Sélecteurs jour/mois/année pour la date de naissance — évite d'avoir à reculer mois par mois
+    // dans le calendrier natif jusqu'à l'année de naissance.
+    (function fillDobSelects() {
+      const dayEl = document.getElementById('dob_day');
+      const monthEl = document.getElementById('dob_month');
+      const yearEl = document.getElementById('dob_year');
+      if (!dayEl || !monthEl || !yearEl) return;
+      const mois = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+      dayEl.innerHTML = '<option value="">Jour</option>' + Array.from({length:31}, (_,i) => i+1).map(d => `<option value="${String(d).padStart(2,'0')}">${d}</option>`).join('');
+      monthEl.innerHTML = '<option value="">Mois</option>' + mois.map((m,i) => `<option value="${String(i+1).padStart(2,'0')}">${m}</option>`).join('');
+      const curYear = new Date().getFullYear();
+      yearEl.innerHTML = '<option value="">Année</option>' + Array.from({length:111}, (_,i) => curYear - i).map(y => `<option value="${y}">${y}</option>`).join('');
+    })();
+
     document.getElementById('regForm').addEventListener('submit', async e => {
       e.preventDefault();
       const btn = document.getElementById('regBtn');
@@ -194,7 +213,10 @@
             email: document.getElementById('email').value,
             telephone: document.getElementById('telephone').value,
             adresse: document.getElementById('adresse').value,
-            date_naissance: document.getElementById('date_naissance').value,
+            date_naissance: (function() {
+              const y = document.getElementById('dob_year').value, m = document.getElementById('dob_month').value, d = document.getElementById('dob_day').value;
+              return (y && m && d) ? `${y}-${m}-${d}` : '';
+            })(),
             password: pw
           })
         });
