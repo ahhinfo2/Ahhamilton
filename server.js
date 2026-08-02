@@ -7124,13 +7124,14 @@ cron.schedule('0 8 1 * *', async () => {
   } catch(e) { console.error('[RAPPORT MENSUEL]', e.message); }
 }, { timezone: 'America/Toronto' });
 
-// Mark past activities as 'terminee', archive after 30 days
+// Mark past activities as 'terminee', archive automatiquement 2 semaines après l'activité
+// (le comité garde la main pour archiver manuellement plus tôt via le menu ⋮ → Archiver)
 cron.schedule('0 3 * * *', () => {
   try {
     const ended = db.prepare("UPDATE activities SET statut='terminee' WHERE statut IN ('planifiee','en_cours') AND date_fin IS NOT NULL AND date_fin < datetime('now')").run();
     const endedNoFin = db.prepare("UPDATE activities SET statut='terminee' WHERE statut IN ('planifiee','en_cours') AND date_fin IS NULL AND date_debut IS NOT NULL AND date_debut < datetime('now', '-1 day')").run();
     if (ended.changes + endedNoFin.changes > 0) console.log('[CRON] ' + (ended.changes + endedNoFin.changes) + ' activités marquées terminées');
-    const archived = db.prepare("UPDATE activities SET statut='archivee' WHERE statut = 'terminee' AND date_debut IS NOT NULL AND date_debut < datetime('now', '-30 days')").run();
+    const archived = db.prepare("UPDATE activities SET statut='archivee' WHERE statut = 'terminee' AND date_debut IS NOT NULL AND date_debut < datetime('now', '-14 days')").run();
     if (archived.changes > 0) console.log('[CRON] ' + archived.changes + ' activités archivées automatiquement');
   } catch(e) { console.error('[CRON-ARCHIVE]', e.message); }
 }, { timezone: 'America/Toronto' });

@@ -1927,6 +1927,7 @@ async function activities() {
           <option value="social">Social</option>
         </select>
         <button class="btn btn-ghost btn-sm" onclick="resetActivitiesFilter()">✕ Effacer</button>
+        <button class="btn btn-sm btn-ghost" id="actArchivedToggle" onclick="_toggleArchivedFilter()">📦 Archivées (${data.filter(a=>a.statut==='archivee').length})</button>
       </div>
       <div class="desktop-page-only table-card" style="flex:1;display:flex;flex-direction:column;margin-bottom:0">
         <div class="table-wrapper" style="flex:1"><table id="activitiesTable">
@@ -1952,13 +1953,29 @@ function filterActivities() {
   const data   = window._activitiesData || [];
 
   const filtered = data.filter(a => {
+    // Les activités archivées sont masquées par défaut (elles encombrent la liste principale) —
+    // il faut choisir explicitement "Archivée" dans le filtre, ou le bouton "📦 Archivées", pour les voir.
+    if (!statut && a.statut === 'archivee') return false;
     if (q && !`${a.titre} ${a.lieu||''} ${a.type}`.toLowerCase().includes(q)) return false;
     if (statut && a.statut !== statut) return false;
     if (type   && a.type  !== type)   return false;
     return true;
   });
 
+  const toggleBtn = document.getElementById('actArchivedToggle');
+  if (toggleBtn) {
+    toggleBtn.classList.toggle('btn-primary', statut === 'archivee');
+    toggleBtn.classList.toggle('btn-ghost', statut !== 'archivee');
+  }
+
   renderActivitiesTable(filtered);
+}
+
+function _toggleArchivedFilter() {
+  const sel = document.getElementById('actStatut');
+  if (!sel) return;
+  sel.value = sel.value === 'archivee' ? '' : 'archivee';
+  filterActivities();
 }
 
 function resetActivitiesFilter() {
@@ -2025,6 +2042,7 @@ function renderActivitiesTable(data) {
       <div class="m-item-actions">
         ${canCreateActivity() ? `
         <button class="btn btn-sm btn-outline" onclick="openActivityForm(window._actById[${a.id}])">✏️ Modifier</button>
+        ${isArchived ? `<button class="btn btn-sm btn-primary" onclick="unarchiveActivity(${a.id})">↩️ Restaurer</button>` : ''}
         <div style="position:relative">
           <button class="btn btn-sm btn-ghost" onclick="toggleActMenu('${a.id}m',event)">⋯ Plus</button>
           <div class="act-more-menu" id="actMenu_${a.id}m" style="display:none;position:absolute;left:0;top:100%;z-index:200;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.12);min-width:220px;padding:6px 0">
@@ -2064,9 +2082,11 @@ function renderActivitiesTable(data) {
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
         ${canCreateActivity() ? `
           <button class="btn btn-sm btn-outline" onclick="openActivityForm(window._actById[${a.id}])" title="Modifier">✏️ Modifier</button>
-          <button class="btn btn-sm btn-ghost" title="Numériser billets" onclick="openScanner(${a.id})">📷 Numériser</button>
+          ${isArchived
+            ? `<button class="btn btn-sm btn-primary" onclick="unarchiveActivity(${a.id})" title="Restaurer">↩️ Restaurer</button>`
+            : `<button class="btn btn-sm btn-ghost" title="Numériser billets" onclick="openScanner(${a.id})">📷 Numériser</button>
           <button class="btn btn-sm btn-ghost" onclick="showActivityReport(${a.id})" title="Rapport">📊 Rapport</button>
-          <button class="btn btn-sm ${a.featured ? 'btn-accent' : 'btn-ghost'}" onclick="toggleFeatured(${a.id},${a.featured?1:0})" title="${a.featured ? 'Retirer de la une' : 'Mettre à la une'}" style="${a.featured?'background:#f9a825;color:#000':''}">⭐${a.featured?' À LA UNE':''}</button>
+          <button class="btn btn-sm ${a.featured ? 'btn-accent' : 'btn-ghost'}" onclick="toggleFeatured(${a.id},${a.featured?1:0})" title="${a.featured ? 'Retirer de la une' : 'Mettre à la une'}" style="${a.featured?'background:#f9a825;color:#000':''}">⭐${a.featured?' À LA UNE':''}</button>`}
           <div style="position:relative">
             <button class="btn btn-sm btn-ghost" onclick="toggleActMenu(${a.id},event)" title="Plus d'actions" style="font-weight:700;font-size:1rem;padding:4px 10px">⋮</button>
             <div class="act-more-menu" id="actMenu_${a.id}" style="display:none;position:absolute;right:0;top:100%;z-index:200;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.12);min-width:200px;padding:6px 0">
