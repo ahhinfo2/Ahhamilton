@@ -1938,12 +1938,13 @@ async function activities() {
         </select>
         <button class="btn btn-ghost btn-sm" onclick="resetActivitiesFilter()">✕ Effacer</button>
       </div>
-      <div class="table-card" style="flex:1;display:flex;flex-direction:column;margin-bottom:0">
+      <div class="desktop-page-only table-card" style="flex:1;display:flex;flex-direction:column;margin-bottom:0">
         <div class="table-wrapper" style="flex:1"><table id="activitiesTable">
           <thead><tr><th>Titre</th><th>Type</th><th>Date</th><th>Lieu</th><th>Participants</th><th>Statut</th><th>Actions</th></tr></thead>
           <tbody id="activitiesBody"></tbody>
         </table></div>
       </div>
+      <div class="mobile-page-only" id="activitiesBodyMobile" style="overflow-y:auto;flex:1"></div>
     </div>
   `);
   // Mode pleine hauteur : #mainContent devient flex colonne
@@ -1975,14 +1976,76 @@ function resetActivitiesFilter() {
   filterActivities();
 }
 
+function _actMoreMenuHtml(a, isArchived) {
+  return `
+    ${!isArchived && a.statut === 'planifiee' && can.adminOrSec() ? '<div class="act-menu-item" onclick="closeActMenus();launchActivity(' + a.id + ',\'' + a.titre.replace(/'/g,"\\'") + '\')">🚀 Lancer l\'activité</div>' : ''}
+    ${a.paiement_requis ? '<div class="act-menu-item" onclick="closeActMenus();viewActivityQR(' + a.id + ',\'' + a.titre.replace(/'/g,"\\'") + '\',\'' + (a.qr_token||'') + '\')">📱 QR Paiement</div>' : ''}
+    <div class="act-menu-item" onclick="closeActMenus();viewRegistrations(${a.id},'${a.titre.replace(/'/g,"\\'")}')">👥 Inscrits</div>
+    <div class="act-menu-item" onclick="closeActMenus();presencesView(${a.id},'${a.titre.replace(/'/g,"\\'")}')">✅ Feuille de présences</div>
+    <div class="act-menu-item" onclick="closeActMenus();liveAttendance(${a.id})">📍 Présents en direct</div>
+    <div class="act-menu-item" onclick="closeActMenus();manageTicketTypes(${a.id})">🎟 Types de billets</div>
+    <div class="act-menu-item" onclick="closeActMenus();managerTables(${a.id},'${a.titre.replace(/'/g,"\\'")}')">🪑 Tables</div>
+    <div class="act-menu-item" onclick="closeActMenus();manageActivityPhotos(${a.id},'${a.titre.replace(/'/g,"\\'")}')">🖼 Photos</div>
+    <div class="act-menu-item" onclick="closeActMenus();openActivityDetail(${a.id})">🚗 Covoiturage</div>
+    ${a.type === 'benevolat' && can.adminOrSec() ? '<div class="act-menu-item" onclick="closeActMenus();genererHeuresBenevoles(' + a.id + ',\'' + a.titre.replace(/'/g,"\\'") + '\')">🤝 Générer les heures des bénévoles</div>' : ''}
+    ${a.type === 'benevolat' && can.adminOrSec() ? '<div class="act-menu-item" onclick="closeActMenus();reparerInscriptionsBenevoles(' + a.id + ',\'' + a.titre.replace(/'/g,"\\'") + '\')">🔧 Corriger les inscriptions bénévoles</div>' : ''}
+    <div style="border-top:1px solid var(--border);margin:4px 0"></div>
+    <div class="act-menu-item" onclick="closeActMenus();openScanDelegation(${a.id},'${a.titre.replace(/'/g,"\\'")}')">📱 Déléguer un lecteur</div>
+    <div class="act-menu-item" onclick="closeActMenus();viewScanLogs(${a.id},'${a.titre.replace(/'/g,"\\'")}')">📋 Journal des scans</div>
+    <div style="border-top:1px solid var(--border);margin:4px 0"></div>
+    <div class="act-menu-item"><a href="${API}/activities/${a.id}/ical" download style="color:inherit;text-decoration:none;display:block">📅 Exporter iCal</a></div>
+    <div class="act-menu-item"><a href="${API}/activities/${a.id}/qr?format=png&size=1000" download="QR-${a.id}.png" style="color:inherit;text-decoration:none;display:block">📲 Télécharger QR PNG</a></div>
+    <div class="act-menu-item" onclick="closeActMenus();duplicateActivity(${a.id},'${a.titre.replace(/'/g,"\\'")}')">📋 Copier l'activité</div>
+    <div style="border-top:1px solid var(--border);margin:4px 0"></div>
+    ${isArchived
+      ? '<div class="act-menu-item" style="color:var(--g2)" onclick="closeActMenus();unarchiveActivity(' + a.id + ')">↩️ Restaurer</div>'
+      : '<div class="act-menu-item" style="color:#888" onclick="closeActMenus();archiveActivity(' + a.id + ')">📦 Archiver</div>'}
+    ${can.admin() ? '<div class="act-menu-item" style="color:var(--red)" onclick="closeActMenus();deleteActivity(' + a.id + ')">🗑 Supprimer</div>' : ''}
+  `;
+}
+
 function renderActivitiesTable(data) {
   const tbody = document.getElementById('activitiesBody');
+  const mobileWrap = document.getElementById('activitiesBodyMobile');
   if (!tbody) return;
   if (!data.length) {
     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:40px">Aucune activité trouvée</td></tr>';
+    if (mobileWrap) mobileWrap.innerHTML = '<div class="m-empty">Aucune activité trouvée</div>';
     return;
   }
   const isMember = USER.role === 'member' || USER.role === 'delegue';
+  if (mobileWrap) mobileWrap.innerHTML = data.map(a => {
+    const isArchived = a.statut === 'archivee';
+    const isRegistered = a.user_registered > 0;
+    const canRegister  = isMember && a.statut === 'planifiee';
+    const pct = a.max_participants > 0 ? Math.min(100, Math.round((a.nb_inscrits / a.max_participants) * 100)) : null;
+    const pctColor = pct === null ? '' : pct >= 90 ? '#c62828' : pct >= 60 ? '#e65100' : '#2e7d32';
+    const day = a.date_debut ? new Date(a.date_debut).getDate() : '?';
+    const mon = a.date_debut ? new Date(a.date_debut).toLocaleString('fr-CA',{month:'short'}).toUpperCase() : '';
+    return `<div class="m-item">
+      <div style="display:flex;gap:10px" onclick="openActivityDetail(${a.id})">
+        <div style="width:42px;height:42px;border-radius:10px;background:var(--g2);color:#fff;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:.6rem;font-weight:800;line-height:1.1"><span style="font-size:.98rem">${day}</span>${mon}</div>
+        <div style="flex:1;min-width:0">
+          <div class="m-item-title" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(a.titre)}</div>
+          <div class="m-item-sub">${escHtml(a.lieu||'–')} · ${escHtml(a.type)}</div>
+        </div>
+        ${statusPill(a.statut)}
+      </div>
+      ${pct !== null ? `<div style="margin-top:8px;background:#e8f5e9;border-radius:4px;height:5px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${pctColor};border-radius:4px"></div></div><div class="m-item-sub" style="margin-top:2px">${a.nb_inscrits}/${a.max_participants} inscrits · ${pct}%</div>` : `<div class="m-item-sub" style="margin-top:6px">${a.nb_inscrits} inscrit(s)</div>`}
+      <div class="m-item-actions">
+        ${canCreateActivity() ? `
+        <button class="btn btn-sm btn-outline" onclick="openActivityForm(window._actById[${a.id}])">✏️ Modifier</button>
+        <div style="position:relative">
+          <button class="btn btn-sm btn-ghost" onclick="toggleActMenu('${a.id}m',event)">⋯ Plus</button>
+          <div class="act-more-menu" id="actMenu_${a.id}m" style="display:none;position:absolute;left:0;top:100%;z-index:200;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.12);min-width:220px;padding:6px 0">
+            ${_actMoreMenuHtml(a, isArchived)}
+          </div>
+        </div>` : ''}
+        ${canRegister ? (isRegistered ? '<span class="registered-badge">✅ Prêt(e)</span>' : `<button class="btn btn-sm btn-accent" onclick="registerActivity(${a.id})">S'inscrire</button>`) : ''}
+      </div>
+    </div>`;
+  }).join('') || '<div class="m-empty">Aucune activité trouvée</div>';
+
   tbody.innerHTML = data.map(a => {
     const isRegistered = a.user_registered > 0;
     const canRegister  = isMember && a.statut === 'planifiee';
@@ -2017,29 +2080,7 @@ function renderActivitiesTable(data) {
           <div style="position:relative">
             <button class="btn btn-sm btn-ghost" onclick="toggleActMenu(${a.id},event)" title="Plus d'actions" style="font-weight:700;font-size:1rem;padding:4px 10px">⋮</button>
             <div class="act-more-menu" id="actMenu_${a.id}" style="display:none;position:absolute;right:0;top:100%;z-index:200;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.12);min-width:200px;padding:6px 0">
-              ${!isArchived && a.statut === 'planifiee' && can.adminOrSec() ? '<div class="act-menu-item" onclick="closeActMenus();launchActivity(' + a.id + ',\'' + a.titre.replace(/'/g,"\\'") + '\')">🚀 Lancer l\'activité</div>' : ''}
-              ${a.paiement_requis ? '<div class="act-menu-item" onclick="closeActMenus();viewActivityQR(' + a.id + ',\'' + a.titre.replace(/'/g,"\\'") + '\',\'' + (a.qr_token||'') + '\')">📱 QR Paiement</div>' : ''}
-              <div class="act-menu-item" onclick="closeActMenus();viewRegistrations(${a.id},'${a.titre.replace(/'/g,"\\'")}')">👥 Inscrits</div>
-              <div class="act-menu-item" onclick="closeActMenus();presencesView(${a.id},'${a.titre.replace(/'/g,"\\'")}')">✅ Feuille de présences</div>
-              <div class="act-menu-item" onclick="closeActMenus();liveAttendance(${a.id})">📍 Présents en direct</div>
-              <div class="act-menu-item" onclick="closeActMenus();manageTicketTypes(${a.id})">🎟 Types de billets</div>
-              <div class="act-menu-item" onclick="closeActMenus();managerTables(${a.id},'${a.titre.replace(/'/g,"\\'")}')">🪑 Tables</div>
-              <div class="act-menu-item" onclick="closeActMenus();manageActivityPhotos(${a.id},'${a.titre.replace(/'/g,"\\'")}')">🖼 Photos</div>
-              <div class="act-menu-item" onclick="closeActMenus();openActivityDetail(${a.id})">🚗 Covoiturage</div>
-              ${a.type === 'benevolat' && can.adminOrSec() ? '<div class="act-menu-item" onclick="closeActMenus();genererHeuresBenevoles(' + a.id + ',\'' + a.titre.replace(/'/g,"\\'") + '\')">🤝 Générer les heures des bénévoles</div>' : ''}
-              ${a.type === 'benevolat' && can.adminOrSec() ? '<div class="act-menu-item" onclick="closeActMenus();reparerInscriptionsBenevoles(' + a.id + ',\'' + a.titre.replace(/'/g,"\\'") + '\')">🔧 Corriger les inscriptions bénévoles</div>' : ''}
-              <div style="border-top:1px solid var(--border);margin:4px 0"></div>
-              <div class="act-menu-item" onclick="closeActMenus();openScanDelegation(${a.id},'${a.titre.replace(/'/g,"\\'")}')">📱 Déléguer un lecteur</div>
-              <div class="act-menu-item" onclick="closeActMenus();viewScanLogs(${a.id},'${a.titre.replace(/'/g,"\\'")}')">📋 Journal des scans</div>
-              <div style="border-top:1px solid var(--border);margin:4px 0"></div>
-              <div class="act-menu-item"><a href="${API}/activities/${a.id}/ical" download style="color:inherit;text-decoration:none;display:block">📅 Exporter iCal</a></div>
-              <div class="act-menu-item"><a href="${API}/activities/${a.id}/qr?format=png&size=1000" download="QR-${a.id}.png" style="color:inherit;text-decoration:none;display:block">📲 Télécharger QR PNG</a></div>
-              <div class="act-menu-item" onclick="closeActMenus();duplicateActivity(${a.id},'${a.titre.replace(/'/g,"\\'")}')">📋 Copier l'activité</div>
-              <div style="border-top:1px solid var(--border);margin:4px 0"></div>
-              ${isArchived
-                ? '<div class="act-menu-item" style="color:var(--g2)" onclick="closeActMenus();unarchiveActivity(' + a.id + ')">↩️ Restaurer</div>'
-                : '<div class="act-menu-item" style="color:#888" onclick="closeActMenus();archiveActivity(' + a.id + ')">📦 Archiver</div>'}
-              ${can.admin() ? '<div class="act-menu-item" style="color:var(--red)" onclick="closeActMenus();deleteActivity(' + a.id + ')">🗑 Supprimer</div>' : ''}
+              ${_actMoreMenuHtml(a, isArchived)}
             </div>
           </div>
         ` : ''}
@@ -4569,16 +4610,39 @@ async function volunteer() {
       </div>
     </div>
     ${cardsHtml}
-    <div class="table-card"><div class="table-wrapper"><table>
+
+    <div class="mobile-page-only">
+      <div class="m-searchbar">🔍<input type="text" id="volSearch" placeholder="Rechercher un membre…" oninput="_volFilterEntries()"/></div>
+      <div class="m-chiprow" id="volChips">
+        <span class="m-chip active" data-statut="" onclick="_volChipClick(this)">Toutes</span>
+        <span class="m-chip" data-statut="en_attente" onclick="_volChipClick(this)">⏳ En attente</span>
+        <span class="m-chip" data-statut="approuve" onclick="_volChipClick(this)">✅ Approuvé</span>
+        <span class="m-chip" data-statut="rejete" onclick="_volChipClick(this)">❌ Rejeté</span>
+      </div>
+      <div id="volEntriesMobile">
+        ${data.map(v => `
+        <div class="m-item vol-entry" data-membre="${escHtml((v.membre||USER.prenom+' '+USER.nom).toLowerCase())}" data-statut="${v.statut}">
+          <div class="m-item-top"><div class="m-item-title">${escHtml(v.membre||USER.prenom+' '+USER.nom)}</div>${statusPill(v.statut)}</div>
+          <div class="m-item-sub">${escHtml(v.activite||'–')} · ${v.heures}h · ${fmt(v.date_service)}</div>
+          ${v.description ? `<div class="m-item-sub">${escHtml(v.description)}</div>` : ''}
+          <div class="m-item-actions">
+            ${can.adminOrSec() ? `<button class="btn btn-sm btn-outline" onclick="editVol(${v.id})">✏️ Éditer</button>` : ''}
+            ${can.admin() ? `<button class="btn btn-sm btn-ghost" style="color:var(--red)" onclick="deleteVol(${v.id})">🗑 Supprimer</button>` : ''}
+          </div>
+        </div>`).join('') || '<div class="m-empty">Aucune entrée</div>'}
+      </div>
+    </div>
+
+    <div class="desktop-page-only table-card"><div class="table-wrapper"><table>
       <thead><tr><th>Membre</th><th>Activité</th><th>Heures</th><th>Date</th><th>Description</th><th>Statut</th><th>Actions</th></tr></thead>
       <tbody>${data.map(v=>`<tr>
         <td>${v.membre||USER.prenom+' '+USER.nom}</td>
-        <td>${v.activite||'–'}</td>
-        <td><strong>${v.heures}h</strong></td>
-        <td>${fmt(v.date_service)}</td>
-        <td>${v.description||'–'}</td>
-        <td>${statusPill(v.statut)}</td>
-        <td style="display:flex;gap:4px;flex-wrap:wrap">
+        <td data-label="Activité">${v.activite||'–'}</td>
+        <td data-label="Heures"><strong>${v.heures}h</strong></td>
+        <td data-label="Date">${fmt(v.date_service)}</td>
+        <td data-label="Description">${v.description||'–'}</td>
+        <td data-label="Statut">${statusPill(v.statut)}</td>
+        <td data-label="Actions" style="display:flex;gap:4px;flex-wrap:wrap">
           ${can.adminOrSec() && v.statut==='en_attente' ? `
           <button class="btn btn-sm btn-primary" onclick="approveVol(${v.id},'approuve')">✅</button>
           <button class="btn btn-sm btn-danger" onclick="approveVol(${v.id},'rejete')">❌</button>` : ''}
@@ -4588,6 +4652,21 @@ async function volunteer() {
       </tr>`).join('')}</tbody>
     </table></div></div>
   `);
+}
+
+function _volChipClick(chip) {
+  chip.parentElement.querySelectorAll('.m-chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  _volFilterEntries();
+}
+
+function _volFilterEntries() {
+  const q = (document.getElementById('volSearch')?.value || '').toLowerCase();
+  const statut = document.querySelector('#volChips .m-chip.active')?.dataset.statut ?? '';
+  document.querySelectorAll('.vol-entry').forEach(el => {
+    const ok = (!q || el.dataset.membre.includes(q)) && (!statut || el.dataset.statut === statut);
+    el.style.display = ok ? '' : 'none';
+  });
 }
 
 function _volActivityDetail(key) {
@@ -4826,7 +4905,44 @@ async function notes() {
         <button class="btn btn-primary" onclick="openNoteForm(null,window._noteAllActs)">+ Nouvelle note</button>
       </div>
     </div>
-    <div id="notesList">
+    <div class="mobile-page-only">
+      <div class="m-searchbar">🔍<input type="text" id="noteSearch" placeholder="Titre, contenu, auteur…" oninput="_notesFilter()"/></div>
+      <div class="m-chiprow" id="noteChips">
+        <span class="m-chip active" data-f="" onclick="_notesChipClick(this)">Toutes</span>
+        <span class="m-chip" data-f="asign" onclick="_notesChipClick(this)">🖊 À signer</span>
+        <span class="m-chip" data-f="locked" onclick="_notesChipClick(this)">🔒 Verrouillées</span>
+      </div>
+      <div id="notesListMobile">
+      ${data.map(n=>{
+        const locked = !!n.verrouille;
+        const signed = !!n.date_ma_signature;
+        const asign = !locked && n.nb_signatures < 3;
+        const searchData = ((n.titre||'')+' '+(n.auteur||'')+' '+(n.last_editor_nom||'')).toLowerCase();
+        return `<div class="m-item note-entry" data-search="${escHtml(searchData)}" data-asign="${asign?1:0}" data-locked="${locked?1:0}">
+          <div class="m-item-top"><div class="m-item-title" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(n.titre)}</div>
+            ${locked ? '<span class="pill" style="background:#e8f5e9;color:#1b5e20;font-size:.62rem;font-weight:800;padding:2px 8px;border-radius:20px;white-space:nowrap">🔒 Verrouillée</span>'
+              : n.nb_signatures >= 1 ? `<span class="pill" style="background:#fff3cd;color:#856404;font-size:.62rem;font-weight:800;padding:2px 8px;border-radius:20px;white-space:nowrap">🖊 ${n.nb_signatures}/3</span>`
+              : ''}
+          </div>
+          <div class="m-item-sub">${fmt(n.date_modification||n.date_reunion)} · ${(n.langue||'fr').toUpperCase()}${n.activite?' · 📎 '+escHtml(n.activite):''}</div>
+          <div class="m-item-actions">
+            <button class="btn btn-sm btn-primary" onclick="openNoteForm(window._noteData[${n.id}],window._noteAllActs)">${locked?'👁 Voir':'✏️ Ouvrir'}</button>
+            <div style="position:relative">
+              <button class="btn btn-sm btn-ghost" onclick="toggleActMenu('n${n.id}',event)">⋯ Plus</button>
+              <div class="act-more-menu" id="actMenu_n${n.id}" style="display:none;position:absolute;left:0;top:100%;z-index:200;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.12);min-width:190px;padding:6px 0">
+                <a href="/api/notes/${n.id}/download?token=${TOKEN}" target="_blank" class="act-menu-item" style="display:block;color:inherit;text-decoration:none">⬇ Télécharger</a>
+                ${n.nb_signatures > 0 ? `<a href="/api/notes/${n.id}/attestation?token=${TOKEN}" target="_blank" class="act-menu-item" style="display:block;color:inherit;text-decoration:none">🔏 Attestation</a>` : ''}
+                ${!locked ? `<div class="act-menu-item" onclick="closeActMenus();openNoteSignatureModal(${n.id},'${escHtml(n.titre).replace(/'/g,"\\'")}')">✍️ ${signed?'Re-signer':'Signer'}</div>` : ''}
+                ${(n.auteur_id===USER.id||can.admin()) && !locked ? `<div class="act-menu-item" style="color:var(--red)" onclick="closeActMenus();deleteNote(${n.id})">🗑️ Supprimer</div>` : ''}
+              </div>
+            </div>
+          </div>
+        </div>`;
+      }).join('') || '<div class="m-empty">Aucune note — créez la première !</div>'}
+      </div>
+    </div>
+
+    <div class="desktop-page-only" id="notesList">
     ${data.map(n=>{
       const isEditing = n.editing_by && n.editing_by !== USER.id;
       const locked = !!n.verrouille;
@@ -4886,6 +5002,22 @@ async function notes() {
       if (editingSpan) editingSpan.textContent = isEditing ? `✏️ ${escHtml(n.editing_by_nom||'Quelqu\'un')} édite...` : '';
     });
   }, 5000);
+}
+
+function _notesChipClick(chip) {
+  chip.parentElement.querySelectorAll('.m-chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  _notesFilter();
+}
+
+function _notesFilter() {
+  const q = (document.getElementById('noteSearch')?.value || '').toLowerCase();
+  const f = document.querySelector('#noteChips .m-chip.active')?.dataset.f || '';
+  document.querySelectorAll('.note-entry').forEach(el => {
+    const ok = (!q || el.dataset.search.includes(q))
+      && (!f || (f === 'asign' && el.dataset.asign === '1') || (f === 'locked' && el.dataset.locked === '1'));
+    el.style.display = ok ? '' : 'none';
+  });
 }
 
 function openNoteForm(n, allActs) {
@@ -9311,11 +9443,19 @@ async function inscriptions() {
   const data = await api('/inscriptions');
   const pending   = data.filter(d => d.statut === 'en_attente');
   const processed = data.filter(d => d.statut !== 'en_attente');
+  window._inscPending = {}; pending.forEach(p => { window._inscPending[p.id] = p; });
 
   const statutPill = s => {
     if (s === 'approuve') return pill('✅ Approuvé','bp-green');
     if (s === 'refuse')   return pill('❌ Refusé','bp-red');
     return pill('⏳ En attente','bp-orange');
+  };
+
+  const joursAttente = p => {
+    const d = new Date(p.date_soumission);
+    if (isNaN(d)) return '';
+    const j = Math.max(0, Math.floor((Date.now() - d) / 86400000));
+    return j === 0 ? "aujourd'hui" : `depuis ${j} jour${j>1?'s':''}`;
   };
 
   setContent(
@@ -9331,6 +9471,8 @@ async function inscriptions() {
     '<p style="padding:0 20px 12px;margin:0;font-size:.78rem;color:var(--muted)">La personne recevra un lien vers le formulaire d\'adhésion où elle pourra choisir son mot de passe. Le comité recevra une notification à complétion.</p>' +
     '</div>' +
 
+    // ── Desktop : cartes complètes ──────────────────────────────────────
+    '<div class="desktop-page-only">' +
     (pending.length === 0 ?
       '<div style="background:#e8f5e9;border:1px solid #c8e6c9;border-radius:12px;padding:14px 18px;margin-bottom:20px;font-size:.85rem;color:#1b5e20">✅ Aucune demande en attente.</div>' : '') +
 
@@ -9347,14 +9489,29 @@ async function inscriptions() {
       (p.message ? '<div style="padding:8px 20px 14px;font-size:.84rem;color:var(--muted)">💬 ' + p.message + '</div>' : '') +
       '</div>'
     ).join('') +
+    '</div>' +
+
+    // ── Mobile/PWA : liste compacte → fiche détail ──────────────────────
+    '<div class="mobile-page-only">' +
+    (pending.length === 0
+      ? '<div class="m-empty">✅ Aucune demande en attente</div>'
+      : pending.map((p,i) => {
+          const initials = ((p.prenom||'?')[0]+((p.nom||'')[0]||'')).toUpperCase();
+          const colors = ['var(--gold1),var(--gold2)','var(--blue1),var(--blue2)','var(--purple1),var(--purple2)','var(--g2),var(--g3)'];
+          return '<div class="m-navrow" onclick="_inscOpenDetail(' + p.id + ')">' +
+            '<div class="m-icon" style="background:linear-gradient(135deg,' + colors[i%colors.length] + ')">' + initials + '</div>' +
+            '<div class="m-body"><b>' + escHtml(p.prenom + ' ' + p.nom) + '</b><span>' + (p.plan||'gratuit') + ' · en attente ' + joursAttente(p) + '</span></div>' +
+            '<span class="m-chev">›</span></div>';
+        }).join(''))
+    + '</div>' +
 
     '<div class="table-card"><div class="table-card-header"><h3>Historique (' + processed.length + ')</h3></div>' +
     '<div class="table-wrapper"><table>' +
     '<thead><tr><th>Nom</th><th>Courriel</th><th>Plan</th><th>Statut</th><th>Soumis</th><th>Traité</th><th></th></tr></thead><tbody>' +
     (processed.map(p =>
-      '<tr><td>' + p.prenom + ' ' + p.nom + '</td><td>' + p.email + '</td><td>' + (p.plan||'gratuit') + '</td>' +
-      '<td>' + statutPill(p.statut) + '</td><td>' + fmt(p.date_soumission) + '</td><td>' + fmt(p.date_traitement) + '</td>' +
-      '<td><button class="btn btn-sm" style="color:var(--red);border:1px solid var(--red);background:transparent;padding:2px 8px" ' +
+      '<tr><td>' + p.prenom + ' ' + p.nom + '</td><td data-label="Courriel">' + p.email + '</td><td data-label="Plan">' + (p.plan||'gratuit') + '</td>' +
+      '<td data-label="Statut">' + statutPill(p.statut) + '</td><td data-label="Soumis">' + fmt(p.date_soumission) + '</td><td data-label="Traité">' + fmt(p.date_traitement) + '</td>' +
+      '<td data-label="Actions"><button class="btn btn-sm" style="color:var(--red);border:1px solid var(--red);background:transparent;padding:2px 8px" ' +
       'onclick="supprimerInscription(' + p.id + ',\'' + (p.prenom+' '+p.nom).replace(/'/g,'') + '\')" title="Supprimer de l\'historique">🗑</button></td></tr>'
     ).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--muted)">Aucun historique</td></tr>') +
     '</tbody></table></div></div>'
@@ -9402,6 +9559,24 @@ async function refuserInscription(id) {
     toast('Demande refusée');
     inscriptions();
   } catch(ex) { toast(ex.message, 'error'); }
+}
+
+function _inscOpenDetail(id) {
+  const p = (window._inscPending || {})[id];
+  if (!p) return;
+  openModal('📋 ' + escHtml(p.prenom + ' ' + p.nom), `
+    <div style="display:flex;flex-direction:column;gap:10px;font-size:.88rem">
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">Courriel</span><strong>${escHtml(p.email)}</strong></div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">Téléphone</span><strong>${escHtml(p.telephone||'–')}</strong></div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">Plan souhaité</span><strong>${escHtml(p.plan||'gratuit')}</strong></div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">Soumis le</span><strong>${fmt(p.date_soumission)}</strong></div>
+      ${p.message ? `<div style="padding:10px 12px;background:var(--off);border-radius:10px;font-size:.85rem;color:var(--text)">💬 ${escHtml(p.message)}</div>` : ''}
+    </div>
+    <div class="form-actions">
+      <button type="button" class="btn btn-danger" onclick="refuserInscription(${id})">❌ Refuser</button>
+      <button type="button" class="btn btn-primary" onclick="approuverInscription(${id})">✅ Approuver</button>
+    </div>
+  `);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -13891,7 +14066,7 @@ async function carteGestionView() {
       </select>
     </div>
     <div id="cgCount" style="font-size:.78rem;color:var(--muted);margin-bottom:8px">${membres.length} membre(s)</div>
-    <div class="table-card">
+    <div class="desktop-page-only table-card">
       <div style="overflow-x:auto"><table class="data-table">
         <thead><tr>
           <th style="cursor:pointer" onclick="_cgSort('nom')">Membre ⇅</th><th>Téléphone</th><th style="cursor:pointer" onclick="_cgSort('role')">Rôle ⇅</th><th style="cursor:pointer" onclick="_cgSort('plan')">Plan ⇅</th><th style="cursor:pointer" onclick="_cgSort('actif')">Statut ⇅</th><th style="cursor:pointer" onclick="_cgSort('photo')">Photo ⇅</th><th style="cursor:pointer" onclick="_cgSort('inscription')">Inscription ⇅</th><th style="cursor:pointer" onclick="_cgSort('expiration')">Expiration ⇅</th><th style="cursor:pointer" onclick="_cgSort('connexions')">Connexions ⇅</th><th style="cursor:pointer" onclick="_cgSort('derniere')">Dernière connexion ⇅</th><th>Actions</th>
@@ -13919,7 +14094,7 @@ async function carteGestionView() {
               ? '<span style="color:#c62828;font-weight:700;font-size:.78rem">⛔ Inactif</span>'
               : '<span style="color:#2e7d32;font-weight:700;font-size:.78rem">✅ Actif</span>';
 
-            return '<tr class="cg-row" style="' + (isInactif ? 'opacity:.6' : '') + '" data-search="' + escHtml(searchData) + '" data-role="' + (m.role||'') + '" data-photo="' + photoStatus + '" data-plan="' + (m.plan||'gratuit') + '" data-actif="' + (isInactif?'0':'1') + '" data-nom="' + escHtml(((m.prenom||'')+ ' ' +(m.nom||'')).toLowerCase()) + '" data-connexions="' + (conn.nb_connexions||0) + '" data-derniere="' + (conn.derniere_connexion||'') + '" data-expiration="' + (m.days_left!=null?m.days_left:9999) + '" data-inscription="' + (m.date_inscription||'') + '">' +
+            return '<tr class="cg-row" data-id="' + m.id + '" style="' + (isInactif ? 'opacity:.6' : '') + '" data-search="' + escHtml(searchData) + '" data-role="' + (m.role||'') + '" data-photo="' + photoStatus + '" data-plan="' + (m.plan||'gratuit') + '" data-actif="' + (isInactif?'0':'1') + '" data-nom="' + escHtml(((m.prenom||'')+ ' ' +(m.nom||'')).toLowerCase()) + '" data-connexions="' + (conn.nb_connexions||0) + '" data-derniere="' + (conn.derniere_connexion||'') + '" data-expiration="' + (m.days_left!=null?m.days_left:9999) + '" data-inscription="' + (m.date_inscription||'') + '">' +
               '<td><div style="display:flex;align-items:center;gap:8px">' +
                 (m.photo_url
                   ? '<img src="' + BASE + m.photo_url + '" onclick="_cgZoomPhoto(\'' + BASE + m.photo_url + '\',' + m.id + ',' + (m.carte_photo_approuvee?1:0) + ',\'' + escHtml(m.prenom+' '+m.nom).replace(/'/g,"\\'") + '\')" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid ' + (m.carte_photo_approuvee?'#2e7d32':'#e65100') + ';cursor:zoom-in" title="Voir la photo en grand"/>'
@@ -13961,6 +14136,42 @@ async function carteGestionView() {
           }).join('') || '<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:24px">Aucun membre</td></tr>'}
         </tbody>
       </table></div>
+    </div>
+
+    <div class="mobile-page-only" id="cgBodyMobile">
+      ${membres.map(function(m) {
+        const conn = connMap[m.id] || {};
+        const dj = m.days_left;
+        const initials = ((m.prenom||'?')[0] + ((m.nom||'')[0]||'')).toUpperCase();
+        const photoStatus = m.photo_url ? (m.carte_photo_approuvee ? 'approved' : 'pending') : 'none';
+        const searchData = ((m.prenom||'')+' '+(m.nom||'')+' '+(m.email||'')+' '+(m.role||'')+' '+(m.plan||'')+' '+(m.telephone||'')).toLowerCase();
+        const isInactif = m.actif === 0 || m.actif === false;
+        const expBadge = !m.expiration ? ''
+          : dj < 0 ? '<span class="pill" style="background:#fdecea;color:#c62828;font-size:.68rem;font-weight:800;padding:2px 8px;border-radius:20px">⛔ Expirée</span>'
+          : dj <= 30 ? '<span class="pill" style="background:#fff3e0;color:#e65100;font-size:.68rem;font-weight:800;padding:2px 8px;border-radius:20px">⚠️ ' + dj + 'j</span>'
+          : '<span class="pill" style="background:#e3f2ea;color:#1b5e20;font-size:.68rem;font-weight:800;padding:2px 8px;border-radius:20px">✅ ' + dj + 'j</span>';
+        let actionsHtml;
+        if (m.photo_url && !m.carte_photo_approuvee) {
+          actionsHtml = '<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();_cgApprovePhoto(' + m.id + ')">✅ Approuver photo</button>' +
+            '<button class="btn btn-sm btn-ghost" style="color:#c62828" onclick="event.stopPropagation();_cgRefusPhotoModal(' + m.id + ',\'' + escHtml(m.prenom+' '+m.nom).replace(/'/g,"\\'") + '\')">✉️ Refuser</button>';
+        } else if (m.photo_url && m.carte_photo_approuvee) {
+          actionsHtml = '<button class="btn btn-sm btn-ghost" style="color:#e65100" onclick="event.stopPropagation();_cgDesapprouverPhoto(' + m.id + ')">↩️ Désapprouver photo</button>';
+        } else {
+          actionsHtml = '<label class="btn btn-sm btn-outline" style="cursor:pointer" onclick="event.stopPropagation()">📷 Ajouter photo<input type="file" accept="image/*" style="display:none" onchange="_cgUploadPhoto(' + m.id + ',this.files[0])"/></label>';
+        }
+        return '<div class="m-item cg-row" data-id="' + m.id + '" style="' + (isInactif?'opacity:.6':'') + '" data-search="' + escHtml(searchData) + '" data-role="' + (m.role||'') + '" data-photo="' + photoStatus + '" data-plan="' + (m.plan||'gratuit') + '" data-actif="' + (isInactif?'0':'1') + '" data-nom="' + escHtml(((m.prenom||'')+' '+(m.nom||'')).toLowerCase()) + '" data-connexions="' + (conn.nb_connexions||0) + '" data-derniere="' + (conn.derniere_connexion||'') + '" data-expiration="' + (m.days_left!=null?m.days_left:9999) + '" data-inscription="' + (m.date_inscription||'') + '" onclick="_cgOpenProfile(' + m.id + ')">' +
+          '<div class="m-item-top">' +
+            '<div style="display:flex;gap:9px;align-items:center;min-width:0">' +
+              (m.photo_url
+                ? '<img src="' + BASE + m.photo_url + '" style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:2px solid ' + (m.carte_photo_approuvee?'#2e7d32':'#e65100') + ';flex-shrink:0"/>'
+                : '<div style="width:34px;height:34px;border-radius:50%;background:var(--g2);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0">' + initials + '</div>') +
+              '<div style="min-width:0"><div class="m-item-title">' + escHtml(m.prenom) + ' ' + escHtml(m.nom) + '</div><div class="m-item-sub">' + (roleLabel[m.role]||m.role) + ' · ' + (planLabel[m.plan]||m.plan||'Gratuit') + '</div></div>' +
+            '</div>' +
+            expBadge +
+          '</div>' +
+          '<div class="m-item-actions">' + actionsHtml + '</div>' +
+        '</div>';
+      }).join('') || '<div class="m-empty">Aucun membre</div>'}
     </div>
   `);
 }
@@ -14059,7 +14270,7 @@ function _cgFilter() {
   var photo = document.getElementById('cgPhoto')?.value || '';
   var plan = document.getElementById('cgPlan')?.value || '';
   var statut = document.getElementById('cgStatut')?.value ?? '';
-  var shown = 0;
+  var shownIds = new Set();
   document.querySelectorAll('.cg-row').forEach(function(row) {
     var ok = (!q || row.dataset.search.includes(q))
       && (!role || row.dataset.role === role)
@@ -14067,10 +14278,10 @@ function _cgFilter() {
       && (!plan || row.dataset.plan === plan)
       && (statut === '' || row.dataset.actif === statut);
     row.style.display = ok ? '' : 'none';
-    if (ok) shown++;
+    if (ok) shownIds.add(row.dataset.id);
   });
   var cnt = document.getElementById('cgCount');
-  if (cnt) cnt.textContent = shown + ' membre(s) affiché(s) sur ' + (window._carteMembers||[]).length;
+  if (cnt) cnt.textContent = shownIds.size + ' membre(s) affiché(s) sur ' + (window._carteMembers||[]).length;
 }
 
 window._cgSortCol = '';
