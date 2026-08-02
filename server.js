@@ -4818,15 +4818,18 @@ app.post('/api/activities/:id/tickets/sell', authMiddleware, requireRole('admin'
 
 // Tous les billets d'une activité (comité)
 app.get('/api/activities/:id/tickets', authMiddleware, requireRole('admin','delegue','secretaire','tresoriere'), (req, res) => {
+  const params = [req.params.id];
+  let statutFilter = '';
+  if (req.query.statut) { statutFilter = 'AND t.statut = ?'; params.push(req.query.statut); }
   const rows = db.prepare(`
     SELECT t.*, at.numero AS table_numero, at.capacite_max,
       u.prenom || ' ' || u.nom AS vendeur_nom
     FROM tickets t
     LEFT JOIN activity_tables at ON at.id = t.table_id
     LEFT JOIN users u ON u.id = t.vendu_par
-    WHERE t.activity_id = ?
+    WHERE t.activity_id = ? ${statutFilter}
     ORDER BY at.numero, t.date_vente
-  `).all(req.params.id);
+  `).all(...params);
   res.json(rows);
 });
 
@@ -5950,6 +5953,61 @@ app.post('/api/tickets/:id/annuler', authMiddleware, requireRole('admin','tresor
   if (t.statut !== 'genere') return res.status(400).json({ error: 'Ce billet n\'est plus en attente (déjà vendu ou annulé)' });
   db.prepare("UPDATE tickets SET statut='annule' WHERE id=?").run(t.id);
   res.json({ ok: true });
+});
+
+// POST — supprimer un seul billet déjà vendu (ex: généré par erreur en mode "vendre" au lieu de
+// "pré-imprimer" pour la vente à l'entrée). Le billet passe à 'annule' (jamais supprimé de la
+// table, pour garder l'historique) et le revenu est annulé par une écriture correctrice — on ne
+// modifie jamais la transaction d'origine, pour garder une piste d'audit complète.
+app.post('/api/tickets/:id/supprimer-vendu', authMiddleware, requireRole('admin','tresoriere','secretaire'), (req, res) => {
+  const t = db.prepare('SELECT * FROM tickets WHERE id=?').get(req.params.id);
+  if (!t) return res.status(404).json({ error: 'Billet introuvable' });
+  if (t.statut !== 'actif') return res.status(400).json({ error: 'Ce billet n\'est pas dans un état "vendu"' });
+
+  db.prepare("UPDATE tickets SET statut='annule' WHERE id=?").run(t.id);
+
+  // Ne reverse le revenu que si la ligne financière existait déjà au moment de la vente — sinon la
+  // vente originale n'a jamais rien enregistré dans les finances (voir /activities/:id/vendre, qui
+  // ne comptabilise que si une ligne financière existe déjà), et reverser ici créerait un écart qui
+  // n'a jamais existé.
+  if (t.prix > 0) {
+    const line = db.prepare('SELECT id FROM financial_lines WHERE activity_id=? AND date_creation <= ? LIMIT 1').get(t.activity_id, t.date_vente);
+    if (line) {
+      db.prepare("INSERT INTO transactions (financial_line_id, type, montant, description, methode, cree_par) VALUES (?, 'depense', ?, ?, 'cash', ?)")
+        .run(line.id, t.prix, `Annulation billet non distribué — ${t.barcode_data}`, req.user.id);
+      db.prepare('UPDATE account_info SET solde = solde - ?, date_maj = CURRENT_TIMESTAMP WHERE id = 1').run(t.prix);
+    }
+  }
+  res.json({ ok: true });
+});
+
+// POST — supprimer plusieurs billets déjà vendus d'un coup (ids fournis dans le corps).
+// Une seule écriture correctrice agrégée, pour ne pas noyer l'historique financier de N lignes de
+// quelques dollars chacune quand on annule un gros lot de billets non distribués.
+app.post('/api/activities/:id/tickets/supprimer-vendus', authMiddleware, requireRole('admin','tresoriere','secretaire'), (req, res) => {
+  const ids = Array.isArray(req.body.ids) ? req.body.ids.map(Number).filter(Boolean) : [];
+  if (!ids.length) return res.status(400).json({ error: 'Aucun billet spécifié' });
+
+  const placeholders = ids.map(() => '?').join(',');
+  const tickets = db.prepare(`SELECT * FROM tickets WHERE id IN (${placeholders}) AND activity_id=? AND statut='actif'`).all(...ids, req.params.id);
+  if (!tickets.length) return res.json({ ok: true, supprimes: 0 });
+
+  const ticketIds = tickets.map(t => t.id);
+  const idPh = ticketIds.map(() => '?').join(',');
+  db.prepare(`UPDATE tickets SET statut='annule' WHERE id IN (${idPh})`).run(...ticketIds);
+
+  // Ne reverse le revenu que pour les billets vendus APRÈS la création de la ligne financière —
+  // avant ça, la vente originale n'a jamais rien enregistré dans les finances (voir
+  // /activities/:id/vendre), donc reverser créerait un écart qui n'a jamais existé.
+  const line = db.prepare('SELECT id, date_creation FROM financial_lines WHERE activity_id=? LIMIT 1').get(req.params.id);
+  const reversibles = line ? tickets.filter(t => t.date_vente >= line.date_creation) : [];
+  const total = reversibles.reduce((sum, t) => sum + (t.prix || 0), 0);
+  if (total > 0) {
+    db.prepare("INSERT INTO transactions (financial_line_id, type, montant, description, methode, cree_par) VALUES (?, 'depense', ?, ?, 'cash', ?)")
+      .run(line.id, total, `Annulation de ${reversibles.length} billet(s) non distribué(s)`, req.user.id);
+    db.prepare('UPDATE account_info SET solde = solde - ?, date_maj = CURRENT_TIMESTAMP WHERE id = 1').run(total);
+  }
+  res.json({ ok: true, supprimes: tickets.length });
 });
 
 // GET — billets générés (non encore vendus) d'une activité

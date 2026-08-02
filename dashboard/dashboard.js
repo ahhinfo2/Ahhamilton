@@ -12330,24 +12330,66 @@ async function vpRefreshVendus() {
   const list = document.getElementById('vpVendusList');
   list.innerHTML = '<div style="color:var(--muted)">⏳ Chargement...</div>';
   try {
-    const tickets = await api(`/activities/${actId}/tickets`);
+    const tickets = await api(`/activities/${actId}/tickets?statut=actif`);
     if (!tickets.length) {
       list.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted)">Aucun billet vendu pour cette activité</div>';
       return;
     }
-    list.innerHTML = `<div style="font-size:.82rem;color:var(--muted);margin-bottom:10px">${tickets.length} billet(s) vendu(s)</div>
+    list.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:.82rem;color:var(--muted);cursor:pointer">
+          <input type="checkbox" id="vpVenduSelectAll" onchange="vpVenduToggleSelectAll(this)"/> ${tickets.length} billet(s) vendu(s) — tout sélectionner
+        </label>
+        <button id="vpBtnDelVenduSel" class="btn btn-sm" style="display:none;color:#c62828;border-color:#ffd5d5;background:#fff5f5" onclick="vpSupprimerVendusSelection('${actId}')">🗑 Supprimer la sélection (<span id="vpVenduSelCount">0</span>) — annule aussi le revenu</button>
+      </div>
       <div class="table-wrapper"><table>
-        <thead><tr><th>Acheteur</th><th>Vendeur</th><th>Méthode</th><th>Prix</th><th>Code</th><th>QR</th></tr></thead>
+        <thead><tr><th></th><th>Acheteur</th><th>Vendeur</th><th>Méthode</th><th>Prix</th><th>Code</th><th>QR</th><th></th></tr></thead>
         <tbody>${tickets.map(t => `<tr>
+          <td><input type="checkbox" class="vp-vendu-cb" value="${t.id}" onchange="vpVenduUpdateSelCount()"/></td>
           <td><strong>${escHtml(t.acheteur_nom||'Anonyme')}</strong>${t.acheteur_email ? `<br><small style="color:var(--muted)">${escHtml(t.acheteur_email)}</small>` : ''}</td>
           <td>${escHtml(t.vendeur_nom||'En ligne')}</td>
           <td>${escHtml(t.methode_paiement||'–')}</td>
           <td>$${(t.prix||0).toFixed(2)}</td>
           <td style="font-family:monospace;font-size:.76rem">${escHtml(t.barcode_data||'')}</td>
           <td><button class="btn btn-sm btn-ghost" onclick="window.open('${BASE}/api/tickets/${t.id}/qr','_blank')" title="Voir le QR">📱</button></td>
+          <td><button class="btn btn-sm btn-ghost" style="color:#c62828" onclick="vpSupprimerVendu(${t.id})" title="Supprimer ce billet vendu — annule aussi le revenu">🗑</button></td>
         </tr>`).join('')}</tbody>
       </table></div>`;
   } catch(e) { list.innerHTML = '<div style="color:var(--red)">Erreur: ' + e.message + '</div>'; }
+}
+
+function vpVenduToggleSelectAll(cb) {
+  document.querySelectorAll('.vp-vendu-cb').forEach(el => el.checked = cb.checked);
+  vpVenduUpdateSelCount();
+}
+
+function vpVenduUpdateSelCount() {
+  const n = document.querySelectorAll('.vp-vendu-cb:checked').length;
+  const btn = document.getElementById('vpBtnDelVenduSel');
+  document.getElementById('vpVenduSelCount').textContent = n;
+  btn.style.display = n > 0 ? 'inline-flex' : 'none';
+  const all = document.querySelectorAll('.vp-vendu-cb').length;
+  const selectAll = document.getElementById('vpVenduSelectAll');
+  if (selectAll) selectAll.checked = n > 0 && n === all;
+}
+
+async function vpSupprimerVendu(ticketId) {
+  if (!confirm('Supprimer ce billet vendu ? Le revenu enregistré ($ correspondant) sera aussi annulé par une écriture correctrice dans les finances.')) return;
+  try {
+    await api(`/tickets/${ticketId}/supprimer-vendu`, { method: 'POST' });
+    toast('Billet supprimé et revenu annulé');
+    vpRefreshVendus();
+  } catch(e) { toast('Erreur : ' + e.message, true); }
+}
+
+async function vpSupprimerVendusSelection(actId) {
+  const ids = [...document.querySelectorAll('.vp-vendu-cb:checked')].map(el => el.value);
+  if (!ids.length) return;
+  if (!confirm(`Supprimer ${ids.length} billet(s) vendu(s) sélectionné(s) ? Le revenu total correspondant sera annulé par UNE écriture correctrice agrégée dans les finances.`)) return;
+  try {
+    const r = await api(`/activities/${actId}/tickets/supprimer-vendus`, { method: 'POST', body: JSON.stringify({ ids }) });
+    toast(r.supprimes + ' billet(s) supprimé(s) et revenu annulé');
+    vpRefreshVendus();
+  } catch(e) { toast('Erreur : ' + e.message, true); }
 }
 
 async function vpRefreshGeneres() {
