@@ -24,15 +24,15 @@
   .dymo-label{
     width:28mm;height:89mm;
     border:1px dashed #ccc;background:#fff;
-    display:flex;flex-direction:column;align-items:center;
+    display:flex;flex-direction:column;align-items:center;justify-content:space-evenly;
     padding:2.5mm 1.5mm;
     overflow:hidden;
   }
+  .dymo-date{font-size:6pt;color:#555;letter-spacing:.02em}
   .dymo-logo{width:9mm;height:9mm;border-radius:50%;object-fit:cover;flex-shrink:0}
   .dymo-titre{font-size:8pt;font-weight:800;line-height:1.2;text-align:center;color:#000;
-    margin-top:2mm;
     display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
-  .dymo-qr{width:24mm;height:24mm;margin-top:auto;margin-bottom:1mm}
+  .dymo-qr{width:24mm;height:24mm}
   .dymo-qr img{width:100%;height:100%;display:block}
 
   /* ── IMPRESSION : une étiquette = une page, format exact de l'étiquette DYMO (portrait) ── */
@@ -89,8 +89,10 @@ async function load() {
   document.getElementById('labelsList').innerHTML = tickets.map(t => {
     const ticketToken = (t.qr_data || '').replace('TICKET:', '');
     const qrSrc = `${BASE}/uploads/qr/${ticketToken}.png`;
+    const dateStr = t.date_debut ? new Date(t.date_debut).toLocaleDateString('fr-CA', { day:'numeric', month:'short' }) : '';
     return `
     <div class="dymo-label">
+      ${dateStr ? `<div class="dymo-date">${s(dateStr)}</div>` : ''}
       <img class="dymo-logo" src="/Public/logo1.png" alt="AHH"/>
       <div class="dymo-titre">${s(t.activite||'')}</div>
       <div class="dymo-qr"><img src="${qrSrc}" alt="QR" onerror="this.style.display='none'"/></div>
