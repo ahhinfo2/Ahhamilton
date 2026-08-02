@@ -12527,7 +12527,7 @@ async function vpAction(mode) {
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
         <a href="/print-tickets.html?ids=${ids}" target="_blank" class="btn btn-primary btn-sm">🖨️ Imprimer tous</a>
         <a href="/print-tickets.html?ids=${ids}&size=small" target="_blank" class="btn btn-outline btn-sm">🖨️ Format petit</a>
-        <a href="/print-tickets-dymo.html?ids=${ids}" target="_blank" class="btn btn-outline btn-sm">🏷️ Étiquettes DYMO</a>
+        <a href="/print-tickets-dymo.html?ids=${ids}" target="_blank" class="btn btn-sm" style="font-weight:700;color:#7b1fa2;border:1.5px solid #7b1fa2;background:#f9f0fb">🏷️ Étiquettes DYMO (LabelWriter)</a>
       </div>`;
     toast(r.tickets.length + ' billet(s) ' + label);
     vpRefreshGeneres();
