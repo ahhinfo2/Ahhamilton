@@ -13985,9 +13985,10 @@ async function _cgOpenProfile(id) {
     const planLabel = m.plan ? m.plan.charAt(0).toUpperCase() + m.plan.slice(1) : 'Gratuit';
     const initials = (m.prenom||'?')[0] + ((m.nom||'')[0]||'');
 
+    const membreDepuisDate = m.membre_depuis || h?.user?.date_inscription;
     let tenureLabel = '–';
-    if (h?.user?.date_inscription) {
-      const years = Math.floor((Date.now() - new Date(h.user.date_inscription)) / (365.25*24*3600*1000));
+    if (membreDepuisDate) {
+      const years = Math.floor((Date.now() - new Date(membreDepuisDate)) / (365.25*24*3600*1000));
       tenureLabel = years < 1 ? '< 1 an' : (years + ' an' + (years > 1 ? 's' : ''));
     }
 
@@ -14024,7 +14025,7 @@ async function _cgOpenProfile(id) {
           <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
             ${pill(roleLabel, rolePillClass)}
             ${pill(planLabel, m.plan === 'bienfaiteur' ? 'bp-orange' : m.plan === 'partenaire' ? 'bp-green' : 'bp-gray')}
-            ${pill('Membre depuis ' + (h?.user?.date_inscription ? new Date(h.user.date_inscription).getFullYear() : '–'), 'bp-blue')}
+            ${pill('Membre depuis ' + (membreDepuisDate ? new Date(membreDepuisDate).getFullYear() : '–'), 'bp-blue')}
           </div>
         </div>
         <div style="text-align:center;flex-shrink:0">
@@ -14191,6 +14192,9 @@ function _cgEditInfo(id) {
       </div>
       <div class="form-group"><label>Téléphone</label><input id="cgei_tel" value="${escHtml(m.telephone||'')}"/></div>
       <div class="form-group"><label>Adresse</label><input id="cgei_addr" value="${escHtml(m.adresse||'')}"/></div>
+      <div class="form-group"><label>Membre actif depuis</label><input type="date" id="cgei_membre_depuis" value="${m.membre_depuis ? m.membre_depuis.substring(0,10) : ''}"/>
+        <small style="color:var(--muted)">Date réelle d'arrivée à AHH, utilisée pour « Membre depuis » et « Avec AHH » — distincte de la date d'inscription qui ancre le cycle de 2 ans de la carte.</small>
+      </div>
       ${['admin','tresoriere','secretaire','delegue'].includes(m.role) ? `<div class="form-group"><label>Titre affiché sur la carte de membre</label><input id="cgei_titre" value="${escHtml(m.titre_comite||'')}" placeholder="Ex. Présidente, Vice-président, Conseiller..."/></div>` : ''}
       <p style="font-size:.78rem;color:var(--muted);margin:-4px 0 14px">Le comité peut modifier ces informations en tout temps, peu importe l'état de la carte.</p>
       <div class="form-actions">
@@ -14208,6 +14212,7 @@ function _cgEditInfo(id) {
         nom: document.getElementById('cgei_nom').value,
         telephone: document.getElementById('cgei_tel').value,
         adresse: document.getElementById('cgei_addr').value,
+        membre_depuis: document.getElementById('cgei_membre_depuis').value || null,
         ...(titreInput ? { titre_comite: titreInput.value.trim() } : {})
       })});
       toast('Informations mises à jour');

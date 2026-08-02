@@ -127,6 +127,10 @@ try { db.exec('ALTER TABLE users ADD COLUMN carte_photo_deja_approuvee INTEGER D
 try { db.exec('ALTER TABLE users ADD COLUMN titre_comite TEXT'); } catch {}
 // Photo complète (non recadrée) conservée pour pouvoir réajuster le cadrage plus tard
 try { db.exec('ALTER TABLE users ADD COLUMN photo_original_url TEXT'); } catch {}
+// Date réelle d'arrivée comme membre actif à AHH (distincte de date_inscription, qui ancre le
+// cycle de renouvellement de la carte de 2 ans) — permet au comité de corriger l'affichage
+// "Membre depuis" pour les membres présents avant la création du site.
+try { db.exec('ALTER TABLE users ADD COLUMN membre_depuis TEXT'); } catch {}
 // Pointage bénévolat par scan QR : arrivée/départ, statut 'en_cours' pendant la présence
 try { db.exec('ALTER TABLE volunteer_hours ADD COLUMN checkin_at TEXT'); } catch {}
 try { db.exec('ALTER TABLE volunteer_hours ADD COLUMN checkout_at TEXT'); } catch {}

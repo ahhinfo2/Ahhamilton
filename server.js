@@ -768,7 +768,7 @@ app.put('/api/users/:id', authMiddleware, (req, res) => {
     nomLocked = !!(cur && cur.carte_photo_deja_approuvee);
   }
 
-  const { prenom, nom, email, telephone, adresse, date_naissance, role, actif, bio, operateur, sms_notifs, titre_comite } = req.body;
+  const { prenom, nom, email, telephone, adresse, date_naissance, role, actif, bio, operateur, sms_notifs, titre_comite, membre_depuis } = req.body;
   const updates = []; const vals = [];
   if (prenom && !nomLocked) { updates.push('prenom = ?');        vals.push(prenom); }
   if (nom    && !nomLocked) { updates.push('nom = ?');           vals.push(nom); }
@@ -780,6 +780,7 @@ app.put('/api/users/:id', authMiddleware, (req, res) => {
   if (operateur !== undefined) { updates.push('operateur = ?'); vals.push(operateur || null); }
   if (sms_notifs !== undefined){ updates.push('sms_notifs = ?'); vals.push(sms_notifs ? 1 : 0); }
   if (isMgr && titre_comite !== undefined) { updates.push('titre_comite = ?'); vals.push(titre_comite || null); }
+  if (isMgr && membre_depuis !== undefined) { updates.push('membre_depuis = ?'); vals.push(membre_depuis || null); }
   if (isAdmin && role !== undefined)          { updates.push('role = ?');          vals.push(role); }
   if (isAdmin && actif !== undefined)         { updates.push('actif = ?');         vals.push(actif); }
   if (isAdmin && req.body.email_org !== undefined)    { updates.push('email_org = ?');    vals.push(req.body.email_org || null); }
@@ -7597,7 +7598,7 @@ const CARTE_ROLES = ['admin','tresoriere','secretaire','delegue'];
 
 app.get('/api/admin/cartes', authMiddleware, requireRole(...CARTE_ROLES), (req, res) => {
   const members = db.prepare(`
-    SELECT id, prenom, nom, email, telephone, adresse, plan, role, titre_comite, date_inscription, photo_url, photo_original_url,
+    SELECT id, prenom, nom, email, telephone, adresse, plan, role, titre_comite, date_inscription, membre_depuis, photo_url, photo_original_url,
            carte_photo_approuvee, carte_photo_deja_approuvee, carte_notif_renouv
     FROM users WHERE actif=1 AND (phantom IS NULL OR phantom=0)
     ORDER BY nom, prenom
@@ -8344,7 +8345,7 @@ app.get('/api/members/:id/history', authMiddleware, (req, res) => {
   if (req.user.id !== uid && !['admin','secretaire','tresoriere'].includes(req.user.role)) {
     return res.status(403).json({ error: 'Accès refusé' });
   }
-  const user = db.prepare('SELECT id,prenom,nom,email,telephone,adresse,date_naissance,role,plan,date_inscription,actif FROM users WHERE id=?').get(uid);
+  const user = db.prepare('SELECT id,prenom,nom,email,telephone,adresse,date_naissance,role,plan,date_inscription,membre_depuis,actif FROM users WHERE id=?').get(uid);
   if (!user) return res.status(404).json({ error: 'Membre introuvable' });
 
   const paiements = db.prepare(`SELECT id,montant,type,mois,methode,statut,date_soumission FROM payments WHERE user_id=? ORDER BY date_soumission DESC LIMIT 50`).all(uid);
