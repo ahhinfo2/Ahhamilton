@@ -4529,21 +4529,45 @@ async function _approveVolInModal(id, statut, key) {
   } catch(ex) { toast(ex.message, 'error'); }
 }
 
+function _volMembreOptions(users) {
+  return users.filter(u=>u.actif).map(u=>`<option value="${u.id}">${escHtml(u.prenom)} ${escHtml(u.nom)}</option>`).join('');
+}
+
+async function _volFilterMembersByActivite(actId) {
+  const sel = document.getElementById('vol_user');
+  if (!actId) { sel.innerHTML = _volMembreOptions(window._volAllUsersCache || []); return; }
+  sel.innerHTML = '<option value="">Chargement...</option>';
+  try {
+    const regs = await api(`/activities/${actId}/registrations`);
+    sel.innerHTML = regs.length
+      ? regs.map(r => `<option value="${r.id}">${escHtml(r.prenom)} ${escHtml(r.nom)}${r.statut==='benevole' ? ' — bénévole' : ''}</option>`).join('')
+      : '<option value="">Aucun inscrit pour cette activité</option>';
+  } catch(e) {
+    sel.innerHTML = _volMembreOptions(window._volAllUsersCache || []);
+  }
+  const act = (window._volAllActsCache || []).find(a => String(a.id) === String(actId));
+  const dateInput = document.getElementById('vol_date');
+  if (act?.date_debut && dateInput && !dateInput.value) dateInput.value = act.date_debut.substring(0,10);
+}
+
 function openVolForm(allUsers, allActs) {
+  window._volAllUsersCache = allUsers;
+  window._volAllActsCache = allActs;
   openModal('Ajouter des heures de bénévolat', `
     <form id="volForm">
+      <div class="form-group"><label>Activité</label>
+        <select id="vol_act" onchange="_volFilterMembersByActivite(this.value)">
+          <option value="">– Choisir un membre dans la liste complète –</option>
+          ${allActs.map(a=>`<option value="${a.id}">${escHtml(a.titre)}</option>`).join('')}
+        </select></div>
       <div class="form-group"><label>Membre *</label>
         <select id="vol_user" required>
-          ${allUsers.filter(u=>u.actif).map(u=>`<option value="${u.id}">${u.prenom} ${u.nom}</option>`).join('')}
+          ${_volMembreOptions(allUsers)}
         </select></div>
       <div class="form-row">
         <div class="form-group"><label>Heures *</label><input type="number" id="vol_h" step="0.5" min="0.5" required/></div>
         <div class="form-group"><label>Date du service</label><input type="date" id="vol_date"/></div>
       </div>
-      <div class="form-group"><label>Activité</label>
-        <select id="vol_act"><option value="">– Aucune –</option>
-          ${allActs.map(a=>`<option value="${a.id}">${a.titre}</option>`).join('')}
-        </select></div>
       <div class="form-group"><label>Description</label><textarea id="vol_desc" rows="2"></textarea></div>
       <div class="form-actions">
         <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
