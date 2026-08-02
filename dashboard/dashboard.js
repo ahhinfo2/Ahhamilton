@@ -4412,7 +4412,7 @@ async function volunteer() {
     api('/activities')
   ]);
   window._volAllUsers = allUsers;
-  window._volAllActs = allActs;
+  window._volAllActs = allActs.filter(a => a.statut !== 'archivee');
   window._volData = data;
   const approuvees = data.filter(v=>v.statut==='approuve');
   const totalApp = approuvees.reduce((s,v)=>s+v.heures,0);
@@ -4472,6 +4472,7 @@ async function volunteer() {
           ${can.adminOrSec() && v.statut==='en_attente' ? `
           <button class="btn btn-sm btn-primary" onclick="approveVol(${v.id},'approuve')">✅</button>
           <button class="btn btn-sm btn-danger" onclick="approveVol(${v.id},'rejete')">❌</button>` : ''}
+          ${can.adminOrSec() ? `<button class="btn btn-sm btn-outline" onclick="editVol(${v.id})" title="Modifier">✏️</button>` : ''}
           ${can.admin() ? `<button class="btn btn-sm" style="color:var(--red);border:1px solid var(--red);background:transparent" onclick="deleteVol(${v.id})">🗑</button>` : ''}
         </td>
       </tr>`).join('')}</tbody>
@@ -4511,6 +4512,7 @@ function _volActivityDetail(key) {
           ${v.statut==='en_attente' ? `
           <button class="btn btn-sm btn-primary" onclick="_approveVolInModal(${v.id},'approuve','${key}')">✅</button>
           <button class="btn btn-sm btn-danger" onclick="_approveVolInModal(${v.id},'rejete','${key}')">❌</button>` : ''}
+          <button class="btn btn-sm btn-outline" onclick="editVol(${v.id})" title="Modifier">✏️</button>
           ${can.admin() ? `<button class="btn btn-sm" style="color:var(--red);border:1px solid var(--red);background:transparent" onclick="deleteVol(${v.id})">🗑</button>` : ''}
         </td>` : ''}
       </tr>`).join('')}</tbody>
@@ -4529,41 +4531,64 @@ async function _approveVolInModal(id, statut, key) {
   } catch(ex) { toast(ex.message, 'error'); }
 }
 
-function _volMembreOptions(users) {
-  return users.filter(u=>u.actif).map(u=>`<option value="${u.id}">${escHtml(u.prenom)} ${escHtml(u.nom)}</option>`).join('');
+function _volMembreLabel(u) {
+  return `${u.prenom} ${u.nom}${u.email ? ' — ' + u.email : ''}${u.telephone ? ' — ' + u.telephone : ''}`;
 }
 
 async function _volFilterMembersByActivite(actId) {
-  const sel = document.getElementById('vol_user');
-  if (!actId) { sel.innerHTML = _volMembreOptions(window._volAllUsersCache || []); return; }
+  const sel = document.getElementById('vol_inscrit');
+  if (!actId) { sel.innerHTML = '<option value="">– Choisir une activité d\'abord –</option>'; return; }
   sel.innerHTML = '<option value="">Chargement...</option>';
   try {
     const regs = await api(`/activities/${actId}/registrations`);
     sel.innerHTML = regs.length
-      ? regs.map(r => `<option value="${r.id}">${escHtml(r.prenom)} ${escHtml(r.nom)}${r.statut==='benevole' ? ' — bénévole' : ''}</option>`).join('')
+      ? '<option value="">– Choisir dans la liste –</option>' +
+        regs.map(r => `<option value="${r.id}">${escHtml(r.prenom)} ${escHtml(r.nom)}${r.statut==='benevole' ? ' — bénévole' : ''}</option>`).join('')
       : '<option value="">Aucun inscrit pour cette activité</option>';
   } catch(e) {
-    sel.innerHTML = _volMembreOptions(window._volAllUsersCache || []);
+    sel.innerHTML = '<option value="">Erreur de chargement</option>';
   }
   const act = (window._volAllActsCache || []).find(a => String(a.id) === String(actId));
   const dateInput = document.getElementById('vol_date');
   if (act?.date_debut && dateInput && !dateInput.value) dateInput.value = act.date_debut.substring(0,10);
 }
 
+function _volPickInscrit(sel) {
+  const opt = sel.options[sel.selectedIndex];
+  if (!opt || !opt.value) return;
+  const u = (window._volAllUsersCache || []).find(x => String(x.id) === String(opt.value));
+  document.getElementById('vol_user_id').value = opt.value;
+  document.getElementById('vol_membre_search').value = u ? _volMembreLabel(u) : opt.textContent;
+}
+
+function _volResolveMembre(val) {
+  const match = (window._volAllUsersCache || []).find(u => _volMembreLabel(u) === val);
+  document.getElementById('vol_user_id').value = match ? match.id : '';
+}
+
 function openVolForm(allUsers, allActs) {
-  window._volAllUsersCache = allUsers;
+  window._volAllUsersCache = allUsers.filter(u=>u.actif);
   window._volAllActsCache = allActs;
   openModal('Ajouter des heures de bénévolat', `
     <form id="volForm">
       <div class="form-group"><label>Activité</label>
         <select id="vol_act" onchange="_volFilterMembersByActivite(this.value)">
-          <option value="">– Choisir un membre dans la liste complète –</option>
+          <option value="">– Aucune –</option>
           ${allActs.map(a=>`<option value="${a.id}">${escHtml(a.titre)}</option>`).join('')}
         </select></div>
-      <div class="form-group"><label>Membre *</label>
-        <select id="vol_user" required>
-          ${_volMembreOptions(allUsers)}
-        </select></div>
+      <div class="form-row">
+        <div class="form-group"><label>Inscrit</label>
+          <select id="vol_inscrit" onchange="_volPickInscrit(this)">
+            <option value="">– Choisir une activité d'abord –</option>
+          </select></div>
+        <div class="form-group"><label>Membre *</label>
+          <input type="text" id="vol_membre_search" list="vol_membre_datalist" placeholder="Nom, courriel ou téléphone..." autocomplete="off" required oninput="_volResolveMembre(this.value)"/>
+          <datalist id="vol_membre_datalist">
+            ${window._volAllUsersCache.map(u=>`<option value="${escHtml(_volMembreLabel(u))}">`).join('')}
+          </datalist>
+          <input type="hidden" id="vol_user_id"/>
+        </div>
+      </div>
       <div class="form-row">
         <div class="form-group"><label>Heures *</label><input type="number" id="vol_h" step="0.5" min="0.5" required/></div>
         <div class="form-group"><label>Date du service</label><input type="date" id="vol_date"/></div>
@@ -4577,15 +4602,76 @@ function openVolForm(allUsers, allActs) {
   `);
   document.getElementById('volForm').onsubmit = async e => {
     e.preventDefault();
+    const userId = document.getElementById('vol_user_id').value;
+    if (!userId) return toast('Choisissez un membre valide (dans la liste des inscrits ou dans les suggestions)', 'error');
     try {
       await api('/volunteer', { method:'POST', body: JSON.stringify({
-        user_id:parseInt(document.getElementById('vol_user').value),
+        user_id:parseInt(userId),
         heures:parseFloat(document.getElementById('vol_h').value),
         date_service:document.getElementById('vol_date').value,
         activity_id:parseInt(document.getElementById('vol_act').value)||null,
         description:document.getElementById('vol_desc').value })});
       closeModal(); toast('Heures enregistrées'); volunteer();
     } catch(ex) { toast(ex.message,'error'); }
+  };
+}
+
+function _evolResolveMembre(val) {
+  const match = (window._volAllUsers || []).find(u => _volMembreLabel(u) === val);
+  document.getElementById('evol_user_id').value = match ? match.id : '';
+}
+
+function editVol(id) {
+  const v = (window._volData || []).find(x => x.id === id);
+  if (!v) return;
+  const allUsers = (window._volAllUsers || []).filter(u => u.actif);
+  const currentUser = allUsers.find(u => u.id === v.user_id)
+    || { id: v.user_id, prenom: (v.membre || '').split(' ')[0] || '', nom: (v.membre || '').split(' ').slice(1).join(' ') || '', email: '', telephone: '' };
+  const editActs = [...(window._volAllActs || [])];
+  if (v.activity_id && !editActs.some(a => a.id === v.activity_id)) {
+    editActs.unshift({ id: v.activity_id, titre: (v.activite || 'Activité') + ' (archivée)' });
+  }
+  openModal('✏️ Modifier — heures de bénévolat', `
+    <form id="editVolForm">
+      <div class="form-group"><label>Activité</label>
+        <select id="evol_act">
+          <option value="">– Aucune –</option>
+          ${editActs.map(a => `<option value="${a.id}" ${a.id === v.activity_id ? 'selected' : ''}>${escHtml(a.titre)}</option>`).join('')}
+        </select></div>
+      <div class="form-group"><label>Membre *</label>
+        <input type="text" id="evol_membre_search" list="evol_membre_datalist" value="${escHtml(_volMembreLabel(currentUser))}" autocomplete="off" required oninput="_evolResolveMembre(this.value)"/>
+        <datalist id="evol_membre_datalist">
+          ${allUsers.map(u => `<option value="${escHtml(_volMembreLabel(u))}">`).join('')}
+        </datalist>
+        <input type="hidden" id="evol_user_id" value="${v.user_id}"/>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Heures *</label><input type="number" id="evol_h" step="0.5" min="0" required value="${v.heures}"/></div>
+        <div class="form-group"><label>Date du service</label><input type="date" id="evol_date" value="${v.date_service ? v.date_service.substring(0,10) : ''}"/></div>
+      </div>
+      <div class="form-group"><label>Description</label><textarea id="evol_desc" rows="2">${escHtml(v.description || '')}</textarea></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Enregistrer les modifications</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('editVolForm').onsubmit = async e => {
+    e.preventDefault();
+    const userId = document.getElementById('evol_user_id').value;
+    if (!userId) return toast('Choisissez un membre valide dans les suggestions', 'error');
+    try {
+      await api(`/volunteer/${id}`, { method:'PUT', body: JSON.stringify({
+        user_id: parseInt(userId),
+        activity_id: parseInt(document.getElementById('evol_act').value)||null,
+        heures: parseFloat(document.getElementById('evol_h').value),
+        date_service: document.getElementById('evol_date').value,
+        description: document.getElementById('evol_desc').value
+      })});
+      toast('Entrée mise à jour');
+      closeModal();
+      volunteer();
+    } catch(ex) { toast(ex.message, 'error'); }
   };
 }
 

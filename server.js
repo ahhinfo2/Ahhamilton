@@ -1980,6 +1980,20 @@ app.put('/api/volunteer/:id/approve', authMiddleware, requireRole('admin', 'secr
   res.json({ message: 'Statut mis à jour' });
 });
 
+app.put('/api/volunteer/:id', authMiddleware, requireRole('admin', 'secretaire'), (req, res) => {
+  const prev = db.prepare('SELECT * FROM volunteer_hours WHERE id = ?').get(req.params.id);
+  if (!prev) return res.status(404).json({ error: 'Entrée introuvable' });
+  const { user_id, activity_id, heures, description, date_service } = req.body;
+  db.prepare(`UPDATE volunteer_hours SET user_id=?, activity_id=?, heures=?, description=?, date_service=? WHERE id=?`)
+    .run(user_id !== undefined ? parseInt(user_id) : prev.user_id,
+         activity_id !== undefined ? (activity_id || null) : prev.activity_id,
+         heures !== undefined ? parseFloat(heures) || 0 : prev.heures,
+         description !== undefined ? description : prev.description,
+         date_service !== undefined ? date_service : prev.date_service,
+         req.params.id);
+  res.json({ message: 'Entrée mise à jour' });
+});
+
 // Lettre de bénévolat — données pour le frontend
 app.get('/api/volunteer/letter/:userId', authMiddleware, requireRole('admin','secretaire','tresoriere','delegue'), (req, res) => {
   const membre = db.prepare('SELECT * FROM users WHERE id=?').get(req.params.userId);
