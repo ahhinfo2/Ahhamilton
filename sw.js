@@ -1,4 +1,4 @@
-const CACHE = 'ahh-v77';
+const CACHE = 'ahh-v78';
 const TICKET_STORE = 'ahh-tickets-offline';
 
 // Fichiers JAMAIS mis en cache — toujours chargés depuis le réseau
