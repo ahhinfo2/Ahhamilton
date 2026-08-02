@@ -12403,10 +12403,11 @@ async function vpRefreshGeneres() {
       list.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted)">✅ Aucun billet pré-imprimé en attente</div>';
       return;
     }
+    const nbImprimes = tickets.filter(t => t.imprime_le).length;
     list.innerHTML =
       `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px">
         <label style="display:flex;align-items:center;gap:6px;font-size:.82rem;color:var(--muted);cursor:pointer">
-          <input type="checkbox" id="vpSelectAll" onchange="vpToggleSelectAll(this)"/> Tout sélectionner (${tickets.length})
+          <input type="checkbox" id="vpSelectAll" onchange="vpToggleSelectAll(this)"/> Tout sélectionner (${tickets.length} — ${nbImprimes} déjà imprimé(s), ${tickets.length - nbImprimes} nouveau(x))
         </label>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn btn-sm btn-primary" onclick="vpSaisirTalons()">🎫 Saisir les talons</button>
@@ -12418,7 +12419,7 @@ async function vpRefreshGeneres() {
         <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
           <input type="checkbox" class="vp-ticket-cb" value="${t.id}" onchange="vpUpdateSelCount()"/>
           <div style="flex:1;min-width:0">
-            <div style="font-weight:600;font-size:.84rem">${escHtml(t.acheteur_nom||'Anonyme')}</div>
+            <div style="font-weight:600;font-size:.84rem">${escHtml(t.acheteur_nom||'Anonyme')} ${t.imprime_le ? `<span style="font-size:.68rem;font-weight:600;color:#1b5e20;background:#e8f5e9;padding:1px 7px;border-radius:50px;margin-left:4px">🖨️ Imprimé</span>` : `<span style="font-size:.68rem;font-weight:600;color:#e65100;background:#fff3e0;padding:1px 7px;border-radius:50px;margin-left:4px">🆕 Nouveau</span>`}</div>
             <div style="font-size:.72rem;font-family:monospace;color:#777">${t.barcode_data}</div>
           </div>
           <div style="font-weight:700;color:var(--g2);font-size:.85rem">$${(t.prix||0).toFixed(2)}</div>

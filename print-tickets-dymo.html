@@ -99,6 +99,12 @@ async function load() {
       </div>
     </div>`;
   }).join('');
+
+  // Marque ce lot comme imprimé — visible ensuite dans la liste "Billets générés" du tableau de bord
+  fetch(`${API}/tickets/marquer-imprimes`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
+    body: JSON.stringify({ ids })
+  }).catch(() => {});
 }
 
 load();

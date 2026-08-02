@@ -6012,8 +6012,19 @@ app.post('/api/activities/:id/tickets/supprimer-vendus', authMiddleware, require
 
 // GET — billets générés (non encore vendus) d'une activité
 app.get('/api/activities/:id/billets-generes', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
-  const tickets = db.prepare("SELECT id, barcode_data, acheteur_nom, prix, vendu_par FROM tickets WHERE activity_id=? AND statut='genere' ORDER BY id").all(req.params.id);
+  const tickets = db.prepare("SELECT id, barcode_data, acheteur_nom, prix, vendu_par, imprime_le FROM tickets WHERE activity_id=? AND statut='genere' ORDER BY id").all(req.params.id);
   res.json(tickets);
+});
+
+// POST — marquer des billets comme imprimés (appelé par les pages d'impression au chargement) —
+// pour distinguer visuellement, dans la liste des billets en attente, ce qui a déjà été imprimé
+// d'un lot fraîchement généré, quand on génère plusieurs lots successifs pour une même activité.
+app.post('/api/tickets/marquer-imprimes', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  const ids = Array.isArray(req.body.ids) ? req.body.ids.map(Number).filter(Boolean) : [];
+  if (!ids.length) return res.json({ ok: true, marques: 0 });
+  const placeholders = ids.map(() => '?').join(',');
+  const r = db.prepare(`UPDATE tickets SET imprime_le = CURRENT_TIMESTAMP WHERE id IN (${placeholders}) AND imprime_le IS NULL`).run(...ids);
+  res.json({ ok: true, marques: r.changes });
 });
 
 // ── Vue publique d'un ticket (pour ticket.html) ───────────────────────────────

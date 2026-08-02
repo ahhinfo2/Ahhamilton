@@ -1315,6 +1315,9 @@ try { db.exec('ALTER TABLE tickets ADD COLUMN transferred_to INTEGER REFERENCES 
 try { db.exec('ALTER TABLE tickets ADD COLUMN transferred_at TEXT'); } catch {}
 try { db.exec('ALTER TABLE tickets ADD COLUMN original_owner_id INTEGER'); } catch {}
 
+// ── Suivi d'impression (distinguer plusieurs lots générés pour une même activité) ──
+try { db.exec('ALTER TABLE tickets ADD COLUMN imprime_le TEXT'); } catch {}
+
 // ── Photos d'activité soumises par les membres (avec approbation) ────────
 try { db.exec(`CREATE TABLE IF NOT EXISTS member_activity_photos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
