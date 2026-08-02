@@ -360,7 +360,6 @@ async function buildSidebar() {
 
     // ── Membres ───────────────────────────────────────────────────
     { label: 'Membres', items: [
-      { id:'members',       icon:'◎', label:'Annuaire',         roles:['admin','secretaire','delegue'] },
       { id:'inscriptions',  icon:'◈', label:'Inscriptions',     roles:EXEC },
       { id:'carte-gestion', icon:'🪪', label:'Nos membres',  roles:EXEC },
       { id:'photos-membres', icon:'🖼️', label:'Photos des membres', roles:EXEC },
@@ -1428,7 +1427,7 @@ async function home() {
         </div>
         <div class="table-card-header" style="border-top:1px solid var(--border);margin-top:4px">
           <h3>👤 Derniers membres</h3>
-          <button class="btn btn-sm btn-ghost" onclick="showView('members')">Tous →</button>
+          <button class="btn btn-sm btn-ghost" onclick="showView('carte-gestion')">Tous →</button>
         </div>
         <div style="padding:4px 0">
           ${(stats.derniers_membres||[]).slice(0,4).map(m => `
