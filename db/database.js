@@ -1407,6 +1407,10 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS activity_seats (
 try { db.exec('ALTER TABLE activities ADD COLUMN seating_enabled INTEGER DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE activities ADD COLUMN seating_config TEXT'); } catch {}
 
+// ── Inscription bénévole liée à l'activité (une pierre deux coups) ──────
+try { db.exec('ALTER TABLE activities ADD COLUMN benevoles_max INTEGER'); } catch {}
+try { db.exec('ALTER TABLE activities ADD COLUMN prix_benevole REAL'); } catch {}
+
 try { db.exec(`CREATE TABLE IF NOT EXISTS fierte_entries (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   nom TEXT NOT NULL,

@@ -2187,13 +2187,23 @@ async function openActivityDetail(actId) {
 
               ${a.statut === 'planifiee' ? `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px">
                 ${a.user_registered > 0
-                  ? `<div style="background:rgba(255,255,255,.2);padding:14px 28px;border-radius:12px;font-weight:700;font-size:1rem">✅ Vous êtes inscrit(e)</div>`
+                  ? (a.user_is_benevole > 0
+                      ? `<div style="background:rgba(255,255,255,.2);padding:14px 28px;border-radius:12px;font-weight:700;font-size:1rem">🤝 Vous êtes inscrit(e) comme bénévole</div>`
+                      : `<div style="background:rgba(255,255,255,.2);padding:14px 28px;border-radius:12px;font-weight:700;font-size:1rem">✅ Vous êtes inscrit(e)</div>`)
                   : !a.paiement_requis || !a.prix
                     ? `<button onclick="registerActivity(${a.id})" style="background:#fff;color:#1b5e20;border:none;padding:14px 28px;border-radius:12px;font-weight:700;font-size:1rem;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.2)">✅ S'inscrire gratuitement</button>`
                     : ''
                 }
                 ${a.paiement_requis && a.prix > 0
                   ? `<a href="${BASE.replace('/api','')}/billets.html?id=${a.id}" style="display:inline-flex;align-items:center;gap:8px;background:#fff;color:#1b5e20;padding:14px 28px;border-radius:12px;font-weight:700;font-size:1rem;text-decoration:none;box-shadow:0 2px 10px rgba(0,0,0,.2)">🎟 Acheter des billets — ${a.prix.toFixed(2)} $</a>`
+                  : ''
+                }
+                ${a.benevoles_max > 0 && a.user_registered === 0 && a.nb_benevoles < a.benevoles_max
+                  ? `<button onclick="registerAsBenevole(${a.id})" style="background:rgba(255,255,255,.95);color:#1b5e20;border:2px dashed #1b5e20;padding:14px 28px;border-radius:12px;font-weight:700;font-size:1rem;cursor:pointer">🤝 S'inscrire comme bénévole <span style="opacity:.7;font-weight:600">(${a.nb_benevoles||0}/${a.benevoles_max})</span></button>`
+                  : ''
+                }
+                ${can.adminOrSec() && a.benevoles_max > 0
+                  ? `<button onclick="_comiteInscrireBenevole(${a.id})" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);padding:14px 28px;border-radius:12px;font-weight:700;font-size:1rem;cursor:pointer">🤝 Inscrire un bénévole (comité)</button>`
                   : ''
                 }
               </div>` : ''}
@@ -2375,13 +2385,22 @@ function openActivityForm(a = null) {
       <div class="form-row">
         <div class="form-group"><label>Titre *</label><input id="a_titre" value="${a?.titre||''}" required/></div>
         <div class="form-group"><label>Type</label>
-          <select id="a_type">
+          <select id="a_type" onchange="document.getElementById('benevoleBlock').style.display=this.value==='benevolat'?'block':'none'">
             <option value="general" ${a?.type==='general'?'selected':''}>Général</option>
             <option value="culturel" ${a?.type==='culturel'?'selected':''}>Culturel</option>
             <option value="benevolat" ${a?.type==='benevolat'?'selected':''}>Bénévolat</option>
             <option value="reunion" ${a?.type==='reunion'?'selected':''}>Réunion</option>
             <option value="social" ${a?.type==='social'?'selected':''}>Social</option>
           </select></div>
+      </div>
+      <div id="benevoleBlock" style="${a?.type==='benevolat'?'':'display:none'}">
+        <div style="background:var(--off);border-radius:10px;padding:14px;margin-bottom:12px;border:1px solid var(--border)">
+          <div class="form-row">
+            <div class="form-group"><label>Nombre de bénévoles requis</label><input type="number" id="a_benevoles_max" min="1" value="${a?.benevoles_max||''}" placeholder="ex: 5"/></div>
+            <div class="form-group"><label>Prix spécial bénévole ($)</label><input type="number" id="a_prix_benevole" min="0" step="0.01" value="${a?.prix_benevole??''}" placeholder="Vide = prix régulier, 0 = gratuit"/></div>
+          </div>
+          <small style="color:var(--muted)">S'inscrire comme bénévole inscrit automatiquement à l'activité. Une fois le nombre requis atteint, seul le comité peut encore inscrire quelqu'un comme bénévole.</small>
+        </div>
       </div>
       <div class="form-group">
         <label>Description</label>
@@ -2575,7 +2594,9 @@ function openActivityForm(a = null) {
       stream_url: document.getElementById('a_stream').value || null,
       stream_actif: document.getElementById('a_stream_actif').checked ? 1 : 0,
       rabais_jeune: (payant && document.getElementById('a_rabais_jeune_actif')?.checked)
-        ? (parseInt(document.getElementById('a_rabais_jeune')?.value) || 0) : 0 };
+        ? (parseInt(document.getElementById('a_rabais_jeune')?.value) || 0) : 0,
+      benevoles_max: parseInt(document.getElementById('a_benevoles_max')?.value) || null,
+      prix_benevole: document.getElementById('a_prix_benevole')?.value !== '' ? (parseFloat(document.getElementById('a_prix_benevole').value) || 0) : null };
     try {
       if (isEdit) {
         await api(`/activities/${a.id}`, { method:'PUT', body:JSON.stringify(body) });
@@ -2654,6 +2675,80 @@ async function registerActivity(id) {
     }
     activities();
   } catch(ex) { toast(ex.message, 'error'); }
+}
+
+function _benevolePrixMessage(nom, r) {
+  const gratuit = !r.paiement_requis || !r.prix_regulier;
+  const prixBenevole = r.prix_benevole || 0;
+  const prixRegulier = r.prix_regulier || 0;
+  const reduction = Math.max(0, prixRegulier - prixBenevole);
+  let priceHtml;
+  if (gratuit) {
+    priceHtml = `<div style="font-size:.95rem;color:var(--muted)">Cette activité est gratuite.</div>`;
+  } else if (prixBenevole <= 0) {
+    priceHtml = `
+      <div style="font-size:.9rem;color:var(--muted);margin-bottom:6px">L'activité est de ${prixRegulier.toFixed(2)} $ mais</div>
+      <div style="font-size:.9rem;margin-bottom:4px">gratuit pour les <b>Bénévoles</b> :</div>
+      <div style="font-size:2.2rem;font-weight:800;color:#2e7d32;line-height:1.1">0,00 $</div>`;
+  } else {
+    priceHtml = `
+      <div style="font-size:.9rem;color:var(--muted);margin-bottom:6px">En tant que bénévole pour <b>${escHtml(nom)}</b>, le montant à payer sera :</div>
+      <div style="font-size:2.2rem;font-weight:800;color:#2e7d32;line-height:1.1">${prixBenevole.toFixed(2)} $</div>
+      ${reduction > 0 ? `<div style="font-size:.82rem;color:var(--muted);margin-top:8px">soit une réduction de ${reduction.toFixed(2)} $ (prix régulier ${prixRegulier.toFixed(2)} $)</div>` : ''}`;
+  }
+  return priceHtml;
+}
+
+async function registerAsBenevole(id) {
+  try {
+    const r = await api(`/activities/${id}/register-benevole`, { method:'POST' });
+    const act = (window._activitiesData || []).find(x => x.id === id);
+    const nom = act ? act.titre : 'cette activité';
+    openModal('🤝 Inscription bénévole confirmée', `
+      <div style="text-align:center;padding:16px 0">
+        <div style="font-size:2.6rem;margin-bottom:10px">✅</div>
+        ${_benevolePrixMessage(nom, r)}
+      </div>
+      <div class="form-actions"><button type="button" class="btn btn-primary" onclick="closeModal()">Fermer</button></div>
+    `);
+  } catch(ex) { toast(ex.message, 'error'); }
+}
+
+async function _comiteInscrireBenevole(actId) {
+  const members = (await api('/users').catch(() => [])).filter(u => u.actif !== 0);
+  openModal('🤝 Inscrire un bénévole', `
+    <form id="comiteBenevoleForm">
+      <div class="form-group"><label>Membre *</label>
+        <select id="cbv_membre" required>
+          <option value="">— Choisir —</option>
+          ${members.map(u => `<option value="${u.id}">${escHtml(u.prenom + ' ' + u.nom)}</option>`).join('')}
+        </select></div>
+      <p style="font-size:.8rem;color:var(--muted)">L'inscription se fait même si le nombre de bénévoles requis est déjà atteint.</p>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="openActivityDetail(${actId})">Annuler</button>
+        <button type="submit" class="btn btn-primary">🤝 Inscrire comme bénévole</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('comiteBenevoleForm').onsubmit = async e => {
+    e.preventDefault();
+    const uid = document.getElementById('cbv_membre').value;
+    if (!uid) return toast('Choisissez un membre', 'error');
+    try {
+      const r = await api(`/activities/${actId}/register-benevole`, { method:'POST', body: JSON.stringify({ user_id: uid }) });
+      const membre = members.find(u => String(u.id) === String(uid));
+      const act = (window._activitiesData || []).find(x => x.id === actId);
+      const nom = act ? act.titre : 'cette activité';
+      openModal('🤝 Bénévole inscrit(e)', `
+        <div style="text-align:center;padding:16px 0">
+          <div style="font-size:2.6rem;margin-bottom:10px">✅</div>
+          <div style="font-weight:700;margin-bottom:14px">${escHtml(membre ? membre.prenom + ' ' + membre.nom : '')}</div>
+          ${_benevolePrixMessage(nom, r)}
+        </div>
+        <div class="form-actions"><button type="button" class="btn btn-primary" onclick="openActivityDetail(${actId})">Fermer</button></div>
+      `);
+    } catch(ex) { toast(ex.message, 'error'); }
+  };
 }
 
 // ══ MEMBERS ════════════════════════════════════════════════════════════════
@@ -13812,15 +13907,42 @@ function _cgPayerMembralite(id, nom) {
   };
 }
 
+function _cgApplyPrix(sel) {
+  const opt = sel.options[sel.selectedIndex];
+  const prix = parseFloat(opt.dataset.prix) || 0;
+  const prixBenevole = opt.dataset.prixBenevole;
+  const estBenevole = opt.dataset.benevole === '1';
+  const note = document.getElementById('cgap_benevoleNote');
+  if (estBenevole) {
+    const pb = prixBenevole === '' ? prix : parseFloat(prixBenevole);
+    document.getElementById('cgap_prix').value = pb;
+    const reduction = Math.max(0, prix - pb);
+    note.innerHTML = `<div style="background:var(--off);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin:-4px 0 14px">
+      <div style="font-size:.82rem;color:var(--muted)">Ce membre est inscrit(e) comme <b>bénévole</b> pour cette activité. Montant à payer :</div>
+      <div style="font-size:1.7rem;font-weight:800;color:#2e7d32;margin-top:4px">${pb.toFixed(2)} $</div>
+      ${reduction > 0 ? `<div style="font-size:.78rem;color:var(--muted)">au lieu de ${prix.toFixed(2)} $ (prix régulier)</div>` : ''}
+    </div>`;
+  } else {
+    document.getElementById('cgap_prix').value = prix;
+    note.innerHTML = '';
+  }
+}
+
 async function _cgPayerActivite(id, nom) {
-  const acts = (await api('/activities').catch(() => [])).filter(a => ['planifiee','en_cours'].includes(a.statut));
+  const [acts, h] = await Promise.all([
+    api('/activities').catch(() => []),
+    api(`/members/${id}/history`).catch(() => null)
+  ]);
+  const actsPlanifiees = acts.filter(a => ['planifiee','en_cours'].includes(a.statut));
+  const benevoleActIds = new Set((h?.activites || []).filter(a => a.statut === 'benevole').map(a => a.id));
   openModal(`🎟️ Payé une activité — ${nom}`, `
     <form id="cgActPayForm">
       <div class="form-group"><label>Activité *</label>
-        <select id="cgap_act" required onchange="document.getElementById('cgap_prix').value=this.options[this.selectedIndex].dataset.prix||0">
+        <select id="cgap_act" required onchange="_cgApplyPrix(this)">
           <option value="">— Choisir —</option>
-          ${acts.map(a => `<option value="${a.id}" data-prix="${a.prix||0}">${escHtml(a.titre)} (${a.date_debut ? new Date(a.date_debut).toLocaleDateString('fr-CA') : '–'})</option>`).join('')}
+          ${actsPlanifiees.map(a => `<option value="${a.id}" data-prix="${a.prix||0}" data-prix-benevole="${a.prix_benevole===null||a.prix_benevole===undefined?'':a.prix_benevole}" data-benevole="${benevoleActIds.has(a.id)?1:0}">${escHtml(a.titre)} (${a.date_debut ? new Date(a.date_debut).toLocaleDateString('fr-CA') : '–'})${benevoleActIds.has(a.id) ? ' — bénévole' : ''}</option>`).join('')}
         </select></div>
+      <div id="cgap_benevoleNote"></div>
       <div class="form-row">
         <div class="form-group"><label>Quantité</label><input type="number" min="1" value="1" id="cgap_nb"/></div>
         <div class="form-group"><label>Prix unitaire ($)</label><input type="number" step="0.01" min="0" id="cgap_prix"/></div>

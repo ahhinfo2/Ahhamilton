@@ -981,9 +981,11 @@ app.get('/api/activities', authMiddleware, (req, res) => {
     (SELECT COUNT(*) FROM activity_registrations WHERE activity_id = a.id) +
     (SELECT COUNT(*) FROM tickets WHERE activity_id = a.id AND payment_status = 'paid') AS nb_inscrits,
     (SELECT COUNT(*) FROM activity_registrations WHERE activity_id = a.id AND user_id = ?) AS user_registered,
+    (SELECT COUNT(*) FROM activity_registrations WHERE activity_id = a.id AND statut = 'benevole') AS nb_benevoles,
+    (SELECT COUNT(*) FROM activity_registrations WHERE activity_id = a.id AND user_id = ? AND statut = 'benevole') AS user_is_benevole,
     COALESCE(a.image_path, (SELECT photo_path FROM activity_photos WHERE activity_id = a.id ORDER BY ordre ASC, id ASC LIMIT 1)) AS flyer
     FROM activities a LEFT JOIN users u ON u.id = a.cree_par ORDER BY a.date_debut DESC
-  `).all(req.user.id);
+  `).all(req.user.id, req.user.id);
   res.json(rows);
 });
 
@@ -1026,19 +1028,22 @@ function newBarcodeData() {
 
 app.post('/api/activities', authMiddleware, requireRole(...ACTIVITY_ROLES), (req, res) => {
   const { titre, description, type, date_debut, date_fin, lieu, budget_prevu, max_participants,
-          prix, paiement_requis, rabais_json, recurrence, recurrence_end, stream_url, stream_actif, rabais_jeune } = req.body;
+          prix, paiement_requis, rabais_json, recurrence, recurrence_end, stream_url, stream_actif, rabais_jeune,
+          benevoles_max, prix_benevole } = req.body;
   if (!titre) return res.status(400).json({ error: 'Titre requis' });
 
   const qr_token = crypto2.randomBytes(16).toString('hex');
   const r = db.prepare(`INSERT INTO activities
     (titre, description, type, date_debut, date_fin, lieu, budget_prevu, max_participants, cree_par,
-     prix, paiement_requis, rabais_json, qr_token, recurrence, recurrence_end, stream_url, stream_actif, rabais_jeune)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+     prix, paiement_requis, rabais_json, qr_token, recurrence, recurrence_end, stream_url, stream_actif, rabais_jeune,
+     benevoles_max, prix_benevole)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .run(titre, description||'', type||'general', date_debut||'', date_fin||'', lieu||'',
          budget_prevu||0, max_participants||null, req.user.id,
          parseFloat(prix)||0, paiement_requis?1:0,
          rabais_json||'{}', qr_token, recurrence||null, recurrence_end||null,
-         stream_url||null, stream_actif?1:0, parseInt(rabais_jeune)||0);
+         stream_url||null, stream_actif?1:0, parseInt(rabais_jeune)||0,
+         benevoles_max||null, (prix_benevole===null||prix_benevole===undefined||prix_benevole==='') ? null : parseFloat(prix_benevole));
   const parentId = r.lastInsertRowid;
   // Créer ligne financière immédiatement si budget prévu
   if (budget_prevu && parseFloat(budget_prevu) > 0) {
@@ -1129,7 +1134,8 @@ app.post('/api/activities', authMiddleware, requireRole(...ACTIVITY_ROLES), (req
 
 app.put('/api/activities/:id', authMiddleware, requireRole(...ACTIVITY_ROLES), (req, res) => {
   const { titre, description, type, date_debut, date_fin, lieu, budget_prevu, max_participants, statut,
-          prix, paiement_requis, rabais_json, stream_url, stream_actif, rabais_jeune } = req.body;
+          prix, paiement_requis, rabais_json, stream_url, stream_actif, rabais_jeune,
+          benevoles_max, prix_benevole } = req.body;
   const prev = db.prepare('SELECT * FROM activities WHERE id = ?').get(req.params.id);
   if (!prev) return res.status(404).json({ error: 'Activité introuvable' });
 
@@ -1159,7 +1165,7 @@ app.put('/api/activities/:id', authMiddleware, requireRole(...ACTIVITY_ROLES), (
   const newStatut = statut || prev.statut;
   db.prepare(`UPDATE activities SET titre=?, description=?, type=?, date_debut=?, date_fin=?, lieu=?,
     budget_prevu=?, max_participants=?, statut=?, prix=?, paiement_requis=?, rabais_json=?,
-    stream_url=?, stream_actif=?, rabais_jeune=? WHERE id=?`)
+    stream_url=?, stream_actif=?, rabais_jeune=?, benevoles_max=?, prix_benevole=? WHERE id=?`)
     .run(titre||prev.titre, description??prev.description, type||prev.type, date_debut||prev.date_debut,
          date_fin||prev.date_fin, lieu||prev.lieu, budget_prevu??prev.budget_prevu,
          max_participants??prev.max_participants, newStatut,
@@ -1169,6 +1175,8 @@ app.put('/api/activities/:id', authMiddleware, requireRole(...ACTIVITY_ROLES), (
          stream_url!==undefined ? stream_url : prev.stream_url||null,
          stream_actif!==undefined ? (stream_actif?1:0) : prev.stream_actif||0,
          rabais_jeune!==undefined ? parseInt(rabais_jeune)||0 : prev.rabais_jeune||0,
+         benevoles_max!==undefined ? (benevoles_max||null) : prev.benevoles_max,
+         prix_benevole!==undefined ? ((prix_benevole===null||prix_benevole==='') ? null : parseFloat(prix_benevole)) : prev.prix_benevole,
          req.params.id);
 
   // Activité bénévolat marquée terminée : fermer automatiquement les présences oubliées
@@ -1310,6 +1318,47 @@ app.post('/api/activities/:id/register', authMiddleware, (req, res) => {
     res.status(201).json({ message: 'Inscription confirmée' });
   } catch(e) {
     res.status(409).json({ error: 'Déjà inscrit' });
+  }
+});
+
+app.post('/api/activities/:id/register-benevole', authMiddleware, (req, res) => {
+  try {
+    const actId = parseInt(req.params.id);
+    const act = db.prepare('SELECT * FROM activities WHERE id = ?').get(actId);
+    if (!act) return res.status(404).json({ error: 'Activité introuvable' });
+    const isComite = ['admin','tresoriere','secretaire','delegue'].includes(req.user.role);
+    const cibleId = (isComite && req.body?.user_id) ? parseInt(req.body.user_id) : req.user.id;
+    if (cibleId !== req.user.id && !isComite) return res.status(403).json({ error: 'Non autorisé' });
+
+    const existing = db.prepare('SELECT * FROM activity_registrations WHERE activity_id = ? AND user_id = ?').get(actId, cibleId);
+    if (existing) return res.status(409).json({ error: 'Déjà inscrit(e) à cette activité' });
+
+    // Le comité peut dépasser le quota ; les membres sont bloqués une fois le quota atteint
+    if (!isComite && act.benevoles_max > 0) {
+      const nbBenevoles = db.prepare("SELECT COUNT(*) AS c FROM activity_registrations WHERE activity_id = ? AND statut = 'benevole'").get(actId).c;
+      if (nbBenevoles >= act.benevoles_max) return res.status(409).json({ error: 'Le nombre de bénévoles requis est déjà atteint' });
+    }
+
+    db.prepare("INSERT INTO activity_registrations (activity_id, user_id, statut) VALUES (?, ?, 'benevole')").run(actId, cibleId);
+    const heures = act.date_debut && act.date_fin
+      ? Math.max(0, Math.round(((new Date(act.date_fin) - new Date(act.date_debut)) / 3600000) * 100) / 100)
+      : 0;
+    db.prepare(`INSERT INTO volunteer_hours (user_id, activity_id, heures, description, date_service, statut)
+      VALUES (?, ?, ?, ?, ?, 'en_attente')`)
+      .run(cibleId, actId, heures, `Bénévolat — ${act.titre}`, act.date_debut || new Date().toISOString());
+
+    const cible = db.prepare('SELECT * FROM users WHERE id = ?').get(cibleId);
+    if (cible) mailer.sendInscriptionActivite(cible, act).catch(()=>{});
+
+    const prixBenevole = (act.prix_benevole === null || act.prix_benevole === undefined) ? act.prix : act.prix_benevole;
+    res.status(201).json({
+      message: 'Inscription comme bénévole confirmée',
+      prix_regulier: act.prix || 0,
+      prix_benevole: prixBenevole || 0,
+      paiement_requis: !!act.paiement_requis
+    });
+  } catch(e) {
+    res.status(409).json({ error: 'Déjà inscrit(e)' });
   }
 });
 
