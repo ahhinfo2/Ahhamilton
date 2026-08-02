@@ -1363,6 +1363,36 @@ app.post('/api/activities/:id/register-benevole', authMiddleware, (req, res) => 
   }
 });
 
+// Générer en lot les heures de bénévolat pour tous les présents (checked_in) d'une activité —
+// évite de devoir ajouter chaque bénévole manuellement après coup via "+ Ajouter des heures".
+app.post('/api/activities/:id/generer-heures-benevoles', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  const actId = parseInt(req.params.id);
+  const act = db.prepare('SELECT * FROM activities WHERE id = ?').get(actId);
+  if (!act) return res.status(404).json({ error: 'Activité introuvable' });
+
+  const presents = db.prepare('SELECT * FROM activity_registrations WHERE activity_id = ? AND checked_in = 1').all(actId);
+  if (!presents.length) return res.status(400).json({ error: 'Aucun présent (Arrivé) enregistré pour cette activité' });
+
+  const heuresAuto = act.date_debut && act.date_fin
+    ? Math.max(0, Math.round(((new Date(act.date_fin) - new Date(act.date_debut)) / 3600000) * 100) / 100)
+    : 0;
+  const heures = req.body?.heures !== undefined && req.body.heures !== null && req.body.heures !== ''
+    ? parseFloat(req.body.heures) || 0
+    : heuresAuto;
+
+  let crees = 0, ignores = 0;
+  presents.forEach(p => {
+    const existing = db.prepare('SELECT id FROM volunteer_hours WHERE user_id = ? AND activity_id = ?').get(p.user_id, actId);
+    if (existing) { ignores++; return; }
+    db.prepare(`INSERT INTO volunteer_hours (user_id, activity_id, heures, description, date_service, statut)
+      VALUES (?, ?, ?, ?, ?, 'en_attente')`)
+      .run(p.user_id, actId, heures, `Bénévolat — ${act.titre}`, act.date_debut || new Date().toISOString());
+    crees++;
+  });
+
+  res.status(201).json({ message: `${crees} bénévole(s) ajouté(s) — ${ignores} déjà existant(s)`, crees, ignores, heures });
+});
+
 app.delete('/api/activities/:id/register', authMiddleware, (req, res) => {
   const actId = parseInt(req.params.id);
   const reg = db.prepare('SELECT * FROM activity_registrations WHERE activity_id = ? AND user_id = ?').get(actId, req.user.id);

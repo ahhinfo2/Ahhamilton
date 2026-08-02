@@ -1966,6 +1966,7 @@ function renderActivitiesTable(data) {
               <div class="act-menu-item" onclick="closeActMenus();managerTables(${a.id},'${a.titre.replace(/'/g,"\\'")}')">🪑 Tables</div>
               <div class="act-menu-item" onclick="closeActMenus();manageActivityPhotos(${a.id},'${a.titre.replace(/'/g,"\\'")}')">🖼 Photos</div>
               <div class="act-menu-item" onclick="closeActMenus();openActivityDetail(${a.id})">🚗 Covoiturage</div>
+              ${a.type === 'benevolat' && can.adminOrSec() ? '<div class="act-menu-item" onclick="closeActMenus();genererHeuresBenevoles(' + a.id + ',\'' + a.titre.replace(/'/g,"\\'") + '\')">🤝 Générer les heures des bénévoles</div>' : ''}
               <div style="border-top:1px solid var(--border);margin:4px 0"></div>
               <div class="act-menu-item" onclick="closeActMenus();openScanDelegation(${a.id},'${a.titre.replace(/'/g,"\\'")}')">📱 Déléguer un lecteur</div>
               <div class="act-menu-item" onclick="closeActMenus();viewScanLogs(${a.id},'${a.titre.replace(/'/g,"\\'")}')">📋 Journal des scans</div>
@@ -2712,6 +2713,46 @@ async function registerAsBenevole(id) {
       <div class="form-actions"><button type="button" class="btn btn-primary" onclick="closeModal()">Fermer</button></div>
     `);
   } catch(ex) { toast(ex.message, 'error'); }
+}
+
+async function genererHeuresBenevoles(actId, titre) {
+  const presences = await api(`/activities/${actId}/presences`).catch(() => []);
+  const act = (window._actById || {})[actId] || (window._activitiesData || []).find(x => x.id === actId);
+  const presents = presences.filter(p => p.checked_in);
+  const heuresAuto = act?.date_debut && act?.date_fin
+    ? Math.max(0, Math.round(((new Date(act.date_fin) - new Date(act.date_debut)) / 3600000) * 100) / 100)
+    : 0;
+  openModal(`🤝 Générer les heures — ${escHtml(titre)}`, `
+    ${presents.length ? `
+    <div style="margin-bottom:16px">
+      <div style="font-size:.85rem;color:var(--muted);margin-bottom:10px">${presents.length} membre(s) marqué(s) « Arrivé » vont recevoir une entrée d'heures en attente d'approbation (les membres qui en ont déjà une pour cette activité seront ignorés).</div>
+      <ul style="margin:0 0 14px;padding-left:20px;font-size:.85rem">
+        ${presents.map(p => `<li>${escHtml(p.prenom + ' ' + p.nom)}</li>`).join('')}
+      </ul>
+    </div>
+    <form id="genHeuresForm">
+      <div class="form-group"><label>Heures à créditer par bénévole</label><input type="number" step="0.5" min="0" id="genh_heures" value="${heuresAuto}"/>
+        <small style="color:var(--muted)">${heuresAuto > 0 ? 'Calculé à partir de la durée de l\'activité — modifiable.' : 'Aucune durée détectée sur l\'activité — indiquez le nombre d\'heures.'}</small>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">🤝 Générer pour ${presents.length} bénévole(s)</button>
+      </div>
+    </form>` : `<div style="text-align:center;color:var(--muted);padding:20px 0">Aucun membre marqué « Arrivé » pour cette activité pour le moment.</div>
+      <div class="form-actions"><button type="button" class="btn btn-ghost" onclick="closeModal()">Fermer</button></div>`}
+  `);
+  const form = document.getElementById('genHeuresForm');
+  if (form) form.onsubmit = async e => {
+    e.preventDefault();
+    try {
+      const r = await api(`/activities/${actId}/generer-heures-benevoles`, { method:'POST', body: JSON.stringify({
+        heures: document.getElementById('genh_heures').value
+      })});
+      toast('✅ ' + r.message);
+      closeModal();
+      activities();
+    } catch(ex) { toast(ex.message, 'error'); }
+  };
 }
 
 async function _comiteInscrireBenevole(actId) {
