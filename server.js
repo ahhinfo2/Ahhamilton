@@ -1455,7 +1455,7 @@ app.get('/api/activities/:id/registrations', authMiddleware, requireRole('admin'
 });
 
 // Envoyer un courriel personnalisé à tous les inscrits d'une activité
-app.post('/api/activities/:id/registrations/email', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), async (req, res) => {
+app.post('/api/activities/:id/registrations/email', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const { sujet, message } = req.body;
   if (!sujet || !message) return res.status(400).json({ error: 'Sujet et message requis' });
   const act = db.prepare('SELECT titre FROM activities WHERE id = ?').get(req.params.id);
@@ -1465,13 +1465,21 @@ app.post('/api/activities/:id/registrations/email', authMiddleware, requireRole(
   if (!rows.length) return res.status(400).json({ error: 'Aucun inscrit pour cette activité' });
   const sender = db.prepare('SELECT prenom, nom FROM users WHERE id = ?').get(req.user.id);
 
-  let envoyes = 0, erreurs = 0;
-  for (const r of rows) {
-    try { await mailer.sendActivityBulkEmail(r, act.titre, sujet, message, `${sender.prenom} ${sender.nom}`); envoyes++; }
-    catch(e) { erreurs++; console.error(`[EMAIL-INSCRITS] ${r.email}:`, e.message); }
-  }
-  logAdmin(req.user.id, 'email_inscrits', `Courriel "${sujet}" envoyé à ${envoyes}/${rows.length} inscrits de "${act.titre}"`, req.params.id, 'activity', req.ip);
-  res.json({ ok: true, envoyes, erreurs, total: rows.length });
+  // Répond immédiatement — l'envoi à chaque inscrit se fait en arrière-plan pour éviter un
+  // timeout côté client quand il y a plusieurs destinataires (chaque envoi SMTP peut prendre
+  // 1-3s). Le comité reçoit une alerte une fois l'envoi terminé.
+  res.json({ ok: true, total: rows.length });
+
+  setImmediate(async () => {
+    let envoyes = 0, erreurs = 0;
+    for (const r of rows) {
+      try { await mailer.sendActivityBulkEmail(r, act.titre, sujet, message, `${sender.prenom} ${sender.nom}`); envoyes++; }
+      catch(e) { erreurs++; console.error(`[EMAIL-INSCRITS] ${r.email}:`, e.message); }
+    }
+    logAdmin(req.user.id, 'email_inscrits', `Courriel "${sujet}" envoyé à ${envoyes}/${rows.length} inscrits de "${act.titre}"`, req.params.id, 'activity', req.ip);
+    createAlert(req.user.id, 'activite', `✉️ Courriel envoyé — ${act.titre}`,
+      `${envoyes}/${rows.length} inscrit(s) rejoint(s)${erreurs ? ` (${erreurs} erreur(s))` : ''}.`, req.params.id);
+  });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -7653,18 +7661,23 @@ app.get('/api/admin/cartes', authMiddleware, requireRole(...CARTE_ROLES), (req, 
 });
 
 // Envoyer un rappel par courriel à tous les membres actifs sans photo sur leur carte
-app.post('/api/admin/cartes/notifier-sans-photo', authMiddleware, requireRole(...CARTE_ROLES), async (req, res) => {
+app.post('/api/admin/cartes/notifier-sans-photo', authMiddleware, requireRole(...CARTE_ROLES), (req, res) => {
   const membres = db.prepare(`SELECT id, prenom, nom, email FROM users
     WHERE actif=1 AND (phantom IS NULL OR phantom=0) AND (photo_url IS NULL OR photo_url='')`).all();
   if (!membres.length) return res.json({ ok: true, envoyes: 0, erreurs: 0, total: 0 });
 
-  let envoyes = 0, erreurs = 0;
-  for (const m of membres) {
-    try { await mailer.sendCartePhotoManquante(m); envoyes++; }
-    catch(e) { erreurs++; console.error(`[NOTIF-PHOTO] ${m.email}:`, e.message); }
-  }
-  logAdmin(req.user.id, 'notif_photo_manquante', `Rappel photo carte envoyé à ${envoyes}/${membres.length} membres`, null, 'users', req.ip);
-  res.json({ ok: true, envoyes, erreurs, total: membres.length });
+  res.json({ ok: true, total: membres.length });
+
+  setImmediate(async () => {
+    let envoyes = 0, erreurs = 0;
+    for (const m of membres) {
+      try { await mailer.sendCartePhotoManquante(m); envoyes++; }
+      catch(e) { erreurs++; console.error(`[NOTIF-PHOTO] ${m.email}:`, e.message); }
+    }
+    logAdmin(req.user.id, 'notif_photo_manquante', `Rappel photo carte envoyé à ${envoyes}/${membres.length} membres`, null, 'users', req.ip);
+    createAlert(req.user.id, 'membre', '✉️ Rappel photo manquante envoyé',
+      `${envoyes}/${membres.length} membre(s) rejoint(s)${erreurs ? ` (${erreurs} erreur(s))` : ''}.`);
+  });
 });
 
 app.post('/api/admin/cartes/:id/approuver-photo', authMiddleware, requireRole(...CARTE_ROLES), (req, res) => {

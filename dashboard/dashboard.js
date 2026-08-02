@@ -2702,7 +2702,7 @@ function openEmailInscritsForm(activityId, titre) {
     try {
       const r = await api(`/activities/${activityId}/registrations/email`, { method:'POST', body: JSON.stringify({ sujet, message }) });
       closeModal();
-      toast('✉️ Courriel envoyé à ' + r.envoyes + '/' + r.total + ' inscrit(s)' + (r.erreurs ? ' (' + r.erreurs + ' erreur(s))' : ''));
+      toast('✉️ Envoi en cours à ' + r.total + ' inscrit(s) — vous recevrez une alerte une fois terminé');
     } catch(ex) { toast(ex.message, 'error'); }
   };
 }
@@ -14435,7 +14435,7 @@ async function notifierPhotoManquante() {
   if (!confirm('Envoyer un courriel expliquant comment ajouter une photo à ' + sansPhoto.length + ' membre(s) sans photo sur leur carte ?')) return;
   try {
     var r = await api('/admin/cartes/notifier-sans-photo', { method:'POST' });
-    toast('✉️ Courriel envoyé à ' + r.envoyes + '/' + r.total + ' membre(s)' + (r.erreurs ? ' (' + r.erreurs + ' erreur(s))' : ''));
+    toast('✉️ Envoi en cours à ' + r.total + ' membre(s) — vous recevrez une alerte une fois terminé');
   } catch (e) {
     toast('⚠️ ' + (e.message || 'Erreur lors de l\'envoi'), 'error');
   }
