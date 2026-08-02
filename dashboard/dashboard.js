@@ -362,7 +362,7 @@ async function buildSidebar() {
     { label: 'Membres', items: [
       { id:'members',       icon:'◎', label:'Annuaire',         roles:['admin','secretaire','delegue'] },
       { id:'inscriptions',  icon:'◈', label:'Inscriptions',     roles:EXEC },
-      { id:'carte-gestion', icon:'🪪', label:'Cartes membres',  roles:EXEC },
+      { id:'carte-gestion', icon:'🪪', label:'Nos membres',  roles:EXEC },
       { id:'photos-membres', icon:'🖼️', label:'Photos des membres', roles:EXEC },
     ]},
 
@@ -608,7 +608,7 @@ function setActiveNav(viewId) {
     'young-trainings':'Formations', 'young-polls':'Sondages', 'young-stories':'Success Stories',
     'votes':'Votes & Élections', 'committee-elections':'Élections de comité', 'parrainage':'Parrainage', 'stats-growth':'Statistiques',
     'carte-membre':'Ma carte membre', 'actualites':'Actualités', 'notif-prefs':'Notifications',
-    'carte-gestion':'Gestion des cartes', 'photos-membres':'Photos des membres', 'carte-scanner':'Lecteur de cartes', 'scanner-unified':'Lecteur QR',
+    'carte-gestion':'Nos membres', 'photos-membres':'Photos des membres', 'carte-scanner':'Lecteur de cartes', 'scanner-unified':'Lecteur QR',
     'journal-admin':'Journal d\'activité', 'mes-badges':'Mes badges', 'ambassadeur-admin':'Ambassadeur du mois',
     'abonnes-newsletter':'Abonnés newsletter',
     'tasks':'Tâches',
@@ -4265,15 +4265,54 @@ async function volunteer() {
   ]);
   window._volAllUsers = allUsers;
   window._volAllActs = allActs;
-  const totalApp = data.filter(v=>v.statut==='approuve').reduce((s,v)=>s+v.heures,0);
+  const approuvees = data.filter(v=>v.statut==='approuve');
+  const totalApp = approuvees.reduce((s,v)=>s+v.heures,0);
+
+  // Regroupement par activité — sert à la fois aux cartes de rapport (comité) et au résumé
+  // personnel (membre), puisque pour un membre non-comité, /api/volunteer ne renvoie déjà que
+  // ses propres entrées.
+  const parActivite = {};
+  approuvees.forEach(v => {
+    const key = v.activite || '— Sans activité —';
+    if (!parActivite[key]) parActivite[key] = { heures: 0, benevoles: new Set() };
+    parActivite[key].heures += v.heures;
+    parActivite[key].benevoles.add(v.user_id);
+  });
+  const activitesTriees = Object.entries(parActivite).sort((a,b) => b[1].heures - a[1].heures);
+
+  const cardsHtml = can.adminOrSec()
+    ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-bottom:22px">
+        <div style="background:var(--g1);color:#fff;border-radius:12px;padding:16px 18px">
+          <div style="font-size:1.6rem;font-weight:800">${totalApp}h</div>
+          <div style="font-size:.78rem;opacity:.9;margin-top:2px">Total approuvé — toutes activités</div>
+        </div>
+        ${activitesTriees.map(([titre, agg]) => `
+        <div style="background:var(--off);border:1px solid var(--border);border-radius:12px;padding:16px 18px">
+          <div style="font-size:1.4rem;font-weight:800;color:var(--g1)">${agg.heures}h</div>
+          <div style="font-size:.82rem;font-weight:600;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(titre)}">${escHtml(titre)}</div>
+          <div style="font-size:.74rem;color:var(--muted);margin-top:2px">${agg.benevoles.size} bénévole${agg.benevoles.size>1?'s':''}</div>
+        </div>`).join('')}
+      </div>`
+    : `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-bottom:22px">
+        <div style="background:var(--g1);color:#fff;border-radius:12px;padding:16px 18px">
+          <div style="font-size:1.6rem;font-weight:800">${totalApp}h</div>
+          <div style="font-size:.78rem;opacity:.9;margin-top:2px">Mon total approuvé</div>
+        </div>
+        ${activitesTriees.map(([titre, agg]) => `
+        <div style="background:var(--off);border:1px solid var(--border);border-radius:12px;padding:16px 18px">
+          <div style="font-size:1.4rem;font-weight:800;color:var(--g1)">${agg.heures}h</div>
+          <div style="font-size:.82rem;font-weight:600;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(titre)}">${escHtml(titre)}</div>
+        </div>`).join('')}
+      </div>`;
 
   setContent(`
     <div class="page-header">
-      <div><h2>Heures de bénévolat</h2><p>Total approuvé : <strong>${totalApp}h</strong></p></div>
+      <div><h2>Heures de bénévolat</h2><p>${can.adminOrSec() ? 'Vue d\'ensemble par activité' : 'Vos heures par activité'}</p></div>
       <div class="page-actions">
         ${can.adminOrSec() ? `<button class="btn btn-primary" onclick="openVolForm(window._volAllUsers,window._volAllActs)">+ Ajouter des heures</button>` : ''}
       </div>
     </div>
+    ${cardsHtml}
     <div class="table-card"><div class="table-wrapper"><table>
       <thead><tr><th>Membre</th><th>Activité</th><th>Heures</th><th>Date</th><th>Description</th><th>Statut</th><th>Actions</th></tr></thead>
       <tbody>${data.map(v=>`<tr>
@@ -13404,7 +13443,7 @@ async function carteGestionView() {
 
   setContent(`
     <div class="page-header">
-      <div><h2>🪪 Gestion des cartes membres</h2><p>Photos · Expirations · Connexions · Profils</p></div>
+      <div><h2>🪪 Nos membres</h2><p>Photos · Expirations · Connexions · Profils</p></div>
       <div class="page-actions" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-outline" onclick="notifierPhotoManquante()">✉️ Rappel photo manquante</button><button class="btn btn-outline" onclick="openVolunteerLetterForm()">📝 Lettre bénévolat</button><button class="btn btn-outline" onclick="carteGestionView()">↻ Actualiser</button></div>
     </div>
     <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
@@ -13632,35 +13671,180 @@ async function _cgOpenProfile(id) {
   try {
     const m = (window._carteMembers || []).find(function(x) { return x.id === id; });
     if (!m) return;
-    openModal('🪪 ' + escHtml(m.prenom + ' ' + m.nom), '<div style="text-align:center;padding:20px">' +
-      (m.photo_url
-        ? '<img src="' + BASE + m.photo_url + '" style="width:100px;height:100px;border-radius:50%;object-fit:cover;border:4px solid ' + (m.carte_photo_approuvee ? '#2e7d32' : '#e65100') + ';margin-bottom:12px"/>'
-        : '<div style="width:100px;height:100px;border-radius:50%;background:var(--g2);color:#fff;font-size:2.4rem;font-weight:900;display:flex;align-items:center;justify-content:center;margin:0 auto 12px">' + ((m.prenom||'?')[0] + ((m.nom||'')[0]||'')) + '</div>') +
-      '<h3 style="margin:0">' + escHtml(m.prenom) + ' ' + escHtml(m.nom) + '</h3>' +
-      '<div style="font-size:.82rem;color:var(--muted);margin:4px 0">#' + String(m.id).padStart(5,'0') + ' · ' + escHtml(m.email||'') + '</div>' +
-      '<div style="display:flex;gap:8px;justify-content:center;margin:12px 0;flex-wrap:wrap">' +
-        pill(m.role === 'admin' ? 'Admin' : m.role === 'tresoriere' ? 'Trésorière' : m.role === 'secretaire' ? 'Secrétaire' : m.role === 'delegue' ? 'Délégué' : 'Membre', m.role === 'admin' ? 'bp-orange' : m.role === 'member' ? 'bp-blue' : 'bp-green') +
-        pill(m.plan ? m.plan.charAt(0).toUpperCase() + m.plan.slice(1) : 'Gratuit', m.plan === 'bienfaiteur' ? 'bp-orange' : m.plan === 'partenaire' ? 'bp-green' : 'bp-gray') +
-      '</div>' +
-      '<div style="margin:16px 0;padding:12px;background:var(--off);border-radius:10px;font-size:.85rem">' +
-        '<div>📅 Inscription : ' + fmt(m.date_inscription) + '</div>' +
-        '<div>📆 Expiration : ' + (m.expiration ? fmt(m.expiration) + (m.days_left < 0 ? ' <span style="color:#c62828">(expirée)</span>' : ' (' + m.days_left + 'j)') : '–') + '</div>' +
-        '<div>📷 Photo : ' + (m.photo_url ? (m.carte_photo_approuvee ? '✅ Approuvée' : '⏳ En attente') : '❌ Aucune') + '</div>' +
-      '</div>' +
-      '<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px">' +
-        '<label style="cursor:pointer"><span class="btn btn-outline btn-sm">📷 ' + (m.photo_url ? 'Changer' : 'Ajouter') + ' photo</span><input type="file" accept="image/*" capture="environment" style="display:none" onchange="_cgUploadPhoto(' + m.id + ',this.files[0])"/></label>' +
-        (m.photo_url && !m.carte_photo_approuvee ? '<button class="btn btn-primary btn-sm" onclick="_cgApprovePhoto(' + m.id + ')">✅ Approuver photo</button>' : '') +
-        (m.photo_url && !m.carte_photo_approuvee ? '<button class="btn btn-danger btn-sm" onclick="_cgRefusPhotoModal(' + m.id + ',\'' + escHtml(m.prenom+' '+m.nom).replace(/'/g,"\\'") + '\')">✉️ Refuser avec message</button>' : '') +
-        (m.photo_url && m.carte_photo_approuvee ? '<button class="btn btn-outline btn-sm" style="color:#e65100;border-color:#e65100" onclick="_cgDesapprouverPhoto(' + m.id + ')">↩️ Désapprouver</button>' : '') +
-        '<button class="btn btn-outline btn-sm" onclick="_cgEditInfo(' + m.id + ')">✏️ Modifier infos</button>' +
-        '<button class="btn btn-outline btn-sm" onclick="window.open(\'../carte.html?id=' + m.id + '\', \'_blank\')">🪪 Afficher la carte physique</button>' +
-        '<button class="btn btn-outline btn-sm" onclick="sendResetPasswordLink(' + m.id + ',\'' + escHtml(m.prenom+' '+m.nom).replace(/'/g,"\\'") + '\')">🔑 Envoyer réinitialisation mot de passe</button>' +
-        '<button class="btn btn-outline btn-sm" onclick="carteRenouveler(' + m.id + ',\'' + escHtml(m.prenom + ' ' + m.nom).replace(/'/g,"\\'") + '\')">🔄 Renouveler</button>' +
-        '<button class="btn btn-outline btn-sm" onclick="closeModal();generateVolunteerLetter(' + m.id + ',\'fr\')" title="Lettre FR">📝 Lettre FR</button>' +
-        '<button class="btn btn-outline btn-sm" onclick="closeModal();generateVolunteerLetter(' + m.id + ',\'en\')" title="Lettre EN">📝 EN</button>' +
-      '</div>' +
-    '</div>');
+    const h = await api(`/members/${id}/history`).catch(() => null);
+    const nomEsc = escHtml(m.prenom + ' ' + m.nom).replace(/'/g, "\\'");
+
+    const roleLabel = { admin:'Admin', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Délégué', member:'Membre' }[m.role] || 'Membre';
+    const rolePillClass = m.role === 'admin' ? 'bp-orange' : m.role === 'member' ? 'bp-blue' : 'bp-green';
+    const planLabel = m.plan ? m.plan.charAt(0).toUpperCase() + m.plan.slice(1) : 'Gratuit';
+    const initials = (m.prenom||'?')[0] + ((m.nom||'')[0]||'');
+
+    let tenureLabel = '–';
+    if (h?.user?.date_inscription) {
+      const years = Math.floor((Date.now() - new Date(h.user.date_inscription)) / (365.25*24*3600*1000));
+      tenureLabel = years < 1 ? '< 1 an' : (years + ' an' + (years > 1 ? 's' : ''));
+    }
+
+    const totalHeures = h?.totalHeures || 0;
+    const benevoleParActivite = {};
+    (h?.benevole || []).filter(v => v.statut === 'approuve').forEach(v => {
+      const key = v.activite || 'Autre';
+      benevoleParActivite[key] = (benevoleParActivite[key] || 0) + v.heures;
+    });
+    const aVenir = h?.activitesAVenir || [];
+    const suivies = h?.activitesSuivies || [];
+
+    openModal('🪪 Fiche membre', `
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:26px">
+        <label style="cursor:pointer"><span class="btn btn-outline btn-sm">📷 ${m.photo_url ? 'Changer' : 'Ajouter'} photo</span><input type="file" accept="image/*" capture="environment" style="display:none" onchange="_cgUploadPhoto(${m.id},this.files[0])"/></label>
+        ${m.photo_url && !m.carte_photo_approuvee ? `<button class="btn btn-primary btn-sm" onclick="_cgApprovePhoto(${m.id})">✅ Approuver photo</button>` : ''}
+        ${m.photo_url && !m.carte_photo_approuvee ? `<button class="btn btn-danger btn-sm" onclick="_cgRefusPhotoModal(${m.id},'${nomEsc}')">✉️ Refuser avec message</button>` : ''}
+        ${m.photo_url && m.carte_photo_approuvee ? `<button class="btn btn-outline btn-sm" style="color:#e65100;border-color:#e65100" onclick="_cgDesapprouverPhoto(${m.id})">↩️ Désapprouver photo</button>` : ''}
+        <button class="btn btn-outline btn-sm" onclick="_cgEditInfo(${m.id})">✏️ Modifier infos</button>
+        <button class="btn btn-outline btn-sm" onclick="window.open('../carte.html?id=${m.id}', '_blank')">🪪 Afficher la carte physique</button>
+        <button class="btn btn-outline btn-sm" onclick="sendResetPasswordLink(${m.id},'${nomEsc}')">🔑 Réinitialiser mot de passe</button>
+        <button class="btn btn-outline btn-sm" onclick="carteRenouveler(${m.id},'${nomEsc}')">🔄 Renouveler</button>
+        <button class="btn btn-sm" style="color:var(--accent);border:1px solid var(--accent);background:#fff8e1" onclick="_cgPayerMembralite(${m.id},'${nomEsc}')">💳 Payé sa membralité</button>
+        <button class="btn btn-sm" style="color:var(--g2);border:1px solid var(--g2);background:var(--off)" onclick="_cgPayerActivite(${m.id},'${nomEsc}')">🎟️ Payé une activité</button>
+        <button class="btn btn-outline btn-sm" onclick="closeModal();generateVolunteerLetter(${m.id},'fr')" title="Lettre FR">📝 Lettre FR</button>
+        <button class="btn btn-outline btn-sm" onclick="closeModal();generateVolunteerLetter(${m.id},'en')" title="Lettre EN">📝 EN</button>
+      </div>
+
+      <p style="font-size:.68rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0 0 8px">Fiche membre</p>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap">
+        <div>
+          <h2 style="margin:0;font-size:1.7rem;font-weight:800">${escHtml(m.prenom)} ${escHtml(m.nom)}</h2>
+          <div style="font-size:.85rem;color:var(--muted);margin-top:4px">#${String(m.id).padStart(5,'0')} · ${escHtml(m.email||'')}</div>
+          <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+            ${pill(roleLabel, rolePillClass)}
+            ${pill(planLabel, m.plan === 'bienfaiteur' ? 'bp-orange' : m.plan === 'partenaire' ? 'bp-green' : 'bp-gray')}
+            ${pill('Membre depuis ' + (h?.user?.date_inscription ? new Date(h.user.date_inscription).getFullYear() : '–'), 'bp-blue')}
+          </div>
+        </div>
+        <div style="text-align:center;flex-shrink:0">
+          ${m.photo_url
+            ? `<img src="${BASE}${m.photo_url}" onclick="_cgZoomPhoto('${BASE}${m.photo_url}',${m.id},${m.carte_photo_approuvee?1:0},'${nomEsc}')" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid ${m.carte_photo_approuvee?'#2e7d32':'#e65100'};cursor:zoom-in;margin:0 auto"/>`
+            : `<div style="width:72px;height:72px;border-radius:50%;background:var(--g2);color:#fff;font-size:1.5rem;font-weight:900;display:flex;align-items:center;justify-content:center;margin:0 auto">${initials}</div>`}
+          <div style="margin-top:8px;font-size:.74rem;color:var(--muted);line-height:1.6">
+            ${h?.user?.date_naissance ? `<div>🎂 ${fmt(h.user.date_naissance)}</div>` : ''}
+            ${h?.user?.adresse ? `<div>📍 ${escHtml(h.user.adresse)}</div>` : ''}
+          </div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:0;margin-top:22px;padding-top:16px;border-top:1.5px solid var(--text)">
+        <div><div style="font-size:.66rem;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)">Inscription</div><div style="font-weight:700;margin-top:3px">${fmt(m.date_inscription)}</div></div>
+        <div style="padding-left:14px;border-left:1px solid var(--border)"><div style="font-size:.66rem;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)">Expiration</div><div style="font-weight:700;margin-top:3px">${m.expiration ? fmt(m.expiration) + (m.days_left<0?' ⛔':'') : '–'}</div></div>
+        <div style="padding-left:14px;border-left:1px solid var(--border)"><div style="font-size:.66rem;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)">Bénévolat</div><div style="font-weight:700;margin-top:3px">${totalHeures} h</div></div>
+        <div style="padding-left:14px;border-left:1px solid var(--border)"><div style="font-size:.66rem;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)">Avec AHH</div><div style="font-weight:700;margin-top:3px">${tenureLabel}</div></div>
+        <div style="padding-left:14px;border-left:1px solid var(--border)"><div style="font-size:.66rem;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)">Photo</div><div style="font-weight:700;margin-top:3px">${m.photo_url ? (m.carte_photo_approuvee?'✅ Approuvée':'⏳ En attente') : '❌ Aucune'}</div></div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:26px">
+        <div style="background:var(--off);border:1px solid var(--border);border-radius:10px;padding:14px 16px">
+          <div style="font-size:.7rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--g1);margin-bottom:10px">À venir (${aVenir.length})</div>
+          ${aVenir.length ? aVenir.map(a => `<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:.85rem">
+            <div style="font-weight:600">${escHtml(a.titre)}</div>
+            <div style="color:var(--muted);font-size:.76rem;margin-top:2px;display:flex;justify-content:space-between"><span>${fmt(a.date_debut)}</span><span style="background:#e3f2fd;color:#1565c0;border-radius:20px;padding:1px 8px;font-weight:700;font-size:.68rem">Inscrit</span></div>
+          </div>`).join('') : '<div style="color:var(--muted);font-size:.82rem;padding:6px 0">Aucune activité à venir</div>'}
+        </div>
+        <div style="background:var(--off);border:1px solid var(--border);border-radius:10px;padding:14px 16px">
+          <div style="font-size:.7rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--g1);margin-bottom:10px">Déjà suivies (${suivies.length})</div>
+          ${suivies.length ? suivies.slice(0,8).map(a => `<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:.85rem">
+            <div style="font-weight:600">${escHtml(a.titre)}</div>
+            <div style="color:var(--muted);font-size:.76rem;margin-top:2px;display:flex;justify-content:space-between"><span>${fmt(a.date_debut)}</span><span style="background:var(--off);color:var(--g1);border-radius:20px;padding:1px 8px;font-weight:700;font-size:.68rem">${a.checked_in?'✅ Présent':'Inscrit'}</span></div>
+          </div>`).join('') : '<div style="color:var(--muted);font-size:.82rem;padding:6px 0">Aucune activité suivie</div>'}
+        </div>
+      </div>
+
+      <div style="margin-top:24px">
+        <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--text);font-weight:700"><span>Bénévolat — total</span><span style="color:var(--g1)">${totalHeures} h</span></div>
+        ${Object.keys(benevoleParActivite).length ? Object.entries(benevoleParActivite).map(([act,hrs]) => `<div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);font-size:.86rem"><span style="color:var(--muted)">${escHtml(act)}</span><span style="font-weight:600">${hrs} h</span></div>`).join('') : '<div style="color:var(--muted);font-size:.82rem;padding:8px 0">Aucune heure enregistrée</div>'}
+      </div>
+    `);
   } catch(e) { toast(e.message, true); }
+}
+
+function _cgPayerMembralite(id, nom) {
+  openModal(`💳 Payé sa membralité — ${nom}`, `
+    <form id="cgPayForm">
+      <div class="form-row">
+        <div class="form-group"><label>Montant ($) *</label><input type="number" step="0.01" min="0" id="cgpay_montant" required/></div>
+        <div class="form-group"><label>Méthode</label>
+          <select id="cgpay_methode">
+            <option value="cash">Cash</option>
+            <option value="virement">Virement Interac</option>
+            <option value="cheque">Chèque</option>
+            <option value="autre">Autre</option>
+          </select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Périodicité</label>
+          <select id="cgpay_periodicite" onchange="document.getElementById('cgpay_nbmois_wrap').style.display=this.value==='annuel'?'none':'block'">
+            <option value="mensuel">Mensuel</option>
+            <option value="annuel">Annuel</option>
+          </select></div>
+        <div class="form-group" id="cgpay_nbmois_wrap"><label>Nombre de mois couverts</label><input type="number" min="1" max="12" value="1" id="cgpay_nbmois"/></div>
+      </div>
+      <div class="form-group"><label>Mois de référence</label><input type="month" id="cgpay_mois" value="${new Date().toISOString().substring(0,7)}"/></div>
+      <div class="form-group"><label>Note</label><textarea id="cgpay_note" rows="2" placeholder="Ex: reçu en main propre lors de l'activité..."></textarea></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="_cgOpenProfile(${id})">Annuler</button>
+        <button type="submit" class="btn btn-primary">Enregistrer le paiement</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('cgPayForm').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      const r = await api(`/admin/members/${id}/payment`, { method:'POST', body: JSON.stringify({
+        montant: document.getElementById('cgpay_montant').value,
+        methode: document.getElementById('cgpay_methode').value,
+        periodicite: document.getElementById('cgpay_periodicite').value,
+        nb_mois: document.getElementById('cgpay_nbmois').value,
+        mois: document.getElementById('cgpay_mois').value,
+        note: document.getElementById('cgpay_note').value
+      })});
+      toast('✅ Paiement enregistré — ' + r.message);
+      _cgOpenProfile(id);
+    } catch(ex) { toast(ex.message, 'error'); }
+  };
+}
+
+async function _cgPayerActivite(id, nom) {
+  const acts = (await api('/activities').catch(() => [])).filter(a => ['planifiee','en_cours'].includes(a.statut));
+  openModal(`🎟️ Payé une activité — ${nom}`, `
+    <form id="cgActPayForm">
+      <div class="form-group"><label>Activité *</label>
+        <select id="cgap_act" required onchange="document.getElementById('cgap_prix').value=this.options[this.selectedIndex].dataset.prix||0">
+          <option value="">— Choisir —</option>
+          ${acts.map(a => `<option value="${a.id}" data-prix="${a.prix||0}">${escHtml(a.titre)} (${a.date_debut ? new Date(a.date_debut).toLocaleDateString('fr-CA') : '–'})</option>`).join('')}
+        </select></div>
+      <div class="form-row">
+        <div class="form-group"><label>Quantité</label><input type="number" min="1" value="1" id="cgap_nb"/></div>
+        <div class="form-group"><label>Prix unitaire ($)</label><input type="number" step="0.01" min="0" id="cgap_prix"/></div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="_cgOpenProfile(${id})">Annuler</button>
+        <button type="submit" class="btn btn-primary">💵 Confirmer le paiement</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('cgActPayForm').onsubmit = async e => {
+    e.preventDefault();
+    const actId = document.getElementById('cgap_act').value;
+    if (!actId) return toast('Choisissez une activité', 'error');
+    try {
+      const r = await api(`/activities/${actId}/vendre`, { method:'POST', body: JSON.stringify({
+        user_id: id,
+        nb_billets: document.getElementById('cgap_nb').value,
+        prix_unitaire: document.getElementById('cgap_prix').value,
+        mode: 'vendre'
+      })});
+      toast('✅ ' + r.tickets.length + ' billet(s) enregistré(s) pour ' + nom);
+      _cgOpenProfile(id);
+    } catch(ex) { toast(ex.message, 'error'); }
+  };
 }
 
 function _cgEditInfo(id) {

@@ -3640,15 +3640,10 @@ app.post('/api/payments', authMiddleware, uploadPayment.single('proof'), (req, r
 });
 app.use('/uploads/payments', express.static(path.join(__dirname, 'uploads', 'payments')));
 
-// PATCH — approuver un paiement
-app.patch('/api/payments/:id/approuver', authMiddleware, requireRole('admin','tresoriere'), (req, res) => {
-  const pay = db.prepare('SELECT * FROM payments WHERE id = ?').get(req.params.id);
-  if (!pay) return res.status(404).json({ error: 'Paiement introuvable' });
-
-  db.prepare('UPDATE payments SET statut=?, approuve_par=?, date_approbation=CURRENT_TIMESTAMP WHERE id=?')
-    .run('approuve', req.user.id, pay.id);
-
-  // Mettre à jour plan_paid_month et réinitialiser compteur impayé
+// Effets de bord d'une approbation de paiement (mise à jour cotisations/plan_paid_month +
+// notification au membre) — partagés entre l'approbation d'un paiement soumis par le membre
+// et l'enregistrement direct d'un paiement par le comité (déjà considéré approuvé à la création).
+function appliquerApprobationPaiement(pay, approuveParId, req) {
   const mois = pay.mois || new Date().toISOString().substring(0,7);
   db.prepare('UPDATE users SET plan_paid_month=?, plan_unpaid_count=0 WHERE id=?').run(mois, pay.user_id);
 
@@ -3667,10 +3662,9 @@ app.patch('/api/payments/:id/approuver', authMiddleware, requireRole('admin','tr
   db.prepare("UPDATE users SET plan_paid_month=? WHERE id=?").run(derniereMois, pay.user_id);
 
   // Notifier le membre
-  const u = db.prepare('SELECT prenom, nom FROM users WHERE id=?').get(pay.user_id);
   const typeLabel = pay.type === 'don' ? 'Don' : 'Mensualité';
   const msgR = db.prepare("INSERT INTO messages (expediteur_id, sujet, contenu, type) VALUES (?,?,?,'individuel')")
-    .run(req.user.id, `✅ ${typeLabel} approuvé — $${pay.montant}`,
+    .run(approuveParId, `✅ ${typeLabel} approuvé — $${pay.montant}`,
       `Votre ${typeLabel.toLowerCase()} de $${pay.montant} a été approuvé et enregistré.\n\nMois : ${mois}\nMerci pour votre contribution à l'Association Haïtienne de Hamilton !`);
   db.prepare('INSERT INTO message_recipients (message_id, destinataire_id) VALUES (?,?)').run(msgR.lastInsertRowid, pay.user_id);
   createAlert(pay.user_id, 'paiement', `✅ ${typeLabel} approuvé`, `$${pay.montant} enregistré`);
@@ -3679,9 +3673,54 @@ app.patch('/api/payments/:id/approuver', authMiddleware, requireRole('admin','tr
   if (membre) mailer.sendPaiementApprouve(membre, pay.montant, mois).catch(()=>{});
   if (membre && membre.telephone) sendSMS(membre.telephone, `AHH: Votre ${typeLabel.toLowerCase()} de $${pay.montant} a été approuvé.`).catch(()=>{});
 
-  logAdmin(req.user.id, 'paiement_approuve', `$${pay.montant} — user ${pay.user_id}`, pay.id, 'payment', req.ip);
-  logAudit(req.user.id, 'payment_approved', 'payment', pay.id, `Paiement $${pay.montant} approuvé — user ${pay.user_id}`, req.ip);
+  logAdmin(approuveParId, 'paiement_approuve', `$${pay.montant} — user ${pay.user_id}`, pay.id, 'payment', req.ip);
+  logAudit(approuveParId, 'payment_approved', 'payment', pay.id, `Paiement $${pay.montant} approuvé — user ${pay.user_id}`, req.ip);
+}
+
+// PATCH — approuver un paiement
+app.patch('/api/payments/:id/approuver', authMiddleware, requireRole('admin','tresoriere'), (req, res) => {
+  const pay = db.prepare('SELECT * FROM payments WHERE id = ?').get(req.params.id);
+  if (!pay) return res.status(404).json({ error: 'Paiement introuvable' });
+
+  db.prepare('UPDATE payments SET statut=?, approuve_par=?, date_approbation=CURRENT_TIMESTAMP WHERE id=?')
+    .run('approuve', req.user.id, pay.id);
+  appliquerApprobationPaiement(pay, req.user.id, req);
   res.json({ message: 'Paiement approuvé' });
+});
+
+// POST — le comité enregistre directement un paiement de cotisation reçu (cash/virement en
+// personne) au nom d'un membre — auto-approuvé, contrairement à /api/payments qui attend
+// l'approbation de la trésorière pour les paiements soumis par le membre lui-même.
+app.post('/api/admin/members/:id/payment', authMiddleware, requireRole('admin','tresoriere','secretaire'), (req, res) => {
+  const uid = parseInt(req.params.id);
+  const membre = db.prepare('SELECT id FROM users WHERE id=?').get(uid);
+  if (!membre) return res.status(404).json({ error: 'Membre introuvable' });
+
+  const { montant, methode, periodicite, nb_mois, mois, note } = req.body;
+  if (!montant || isNaN(parseFloat(montant))) return res.status(400).json({ error: 'Montant invalide' });
+
+  const nbM = periodicite === 'annuel' ? 12 : (parseInt(nb_mois) || 1);
+  const moisRef = mois || new Date().toISOString().substring(0,7);
+  const r = db.prepare(`INSERT INTO payments (user_id, montant, type, mois, methode, note, periodicite, nb_mois, statut, approuve_par, date_approbation)
+    VALUES (?, ?, 'mensualite', ?, ?, ?, ?, ?, 'approuve', ?, CURRENT_TIMESTAMP)`)
+    .run(uid, parseFloat(montant), moisRef, methode||'cash', note||'', periodicite||'mensuel', nbM, req.user.id);
+
+  const pay = db.prepare('SELECT * FROM payments WHERE id=?').get(r.lastInsertRowid);
+  appliquerApprobationPaiement(pay, req.user.id, req);
+
+  // Notifier la trésorière/présidence — qui du comité a enregistré ce paiement, pour qui
+  const comiteUser = db.prepare('SELECT prenom, nom FROM users WHERE id=?').get(req.user.id);
+  const membreInfo = db.prepare('SELECT prenom, nom FROM users WHERE id=?').get(uid);
+  const finance = [...getAdminsAndRole('admin'), ...getAdminsAndRole('tresoriere')].filter(f => f.id !== req.user.id);
+  const contenuFin = `${comiteUser.prenom} ${comiteUser.nom} (comité) a enregistré un paiement de cotisation de $${montant} pour ${membreInfo.prenom} ${membreInfo.nom}.\n\nMéthode : ${methode||'cash'}\nPériode : ${periodicite||'mensuel'}${note ? '\nNote : ' + note : ''}`;
+  if (finance.length) {
+    const msgR2 = db.prepare("INSERT INTO messages (expediteur_id, sujet, contenu, type) VALUES (?,?,?,'individuel')")
+      .run(req.user.id, `💳 Cotisation enregistrée par ${comiteUser.prenom} — ${membreInfo.prenom} ${membreInfo.nom} ($${montant})`, contenuFin);
+    const ins2 = db.prepare('INSERT INTO message_recipients (message_id, destinataire_id) VALUES (?,?)');
+    finance.forEach(f => { ins2.run(msgR2.lastInsertRowid, f.id); createAlert(f.id,'paiement',`💳 Cotisation enregistrée par ${comiteUser.prenom}`,`${membreInfo.prenom} ${membreInfo.nom} — $${montant}`); });
+  }
+
+  res.status(201).json({ id: r.lastInsertRowid, message: 'Paiement enregistré et approuvé' });
 });
 
 // PATCH — rejeter un paiement
@@ -5802,16 +5841,21 @@ app.post('/api/activities/:id/assigner-tables', authMiddleware, requireRole('adm
 
 // POST vente en personne — mode 'generer' (sans revenue) ou 'vendre' (avec revenue)
 app.post('/api/activities/:id/vendre', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), async (req, res) => {
-  const { acheteur_nom, nb_billets = 1, prix_unitaire, mode = 'vendre' } = req.body;
+  const { acheteur_nom, nb_billets = 1, prix_unitaire, mode = 'vendre', user_id } = req.body;
   const actId = parseInt(req.params.id);
   const act = db.prepare('SELECT * FROM activities WHERE id=?').get(actId);
   if (!act) return res.status(404).json({ error: 'Activité introuvable' });
+
+  // Si un membre connu est précisé (ex: bouton « Payé une activité » depuis sa fiche), le billet est
+  // rattaché à son compte et une inscription est créée, pour qu'elle apparaisse dans son historique.
+  const membre = user_id ? db.prepare('SELECT id, prenom, nom, email FROM users WHERE id=?').get(parseInt(user_id)) : null;
 
   const prix = parseFloat(prix_unitaire) || act.prix || 0;
   const vendeurId = req.user.id;
   const isGenerer = mode === 'generer'; // true = pré-imprimer sans enregistrer la vente
   const statut = isGenerer ? 'genere' : 'actif';
   const paymentStatus = isGenerer ? 'pending' : 'paid';
+  const nomAcheteur = membre ? `${membre.prenom} ${membre.nom}` : (acheteur_nom || 'Anonyme');
   const tickets = [];
   const siteBase = process.env.SITE_URL || 'https://ahhamilton.ca';
   const qrDir = path.join(__dirname, 'uploads', 'qr');
@@ -5823,9 +5867,9 @@ app.post('/api/activities/:id/vendre', authMiddleware, requireRole('admin','tres
     while (db.prepare('SELECT id FROM tickets WHERE barcode_data = ?').get(barcode)) barcode = newBarcodeData();
 
     const r = db.prepare(`INSERT INTO tickets
-      (activity_id, acheteur_nom, qr_data, barcode_data, prix, methode_paiement, payment_status, statut, vendu_par)
-      VALUES (?,?,?,?,?,'cash',?,?,?)`)
-      .run(actId, acheteur_nom || 'Anonyme', `TICKET:${ticketToken}`, barcode, prix, paymentStatus, statut, vendeurId);
+      (activity_id, user_id, acheteur_nom, acheteur_email, qr_data, barcode_data, prix, methode_paiement, payment_status, statut, vendu_par)
+      VALUES (?,?,?,?,?,?,?,'cash',?,?,?)`)
+      .run(actId, membre?.id || null, nomAcheteur, membre?.email || '', `TICKET:${ticketToken}`, barcode, prix, paymentStatus, statut, vendeurId);
 
     try {
       const scanUrl = `${siteBase}/scan.html?t=${ticketToken}`;
@@ -5833,7 +5877,12 @@ app.post('/api/activities/:id/vendre', authMiddleware, requireRole('admin','tres
       fs.writeFileSync(path.join(qrDir, `${ticketToken}.png`), qrBuf);
     } catch(e) {}
 
-    tickets.push({ id: r.lastInsertRowid, token: ticketToken, barcode, prix, acheteur_nom: acheteur_nom || 'Anonyme' });
+    tickets.push({ id: r.lastInsertRowid, token: ticketToken, barcode, prix, acheteur_nom: nomAcheteur });
+  }
+
+  // Rattacher l'activité à l'historique du membre (visible dans sa fiche : à venir / déjà suivies)
+  if (membre && !isGenerer) {
+    db.prepare("INSERT OR IGNORE INTO activity_registrations (activity_id, user_id, statut) VALUES (?,?,'inscrit')").run(actId, membre.id);
   }
 
   // Enregistrer revenu seulement si vente réelle (pas génération)
@@ -5842,8 +5891,22 @@ app.post('/api/activities/:id/vendre', authMiddleware, requireRole('admin','tres
     if (line) {
       const montantTotal = prix * parseInt(nb_billets);
       db.prepare("INSERT INTO transactions (financial_line_id, type, montant, description, methode, cree_par) VALUES (?, 'revenu', ?, ?, 'cash', ?)")
-        .run(line.id, montantTotal, `Billets cash — ${acheteur_nom || 'Anonyme'} × ${nb_billets}`, vendeurId);
+        .run(line.id, montantTotal, `Billets cash — ${nomAcheteur} × ${nb_billets}`, vendeurId);
       db.prepare('UPDATE account_info SET solde = solde + ?, date_maj = CURRENT_TIMESTAMP WHERE id = 1').run(montantTotal);
+
+      // Membre connu (ex: « Payé une activité » depuis sa fiche) — notifier la trésorière avec
+      // le nom du membre du comité qui a traité le paiement, l'activité, et le membre payeur.
+      if (membre) {
+        const comiteUser = db.prepare('SELECT prenom, nom FROM users WHERE id=?').get(vendeurId);
+        const finance = [...getAdminsAndRole('admin'), ...getAdminsAndRole('tresoriere')].filter(f => f.id !== vendeurId);
+        const contenuFin = `${comiteUser.prenom} ${comiteUser.nom} (comité) a enregistré le paiement de ${nb_billets} billet(s) pour l'activité « ${act.titre} » au nom de ${membre.prenom} ${membre.nom}.\n\nMontant total : $${montantTotal}`;
+        if (finance.length) {
+          const msgR3 = db.prepare("INSERT INTO messages (expediteur_id, sujet, contenu, type) VALUES (?,?,?,'individuel')")
+            .run(vendeurId, `🎟️ Activité payée par ${comiteUser.prenom} — ${membre.prenom} ${membre.nom} · ${act.titre}`, contenuFin);
+          const ins3 = db.prepare('INSERT INTO message_recipients (message_id, destinataire_id) VALUES (?,?)');
+          finance.forEach(f => { ins3.run(msgR3.lastInsertRowid, f.id); createAlert(f.id,'paiement',`🎟️ Activité payée par ${comiteUser.prenom}`,`${membre.prenom} ${membre.nom} — ${act.titre} — $${montantTotal}`); });
+        }
+      }
     }
   }
 
@@ -8187,13 +8250,16 @@ app.get('/api/members/:id/history', authMiddleware, (req, res) => {
   if (req.user.id !== uid && !['admin','secretaire','tresoriere'].includes(req.user.role)) {
     return res.status(403).json({ error: 'Accès refusé' });
   }
-  const user = db.prepare('SELECT id,prenom,nom,email,role,plan,date_inscription,actif FROM users WHERE id=?').get(uid);
+  const user = db.prepare('SELECT id,prenom,nom,email,telephone,adresse,date_naissance,role,plan,date_inscription,actif FROM users WHERE id=?').get(uid);
   if (!user) return res.status(404).json({ error: 'Membre introuvable' });
 
   const paiements = db.prepare(`SELECT id,montant,type,mois,methode,statut,date_soumission FROM payments WHERE user_id=? ORDER BY date_soumission DESC LIMIT 50`).all(uid);
-  const activites = db.prepare(`SELECT a.titre,a.date_debut,a.lieu,ar.statut,ar.checked_in,ar.date_inscription
+  const activitesAll = db.prepare(`SELECT a.id,a.titre,a.date_debut,a.lieu,ar.statut,ar.checked_in,ar.date_inscription
     FROM activity_registrations ar JOIN activities a ON a.id=ar.activity_id
-    WHERE ar.user_id=? ORDER BY a.date_debut DESC LIMIT 30`).all(uid);
+    WHERE ar.user_id=? ORDER BY a.date_debut DESC LIMIT 60`).all(uid);
+  const now = new Date().toISOString();
+  const activitesAVenir = activitesAll.filter(a => a.date_debut && a.date_debut >= now).reverse();
+  const activitesSuivies = activitesAll.filter(a => !a.date_debut || a.date_debut < now);
   const benevole = db.prepare(`SELECT vh.heures,vh.description,vh.date_service,vh.statut,a.titre AS activite
     FROM volunteer_hours vh LEFT JOIN activities a ON a.id=vh.activity_id
     WHERE vh.user_id=? ORDER BY vh.date_service DESC LIMIT 30`).all(uid);
@@ -8202,7 +8268,7 @@ app.get('/api/members/:id/history', authMiddleware, (req, res) => {
   const totalHeures = db.prepare(`SELECT COALESCE(SUM(heures),0) AS total FROM volunteer_hours WHERE user_id=? AND statut='approuve'`).get(uid)?.total || 0;
   const totalPaye = db.prepare(`SELECT COALESCE(SUM(montant),0) AS total FROM payments WHERE user_id=? AND statut='approuve'`).get(uid)?.total || 0;
 
-  res.json({ user, paiements, activites, benevole, badges, totalHeures, totalPaye });
+  res.json({ user, paiements, activites: activitesAll, activitesAVenir, activitesSuivies, benevole, badges, totalHeures, totalPaye });
 });
 
 // ── Feature 8 : Badges ────────────────────────────────────────────────────
