@@ -13774,12 +13774,17 @@ async function carteGestionView() {
         <option value="bienfaiteur">Bienfaiteur</option>
         <option value="partenaire">Partenaire</option>
       </select>
+      <select id="cgStatut" onchange="_cgFilter()" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:.84rem">
+        <option value="">Tous les statuts</option>
+        <option value="1">Actif</option>
+        <option value="0">Inactif</option>
+      </select>
     </div>
     <div id="cgCount" style="font-size:.78rem;color:var(--muted);margin-bottom:8px">${membres.length} membre(s)</div>
     <div class="table-card">
       <div style="overflow-x:auto"><table class="data-table">
         <thead><tr>
-          <th style="cursor:pointer" onclick="_cgSort('nom')">Membre ⇅</th><th style="cursor:pointer" onclick="_cgSort('role')">Rôle ⇅</th><th style="cursor:pointer" onclick="_cgSort('plan')">Plan ⇅</th><th style="cursor:pointer" onclick="_cgSort('photo')">Photo ⇅</th><th style="cursor:pointer" onclick="_cgSort('expiration')">Expiration ⇅</th><th style="cursor:pointer" onclick="_cgSort('connexions')">Connexions ⇅</th><th style="cursor:pointer" onclick="_cgSort('derniere')">Dernière connexion ⇅</th><th>Actions</th>
+          <th style="cursor:pointer" onclick="_cgSort('nom')">Membre ⇅</th><th>Téléphone</th><th style="cursor:pointer" onclick="_cgSort('role')">Rôle ⇅</th><th style="cursor:pointer" onclick="_cgSort('plan')">Plan ⇅</th><th style="cursor:pointer" onclick="_cgSort('actif')">Statut ⇅</th><th style="cursor:pointer" onclick="_cgSort('photo')">Photo ⇅</th><th style="cursor:pointer" onclick="_cgSort('inscription')">Inscription ⇅</th><th style="cursor:pointer" onclick="_cgSort('expiration')">Expiration ⇅</th><th style="cursor:pointer" onclick="_cgSort('connexions')">Connexions ⇅</th><th style="cursor:pointer" onclick="_cgSort('derniere')">Dernière connexion ⇅</th><th>Actions</th>
         </tr></thead>
         <tbody id="cgBody">
           ${membres.map(function(m) {
@@ -13798,9 +13803,13 @@ async function carteGestionView() {
               : '<span style="color:#2e7d32">✅ ' + dj + 'j</span>';
             const heat = (conn.nb_connexions||0) >= 20 ? '#1b5e20' : (conn.nb_connexions||0) >= 5 ? '#e65100' : '#555';
             const lastConn = conn.derniere_connexion ? conn.derniere_connexion.substring(0,16).replace('T',' ') : 'Jamais';
-            const searchData = ((m.prenom||'')+' '+(m.nom||'')+' '+(m.email||'')+' '+(m.role||'')+' '+(m.plan||'')).toLowerCase();
+            const searchData = ((m.prenom||'')+' '+(m.nom||'')+' '+(m.email||'')+' '+(m.role||'')+' '+(m.plan||'')+' '+(m.telephone||'')).toLowerCase();
+            const isInactif = m.actif === 0 || m.actif === false;
+            const statutLabel = isInactif
+              ? '<span style="color:#c62828;font-weight:700;font-size:.78rem">⛔ Inactif</span>'
+              : '<span style="color:#2e7d32;font-weight:700;font-size:.78rem">✅ Actif</span>';
 
-            return '<tr class="cg-row" data-search="' + escHtml(searchData) + '" data-role="' + (m.role||'') + '" data-photo="' + photoStatus + '" data-plan="' + (m.plan||'gratuit') + '" data-nom="' + escHtml(((m.prenom||'')+ ' ' +(m.nom||'')).toLowerCase()) + '" data-connexions="' + (conn.nb_connexions||0) + '" data-derniere="' + (conn.derniere_connexion||'') + '" data-expiration="' + (m.days_left!=null?m.days_left:9999) + '">' +
+            return '<tr class="cg-row" style="' + (isInactif ? 'opacity:.6' : '') + '" data-search="' + escHtml(searchData) + '" data-role="' + (m.role||'') + '" data-photo="' + photoStatus + '" data-plan="' + (m.plan||'gratuit') + '" data-actif="' + (isInactif?'0':'1') + '" data-nom="' + escHtml(((m.prenom||'')+ ' ' +(m.nom||'')).toLowerCase()) + '" data-connexions="' + (conn.nb_connexions||0) + '" data-derniere="' + (conn.derniere_connexion||'') + '" data-expiration="' + (m.days_left!=null?m.days_left:9999) + '" data-inscription="' + (m.date_inscription||'') + '">' +
               '<td><div style="display:flex;align-items:center;gap:8px">' +
                 (m.photo_url
                   ? '<img src="' + BASE + m.photo_url + '" onclick="_cgZoomPhoto(\'' + BASE + m.photo_url + '\',' + m.id + ',' + (m.carte_photo_approuvee?1:0) + ',\'' + escHtml(m.prenom+' '+m.nom).replace(/'/g,"\\'") + '\')" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid ' + (m.carte_photo_approuvee?'#2e7d32':'#e65100') + ';cursor:zoom-in" title="Voir la photo en grand"/>'
@@ -13811,9 +13820,12 @@ async function carteGestionView() {
                   '<div style="font-size:.7rem;color:var(--muted)">#' + String(m.id).padStart(5,'0') + ' · ' + escHtml(m.email||'') + '</div>' +
                 '</div>' +
               '</div></td>' +
+              '<td style="font-size:.82rem">' + escHtml(m.telephone||'–') + '</td>' +
               '<td style="font-size:.82rem">' + (roleLabel[m.role]||m.role) + '</td>' +
               '<td style="font-size:.82rem">' + (planLabel[m.plan]||m.plan||'Gratuit') + '</td>' +
+              '<td>' + statutLabel + '</td>' +
               '<td>' + photoLabel + '</td>' +
+              '<td style="font-size:.82rem">' + (m.date_inscription ? fmt(m.date_inscription) : '–') + '</td>' +
               '<td style="font-size:.82rem">' + statusBadge + '</td>' +
               '<td style="text-align:center;font-size:1.05rem;font-weight:800;color:' + heat + '">' + (conn.nb_connexions||0) + '</td>' +
               '<td style="font-size:.78rem;color:var(--muted)">' + lastConn + '</td>' +
@@ -13836,7 +13848,7 @@ async function carteGestionView() {
                 '</div>' +
               '</td>' +
             '</tr>';
-          }).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:24px">Aucun membre</td></tr>'}
+          }).join('') || '<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:24px">Aucun membre</td></tr>'}
         </tbody>
       </table></div>
     </div>
@@ -13936,12 +13948,14 @@ function _cgFilter() {
   var role = document.getElementById('cgRole')?.value || '';
   var photo = document.getElementById('cgPhoto')?.value || '';
   var plan = document.getElementById('cgPlan')?.value || '';
+  var statut = document.getElementById('cgStatut')?.value ?? '';
   var shown = 0;
   document.querySelectorAll('.cg-row').forEach(function(row) {
     var ok = (!q || row.dataset.search.includes(q))
       && (!role || row.dataset.role === role)
       && (!photo || row.dataset.photo === photo)
-      && (!plan || row.dataset.plan === plan);
+      && (!plan || row.dataset.plan === plan)
+      && (statut === '' || row.dataset.actif === statut);
     row.style.display = ok ? '' : 'none';
     if (ok) shown++;
   });
@@ -13963,6 +13977,8 @@ function _cgSort(col) {
     else if (col === 'role') { va = a.dataset.role || ''; vb = b.dataset.role || ''; }
     else if (col === 'plan') { va = a.dataset.plan || ''; vb = b.dataset.plan || ''; }
     else if (col === 'photo') { va = a.dataset.photo || ''; vb = b.dataset.photo || ''; }
+    else if (col === 'actif') { va = a.dataset.actif || ''; vb = b.dataset.actif || ''; }
+    else if (col === 'inscription') { va = a.dataset.inscription || ''; vb = b.dataset.inscription || ''; }
     else if (col === 'expiration') { va = parseInt(a.dataset.expiration)||9999; vb = parseInt(b.dataset.expiration)||9999; return window._cgSortAsc ? va - vb : vb - va; }
     else if (col === 'connexions') { va = parseInt(a.dataset.connexions)||0; vb = parseInt(b.dataset.connexions)||0; return window._cgSortAsc ? va - vb : vb - va; }
     else if (col === 'derniere') { va = a.dataset.derniere || ''; vb = b.dataset.derniere || ''; }
