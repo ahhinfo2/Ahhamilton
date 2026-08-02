@@ -1962,6 +1962,12 @@ app.post('/api/volunteer', authMiddleware, requireRole('admin', 'secretaire'), (
   if (!user_id || !heures) return res.status(400).json({ error: 'Membre et heures requis' });
   const r = db.prepare(`INSERT INTO volunteer_hours (user_id, activity_id, heures, description, date_service)
     VALUES (?, ?, ?, ?, ?)`).run(user_id, activity_id||null, heures, description||'', date_service||'');
+  // Inscrire aussi la personne à l'activité (si pas déjà inscrite) pour qu'elle apparaisse
+  // comme participante sur la page de l'activité, pas seulement dans les heures de bénévolat.
+  if (activity_id) {
+    db.prepare("INSERT OR IGNORE INTO activity_registrations (activity_id, user_id, statut) VALUES (?, ?, 'benevole')")
+      .run(activity_id, user_id);
+  }
   res.status(201).json({ id: r.lastInsertRowid });
 });
 
@@ -1985,13 +1991,18 @@ app.put('/api/volunteer/:id', authMiddleware, requireRole('admin', 'secretaire')
   const prev = db.prepare('SELECT * FROM volunteer_hours WHERE id = ?').get(req.params.id);
   if (!prev) return res.status(404).json({ error: 'Entrée introuvable' });
   const { user_id, activity_id, heures, description, date_service } = req.body;
+  const finalUserId = user_id !== undefined ? parseInt(user_id) : prev.user_id;
+  const finalActivityId = activity_id !== undefined ? (activity_id || null) : prev.activity_id;
   db.prepare(`UPDATE volunteer_hours SET user_id=?, activity_id=?, heures=?, description=?, date_service=? WHERE id=?`)
-    .run(user_id !== undefined ? parseInt(user_id) : prev.user_id,
-         activity_id !== undefined ? (activity_id || null) : prev.activity_id,
+    .run(finalUserId, finalActivityId,
          heures !== undefined ? parseFloat(heures) || 0 : prev.heures,
          description !== undefined ? description : prev.description,
          date_service !== undefined ? date_service : prev.date_service,
          req.params.id);
+  if (finalActivityId) {
+    db.prepare("INSERT OR IGNORE INTO activity_registrations (activity_id, user_id, statut) VALUES (?, ?, 'benevole')")
+      .run(finalActivityId, finalUserId);
+  }
   res.json({ message: 'Entrée mise à jour' });
 });
 
