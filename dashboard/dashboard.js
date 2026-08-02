@@ -1296,6 +1296,83 @@ async function home() {
 
   const roleEmoji = { admin:'👑', tresoriere:'💰', secretaire:'📋', delegue:'🤝', member:'🌟' };
 
+  // Blocs réutilisés tels quels par la mise en page bureau (grille 3 colonnes) et par la
+  // mise en page mobile/PWA (onglets) plus bas, pour éviter deux copies divergentes.
+  const quickActionsHtml = quickActions.map(a => `
+    <button class="quick-action-btn ${a.cls || ''}" onclick="${a.action}">
+      <span class="qa-icon">${a.icon}</span>
+      <span class="qa-label">${a.label}</span>
+    </button>`).join('');
+
+  const upcomingHtml = upcoming.length ? upcoming.slice(0,4).map(a => `
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);cursor:pointer" onclick="showView('activities')">
+      <div style="width:36px;height:36px;border-radius:8px;background:var(--g2);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;flex-shrink:0">${a.date_debut ? new Date(a.date_debut).getDate() : '?'}<br/><span style="font-size:.6rem;opacity:.8">${a.date_debut ? new Date(a.date_debut).toLocaleString('fr-CA',{month:'short'}).toUpperCase() : ''}</span></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(a.titre)}</div>
+        <div style="font-size:.75rem;color:var(--muted)">${a.lieu || '–'} · ${a.nb_inscrits || 0} inscrits</div>
+      </div>
+    </div>`).join('') : '<div class="empty-state" style="padding:24px"><div class="es-icon">📅</div><p>Aucune activité planifiée</p></div>';
+
+  const alertsHtml = can.adminOrSec()
+    ? (unreadAlerts.length ? unreadAlerts.slice(0,3).map(a => `
+        <div class="alert-item">
+          <div class="alert-dot"></div>
+          <div>
+            <div class="alert-title">${a.titre || 'Alerte'}</div>
+            <div class="alert-time">${fmt(a.date_creation)}</div>
+          </div>
+        </div>`).join('') : '<div style="padding:12px 16px;font-size:.82rem;color:var(--muted)">✅ Aucune alerte non lue</div>')
+    : (unreadAlerts.length ? unreadAlerts.slice(0,4).map(a => `<div class="alert-item"><div class="alert-dot"></div><div><div class="alert-title">${a.titre||'Alerte'}</div></div></div>`).join('') : '<div style="padding:12px 16px;font-size:.82rem;color:var(--muted)">✅ Aucune alerte</div>');
+
+  const derniersMembresHtml = (stats.derniers_membres||[]).slice(0,4).map(m => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 16px">
+      <div style="width:30px;height:30px;border-radius:50%;background:var(--g3);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:700;flex-shrink:0">${(m.prenom||'?')[0]}${(m.nom||'')[0]||''}</div>
+      <div><div style="font-size:.83rem;font-weight:600">${escHtml(m.prenom)} ${escHtml(m.nom)}</div><div style="font-size:.72rem;color:var(--muted)">${fmt(m.date_inscription)}</div></div>
+    </div>`).join('') || '<div style="padding:12px 16px;font-size:.82rem;color:var(--muted)">Aucun nouveau membre</div>';
+
+  const mobileLabelMap = { 'Nouvelle activité':'Activité', 'Envoyer un message':'Message', 'Heures bénévolat':'Heures', 'Gérer la galerie':'Galerie', 'Voir la finance':'Finance' };
+  const mobileQuickActionsHtml = quickActions.filter(a => a.cls !== 'qa-green').map(a => `
+    <button class="quick-action-btn ${a.cls || ''}" onclick="${a.action}">
+      <span class="qa-icon">${a.icon}</span>
+      <span class="qa-label">${mobileLabelMap[a.label] || a.label}</span>
+    </button>`).join('');
+
+  const mobileHomeHtml = `
+    <div class="mobile-home-only">
+      <div class="mobile-stats-top">
+        <div class="stat-card mobile-stat-quiet"><div class="sc-icon">✉️</div><div class="sc-value">${stats.messages_non_lus}</div><div class="sc-label">Message${stats.messages_non_lus>1?'s':''} non lu${stats.messages_non_lus>1?'s':''}</div></div>
+        ${can.financeView()
+          ? `<div class="stat-card card-navy"><div class="sc-icon">💳</div><div class="sc-value">${fmtMoney(stats.solde||0)}</div><div class="sc-label">Solde</div></div>`
+          : `<div class="stat-card card-gold"><div class="sc-icon">🤝</div><div class="sc-value">${stats.total_heures}h</div><div class="sc-label">Bénévolat</div></div>`}
+      </div>
+
+      <div class="home-tabbar">
+        <button class="active" onclick="_homeTab(this,0)"><span class="ht-i">⚡</span>Actions</button>
+        ${can.adminOrSec() ? `<button onclick="_homeTab(this,1)"><span class="ht-i">🔔</span>Alertes${unreadAlerts.length ? ` <span class="ht-badge">${unreadAlerts.length}</span>` : ''}</button>` : ''}
+        ${can.adminOrSec() ? `<button onclick="_homeTab(this,2)"><span class="ht-i">👤</span>Membres</button>` : ''}
+      </div>
+
+      <div class="home-tabpanel active" data-ht="0">
+        <div class="mobile-qa-grid">${mobileQuickActionsHtml}</div>
+      </div>
+      ${can.adminOrSec() ? `
+      <div class="home-tabpanel" data-ht="1">
+        <div class="table-card">${alertsHtml}</div>
+      </div>
+      <div class="home-tabpanel" data-ht="2">
+        <div class="table-card">${derniersMembresHtml}</div>
+      </div>` : ''}
+
+      <div class="table-card">
+        <div class="table-card-header">
+          <h3>📅 Prochaines activités</h3>
+          <button class="btn btn-sm btn-ghost" onclick="showView('activities')">Toutes →</button>
+        </div>
+        <div style="padding:8px 0">${upcomingHtml}</div>
+      </div>
+    </div>
+  `;
+
   setContent(`
     <!-- Salutation -->
     <div class="home-greeting">
@@ -1320,6 +1397,7 @@ async function home() {
       </div>
     </div>` : ''}
 
+    <div class="desktop-home-only">
     <!-- Stats cards -->
     <div class="cards-grid" style="margin-bottom:28px">
       ${USER.role !== 'member' ? `
@@ -1356,11 +1434,7 @@ async function home() {
       <div class="table-card">
         <div class="table-card-header"><h3>⚡ Actions rapides</h3></div>
         <div class="quick-actions-grid">
-          ${quickActions.map(a => `
-            <button class="quick-action-btn ${a.cls || ''}" onclick="${a.action}">
-              <span class="qa-icon">${a.icon}</span>
-              <span class="qa-label">${a.label}</span>
-            </button>`).join('')}
+          ${quickActionsHtml}
         </div>
         <div style="border-top:1px solid var(--border);margin-top:8px;padding:10px 16px;display:flex;gap:10px;flex-wrap:wrap">
           <button class="btn btn-ghost btn-sm" onclick="showView('carte-scanner')">📷 Lecteur de cartes</button>
@@ -1396,16 +1470,7 @@ async function home() {
           <h3>📅 Prochaines activités</h3>
           <button class="btn btn-sm btn-ghost" onclick="showView('activities')">Toutes →</button>
         </div>
-        <div style="padding:8px 0">
-          ${upcoming.length ? upcoming.slice(0,4).map(a => `
-            <div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);cursor:pointer" onclick="showView('activities')">
-              <div style="width:36px;height:36px;border-radius:8px;background:var(--g2);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;flex-shrink:0">${a.date_debut ? new Date(a.date_debut).getDate() : '?'}<br/><span style="font-size:.6rem;opacity:.8">${a.date_debut ? new Date(a.date_debut).toLocaleString('fr-CA',{month:'short'}).toUpperCase() : ''}</span></div>
-              <div style="flex:1;min-width:0">
-                <div style="font-weight:600;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(a.titre)}</div>
-                <div style="font-size:.75rem;color:var(--muted)">${a.lieu || '–'} · ${a.nb_inscrits || 0} inscrits</div>
-              </div>
-            </div>`).join('') : '<div class="empty-state" style="padding:24px"><div class="es-icon">📅</div><p>Aucune activité planifiée</p></div>'}
-        </div>
+        <div style="padding:8px 0">${upcomingHtml}</div>
       </div>
 
       <!-- Alertes + Derniers membres -->
@@ -1415,33 +1480,19 @@ async function home() {
           <h3>🔔 Alertes</h3>
           ${unreadAlerts.length ? `<button class="btn btn-sm btn-ghost" onclick="showView('alerts')">Toutes →</button>` : ''}
         </div>
-        <div style="padding:4px 8px">
-          ${unreadAlerts.length ? unreadAlerts.slice(0,3).map(a => `
-            <div class="alert-item">
-              <div class="alert-dot"></div>
-              <div>
-                <div class="alert-title">${a.titre || 'Alerte'}</div>
-                <div class="alert-time">${fmt(a.date_creation)}</div>
-              </div>
-            </div>`).join('') : '<div style="padding:12px 16px;font-size:.82rem;color:var(--muted)">✅ Aucune alerte non lue</div>'}
-        </div>
+        <div style="padding:4px 8px">${alertsHtml}</div>
         <div class="table-card-header" style="border-top:1px solid var(--border);margin-top:4px">
           <h3>👤 Derniers membres</h3>
           <button class="btn btn-sm btn-ghost" onclick="showView('carte-gestion')">Tous →</button>
         </div>
-        <div style="padding:4px 0">
-          ${(stats.derniers_membres||[]).slice(0,4).map(m => `
-            <div style="display:flex;align-items:center;gap:10px;padding:8px 16px">
-              <div style="width:30px;height:30px;border-radius:50%;background:var(--g3);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:700;flex-shrink:0">${(m.prenom||'?')[0]}${(m.nom||'')[0]||''}</div>
-              <div><div style="font-size:.83rem;font-weight:600">${escHtml(m.prenom)} ${escHtml(m.nom)}</div><div style="font-size:.72rem;color:var(--muted)">${fmt(m.date_inscription)}</div></div>
-            </div>`).join('') || '<div style="padding:12px 16px;font-size:.82rem;color:var(--muted)">Aucun nouveau membre</div>'}
-        </div>` : `
+        <div style="padding:4px 0">${derniersMembresHtml}</div>` : `
         <div class="table-card-header"><h3>🔔 Alertes</h3></div>
-        <div style="padding:4px 8px">
-          ${unreadAlerts.length ? unreadAlerts.slice(0,4).map(a => `<div class="alert-item"><div class="alert-dot"></div><div><div class="alert-title">${a.titre||'Alerte'}</div></div></div>`).join('') : '<div style="padding:12px 16px;font-size:.82rem;color:var(--muted)">✅ Aucune alerte</div>'}
-        </div>`}
+        <div style="padding:4px 8px">${alertsHtml}</div>`}
       </div>
     </div>
+    </div><!-- /.desktop-home-only -->
+
+    ${mobileHomeHtml}
 
     <!-- 2e rangée : anniversaires + alertes cotisation -->
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-top:16px">
@@ -1482,6 +1533,15 @@ async function home() {
   // Charger météo Hamilton en arrière-plan
   fetchWeather();
   if (can.executive()) _loadCountdownControl();
+}
+
+function _homeTab(btn, idx) {
+  const bar = btn.parentElement;
+  [...bar.children].forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const container = bar.closest('.mobile-home-only');
+  if (!container) return;
+  container.querySelectorAll('.home-tabpanel').forEach(p => p.classList.toggle('active', Number(p.dataset.ht) === idx));
 }
 
 async function fetchWeather() {
