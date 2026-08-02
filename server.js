@@ -1303,20 +1303,25 @@ app.post('/api/activities/:id/register', authMiddleware, (req, res) => {
     const actId = parseInt(req.params.id);
     const act = db.prepare('SELECT * FROM activities WHERE id = ?').get(actId);
     if (!act) return res.status(404).json({ error: 'Activité introuvable' });
+    const isComite = ['admin','tresoriere','secretaire','delegue'].includes(req.user.role);
+    const cibleId = (isComite && req.body?.user_id) ? parseInt(req.body.user_id) : req.user.id;
+    const cibleUser = cibleId === req.user.id ? req.user : db.prepare('SELECT * FROM users WHERE id = ?').get(cibleId);
+    if (!cibleUser) return res.status(404).json({ error: 'Membre introuvable' });
+
     // Vérifier si déjà inscrit (y compris sur la liste d'attente)
-    const existing = db.prepare('SELECT * FROM activity_registrations WHERE activity_id = ? AND user_id = ?').get(actId, req.user.id);
-    if (existing) return res.status(409).json({ error: 'Déjà inscrit' });
-    // Vérifier la capacité
+    const existing = db.prepare('SELECT * FROM activity_registrations WHERE activity_id = ? AND user_id = ?').get(actId, cibleId);
+    if (existing) return res.status(409).json({ error: 'Déjà inscrit(e)' });
+    // Vérifier la capacité — le comité peut ajouter un membre directement, sans passer par la liste d'attente
     const currentCount = db.prepare('SELECT COUNT(*) AS c FROM activity_registrations WHERE activity_id = ? AND waitlist = 0').get(actId).c;
-    if (act.max_participants > 0 && currentCount >= act.max_participants) {
+    if (!isComite && act.max_participants > 0 && currentCount >= act.max_participants) {
       // Ajouter à la liste d'attente
       const waitlistCount = db.prepare('SELECT COUNT(*) AS c FROM activity_registrations WHERE activity_id = ? AND waitlist = 1').get(actId).c;
-      db.prepare("INSERT INTO activity_registrations (activity_id, user_id, statut, waitlist) VALUES (?,?,'en_attente',1)").run(actId, req.user.id);
+      db.prepare("INSERT INTO activity_registrations (activity_id, user_id, statut, waitlist) VALUES (?,?,'en_attente',1)").run(actId, cibleId);
       return res.json({ ok: true, waitlist: true, position: waitlistCount + 1 });
     }
     db.prepare('INSERT INTO activity_registrations (activity_id, user_id) VALUES (?, ?)')
-      .run(actId, req.user.id);
-    if (act) mailer.sendInscriptionActivite(req.user, act).catch(()=>{});
+      .run(actId, cibleId);
+    mailer.sendInscriptionActivite(cibleUser, act).catch(()=>{});
     res.status(201).json({ message: 'Inscription confirmée' });
   } catch(e) {
     res.status(409).json({ error: 'Déjà inscrit' });

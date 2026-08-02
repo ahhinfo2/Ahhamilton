@@ -2632,7 +2632,10 @@ async function launchActivity(id, titre) {
 async function viewRegistrations(id, titre) {
   const data = await api(`/activities/${id}/registrations`);
   openModal(`Inscriptions – ${titre}`, `
-    ${data.length && can.executive() ? `<div style="text-align:right;margin-bottom:10px"><button class="btn btn-outline btn-sm" onclick="openEmailInscritsForm(${id},'${titre.replace(/'/g,"\\'")}')">✉️ Envoyer un courriel aux inscrits</button></div>` : ''}
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+      ${can.executive() ? `<button class="btn btn-primary btn-sm" onclick="_ajouterMembreActivite(${id},'${titre.replace(/'/g,"\\'")}')">+ Ajouter un membre</button>` : ''}
+      ${data.length && can.executive() ? `<button class="btn btn-outline btn-sm" onclick="openEmailInscritsForm(${id},'${titre.replace(/'/g,"\\'")}')">✉️ Envoyer un courriel aux inscrits</button>` : ''}
+    </div>
     <div class="table-wrapper"><table>
       <thead><tr><th>Nom</th><th>Courriel</th><th>Téléphone</th><th>Statut</th><th>Date</th></tr></thead>
       <tbody>
@@ -2640,6 +2643,43 @@ async function viewRegistrations(id, titre) {
       </tbody>
     </table></div>
   `);
+}
+
+function _amaResolveMembre(val) {
+  const match = (window._amaUsers || []).find(u => _volMembreLabel(u) === val);
+  document.getElementById('ama_user_id').value = match ? match.id : '';
+}
+
+async function _ajouterMembreActivite(activityId, titre) {
+  const titreEsc = titre.replace(/'/g, "\\'");
+  const allUsers = (await api('/users').catch(() => [])).filter(u => u.actif);
+  window._amaUsers = allUsers;
+  openModal(`+ Ajouter un membre — ${escHtml(titre)}`, `
+    <form id="addMembreActForm">
+      <div class="form-group"><label>Membre *</label>
+        <input type="text" id="ama_search" list="ama_datalist" placeholder="Nom, courriel ou téléphone..." autocomplete="off" required oninput="_amaResolveMembre(this.value)"/>
+        <datalist id="ama_datalist">
+          ${allUsers.map(u => `<option value="${escHtml(_volMembreLabel(u))}">`).join('')}
+        </datalist>
+        <input type="hidden" id="ama_user_id"/>
+      </div>
+      <p style="font-size:.8rem;color:var(--muted)">La personne sera inscrite directement à l'activité, même si celle-ci est complète.</p>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="viewRegistrations(${activityId},'${titreEsc}')">Annuler</button>
+        <button type="submit" class="btn btn-primary">Ajouter</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('addMembreActForm').onsubmit = async e => {
+    e.preventDefault();
+    const uid = document.getElementById('ama_user_id').value;
+    if (!uid) return toast('Choisissez un membre valide dans les suggestions', 'error');
+    try {
+      await api(`/activities/${activityId}/register`, { method:'POST', body: JSON.stringify({ user_id: parseInt(uid) }) });
+      toast('✅ Membre ajouté à l\'activité');
+      viewRegistrations(activityId, titre);
+    } catch(ex) { toast(ex.message, 'error'); }
+  };
 }
 
 function openEmailInscritsForm(activityId, titre) {
