@@ -370,6 +370,7 @@ async function buildSidebar() {
     { label: 'Activités', items: [
       { id:'activities',    icon:'◉', label:'Calendrier',   roles: ALL },
       { id:'subcommittees', icon:'◐', label:'Sous-comités', roles: ALL },
+      { id:'volunteer',     icon:'🤝', label:'Bénévolat',    roles: ALL },
     ]},
 
     // ── Finance ───────────────────────────────────────────────────
