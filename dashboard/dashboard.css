@@ -189,6 +189,13 @@ img{display:block;max-width:100%}
 .page-header p{font-size:.88rem;color:var(--muted);margin-top:2px}
 .page-actions{display:flex;gap:8px;flex-wrap:wrap}
 
+/* Onglets internes (pages fusionnées : Rapports, Réunions) */
+.page-tabs-inline{display:inline-flex;gap:3px;background:var(--off);border:1px solid var(--border);border-radius:12px;padding:4px;margin-bottom:18px;flex-wrap:wrap}
+.ptab{font-family:'Poppins',sans-serif;font-size:.82rem;font-weight:700;color:var(--muted);background:none;border:none;padding:8px 16px;border-radius:9px;cursor:pointer;transition:var(--tr)}
+.ptab:hover{color:var(--text)}
+.ptab.active{background:#fff;color:var(--g1);box-shadow:0 1px 4px rgba(0,0,0,.1)}
+@media(max-width:600px){ .page-tabs-inline{width:100%} .ptab{flex:1;text-align:center;padding:8px 6px;font-size:.76rem} }
+
 /* ── CARDS / GRID ──────────────────────────────────────────────────────── */
 .cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:16px}
 .stat-card{

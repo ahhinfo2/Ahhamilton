@@ -391,14 +391,10 @@ async function buildSidebar() {
     // ── Outils & Rapports ─────────────────────────────────────────
     { label: '🔧 Outils', items: [
       { id:'tasks',             icon:'✓', label:'Tâches',              roles:EXEC },
-      { id:'meeting-calendar',  icon:'📅', label:'Calendrier réunions', roles:EXEC },
-      { id:'meeting-agendas',   icon:'📝', label:'Ordres du jour',      roles:EXEC },
-      { id:'notes',             icon:'◇', label:'Notes réunion',       roles:EXEC },
-      { id:'committee-meetings',icon:'🤝', label:'Rencontre comité',   roles:EXEC },
+      { id:'reunions',          icon:'📅', label:'Réunions',            roles:EXEC },
       { id:'alertes-urgentes',  icon:'🚨', label:'Alertes urgentes',   roles:EXEC },
       { id:'fierte-mgmt',       icon:'🏆', label:'Mur de fierté',       roles:EXEC },
       { id:'reports',           icon:'◆', label:'Rapports',            roles:EXEC },
-      { id:'stats-growth',      icon:'📈', label:'Statistiques',       roles:EXEC },
       { id:'alerts',            icon:'◇', label:'Alertes',             roles:EXEC },
       { id:'votes',             icon:'🗳️', label:'Votes & Élections', roles:EXEC },
       { id:'committee-elections', icon:'🗳️', label:'Élections de comité', roles:EXEC },
@@ -410,7 +406,6 @@ async function buildSidebar() {
       { id:'presidence-delegation', icon:'🎗️', label:'Délégation présidence', roles:EXEC },
       { id:'policies',          icon:'📜', label:'Politiques',         roles:EXEC },
       { id:'email-templates',   icon:'✉️', label:'Modèles courriel',  roles:EXEC },
-      { id:'annual-report',     icon:'📊', label:'Rapport annuel',    roles:EXEC },
       { id:'ambassadeur-admin', icon:'🌟', label:'Ambassadeur du mois',roles:['admin','secretaire'] },
       { id:'abonnes-newsletter',icon:'📧', label:'Abonnés infolettre', roles:EXEC },
     ]},
@@ -597,7 +592,7 @@ function setActiveNav(viewId) {
   const labels = {
     home:'Tableau de bord', activities:'Activités', members:'Membres', subcommittees:'Sous-comités',
     finance:'Finance', invoices:'Factures', fournisseurs:'Fournisseurs', correspondance:'Correspondance', messages:'Messages', volunteer:'Heures de bénévolat',
-    notes:'Notes de réunion', reports:'Rapports', letters:'Lettres de recommandation',
+    reports:'Rapports', letters:'Lettres de recommandation',
     projects:'Projets', alerts:'Alertes', profile:'Mon profil', gallery_mgmt:'Gérer la galerie',
     talents_mgmt:'Nos talents', annonces_mgmt:'Petites annonces',
     mes_talents:'Mon talent', mes_annonces:'Mes annonces',
@@ -606,23 +601,20 @@ function setActiveNav(viewId) {
     forum:'Forum', newsletter:'Infolettre', 'vente-personne':'Vendre (Cash)',
     'young-home':'Espace Jeunes', 'young-jobs':'Stages & Emplois',
     'young-trainings':'Formations', 'young-polls':'Sondages', 'young-stories':'Success Stories',
-    'votes':'Votes & Élections', 'committee-elections':'Élections de comité', 'parrainage':'Parrainage', 'stats-growth':'Statistiques',
+    'votes':'Votes & Élections', 'committee-elections':'Élections de comité', 'parrainage':'Parrainage',
     'carte-membre':'Ma carte membre', 'actualites':'Actualités', 'notif-prefs':'Notifications',
     'carte-gestion':'Nos membres', 'photos-membres':'Photos des membres', 'carte-scanner':'Lecteur de cartes', 'scanner-unified':'Lecteur QR',
     'journal-admin':'Journal d\'activité', 'mes-badges':'Mes badges', 'ambassadeur-admin':'Ambassadeur du mois',
     'abonnes-newsletter':'Abonnés newsletter',
     'tasks':'Tâches',
-    'meeting-calendar':'Calendrier des réunions',
-    'meeting-agendas':'Ordres du jour',
+    'reunions':'Réunions',
     'decision-registry':'Registre des décisions', 'presidence-delegation':'Délégation présidence',
     'policies':'Politiques et règlements',
     'email-templates':'Modèles de courriels',
     'export-data':'Export données',
-    'annual-report':'Rapport annuel',
     'scan-delegations':'Déléguer un lecteur',
     'forms-mgmt':'Formulaires',
     'shop-mgmt':'Boutique en ligne',
-    'committee-meetings':'Rencontre comité',
     'alertes-urgentes':'Alertes urgentes',
     'fierte-mgmt':'Mur de fierté'
   };
@@ -1223,7 +1215,7 @@ async function showView(viewId) {
   const views = {
     home, activities, members, subcommittees,
     finance, invoices, fournisseurs, messages, volunteer,
-    notes, reports, letters, projects, alerts, profile,
+    reports: rapportsHubView, letters, projects, alerts, profile,
     gallery_mgmt, annuaire, talents_mgmt, annonces_mgmt, mes_talents, mes_annonces,
     inscriptions, paiements, recus, mon_paiement, mes_billets, testimonials_mgmt, videos_mgmt,
     scanner, forum, newsletter, rapports_finance, documents_mgmt, sponsors_mgmt, equipe_mgmt, recus_archive, correspondance
@@ -1240,7 +1232,6 @@ async function showView(viewId) {
     'votes': votesView,
     'committee-elections': committeeElectionsView,
     'parrainage': parrainageView,
-    'stats-growth': statsGrowthView,
     'carte-membre': carteMembreView,
     'actualites': actualitesView,
     'notif-prefs': notifPrefsView,
@@ -1253,18 +1244,15 @@ async function showView(viewId) {
     'ambassadeur-admin': ambassadeurAdmin,
     'abonnes-newsletter': abonnesNewsletter,
     'tasks': tasksView,
-    'meeting-calendar': meetingCalendarView,
-    'meeting-agendas': meetingAgendasView,
+    'reunions': reunionsHubView,
     'decision-registry': decisionRegistryView,
     'policies': policiesView,
     'email-templates': emailTemplatesView,
     'export-data': exportDataView,
-    'annual-report': annualReportView,
     'scan-delegations': scanDelegationsListView,
     'presidence-delegation': presidenceDelegationView,
     'forms-mgmt': formsMgmtView,
     'shop-mgmt': shopMgmtView,
-    'committee-meetings': committeeMeetingsView,
     'alertes-urgentes': alertesUrgentesView,
     'fierte-mgmt': fierteMgmtView,
   };
@@ -4918,14 +4906,35 @@ function notePreview(html) {
   return escHtml(txt) + (txt.length >= 250 ? '…' : '');
 }
 
+// ══ RÉUNIONS — hub fusionné (Calendrier / Ordre du jour / Séance / Notes) ═════
+async function reunionsHubView(tab) {
+  tab = tab || window._reunionsTab || 'calendrier';
+  window._reunionsTab = tab;
+  setContent(`
+    <div class="page-header"><div><h2>📅 Réunions</h2><p>Planification, ordre du jour, séance et notes du comité</p></div></div>
+    <div class="page-tabs-inline">
+      <button class="ptab ${tab==='calendrier'?'active':''}" onclick="reunionsHubView('calendrier')">Calendrier</button>
+      <button class="ptab ${tab==='agendas'?'active':''}" onclick="reunionsHubView('agendas')">Ordre du jour</button>
+      <button class="ptab ${tab==='seance'?'active':''}" onclick="reunionsHubView('seance')">Séance</button>
+      <button class="ptab ${tab==='notes'?'active':''}" onclick="reunionsHubView('notes')">Notes</button>
+    </div>
+    <div id="reunionsHubBody"></div>
+  `);
+  if (tab === 'calendrier') await meetingCalendarView();
+  else if (tab === 'agendas') await meetingAgendasView();
+  else if (tab === 'seance') await committeeMeetingsView();
+  else await notes();
+}
+
 async function notes() {
+  if (!document.getElementById('reunionsHubBody')) { return reunionsHubView('notes'); }
   const [data, allActs] = await Promise.all([api('/notes'), api('/activities')]);
   window._noteAllActs = allActs;
-  setContent(`
-    <div class="page-header">
+  document.getElementById('reunionsHubBody').innerHTML = `
+    <div class="page-header" style="margin-bottom:14px">
       <div>
-        <h2>📝 Notes de réunion <span style="font-size:.75rem;background:#e8f5e9;color:#1b5e20;padding:3px 10px;border-radius:20px;font-weight:600;margin-left:8px">🔗 Partagées avec le comité</span></h2>
-        <p style="font-size:.82rem;color:var(--muted)">Toutes les notes sont visibles et éditables par tous les membres du comité</p>
+        <span style="font-size:.75rem;background:#e8f5e9;color:#1b5e20;padding:3px 10px;border-radius:20px;font-weight:600">🔗 Partagées avec le comité</span>
+        <p style="font-size:.82rem;color:var(--muted);margin-top:6px">Toutes les notes sont visibles et éditables par tous les membres du comité</p>
       </div>
       <div class="page-actions">
         <button class="btn btn-primary" onclick="openNoteForm(null,window._noteAllActs)">+ Nouvelle note</button>
@@ -5004,7 +5013,7 @@ async function notes() {
         </div>
       </div>`}).join('') || '<div class="empty-state"><div class="es-icon">📝</div><p>Aucune note — créez la première !</p></div>'}
     </div>
-  `);
+  `;
   window._noteData = {};
   data.forEach(n => { window._noteData[n.id] = n; });
 
@@ -9655,7 +9664,7 @@ async function paiements() {
 
     // Membres en retard
     (retard.length ?
-      '<div class="table-card" style="margin-bottom:18px;border-left:4px solid #e53935">' +
+      '<div class="table-card desktop-page-only" style="margin-bottom:18px;border-left:4px solid #e53935">' +
       '<div class="table-card-header"><h3>⏰ Membres en retard — ' + moisCourant + '</h3></div>' +
       '<div class="table-wrapper"><table>' +
       '<thead><tr><th>Membre</th><th>Plan</th><th>Montant dû</th><th>Échéance</th><th>Actions</th></tr></thead><tbody>' +
@@ -9669,7 +9678,19 @@ async function paiements() {
           (can.adminOrTre() ? '<button class="btn btn-sm btn-ghost" onclick="exempterCotisation(' + r.id + ')">Exempter</button>' : '') +
         '</td></tr>'
       ).join('') +
-      '</tbody></table></div></div>'
+      '</tbody></table></div></div>' +
+      '<div class="mobile-page-only" style="margin-bottom:6px">' +
+      '<h3 style="margin-bottom:10px;font-size:.95rem;font-weight:700;color:#e53935">⏰ Membres en retard (' + retard.length + ')</h3>' +
+      retard.map(r =>
+        '<div class="m-item" style="border-left:3px solid #e53935">' +
+        '<div class="m-item-top"><div class="m-item-title">' + r.prenom + ' ' + r.nom + '</div><strong style="color:#e53935">$' + (r.montant_attendu||0).toFixed(2) + '</strong></div>' +
+        '<div class="m-item-sub">' + (r.user_plan||r.plan) + ' · Échéance ' + (r.date_echeance||'') + '</div>' +
+        '<div class="m-item-actions">' +
+          (can.adminOrTre() ? '<button class="btn btn-sm btn-outline" onclick="envoyerRappelPaiement(' + r.user_id + ')">📧 Rappel</button>' : '') +
+          (can.adminOrTre() ? '<button class="btn btn-sm btn-ghost" onclick="exempterCotisation(' + r.id + ')">Exempter</button>' : '') +
+        '</div></div>'
+      ).join('') +
+      '</div>'
     : '') +
 
     // Paiements en attente d'approbation
@@ -9693,7 +9714,7 @@ async function paiements() {
     : '') +
 
     // Historique
-    '<div class="table-card"><div class="table-card-header">' +
+    '<div class="table-card desktop-page-only"><div class="table-card-header">' +
       '<h3>Historique (' + data.length + ')</h3>' +
       '<div style="display:flex;gap:8px;align-items:center">' +
         '<select id="pay_mois_filter" onchange="filtrerPaiements()" style="font-size:.82rem;padding:4px 8px;border-radius:6px;border:1px solid var(--border)">' +
@@ -9711,8 +9732,41 @@ async function paiements() {
       return '<tr data-mois="' + (p.mois||'') + '"><td>' + nom + '</td><td>' + typeLabel + '</td><td>$' + p.montant + '</td>' +
       '<td>' + (p.mois||'–') + '</td><td>' + (p.methode||'–') + '</td><td>' + statusPill(p.statut) + '</td><td>' + fmt(p.date_soumission) + '</td></tr>';
     }).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--muted)">Aucun paiement</td></tr>') +
-    '</tbody></table></div></div>'
+    '</tbody></table></div></div>' +
+
+    '<div class="mobile-page-only">' +
+    '<h3 style="margin-bottom:10px;font-size:.95rem;font-weight:700">Historique (' + data.length + ')</h3>' +
+    '<div class="m-searchbar">🔍<input type="text" id="paySearch" placeholder="Nom, courriel…" oninput="_payFilter()"/></div>' +
+    '<div class="m-chiprow" id="payChips">' +
+      '<span class="m-chip active" data-f="" onclick="_payChipClick(this)">Tous les mois</span>' +
+      [...new Set(data.map(p=>p.mois).filter(Boolean))].sort().reverse().map(m=>'<span class="m-chip" data-f="' + m + '" onclick="_payChipClick(this)">' + m + '</span>').join('') +
+    '</div>' +
+    '<div id="payListMobile">' +
+    (data.map(p => {
+      const nom = (p.prenom && p.nom) ? p.prenom + ' ' + p.nom : (p.note || p.email || '–');
+      const typeLabel = p.periodicite === 'annuel' ? '📅 Annuel' : (TYPE_LABEL[p.type]||p.type);
+      const searchData = (nom + ' ' + (p.email||'')).toLowerCase();
+      return '<div class="m-item pay-entry" data-search="' + escHtml(searchData) + '" data-mois="' + (p.mois||'') + '">' +
+        '<div class="m-item-top"><div class="m-item-title">' + escHtml(nom) + '</div>' + statusPill(p.statut) + '</div>' +
+        '<div class="m-item-sub">' + typeLabel + ' · $' + p.montant + ' · ' + (p.mois||'–') + ' · ' + (p.methode||'–') + '</div>' +
+        '</div>';
+    }).join('') || '<div class="m-empty">Aucun paiement</div>') +
+    '</div></div>'
   );
+}
+
+function _payChipClick(chip) {
+  chip.parentElement.querySelectorAll('.m-chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  _payFilter();
+}
+function _payFilter() {
+  const q = (document.getElementById('paySearch')?.value || '').toLowerCase();
+  const f = document.querySelector('#payChips .m-chip.active')?.dataset.f || '';
+  document.querySelectorAll('.pay-entry').forEach(el => {
+    const ok = (!q || el.dataset.search.includes(q)) && (!f || el.dataset.mois === f);
+    el.style.display = ok ? '' : 'none';
+  });
 }
 
 function filtrerPaiements() {
@@ -9809,13 +9863,47 @@ async function recus() {
       '<div id="rec_liste" style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:8px"></div>' +
     '</div></div>' : '') +
 
-    '<div class="table-card"><div class="table-card-header"><h3>Reçus émis</h3></div>' +
+    '<div class="table-card desktop-page-only"><div class="table-card-header"><h3>Reçus émis</h3></div>' +
     '<div id="recus_emis_body" style="padding:8px 4px">' +
     recusParAnneeHTML(data) +
+    '</div></div>' +
+
+    '<div class="mobile-page-only">' +
+    '<h3 style="margin-bottom:10px;font-size:.95rem;font-weight:700">Reçus émis (' + data.length + ')</h3>' +
+    '<div class="m-searchbar">🔍<input type="text" id="recuSearch" placeholder="Nom du membre…" oninput="_recuFilterMobile()"/></div>' +
+    '<div class="m-chiprow" id="recuChips">' +
+      '<span class="m-chip active" data-f="" onclick="_recuChipClick(this)">Toutes années</span>' +
+      [...new Set(data.map(r=>r.annee))].sort((a,b)=>b-a).map(y=>'<span class="m-chip" data-f="' + y + '" onclick="_recuChipClick(this)">' + y + '</span>').join('') +
+    '</div>' +
+    '<div id="recuListMobile">' +
+    (data.map(r => {
+      const searchData = (r.prenom + ' ' + r.nom).toLowerCase();
+      return '<div class="m-item recu-entry" data-search="' + escHtml(searchData) + '" data-annee="' + r.annee + '">' +
+        '<div class="m-item-top"><div class="m-item-title">' + escHtml(r.prenom) + ' ' + escHtml(r.nom) + '</div><strong>$' + (r.montant_total||0).toFixed(2) + '</strong></div>' +
+        '<div class="m-item-sub">' + r.annee + ' · ' + fmt(r.date_generation) + ' · ' + (r.archived ? 'Archivé' : 'Actif') + '</div>' +
+        '<div class="m-item-actions">' +
+          '<button class="btn btn-sm btn-outline" onclick="imprimerRecu(' + r.id + ')">🖨️ Imprimer</button>' +
+          (can.adminOrTre() ? '<button class="btn btn-sm btn-ghost" onclick="recusArchiverRecu(' + r.id + ',' + (r.archived?'false':'true') + ')">' + (r.archived?'📂 Désarchiver':'📦 Archiver') + '</button>' : '') +
+        '</div></div>';
+    }).join('') || '<div class="m-empty">Aucun reçu émis</div>') +
     '</div></div>'
   );
 
   recusFiltrer();
+}
+
+function _recuChipClick(chip) {
+  chip.parentElement.querySelectorAll('.m-chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  _recuFilterMobile();
+}
+function _recuFilterMobile() {
+  const q = (document.getElementById('recuSearch')?.value || '').toLowerCase();
+  const f = document.querySelector('#recuChips .m-chip.active')?.dataset.f || '';
+  document.querySelectorAll('.recu-entry').forEach(el => {
+    const ok = (!q || el.dataset.search.includes(q)) && (!f || el.dataset.annee === f);
+    el.style.display = ok ? '' : 'none';
+  });
 }
 
 function recusFiltrer() {
@@ -11245,14 +11333,22 @@ async function deleteVideo(id) {
 // ══ MES BILLETS ════════════════════════════════════════════════════════════════
 async function mes_billets() {
   const tickets = await api('/tickets/my');
+  const now = Date.now();
   setContent(`
     <div class="page-header">
       <div><h2>🎟 Mes billets</h2><p>Vos billets et QR codes pour les activités</p></div>
     </div>
     ${tickets.length ? `
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px">
-      ${tickets.map(t => `
-        <div class="table-card" style="overflow:hidden">
+    <div class="m-chiprow" id="ticketChips" style="margin-bottom:16px">
+      <span class="m-chip active" data-f="" onclick="_ticketChipClick(this)">Tous</span>
+      <span class="m-chip" data-f="avenir" onclick="_ticketChipClick(this)">À venir</span>
+      <span class="m-chip" data-f="passe" onclick="_ticketChipClick(this)">Passés</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px" id="ticketsGrid">
+      ${tickets.map(t => {
+        const upcoming = t.date_debut && new Date(t.date_debut).getTime() >= now;
+        return `
+        <div class="table-card ticket-entry" data-when="${upcoming?'avenir':'passe'}" style="overflow:hidden">
           <div style="background:linear-gradient(135deg,var(--g1),var(--g2));padding:16px 20px;color:#fff">
             <div style="font-weight:700;font-size:1rem">${t.activite}</div>
             <div style="font-size:.78rem;opacity:.8;margin-top:4px">📅 ${fmt(t.date_debut)} · 📍 ${t.lieu||'–'}</div>
@@ -11272,13 +11368,22 @@ async function mes_billets() {
             ${t.qr_data ? t.qr_data.replace(/\n/g,'<br/>') : '–'}
           </div>
         </div>
-      `).join('')}
+      `;}).join('')}
     </div>` : `
     <div class="empty-state">
       <div class="es-icon">🎟</div>
       <p>Vous n'avez pas encore de billet.<br/>Inscrivez-vous à une activité pour obtenir votre QR code.</p>
     </div>`}
   `);
+}
+
+function _ticketChipClick(chip) {
+  chip.parentElement.querySelectorAll('.m-chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  const f = chip.dataset.f;
+  document.querySelectorAll('.ticket-entry').forEach(el => {
+    el.style.display = (!f || el.dataset.when === f) ? '' : 'none';
+  });
 }
 
 // ══ DOCUMENTS OFFICIELS ══════════════════════════════════════════════════════
@@ -12643,7 +12748,29 @@ function openSellTicketForm(actId, actTitre) {
 
 // ── Rapport global activités ──────────────────────────────────────────────────
 
-async function reports() {
+// ══ RAPPORTS — hub fusionné (Généraux / Croissance / Annuel) ══════════════════
+async function rapportsHubView(tab) {
+  tab = tab || window._rapportsTab || 'general';
+  window._rapportsTab = tab;
+  const isAdmin = can.admin();
+  if (tab === 'annuel' && !isAdmin) tab = 'general';
+
+  setContent(`
+    <div class="page-header"><div><h2>📊 Rapports</h2><p>Tableaux de bord financiers, de présence et de croissance</p></div></div>
+    <div class="page-tabs-inline">
+      <button class="ptab ${tab==='general'?'active':''}" onclick="rapportsHubView('general')">Généraux</button>
+      <button class="ptab ${tab==='croissance'?'active':''}" onclick="rapportsHubView('croissance')">Croissance</button>
+      ${isAdmin ? `<button class="ptab ${tab==='annuel'?'active':''}" onclick="rapportsHubView('annuel')">Annuel</button>` : ''}
+    </div>
+    <div id="rapportsHubBody"></div>
+  `);
+
+  if (tab === 'general') await _rapportsRenderGeneral();
+  else if (tab === 'croissance') await _rapportsRenderCroissance();
+  else await _rapportsRenderAnnuel();
+}
+
+async function _rapportsRenderGeneral() {
   const [activitiesRpt, plansRpt, membresRpt] = await Promise.all([
     api('/reports/activities'),
     api('/reports/plans'),
@@ -12655,11 +12782,8 @@ async function reports() {
   const membresPayes = plansRpt.membres.filter(m => m.paye_mois > 0).length;
   const membresImpayés = plansRpt.membres.filter(m => m.plan !== 'gratuit' && m.paye_mois === 0).length;
 
-  setContent(
-    '<div class="page-header">' +
-      '<div><h2>📊 Rapports</h2><p>Tableaux de bord financiers et de présence</p></div>' +
-      '<div class="page-actions"><button class="btn btn-outline" onclick="printSection(\'Rapports AHH\')">🖨️ Imprimer tout</button></div>' +
-    '</div>' +
+  document.getElementById('rapportsHubBody').innerHTML = (
+    '<div class="page-actions" style="margin-bottom:16px"><button class="btn btn-outline btn-sm" onclick="printSection(\'Rapports AHH\')">🖨️ Imprimer tout</button></div>' +
 
     // KPIs globaux
     '<div class="cards-grid" style="margin-bottom:28px">' +
@@ -13471,12 +13595,10 @@ async function vpTraiterTalons() {
 // ══════════════════════════════════════════════════════════════════════════════
 // 2. GRAPHIQUES DE CROISSANCE
 // ══════════════════════════════════════════════════════════════════════════════
-async function statsGrowthView() {
+async function _rapportsRenderCroissance() {
   const s = await api('/stats/growth').catch(() => ({}));
-  setContent(`
-    <div class="page-header"><div><h2>📈 Statistiques & Croissance</h2></div>
-      <div class="page-actions"><button class="btn btn-outline" onclick="window.print()">🖨️ Imprimer</button></div>
-    </div>
+  document.getElementById('rapportsHubBody').innerHTML = `
+    <div class="page-actions" style="margin-bottom:16px"><button class="btn btn-outline btn-sm" onclick="window.print()">🖨️ Imprimer</button></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
       <div class="table-card" style="padding:16px">
         <h4 style="margin-bottom:12px">👥 Nouveaux membres (12 mois)</h4>
@@ -13496,13 +13618,13 @@ async function statsGrowthView() {
         <h4 style="margin-bottom:12px">👤 Répartition par rôle</h4>
         <canvas id="chartRoles" height="200"></canvas>
       </div>
-    </div>`);
+    </div>`;
 
   setTimeout(() => {
     if (!window.Chart) {
       const s2 = document.createElement('script');
       s2.src = '/Public/chart.umd.min.js';
-      s2.onload = () => document.getElementById('chartMembres') && statsGrowthView();
+      s2.onload = () => document.getElementById('chartMembres') && _rapportsRenderCroissance();
       s2.onerror = () => toast('Impossible de charger la librairie de graphiques', 'error');
       document.head.appendChild(s2);
       return;
@@ -15590,11 +15712,12 @@ async function forum() {
   const topics = await api('/forum/topics');
   const canMod = can.adminOrSec();
   setContent(`
+    <div class="page-header"><div><h2>💬 Forum communautaire</h2></div>
+      <div class="page-actions"><button class="btn btn-primary" onclick="forumNewTopic()">+ Nouveau sujet</button></div>
+    </div>
+
+    <div class="desktop-page-only">
     <div class="table-card" style="width:100%;max-width:100%">
-      <div class="table-card-header" style="gap:12px;flex-wrap:wrap;padding:20px 28px">
-        <h3 style="font-size:1.1rem">💬 Forum communautaire</h3>
-        <button class="btn btn-primary" onclick="forumNewTopic()">+ Nouveau sujet</button>
-      </div>
       <div style="padding:0 28px 20px">
         ${topics.length ? topics.map(t => `
           <div class="gm-row" style="cursor:pointer;align-items:center;padding:18px 0;gap:16px" onclick="forumOpenTopic(${t.id})">
@@ -15626,7 +15749,43 @@ async function forum() {
           '<div class="empty-state" style="padding:60px"><div class="es-icon">💬</div><p>Aucun sujet pour l\'instant. Soyez le premier à démarrer une discussion !</p></div>'
         }
       </div>
+    </div>
+    </div>
+
+    <div class="mobile-page-only">
+      <div class="m-searchbar">🔍<input type="text" id="forumSearch" placeholder="Rechercher un sujet…" oninput="_forumFilter()"/></div>
+      <div class="m-chiprow" id="forumChips">
+        <span class="m-chip active" data-f="" onclick="_forumChipClick(this)">Tous</span>
+        <span class="m-chip" data-f="epingle" onclick="_forumChipClick(this)">📌 Épinglés</span>
+        <span class="m-chip" data-f="ouvert" onclick="_forumChipClick(this)">Ouverts</span>
+      </div>
+      <div id="forumListMobile">
+      ${topics.length ? topics.map(t => {
+        const searchData = ((t.titre||'')+' '+(t.prenom||'')).toLowerCase();
+        return `<div class="m-item forum-entry" data-search="${escHtml(searchData)}" data-epingle="${t.epingle?1:0}" data-ferme="${t.ferme?1:0}" onclick="forumOpenTopic(${t.id})">
+          <div class="m-item-top">
+            <div class="m-item-title">${t.epingle?'📌 ':''}${escHtml(t.titre)}</div>
+          </div>
+          <div class="m-item-sub">Par ${escHtml(t.prenom||'')} · ${fmt(t.date_creation)} · 💬 ${t.nb_posts||0}${t.ferme?' · 🔒 Fermé':''}</div>
+        </div>`;
+      }).join('') : '<div class="m-empty">Aucun sujet pour l\'instant</div>'}
+      </div>
     </div>`);
+}
+
+function _forumChipClick(chip) {
+  chip.parentElement.querySelectorAll('.m-chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  _forumFilter();
+}
+function _forumFilter() {
+  const q = (document.getElementById('forumSearch')?.value || '').toLowerCase();
+  const f = document.querySelector('#forumChips .m-chip.active')?.dataset.f || '';
+  document.querySelectorAll('.forum-entry').forEach(el => {
+    const ok = (!q || el.dataset.search.includes(q))
+      && (!f || (f === 'epingle' && el.dataset.epingle === '1') || (f === 'ouvert' && el.dataset.ferme === '0'));
+    el.style.display = ok ? '' : 'none';
+  });
 }
 
 function forumOpenTopic(id) { _forumTopic = id; forum(); }
@@ -16417,16 +16576,64 @@ async function tasksView() {
       </div>`;
     }).join('');
 
-    setContent(`
-      <div class="table-card">
-        <div class="table-card-header"><h3>Tâches</h3></div>
-        <div style="padding:16px">
-          ${filterHtml}
-          <div id="taskFormArea"></div>
-          <div style="display:flex;gap:16px;flex-wrap:wrap">${colsHtml}</div>
+    const statusLabels = { a_faire:'À faire', en_cours:'En cours', terminee:'Terminé' };
+    const mobileCards = (tasks || []).map(t => {
+      const searchData = ((t.titre||'')+' '+(t.description||'')+' '+(t.assigne_nom||'')+' '+(t.categorie||'')).toLowerCase();
+      return `<div class="task-card m-item task-entry" data-search="${escHtml(searchData)}" data-priority="${t.priorite||''}" data-status="${t.statut||''}" style="border-left:4px solid ${priorityColors[t.priorite]||'#999'}">
+        <div class="m-item-top"><div class="m-item-title">${escHtml(t.titre)}</div>${pill(statusLabels[t.statut]||t.statut,'bp-blue')}</div>
+        ${t.description ? `<div class="m-item-sub">${escHtml(t.description)}</div>` : ''}
+        <div class="m-item-sub">
+          ${t.assigne_nom ? '👤 '+escHtml(t.assigne_nom)+' · ' : ''}${t.priorite ? priorityLabels[t.priorite]+' · ' : ''}${t.echeance ? '📅 '+fmt(t.echeance) : ''}
         </div>
+        <div class="m-item-actions">
+          <button class="btn btn-sm btn-ghost" onclick="taskEdit(${t.id})">✏️ Modifier</button>
+          <button class="btn btn-sm btn-ghost" style="color:#c62828" onclick="taskDelete(${t.id})">🗑️ Supprimer</button>
+        </div>
+      </div>`;
+    }).join('') || '<div class="m-empty">Aucune tâche</div>';
+
+    setContent(`
+      <div class="page-header"><div><h2>✓ Tâches</h2></div>
+        <div class="page-actions"><button class="btn btn-primary btn-sm" onclick="taskShowForm()">+ Nouvelle tâche</button></div>
+      </div>
+      <div id="taskFormArea"></div>
+
+      <div class="desktop-page-only">
+        <div class="table-card">
+          <div style="padding:16px">
+            ${filterHtml.replace('<button class="btn btn-primary btn-sm" onclick="taskShowForm()" style="margin-left:auto">+ Nouvelle tâche</button>', '')}
+            <div style="display:flex;gap:16px;flex-wrap:wrap">${colsHtml}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mobile-page-only">
+        <div class="m-searchbar">🔍<input type="text" id="taskSearch" placeholder="Titre, description, assigné…" oninput="_taskFilterMobile()"/></div>
+        <div class="m-chiprow" id="taskChips">
+          <span class="m-chip active" data-f="" onclick="_taskChipClick(this)">Toutes</span>
+          <span class="m-chip" data-f="a_faire" onclick="_taskChipClick(this)">À faire</span>
+          <span class="m-chip" data-f="en_cours" onclick="_taskChipClick(this)">En cours</span>
+          <span class="m-chip" data-f="terminee" onclick="_taskChipClick(this)">Terminé</span>
+          <span class="m-chip" data-f="haute" onclick="_taskChipClick(this)">🔴 Priorité haute</span>
+        </div>
+        <div id="taskListMobile">${mobileCards}</div>
       </div>`);
   } catch(e) { toast(e.message, true); }
+}
+
+function _taskChipClick(chip) {
+  chip.parentElement.querySelectorAll('.m-chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  _taskFilterMobile();
+}
+function _taskFilterMobile() {
+  const q = (document.getElementById('taskSearch')?.value || '').toLowerCase();
+  const f = document.querySelector('#taskChips .m-chip.active')?.dataset.f || '';
+  document.querySelectorAll('.task-entry').forEach(el => {
+    const ok = (!q || el.dataset.search.includes(q))
+      && (!f || el.dataset.status === f || el.dataset.priority === f);
+    el.style.display = ok ? '' : 'none';
+  });
 }
 
 function tasksApplyFilter() {
@@ -16546,6 +16753,7 @@ async function taskDelete(id) {
 
 // ══ MEETING CALENDAR ═══════════════════════════════════════════════════════
 async function meetingCalendarView() {
+  if (!document.getElementById('reunionsHubBody')) { return reunionsHubView('calendrier'); }
   try {
     const meetings = await api('/meetings');
     const typePills = { ordinaire:'bp-blue', extraordinaire:'bp-orange', comite:'bp-green', assemblee:'bp-gray' };
@@ -16563,7 +16771,7 @@ async function meetingCalendarView() {
       </td>
     </tr>`).join('');
 
-    setContent(`
+    document.getElementById('reunionsHubBody').innerHTML = `
       <div class="table-card">
         <div class="table-card-header">
           <h3>Calendrier des réunions</h3>
@@ -16576,7 +16784,7 @@ async function meetingCalendarView() {
             <tbody>${rows || '<tr><td colspan="7" style="text-align:center;color:var(--muted)">Aucune réunion</td></tr>'}</tbody>
           </table>
         </div>
-      </div>`);
+      </div>`;
   } catch(e) { toast(e.message, true); }
 }
 
@@ -16654,6 +16862,7 @@ async function meetingDelete(id) {
 
 // ══ MEETING AGENDAS — document officiel (lettre AHH, listes uniquement) ═════
 async function meetingAgendasView() {
+  if (!document.getElementById('reunionsHubBody')) { return reunionsHubView('agendas'); }
   try {
     const agendas = await api('/agendas');
     window._agendaData = {}; agendas.forEach(a => { window._agendaData[a.id] = a; });
@@ -16676,9 +16885,9 @@ async function meetingAgendasView() {
       </tr>`;
     }).join('');
 
-    setContent(`
-      <div class="page-header">
-        <div><h2>📝 Ordres du jour</h2><p style="font-size:.82rem;color:var(--muted)">Document officiel AHH — rédigé en listes à puces ou numérotées</p></div>
+    document.getElementById('reunionsHubBody').innerHTML = `
+      <div class="page-header" style="margin-bottom:14px">
+        <p style="font-size:.82rem;color:var(--muted)">Document officiel AHH — rédigé en listes à puces ou numérotées</p>
         <div class="page-actions"><button class="btn btn-primary" onclick="openAgendaEditor(null)">+ Nouvel ordre du jour</button></div>
       </div>
       <div class="table-card">
@@ -16688,7 +16897,7 @@ async function meetingAgendasView() {
             <tbody>${rows || '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">Aucun ordre du jour</td></tr>'}</tbody>
           </table>
         </div>
-      </div>`);
+      </div>`;
   } catch(e) { toast(e.message, true); }
 }
 
@@ -17498,9 +17707,8 @@ async function exportCreateBackup() {
   } catch(e) { toast(e.message, true); }
 }
 
-// ══ ANNUAL REPORT ══════════════════════════════════════════════════════════
-async function annualReportView() {
-  if (!can.admin()) { toast('Accès réservé aux administrateurs', true); return; }
+// ══ ANNUAL REPORT (onglet "Annuel" du hub Rapports) ═══════════════════════════
+async function _rapportsRenderAnnuel() {
   try {
     const currentYear = new Date().getFullYear();
     const yearSelect = `
@@ -17512,14 +17720,14 @@ async function annualReportView() {
         <button class="btn btn-ghost btn-sm" onclick="window.print()" style="margin-left:auto">🖨 Imprimer</button>
       </div>`;
 
-    setContent(`
+    document.getElementById('rapportsHubBody').innerHTML = `
       <div class="table-card">
         <div class="table-card-header"><h3>Rapport annuel</h3></div>
         <div style="padding:16px">
           ${yearSelect}
           <div id="annualReportContent"><div class="loading-screen"><div class="spinner"></div><p>Chargement...</p></div></div>
         </div>
-      </div>`);
+      </div>`;
 
     await annualReportLoad();
   } catch(e) { toast(e.message, true); }
@@ -18676,11 +18884,12 @@ function _fmtToronto(d) {
 }
 
 async function committeeMeetingsView() {
+  if (!document.getElementById('reunionsHubBody')) { return reunionsHubView('seance'); }
   const meetings = await api('/committee-meetings');
   if (!meetings) return;
-  setContent(`
-    <div class="page-header">
-      <div><h2>🤝 Rencontres du comité</h2><p>Procès-verbaux de présence des réunions du comité exécutif</p></div>
+  document.getElementById('reunionsHubBody').innerHTML = `
+    <div class="page-header" style="margin-bottom:14px">
+      <p style="font-size:.82rem;color:var(--muted)">Procès-verbaux de présence des réunions du comité exécutif</p>
       <div class="page-actions"><button class="btn btn-primary" onclick="committeeMeetingCreate()">+ Nouvelle rencontre</button></div>
     </div>
     <div class="table-card">
@@ -18706,7 +18915,7 @@ async function committeeMeetingsView() {
         </table>
       </div>
     </div>
-  `);
+  `;
 }
 
 async function committeeMeetingCreate() {
@@ -18955,12 +19164,41 @@ async function alertesUrgentesView() {
     <div class="card" style="margin-bottom:16px;background:#fff8e1;border:1px solid #ffe082">
       <p style="margin:0;font-size:.85rem;color:#5d4037">⚠️ Cet espace permet aux membres d'exprimer un besoin urgent d'entraide (transport, logement, repas, etc.). Soyez bienveillants et discrets.</p>
     </div>
-    <div class="card">
+
+    <div class="desktop-page-only card">
       <table class="data-table">
         <thead><tr><th>Type</th><th>Demande</th><th>Membre</th><th>Contact</th><th>Date</th><th>Actions</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
+    </div>
+
+    <div class="mobile-page-only">
+      <div class="m-chiprow" id="auChips">
+        <span class="m-chip active" data-f="" onclick="_auChipClick(this)">Toutes</span>
+        ${Object.entries(cats).map(([k,l]) => `<span class="m-chip" data-f="${k}" onclick="_auChipClick(this)">${l}</span>`).join('')}
+      </div>
+      <div id="auListMobile">
+      ${alertes.length ? alertes.map(a => `
+        <div class="m-item au-entry" data-cat="${a.categorie||'autre'}">
+          <div class="m-item-top"><div class="m-item-title">${cats[a.categorie]||'📢'} ${escHtml(a.titre)}</div></div>
+          <div class="m-item-sub">${escHtml(a.description)}</div>
+          <div class="m-item-sub">👤 ${escHtml(a.prenom||'')} ${escHtml(a.nom||'')} · ${fmt(a.date_creation)}${a.contact ? ` · <a href="tel:${escHtml(a.contact)}">📞 ${escHtml(a.contact)}</a>` : ''}</div>
+          <div class="m-item-actions">
+            ${can.executive() ? `<button class="btn btn-sm btn-primary" onclick="_alerteResoudre(${a.id})">✅ Résoudre</button>` : ''}
+            <button class="btn btn-sm btn-ghost" style="color:#c62828" onclick="_alerteSupprimer(${a.id})">🗑 Supprimer</button>
+          </div>
+        </div>`).join('') : '<div class="m-empty">Aucune alerte active</div>'}
+      </div>
     </div>`);
+}
+
+function _auChipClick(chip) {
+  chip.parentElement.querySelectorAll('.m-chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  const f = chip.dataset.f;
+  document.querySelectorAll('.au-entry').forEach(el => {
+    el.style.display = (!f || el.dataset.cat === f) ? '' : 'none';
+  });
 }
 
 function _alerteNouvelle() {
