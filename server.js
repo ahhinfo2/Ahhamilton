@@ -2087,12 +2087,15 @@ function volunteerLetterData(userId) {
 }
 
 // Liste des demandes — utilisé pour afficher l'état (bouton) par membre dans Bénévolat et la fiche membre
-app.get('/api/volunteer-letters', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+// Un membre ne voit que ses propres lettres (même logique que /api/ai/recommendations)
+app.get('/api/volunteer-letters', authMiddleware, (req, res) => {
+  const isExec = ['admin','tresoriere','secretaire','delegue'].includes(req.user.role);
   let sql = `SELECT vl.*, u.prenom, u.nom, s.prenom AS sig_prenom, s.nom AS sig_nom
     FROM volunteer_letters vl JOIN users u ON u.id = vl.user_id
     LEFT JOIN users s ON s.id = vl.signataire_id`;
   const params = [];
-  if (req.query.user_id) { sql += ' WHERE vl.user_id = ?'; params.push(req.query.user_id); }
+  const userId = isExec ? req.query.user_id : req.user.id;
+  if (userId) { sql += ' WHERE vl.user_id = ?'; params.push(userId); }
   sql += ' ORDER BY vl.date_creation DESC';
   res.json(db.prepare(sql).all(...params));
 });
@@ -2144,10 +2147,15 @@ app.post('/api/volunteer-letters/:id/send', authMiddleware, requireRole('admin',
   const membre = db.prepare('SELECT * FROM users WHERE id=?').get(vl.user_id);
   if (!membre) return res.status(404).json({ error: 'Membre introuvable' });
 
-  db.prepare("UPDATE volunteer_letters SET statut='envoyee', date_envoi=CURRENT_TIMESTAMP, envoye_par=? WHERE id=?").run(req.user.id, vl.id);
   const siteUrl = process.env.SITE_URL || 'https://ahhamilton.ca';
   const printUrl = `${siteUrl}/api/volunteer-letters/${vl.id}/print?token=${vl.print_token}`;
-  try { await mailer.sendVolunteerLetterSigned(membre, printUrl); } catch(e) { console.error('[volunteer-letter send]', e.message); }
+  try {
+    await mailer.sendVolunteerLetterSigned(membre, printUrl);
+  } catch(e) {
+    console.error('[volunteer-letter send]', e.message);
+    return res.status(502).json({ error: "Échec de l'envoi du courriel — le statut n'a pas changé, vous pouvez réessayer ou copier le lien.", printUrl });
+  }
+  db.prepare("UPDATE volunteer_letters SET statut='envoyee', date_envoi=CURRENT_TIMESTAMP, envoye_par=? WHERE id=?").run(req.user.id, vl.id);
   createAlert(membre.id, 'benevolat', '📄 Votre lettre de bénévolat est prête', 'Consultez votre courriel pour la télécharger', vl.id);
   res.json({ ok: true });
 });
@@ -2729,10 +2737,15 @@ app.post('/api/ai/recommendations/:id/send', authMiddleware, requireRole('admin'
   const membre = db.prepare('SELECT * FROM users WHERE id=?').get(rl.membre_id);
   if (!membre) return res.status(404).json({ error: 'Membre introuvable' });
 
-  db.prepare("UPDATE recommendation_letters SET statut='envoyee', date_envoi=CURRENT_TIMESTAMP, envoye_par=? WHERE id=?").run(req.user.id, rl.id);
   const siteUrl = process.env.SITE_URL || 'https://ahhamilton.ca';
   const printUrl = `${siteUrl}/api/ai/recommendations/${rl.id}/print?token=${rl.print_token}`;
-  try { await mailer.sendVolunteerLetterSigned(membre, printUrl); } catch(e) { console.error('[recommendation send]', e.message); }
+  try {
+    await mailer.sendVolunteerLetterSigned(membre, printUrl);
+  } catch(e) {
+    console.error('[recommendation send]', e.message);
+    return res.status(502).json({ error: "Échec de l'envoi du courriel — le statut n'a pas changé, vous pouvez réessayer ou copier le lien.", printUrl });
+  }
+  db.prepare("UPDATE recommendation_letters SET statut='envoyee', date_envoi=CURRENT_TIMESTAMP, envoye_par=? WHERE id=?").run(req.user.id, rl.id);
   createAlert(membre.id, 'lettre', '📄 Votre lettre de recommandation est prête', 'Consultez votre courriel pour la télécharger', rl.id);
   res.json({ ok: true });
 });

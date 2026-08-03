@@ -216,7 +216,7 @@ async function api(path, opts = {}) {
     clearTimeout(timer);
     if (res.status === 401) { logout(); return null; }
     const data = await res.json().catch(() => null);
-    if (!res.ok) throw new Error(data?.error || `Erreur ${res.status}`);
+    if (!res.ok) { const err = new Error(data?.error || `Erreur ${res.status}`); Object.assign(err, data); throw err; }
     return data;
   } catch(e) {
     clearTimeout(timer);
@@ -4642,7 +4642,10 @@ async function _volSendLetter(reqId, nom, ctx, userId) {
     await api('/volunteer-letters/' + reqId + '/send', { method:'POST' });
     toast('📤 Lettre envoyée à ' + nom);
     if (ctx === 'profile') _cgOpenProfile(userId); else volunteer();
-  } catch(e) { toast(e.message, true); }
+  } catch(e) {
+    toast(e.message, true);
+    if (e.printUrl) prompt('Le courriel n\'a pas pu être envoyé. Copiez ce lien pour le partager manuellement avec ' + nom + ' :', e.printUrl);
+  }
 }
 
 async function volunteer() {
@@ -4650,7 +4653,7 @@ async function volunteer() {
     api('/volunteer'),
     can.adminOrSec() ? api('/users') : Promise.resolve([]),
     api('/activities'),
-    can.executive() ? api('/volunteer-letters').catch(() => []) : Promise.resolve([])
+    api('/volunteer-letters').catch(() => [])
   ]);
   window._volAllUsers = allUsers;
   window._volAllActs = allActs.filter(a => a.statut !== 'archivee');
@@ -4750,8 +4753,9 @@ async function volunteer() {
   `);
 
   // Filet de sécurité en plus du push SSE : revérifie l'état des signatures toutes les 5s
-  // tant qu'on reste sur cette page, pour ne jamais avoir à rafraîchir manuellement.
-  if (can.executive()) {
+  // tant qu'on reste sur cette page (comité ET membre, chacun ne voyant que ce qui le concerne),
+  // pour ne jamais avoir à rafraîchir manuellement.
+  {
     const sig = JSON.stringify(letters.map(l => l.id + ':' + l.statut));
     window._volLetterSig = sig;
     clearInterval(_volLetterRefreshInterval);
@@ -6215,7 +6219,10 @@ async function _recSendLetter(id, nom) {
     await api('/ai/recommendations/' + id + '/send', { method:'POST' });
     toast('📤 Lettre envoyée à ' + nom);
     letters();
-  } catch(e) { toast(e.message, true); }
+  } catch(e) {
+    toast(e.message, true);
+    if (e.printUrl) prompt('Le courriel n\'a pas pu être envoyé. Copiez ce lien pour le partager manuellement avec ' + nom + ' :', e.printUrl);
+  }
 }
 
 async function letters() {
