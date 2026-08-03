@@ -664,6 +664,22 @@ function setupTopbar() {
   setupSearch();
   setupLangSelector();
   initPushNotifications();
+  setupHeaderScroll();
+}
+
+// Header "verre flottant" (mobile) : se pose (fond + ombre) une fois qu'on a scrollé
+function setupHeaderScroll() {
+  const strip = document.getElementById('siteNavStrip');
+  if (!strip) return;
+  let ticking = false;
+  window.addEventListener('scroll', () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      strip.classList.toggle('scrolled', window.scrollY > 24);
+      ticking = false;
+    });
+  }, { passive: true });
 }
 
 // ── Notifications Push ────────────────────────────────────────────────────────
