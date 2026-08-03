@@ -7,6 +7,8 @@ let   TOKEN = null;
 // ── NOTES STATE (déclarés tôt — référencés par setContent dès le chargement) ─
 let _notesRefreshInterval = null;
 let _invoicesRefreshInterval = null;
+let _volLetterRefreshInterval = null;
+let _recLetterRefreshInterval = null;
 let _noteAutoSave = null;
 let _noteEditingId = null;
 let _noteSyncInterval = null;
@@ -309,6 +311,8 @@ function setContent(html) {
   if (_noteAutoSave) { clearInterval(_noteAutoSave); _noteAutoSave = null; }
   if (_noteDebounce) { clearTimeout(_noteDebounce); _noteDebounce = null; }
   if (_notesRefreshInterval) { clearInterval(_notesRefreshInterval); _notesRefreshInterval = null; }
+  if (_volLetterRefreshInterval) { clearInterval(_volLetterRefreshInterval); _volLetterRefreshInterval = null; }
+  if (_recLetterRefreshInterval) { clearInterval(_recLetterRefreshInterval); _recLetterRefreshInterval = null; }
   if (_pagTimer) { clearTimeout(_pagTimer); _pagTimer = null; }
   _pagSig = '';
   if (_agPagTimer) { clearTimeout(_agPagTimer); _agPagTimer = null; }
@@ -842,6 +846,13 @@ function _handleLiveEvent(evt) {
   if (view === 'membres' && window._membresTab === 'inscriptions' && evt.alertType === 'inscription') setTimeout(inscriptions, 600);
   if (view === 'alerts') setTimeout(alerts, 600);
   if ((view === 'annuaire' || view === 'messages') && evt.type === 'message') setTimeout(() => showView(view), 600);
+  if (view === 'volunteer' && evt.alertType === 'benevolat') setTimeout(volunteer, 600);
+  if (view === 'letters' && evt.alertType === 'lettre') setTimeout(letters, 600);
+  // Fiche membre ouverte (page Membres) — se rafraîchit si une signature de bénévolat vient de bouger
+  if (evt.alertType === 'benevolat' && window._cgProfileOpenFor) {
+    const h2 = document.querySelector('#mainContent h2');
+    if (h2 && h2.textContent.includes('Fiche membre')) setTimeout(() => _cgOpenProfile(window._cgProfileOpenFor), 600);
+  }
 }
 
 async function pollBadges() {
@@ -4737,6 +4748,22 @@ async function volunteer() {
       </tr>`).join('')}</tbody>
     </table></div></div>
   `);
+
+  // Filet de sécurité en plus du push SSE : revérifie l'état des signatures toutes les 5s
+  // tant qu'on reste sur cette page, pour ne jamais avoir à rafraîchir manuellement.
+  if (can.executive()) {
+    const sig = JSON.stringify(letters.map(l => l.id + ':' + l.statut));
+    window._volLetterSig = sig;
+    clearInterval(_volLetterRefreshInterval);
+    _volLetterRefreshInterval = setInterval(async () => {
+      if (window._activeView !== 'volunteer') { clearInterval(_volLetterRefreshInterval); return; }
+      try {
+        const fresh = await api('/volunteer-letters').catch(() => []);
+        const freshSig = JSON.stringify(fresh.map(l => l.id + ':' + l.statut));
+        if (freshSig !== window._volLetterSig) volunteer();
+      } catch {}
+    }, 5000);
+  }
 }
 
 function _volChipClick(chip) {
@@ -6217,6 +6244,19 @@ async function letters() {
       </div>
     `).join('') || '<div class="empty-state"><div class="es-icon">📄</div><p>Aucune lettre générée</p></div>'}
   `);
+
+  // Filet de sécurité en plus du push SSE : revérifie l'état des signatures toutes les 5s
+  // tant qu'on reste sur cette page, pour ne jamais avoir à rafraîchir manuellement.
+  window._recLetterSig = JSON.stringify(data.map(l => l.id + ':' + l.statut));
+  clearInterval(_recLetterRefreshInterval);
+  _recLetterRefreshInterval = setInterval(async () => {
+    if (window._activeView !== 'letters') { clearInterval(_recLetterRefreshInterval); return; }
+    try {
+      const fresh = await api('/ai/recommendations').catch(() => []);
+      const freshSig = JSON.stringify(fresh.map(l => l.id + ':' + l.statut));
+      if (freshSig !== window._recLetterSig) letters();
+    } catch {}
+  }, 5000);
 }
 
 function openLetterForm(allUsers) {
