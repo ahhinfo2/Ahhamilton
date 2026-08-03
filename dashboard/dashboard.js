@@ -11242,14 +11242,14 @@ async function mes_billets() {
             <div style="font-size:.78rem;opacity:.8;margin-top:4px">📅 ${fmt(t.date_debut)} · 📍 ${t.lieu||'–'}</div>
           </div>
           <div style="padding:16px;display:flex;gap:16px;align-items:center">
-            <img src="${BASE}/api/tickets/${t.id}/qr" alt="QR" style="width:110px;height:110px;border:2px solid var(--border);border-radius:8px"/>
+            <img src="${BASE}/api/tickets/${t.id}/qr?token=${encodeURIComponent(TOKEN)}" alt="QR" style="width:110px;height:110px;border:2px solid var(--border);border-radius:8px"/>
             <div>
               <div style="font-size:.82rem;color:var(--muted);margin-bottom:6px">
                 ${t.table_numero ? `🪑 Table ${t.table_numero}` : '🪑 Table à confirmer'}<br/>
                 ${t.vendeur_nom ? `👤 Vendu par ${t.vendeur_nom}` : '🌐 Acheté en ligne'}<br/>
                 💰 $${(t.prix||0).toFixed(2)}
               </div>
-              <button class="btn btn-sm btn-outline" onclick="window.open('${BASE}/api/tickets/${t.id}/qr','_blank')">📥 Télécharger QR</button>
+              <button class="btn btn-sm btn-outline" onclick="window.open('${BASE}/api/tickets/${t.id}/qr?token=${encodeURIComponent(TOKEN)}','_blank')">📥 Télécharger QR</button>
             </div>
           </div>
           <div style="background:var(--off);padding:10px 16px;font-size:.72rem;color:var(--muted);font-family:monospace;border-top:1px solid var(--border)">
@@ -12570,7 +12570,7 @@ async function loadTicketsList(actId) {
         <td style="padding:5px">${t.vendeur_nom||'En ligne'}</td>
         <td style="padding:5px">${t.methode_paiement||'–'}</td>
         <td style="padding:5px">$${(t.prix||0).toFixed(2)}</td>
-        <td style="padding:5px"><button class="btn btn-sm btn-ghost" onclick="window.open('${BASE}/api/tickets/${t.id}/qr','_blank')">📱</button></td>
+        <td style="padding:5px"><button class="btn btn-sm btn-ghost" onclick="window.open('${BASE}/api/tickets/${t.id}/qr?token=${encodeURIComponent(TOKEN)}','_blank')">📱</button></td>
       </tr>`).join('')}</tbody>
     </table>` : '<p style="color:var(--muted);font-size:.82rem">Aucun billet vendu</p>';
 }
@@ -12616,9 +12616,9 @@ function openSellTicketForm(actId, actTitre) {
       // Afficher le QR code du billet
       openModal('📱 QR Code du billet', `
         <div style="text-align:center;padding:20px">
-          <img src="${BASE}/api/tickets/${r.id}/qr" style="width:220px;height:220px" alt="QR"/>
+          <img src="${BASE}/api/tickets/${r.id}/qr?token=${encodeURIComponent(TOKEN)}" style="width:220px;height:220px" alt="QR"/>
           <pre style="background:var(--off);padding:12px;border-radius:8px;font-size:.82rem;margin-top:14px;text-align:left">${r.qr_data}</pre>
-          <button class="btn btn-outline" style="margin-top:12px" onclick="window.open('${BASE}/api/tickets/${r.id}/qr','_blank')">🖨️ Télécharger QR</button>
+          <button class="btn btn-outline" style="margin-top:12px" onclick="window.open('${BASE}/api/tickets/${r.id}/qr?token=${encodeURIComponent(TOKEN)}','_blank')">🖨️ Télécharger QR</button>
         </div>
       `);
     } catch(ex) { toast(ex.message,'error'); }
@@ -12995,7 +12995,7 @@ async function vpRefreshVendus() {
           <td>${escHtml(t.methode_paiement||'–')}</td>
           <td>$${(t.prix||0).toFixed(2)}</td>
           <td style="font-family:monospace;font-size:.76rem">${escHtml(t.barcode_data||'')}</td>
-          <td><button class="btn btn-sm btn-ghost" onclick="window.open('${BASE}/api/tickets/${t.id}/qr','_blank')" title="Voir le QR">📱</button></td>
+          <td><button class="btn btn-sm btn-ghost" onclick="window.open('${BASE}/api/tickets/${t.id}/qr?token=${encodeURIComponent(TOKEN)}','_blank')" title="Voir le QR">📱</button></td>
           <td><button class="btn btn-sm btn-ghost" style="color:#c62828" onclick="vpSupprimerVendu(${t.id})" title="Supprimer ce billet vendu — annule aussi le revenu">🗑</button></td>
         </tr>`).join('')}</tbody>
       </table></div>`;

@@ -1,6 +1,16 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'ahh_secret_2026';
+// Ce dépôt est public sur GitHub — un secret JWT en dur dans le code serait visible de tous et
+// permettrait de forger un token pour n'importe quel compte (y compris admin). Si JWT_SECRET
+// n'est pas défini, on génère un secret aléatoire pour ce démarrage plutôt que d'utiliser une
+// valeur fixe : les sessions existantes seront invalidées au redémarrage (dégradé mais sûr),
+// au lieu d'un secret prévisible connu de quiconque lit le dépôt.
+let JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  JWT_SECRET = crypto.randomBytes(48).toString('hex');
+  console.error('⚠️  JWT_SECRET absent des variables d\'environnement — secret temporaire généré pour ce démarrage. Définissez JWT_SECRET dans .env (production) pour des sessions stables et sécurisées.');
+}
 
 let _db = null;
 function getDb() {

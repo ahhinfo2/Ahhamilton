@@ -305,6 +305,24 @@ app.use('/Public', (req, res, next) => {
 // Images publiques : cache 7 jours (doit être avant le handler racine)
 app.use('/Public', express.static(path.join(__dirname, 'Public'), { maxAge: 604800000 }));
 
+// Sécurité — avant ce garde-fou, express.static servait TOUT le répertoire du projet en clair,
+// sans authentification : server.js, mailer.js, imap.js, db/database.js, middleware/auth.js,
+// package.json, node_modules/, etc. étaient tous téléchargeables par quiconque connaissait l'URL
+// (ex: https://ahhamilton.ca/server.js retournait 200). N'autorise désormais que les pages/scripts
+// publics du site (par nom explicite) et les extensions d'assets statiques sans risque ; tout le
+// reste renvoie 404 avant même d'atteindre express.static.
+const PUBLIC_ROOT_FILES = new Set([
+  'manifest.json', 'robots.txt', 'sitemap.xml', '404.html',
+  '_nav.js', '_lang.js', '_fix_lightbox.js', '_gal_replace.js', 'casl-consent.js', 'nav-auth.js'
+]);
+const SAFE_ROOT_ASSET_EXT = /\.(html|css|jpe?g|png|gif|webp|avif|svg|ico|woff2?|ttf)$/i;
+app.use((req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  if (req.path === '/' || req.path.startsWith('/api/')) return next();
+  const base = path.basename(req.path);
+  if (PUBLIC_ROOT_FILES.has(base) || SAFE_ROOT_ASSET_EXT.test(req.path)) return next();
+  return res.status(404).end();
+});
 app.use('/', express.static(path.join(__dirname), { maxAge: 86400000, setHeaders: (res, filePath) => {
   if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
 } }));
@@ -712,22 +730,29 @@ app.delete('/api/dependents/:id', authMiddleware, (req, res) => {
 // USERS
 // ══════════════════════════════════════════════════════════════════════════════
 
+// Coordonnées (email, téléphone, adresse, date de naissance...) réservées au comité ou à
+// soi-même — les autres membres n'obtiennent que les champs "annuaire" (nom, rôle, photo, bio).
+const USERS_FULL_COLS = `id, prenom, nom, email, telephone, adresse, role, actif,
+    plan, plan_paid_month, plan_unpaid_count, titre_comite, carte_photo_approuvee,
+    date_inscription, date_naissance, bio, photo_url, photo_original_url, email_org`;
+const USERS_SAFE_COLS = `id, prenom, nom, role, actif, plan, titre_comite,
+    date_inscription, bio, photo_url, photo_original_url`;
+
 app.get('/api/users', authMiddleware, (req, res) => {
   const page  = Math.max(1, parseInt(req.query.page) || 1);
   const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 200));
   const offset = (page - 1) * limit;
   const total = db.prepare("SELECT COUNT(*) AS c FROM users WHERE (phantom IS NULL OR phantom = 0)").get().c;
-  const rows = db.prepare(`SELECT id, prenom, nom, email, telephone, adresse, role, actif,
-    plan, plan_paid_month, plan_unpaid_count, titre_comite, carte_photo_approuvee,
-    date_inscription, date_naissance, bio, photo_url, photo_original_url, email_org FROM users
+  const cols = ['admin','tresoriere','secretaire','delegue'].includes(req.user.role) ? USERS_FULL_COLS : USERS_SAFE_COLS;
+  const rows = db.prepare(`SELECT ${cols} FROM users
     WHERE (phantom IS NULL OR phantom = 0) ORDER BY nom, prenom LIMIT ? OFFSET ?`).all(limit, offset);
   res.json(req.query.page ? { data: rows, total, page, pages: Math.ceil(total / limit) } : rows);
 });
 
 app.get('/api/users/:id', authMiddleware, (req, res) => {
-  const u = db.prepare(`SELECT id, prenom, nom, email, telephone, adresse, role, actif,
-    plan, plan_paid_month, plan_unpaid_count, titre_comite, carte_photo_approuvee,
-    date_inscription, date_naissance, bio, photo_url, photo_original_url, email_org FROM users WHERE id = ?`).get(req.params.id);
+  const full = ['admin','tresoriere','secretaire','delegue'].includes(req.user.role) || Number(req.params.id) === req.user.id;
+  const cols = full ? USERS_FULL_COLS : USERS_SAFE_COLS;
+  const u = db.prepare(`SELECT ${cols} FROM users WHERE id = ?`).get(req.params.id);
   if (!u) return res.status(404).json({ error: 'Utilisateur introuvable' });
   res.json(u);
 });
@@ -2140,6 +2165,9 @@ app.post('/api/notes/:id/sign', authMiddleware, (req, res) => {
 
 // Lister les signatures d'une note
 app.get('/api/notes/:id/signatures', authMiddleware, (req, res) => {
+  const note = db.prepare('SELECT * FROM meeting_notes WHERE id=?').get(req.params.id);
+  if (!note) return res.status(404).json({ error: 'Note introuvable' });
+  if (!canAccessNote(req, note)) return res.status(403).json({ error: 'Accès refusé' });
   const rows = db.prepare(`SELECT ns.*, u.prenom||' '||u.nom AS nom_signataire, u.role
     FROM note_signatures ns JOIN users u ON u.id=ns.user_id
     WHERE ns.note_id=? ORDER BY ns.date_signature`).all(req.params.id);
@@ -2321,8 +2349,9 @@ app.delete('/api/notes/:id', authMiddleware, (req, res) => {
 // Sauvegarder ma contribution (upsert)
 app.post('/api/notes/:id/contribute', authMiddleware, (req, res) => {
   const { contenu } = req.body;
-  const note = db.prepare('SELECT verrouille FROM meeting_notes WHERE id=?').get(req.params.id);
+  const note = db.prepare('SELECT * FROM meeting_notes WHERE id=?').get(req.params.id);
   if (!note) return res.status(404).json({ error: 'Note introuvable' });
+  if (!canAccessNote(req, note)) return res.status(403).json({ error: 'Accès refusé' });
   if (note.verrouille) return res.status(403).json({ error: 'Note verrouillée' });
   db.prepare(`INSERT OR REPLACE INTO note_contributions (note_id, user_id, contenu, derniere_frappe)
     VALUES (?,?,?,CURRENT_TIMESTAMP)`).run(req.params.id, req.user.id, contenu || '');
@@ -2331,6 +2360,9 @@ app.post('/api/notes/:id/contribute', authMiddleware, (req, res) => {
 
 // Lire toutes les contributions actives
 app.get('/api/notes/:id/contributions', authMiddleware, (req, res) => {
+  const note = db.prepare('SELECT * FROM meeting_notes WHERE id=?').get(req.params.id);
+  if (!note) return res.status(404).json({ error: 'Note introuvable' });
+  if (!canAccessNote(req, note)) return res.status(403).json({ error: 'Accès refusé' });
   const rows = db.prepare(`
     SELECT nc.*, u.prenom||' '||u.nom AS nom, u.photo_url
     FROM note_contributions nc JOIN users u ON u.id=nc.user_id
@@ -3162,6 +3194,9 @@ app.post('/api/chat/private', authMiddleware, (req, res) => {
 
 // GET members of a room
 app.get('/api/chat/rooms/:id/members', authMiddleware, (req, res) => {
+  const member = db.prepare('SELECT * FROM chat_room_members WHERE room_id = ? AND user_id = ?')
+    .get(req.params.id, req.user.id);
+  if (!member) return res.status(403).json({ error: 'Accès refusé' });
   const rows = db.prepare(`
     SELECT u.id, u.prenom, u.nom, u.role FROM chat_room_members crm
     JOIN users u ON u.id = crm.user_id WHERE crm.room_id = ?
@@ -4316,8 +4351,10 @@ setInterval(runPaymentReminderJob, 24 * 60 * 60 * 1000);
 
 // GET public — fiches talents approuvées
 app.get('/api/talents', (req, res) => {
+  // Public : ne jamais inclure le courriel des membres ici (talents.html ne l'affiche pas de
+  // toute façon — c'était une fuite pure, sans usage côté client).
   const rows = db.prepare(`
-    SELECT t.*, u.prenom, u.nom, u.email
+    SELECT t.*, u.prenom, u.nom
     FROM talents t JOIN users u ON u.id = t.user_id
     WHERE t.actif = 1 AND (t.statut = 'approuve' OR t.statut IS NULL)
     ORDER BY t.categorie, t.nom
@@ -4823,14 +4860,23 @@ app.post('/api/activities/:id/pay', authMiddleware, (req, res) => {
 });
 
 // POST — valider présence via QR sans connexion (email seulement) + auto-login
-app.post('/api/activities/:id/scan-public', (req, res) => {
-  const { qr_token, email } = req.body;
+app.post('/api/activities/:id/scan-public', authLimiter, (req, res) => {
+  const { qr_token, email, date_naissance } = req.body;
   if (!qr_token || !email) return res.status(400).json({ error: 'Token et email requis' });
   const act = db.prepare('SELECT * FROM activities WHERE id = ? AND qr_token = ?').get(req.params.id, qr_token);
   if (!act) return res.status(403).json({ error: 'QR invalide' });
 
   const user = db.prepare('SELECT * FROM users WHERE email = ? AND actif = 1').get(email.trim().toLowerCase());
   if (!user) return res.status(404).json({ error: 'Aucun membre trouvé avec cet email. Contactez un administrateur.' });
+
+  // Sécurité : le qr_token d'une activité est semi-public (affiché/scanné en masse à l'accueil) et
+  // ne prouve pas l'identité de la personne qui le scanne — se connecter avec juste un courriel
+  // permettait de prendre le contrôle de n'importe quel compte (y compris admin) en le connaissant
+  // simplement. La date de naissance (jamais exposée publiquement par l'app) sert de 2e facteur
+  // léger sans exiger de mot de passe sur un appareil de kiosque partagé.
+  if (!user.date_naissance || !date_naissance || user.date_naissance.slice(0,10) !== String(date_naissance).slice(0,10)) {
+    return res.status(401).json({ error: 'Date de naissance incorrecte. Réessayez ou demandez de l\'aide au comité.' });
+  }
 
   const existing = db.prepare('SELECT * FROM activity_registrations WHERE activity_id=? AND user_id=?').get(act.id, user.id);
   if (existing) {
@@ -4839,7 +4885,6 @@ app.post('/api/activities/:id/scan-public', (req, res) => {
     db.prepare("INSERT INTO activity_registrations (activity_id, user_id, statut) VALUES (?,?,'present')").run(act.id, user.id);
   }
 
-  // Générer un JWT pour connecter automatiquement le membre
   const { password_hash, ...safeUser } = user;
   const token = jwt.sign({ id: user.id, email: user.email, role: user.role, prenom: user.prenom, nom: user.nom }, JWT_SECRET, { expiresIn: '8h' });
   res.json({
@@ -5031,9 +5076,18 @@ app.get('/api/tickets/my', authMiddleware, (req, res) => {
 });
 
 // QR code d'un billet (route publique avec token)
-app.get('/api/tickets/:id/qr', async (req, res) => {
+// Un billet appartient à son acheteur (user_id) ou, pour une vente comptant sans compte lié,
+// n'est visible que du comité — jamais accessible en changeant simplement l'id dans l'URL.
+function canAccessTicket(req, ticket) {
+  if (!ticket) return false;
+  if (ticket.user_id && ticket.user_id === req.user.id) return true;
+  return ['admin','tresoriere','secretaire','delegue'].includes(req.user.role);
+}
+
+app.get('/api/tickets/:id/qr', authMiddleware, async (req, res) => {
   const ticket = db.prepare('SELECT * FROM tickets WHERE id = ?').get(req.params.id);
   if (!ticket) return res.status(404).send('Billet introuvable');
+  if (!canAccessTicket(req, ticket)) return res.status(403).send('Accès refusé');
   try {
     const svgRaw = await QRCode.toString(ticket.qr_data || String(ticket.id), {
       type: 'svg', width: 260, margin: 2,
@@ -5048,9 +5102,10 @@ app.get('/api/tickets/:id/qr', async (req, res) => {
 // QR en noir pur — pour l'impression thermique monochrome (DYMO LabelWriter). Le vert de marque
 // utilisé ailleurs (#1b5e20) n'a pas assez de contraste une fois converti en niveaux de gris par
 // une imprimante thermique directe, ce qui rend le QR imprimé difficile ou impossible à scanner.
-app.get('/api/tickets/:id/qr-noir', async (req, res) => {
+app.get('/api/tickets/:id/qr-noir', authMiddleware, async (req, res) => {
   const ticket = db.prepare('SELECT * FROM tickets WHERE id = ?').get(req.params.id);
   if (!ticket) return res.status(404).send('Billet introuvable');
+  if (!canAccessTicket(req, ticket)) return res.status(403).send('Accès refusé');
   try {
     const svgRaw = await QRCode.toString(ticket.qr_data || String(ticket.id), {
       type: 'svg', width: 260, margin: 2,
@@ -5346,11 +5401,6 @@ app.get('/api/reports/membres', authMiddleware, requireRole(...REPORT_ROLES), (r
 });
 
 // ── Debug temporaire : voir tous les paiements (à supprimer après test) ───
-app.get('/api/debug/payments', authMiddleware, requireRole('admin'), (req, res) => {
-  const rows = db.prepare('SELECT * FROM payments ORDER BY date_soumission DESC LIMIT 20').all();
-  res.json(rows);
-});
-
 // ══════════════════════════════════════════════════════════════════════════════
 // TÉMOIGNAGES
 // ══════════════════════════════════════════════════════════════════════════════
@@ -6251,7 +6301,7 @@ app.post('/api/tickets/marquer-imprimes', authMiddleware, requireRole('admin','t
 });
 
 // ── Vue publique d'un ticket (pour ticket.html) ───────────────────────────────
-app.get('/api/tickets/:id/view', (req, res) => {
+app.get('/api/tickets/:id/view', authMiddleware, (req, res) => {
   const t = db.prepare(`
     SELECT t.*, a.titre AS activite, a.date_debut, a.lieu, att.nom AS type_nom
     FROM tickets t
@@ -6260,13 +6310,16 @@ app.get('/api/tickets/:id/view', (req, res) => {
     WHERE t.id = ?
   `).get(req.params.id);
   if (!t) return res.status(404).json({ error: 'Billet introuvable' });
+  if (!canAccessTicket(req, t)) return res.status(403).json({ error: 'Accès refusé' });
   res.json(t);
 });
 
-// ── Barcode PNG public pour un ticket ────────────────────────────────────────
-app.get('/api/tickets/:id/barcode.png', async (req, res) => {
-  const t = db.prepare('SELECT barcode_data FROM tickets WHERE id = ?').get(req.params.id);
-  if (!t?.barcode_data) return res.status(404).send('Not found');
+// ── Barcode PNG d'un billet — réservé à son acheteur ou au comité ───────────
+app.get('/api/tickets/:id/barcode.png', authMiddleware, async (req, res) => {
+  const t = db.prepare('SELECT * FROM tickets WHERE id = ?').get(req.params.id);
+  if (!t) return res.status(404).send('Not found');
+  if (!canAccessTicket(req, t)) return res.status(403).send('Accès refusé');
+  if (!t.barcode_data) return res.status(404).send('Not found');
   try {
     const buf = await generateBarcode(t.barcode_data);
     res.set('Content-Type', 'image/png');
@@ -7590,7 +7643,8 @@ app.get('/api/referral/my-code', authMiddleware, (req, res) => {
   });
 });
 
-app.post('/api/referral/use/:code', (req, res) => {
+// Limité pour empêcher l'énumération par force brute des codes de parrainage (révèle un nom).
+app.post('/api/referral/use/:code', authLimiter, (req, res) => {
   const parrain = db.prepare('SELECT id, prenom, nom FROM users WHERE referral_code=? AND actif=1').get(req.params.code);
   if (!parrain) return res.status(404).json({ error: 'Code invalide' });
   res.json({ parrain: parrain.prenom + ' ' + parrain.nom, parrain_id: parrain.id });
@@ -9010,7 +9064,7 @@ app.post('/api/forms/:id/respond-for', authMiddleware, requireRole(...FORM_EXEC)
 const EXEC_ROLES = ['admin','tresoriere','secretaire','delegue'];
 
 // Recherche de membres par nom (autocomplétion)
-app.get('/api/members/search', authMiddleware, (req, res) => {
+app.get('/api/members/search', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   const q = (req.query.q || '').trim();
   if (q.length < 2) return res.json([]);
   const rows = db.prepare(`SELECT id, prenom, nom, email, role FROM users
@@ -9966,7 +10020,7 @@ app.put('/api/rideshares/:id/requests/:reqId', authMiddleware, (req, res) => {
   const rs = db.prepare('SELECT * FROM rideshares WHERE id = ?').get(rsId);
   if (!rs) return res.status(404).json({ error: 'Covoiturage introuvable' });
   if (rs.user_id !== req.user.id) return res.status(403).json({ error: 'Non autorisé' });
-  db.prepare('UPDATE rideshare_requests SET statut = ? WHERE id = ?').run(statut, reqId);
+  db.prepare('UPDATE rideshare_requests SET statut = ? WHERE id = ? AND rideshare_id = ?').run(statut, reqId, rsId);
   // Notifier le demandeur
   try {
     const rr = db.prepare('SELECT * FROM rideshare_requests WHERE id = ?').get(reqId);

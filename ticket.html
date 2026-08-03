@@ -107,7 +107,7 @@ async function load() {
 
     // Barcode
     if (t.barcode_data) {
-      document.getElementById('tBarcode').src = `${API}/tickets/${ticketId}/barcode.png`;
+      document.getElementById('tBarcode').src = `${API}/tickets/${ticketId}/barcode.png?token=${encodeURIComponent(token || '')}`;
       document.getElementById('tBarcodeVal').textContent = t.barcode_data;
     }
 

@@ -157,7 +157,7 @@ function renderAll() {
 function renderTicket(t, fmt) {
   const ticketToken = (t.qr_data || '').replace('TICKET:', '');
   const qrSrc = `${BASE}/uploads/qr/${ticketToken}.png`;
-  const bcSrc = `${API}/tickets/${t.id}/barcode.png`;
+  const bcSrc = `${API}/tickets/${t.id}/barcode.png?token=${encodeURIComponent(token || '')}`;
   const dateStr = t.date_debut ? new Date(t.date_debut).toLocaleDateString('fr-CA', { day:'numeric', month:'long', year:'numeric' }) : '';
   const s = t => String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 

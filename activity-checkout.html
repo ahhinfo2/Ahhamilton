@@ -138,6 +138,10 @@
       '<label>Votre courriel membre</label>' +
       '<input id="scanEmail" type="text" inputmode="email" autocomplete="email" placeholder="votre@email.ca" style="margin-bottom:10px"/>' +
       '</div>' +
+      '<div class="form-group">' +
+      '<label>Votre date de naissance (vérification)</label>' +
+      '<input id="scanDob" type="date" autocomplete="bday" style="margin-bottom:10px"/>' +
+      '</div>' +
       '<button class="btn btn-scan" onclick="scanPublic()">' + btnLabel + '</button>';
   }
 
@@ -158,14 +162,16 @@
 
   async function scanPublic() {
     const email = document.getElementById('scanEmail')?.value?.trim();
+    const date_naissance = document.getElementById('scanDob')?.value;
     if (!email) { showErr('Entrez votre adresse courriel.'); return; }
+    if (!date_naissance) { showErr('Entrez votre date de naissance pour vérification.'); return; }
     const btn = document.querySelector('.btn-scan');
     if (btn) { btn.disabled = true; btn.textContent = 'Connexion…'; }
     try {
       const r = await fetch(`${API}/activities/${actId}/scan-public`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ qr_token: token, email })
+        body: JSON.stringify({ qr_token: token, email, date_naissance })
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error);
