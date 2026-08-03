@@ -330,12 +330,11 @@ async function buildSidebar() {
 
   function badge(id) {
     var map = {
-      'inscriptions': sc.inscriptions,
-      'carte-gestion': sc.carte_gestion,
+      'membres': (sc.inscriptions||0) + (sc.carte_gestion||0),
       'tasks': sc.tasks,
       'alerts': sc.alerts,
       'forms-mgmt': sc.forms,
-      'pending-orders': sc.pending_orders,
+      'billetterie': sc.pending_orders,
       'paiements': sc.paiements,
       'invoices': sc.invoices,
       'annuaire': sc.courriel,
@@ -359,9 +358,7 @@ async function buildSidebar() {
 
     // ── Membres ───────────────────────────────────────────────────
     { label: 'Membres', items: [
-      { id:'inscriptions',  icon:'◈', label:'Inscriptions',     roles:EXEC },
-      { id:'carte-gestion', icon:'🪪', label:'Nos membres',  roles:EXEC },
-      { id:'photos-membres', icon:'🖼️', label:'Photos des membres', roles:EXEC },
+      { id:'membres', icon:'🪪', label:'Membres', roles:EXEC },
     ]},
 
     // ── Activités ─────────────────────────────────────────────────
@@ -392,37 +389,28 @@ async function buildSidebar() {
       { id:'tasks',             icon:'✓', label:'Tâches',              roles:EXEC },
       { id:'reunions',          icon:'📅', label:'Réunions',            roles:EXEC },
       { id:'alertes-urgentes',  icon:'🚨', label:'Alertes urgentes',   roles:EXEC },
-      { id:'fierte-mgmt',       icon:'🏆', label:'Mur de fierté',       roles:EXEC },
+      { id:'mise-en-valeur',    icon:'🏆', label:'Mise en valeur',      roles:EXEC },
       { id:'reports',           icon:'◆', label:'Rapports',            roles:EXEC },
       { id:'alerts',            icon:'◇', label:'Alertes',             roles:EXEC },
       { id:'votes',             icon:'🗳️', label:'Votes & Élections', roles:EXEC },
-      { id:'committee-elections', icon:'🗳️', label:'Élections de comité', roles:EXEC },
       { id:'parrainage',        icon:'🤝', label:'Parrainage',         roles: ALL },
       { id:'export-data',       icon:'📦', label:'Export / Sauvegarde', roles:['admin','secretaire','tresoriere'] },
       { id:'forms-mgmt',        icon:'📋', label:'Formulaires',        roles:EXEC },
-      { id:'decision-registry', icon:'📒', label:'Registre décisions', roles:EXEC },
-      { id:'correspondance',    icon:'📨', label:'Correspondance',      roles:['admin','secretaire'] },
-      { id:'presidence-delegation', icon:'🎗️', label:'Délégation présidence', roles:EXEC },
-      { id:'policies',          icon:'📜', label:'Politiques',         roles:EXEC },
-      { id:'email-templates',   icon:'✉️', label:'Modèles courriel',  roles:EXEC },
-      { id:'ambassadeur-admin', icon:'🌟', label:'Ambassadeur du mois',roles:['admin','secretaire'] },
-      { id:'abonnes-newsletter',icon:'📧', label:'Abonnés infolettre', roles:EXEC },
+      { id:'gouvernance',       icon:'📒', label:'Gouvernance',        roles:EXEC },
+      { id:'communication-config', icon:'✉️', label:'Communication',  roles:EXEC },
     ]},
 
     // ── Opportunités ─────────────────────────────────────────────
     { label: '💼 Opportunités', items: [
-      { id:'young-jobs',      icon:'💼', label:'Stages & emplois',  roles: ALL },
-      { id:'young-trainings', icon:'📚', label:'Formations',        roles: ALL },
+      { id:'opportunites', icon:'💼', label:'Opportunités', roles: ALL },
     ]},
 
     // ── Contenu ───────────────────────────────────────────────────
     { label: 'Contenu', items: [
       { id:'gallery_mgmt',      icon:'◎', label:'Galerie',          roles:['admin','secretaire'] },
-      { id:'talents_mgmt',      icon:'◈', label:'Talents',           roles:['admin','secretaire'] },
-      { id:'annonces_mgmt',     icon:'◉', label:'Annonces',          roles:['admin','secretaire'] },
+      { id:'contenu-membres',   icon:'⭐', label:'Contenu membres',  roles:['admin','secretaire'] },
       { id:'documents_mgmt',    icon:'📁', label:'Documents',         roles:['admin','secretaire'] },
-      { id:'sponsors_mgmt',     icon:'🤝', label:'Commanditaires',    roles:['admin','secretaire'] },
-      { id:'equipe_mgmt',       icon:'👥', label:'Équipe dirigeante', roles:['admin','tresoriere','secretaire','delegue'] },
+      { id:'vitrine',           icon:'🤝', label:'Vitrine publique',  roles:['admin','tresoriere','secretaire','delegue'] },
       { id:'shop-mgmt',         icon:'🛒', label:'Boutique',           roles:EXEC },
     ]},
 
@@ -443,8 +431,7 @@ async function buildSidebar() {
 
     // ── Billetterie ───────────────────────────────────────────────
     { label: 'Billetterie', items: [
-      { id:'vente-personne',  icon:'💵', label:'Vendre (cash)',        roles:EXEC },
-      { id:'pending-orders',  icon:'🎟', label:'Commandes en attente', roles:STAFF },
+      { id:'billetterie', icon:'🎟', label:'Billetterie', roles:EXEC },
     ]},
 
     // ── Mon espace ────────────────────────────────────────────────
@@ -593,23 +580,20 @@ function setActiveNav(viewId) {
     finance:'Finance', invoices:'Factures', fournisseurs:'Fournisseurs', correspondance:'Correspondance', messages:'Messages', volunteer:'Heures de bénévolat',
     reports:'Rapports', letters:'Lettres de recommandation',
     projects:'Projets', alerts:'Alertes', profile:'Mon profil', gallery_mgmt:'Gérer la galerie',
-    talents_mgmt:'Nos talents', annonces_mgmt:'Petites annonces',
+    'contenu-membres':'Contenu membres', 'vitrine':'Vitrine publique',
     mes_talents:'Mon talent', mes_annonces:'Mes annonces',
-    inscriptions:'Inscriptions en attente', paiements:'Paiements membres',
+    paiements:'Paiements membres',
     recus:'Reçus fiscaux', rapports_finance:'Rapports', mon_paiement:'Mon paiement', annuaire:'Courriel', documents_mgmt:'Documents officiels',
-    forum:'Forum', newsletter:'Infolettre', 'vente-personne':'Vendre (Cash)',
-    'young-home':'Espace Jeunes', 'young-jobs':'Stages & Emplois',
+    forum:'Forum', newsletter:'Infolettre', 'billetterie':'Billetterie',
+    'young-home':'Espace Jeunes', 'young-jobs':'Stages & Emplois', 'opportunites':'Opportunités',
     'young-trainings':'Formations', 'young-polls':'Sondages', 'young-stories':'Success Stories',
-    'votes':'Votes & Élections', 'committee-elections':'Élections de comité', 'parrainage':'Parrainage',
+    'votes':'Votes & Élections', 'parrainage':'Parrainage',
     'carte-membre':'Ma carte membre', 'actualites':'Actualités', 'notif-prefs':'Notifications',
-    'carte-gestion':'Nos membres', 'photos-membres':'Photos des membres', 'carte-scanner':'Lecteur de cartes', 'scanner-unified':'Lecteur QR',
-    'journal-admin':'Journal d\'activité', 'mes-badges':'Mes badges', 'ambassadeur-admin':'Ambassadeur du mois',
-    'abonnes-newsletter':'Abonnés newsletter',
+    'membres':'Membres', 'carte-scanner':'Lecteur de cartes', 'scanner-unified':'Lecteur QR',
+    'journal-admin':'Journal d\'activité', 'mes-badges':'Mes badges',
     'tasks':'Tâches',
     'reunions':'Réunions',
-    'decision-registry':'Registre des décisions', 'presidence-delegation':'Délégation présidence',
-    'policies':'Politiques et règlements',
-    'email-templates':'Modèles de courriels',
+    'gouvernance':'Gouvernance', 'communication-config':'Communication',
     'export-data':'Export données',
     'scan-delegations':'Déléguer un lecteur',
     'forms-mgmt':'Formulaires',
@@ -855,7 +839,7 @@ function _handleLiveEvent(evt) {
   // Rafraîchir la vue active si pertinent
   const view = window._activeView;
   if (view === 'home') setTimeout(home, 800);
-  if (view === 'inscriptions' && evt.alertType === 'inscription') setTimeout(inscriptions, 600);
+  if (view === 'membres' && window._membresTab === 'inscriptions' && evt.alertType === 'inscription') setTimeout(inscriptions, 600);
   if (view === 'alerts') setTimeout(alerts, 600);
   if ((view === 'annuaire' || view === 'messages') && evt.type === 'message') setTimeout(() => showView(view), 600);
 }
@@ -884,7 +868,7 @@ async function pollBadges() {
       // ── Badges sur tous les items du sidebar ──
       setSidebarBadge('annuaire',           newMsgs);
       setSidebarBadge('alerts',             newAlerts);
-      setSidebarBadge('inscriptions',       stats.inscriptions_en_attente);
+      setSidebarBadge('membres',            stats.inscriptions_en_attente);
       setSidebarBadge('paiements',          stats.paiements_en_attente);
       setSidebarBadge('tasks',              stats.taches_a_faire);
       setSidebarBadge('activities',         stats.activites_a_venir);
@@ -1213,45 +1197,41 @@ async function showView(viewId) {
     home, activities, members, subcommittees,
     finance, invoices, fournisseurs, messages, volunteer,
     reports: rapportsHubView, letters, projects, alerts, profile,
-    gallery_mgmt, annuaire, talents_mgmt, annonces_mgmt, mes_talents, mes_annonces,
-    inscriptions, paiements, recus, mon_paiement, mes_billets, testimonials_mgmt, videos_mgmt,
-    scanner, forum, newsletter, rapports_finance, documents_mgmt, sponsors_mgmt, equipe_mgmt, recus_archive, correspondance
+    gallery_mgmt, annuaire, mes_talents, mes_annonces,
+    paiements, recus, mon_paiement, mes_billets, testimonials_mgmt, videos_mgmt,
+    scanner, forum, newsletter, rapports_finance, documents_mgmt, recus_archive
   };
   const extViews = {
-    'pending-orders': pendingOrders,
-    'vente-personne': ventePersonne,
+    'membres': membresHubView,
+    'contenu-membres': contenuMembresHubView,
+    'vitrine': vitrineHubView,
+    'opportunites': opportunitesHubView,
+    'billetterie': billetterieHubView,
     'stats-site': statsSite,
     'young-home': youngHome,
     'young-jobs': youngJobs,
     'young-trainings': youngTrainings,
     'young-polls': youngPolls,
     'young-stories': youngStories,
-    'votes': votesView,
-    'committee-elections': committeeElectionsView,
+    'votes': votesHubView,
     'parrainage': parrainageView,
     'carte-membre': carteMembreView,
     'actualites': actualitesView,
     'notif-prefs': notifPrefsView,
-    'carte-gestion': carteGestionView,
-    'photos-membres': photosMembresView,
     'carte-scanner': carteScannerView,
     'scanner-unified': function() { window.open(window.location.origin + '/scan.html', '_blank'); },
     'journal-admin': journalAdmin,
     'mes-badges': mesBadgesView,
-    'ambassadeur-admin': ambassadeurAdmin,
-    'abonnes-newsletter': abonnesNewsletter,
     'tasks': tasksView,
     'reunions': reunionsHubView,
-    'decision-registry': decisionRegistryView,
-    'policies': policiesView,
-    'email-templates': emailTemplatesView,
     'export-data': exportDataView,
     'scan-delegations': scanDelegationsListView,
-    'presidence-delegation': presidenceDelegationView,
     'forms-mgmt': formsMgmtView,
     'shop-mgmt': shopMgmtView,
     'alertes-urgentes': alertesUrgentesView,
-    'fierte-mgmt': fierteMgmtView,
+    'mise-en-valeur': miseEnValeurHubView,
+    'gouvernance': gouvernanceHubView,
+    'communication-config': communicationConfigHubView,
   };
   if (extViews[viewId]) {
     try { await extViews[viewId](); } catch(e) { setContent(`<div class="empty-state"><div class="es-icon">⚠️</div><p>${e.message}</p></div>`); }
@@ -1449,7 +1429,7 @@ async function home() {
         </div>
         <div style="border-top:1px solid var(--border);margin-top:8px;padding:10px 16px;display:flex;gap:10px;flex-wrap:wrap">
           <button class="btn btn-ghost btn-sm" onclick="showView('carte-scanner')">📷 Lecteur de cartes</button>
-          <button class="btn btn-ghost btn-sm" onclick="showView('inscriptions')">📝 Inscriptions</button>
+          <button class="btn btn-ghost btn-sm" onclick="window._membresTab='inscriptions';showView('membres')">📝 Inscriptions</button>
           <button class="btn btn-ghost btn-sm" onclick="showView('tasks')">✓ Tâches</button>
         </div>
         <!-- Widget météo -->
@@ -1494,7 +1474,7 @@ async function home() {
         <div style="padding:4px 8px">${alertsHtml}</div>
         <div class="table-card-header" style="border-top:1px solid var(--border);margin-top:4px">
           <h3>👤 Derniers membres</h3>
-          <button class="btn btn-sm btn-ghost" onclick="showView('carte-gestion')">Tous →</button>
+          <button class="btn btn-sm btn-ghost" onclick="window._membresTab='repertoire';showView('membres')">Tous →</button>
         </div>
         <div style="padding:4px 0">${derniersMembresHtml}</div>` : `
         <div class="table-card-header"><h3>🔔 Alertes</h3></div>
@@ -8780,7 +8760,24 @@ const TALENT_CATS = [
   { key:'autre',         label:'Autre',                     emoji:'✨' },
 ];
 
+// ══ CONTENU MEMBRES — hub fusionné (Talents / Annonces) ═══════════════════════
+async function contenuMembresHubView(tab) {
+  tab = tab || window._contenuMembresTab || 'talents';
+  window._contenuMembresTab = tab;
+  setContent(`
+    <div class="page-header"><div><h2>⭐ Contenu membres</h2><p>Fiches talent et petites annonces soumises par les membres</p></div></div>
+    <div class="page-tabs-inline">
+      <button class="ptab ${tab==='talents'?'active':''}" onclick="contenuMembresHubView('talents')">Talents</button>
+      <button class="ptab ${tab==='annonces'?'active':''}" onclick="contenuMembresHubView('annonces')">Annonces</button>
+    </div>
+    <div id="contenuMembresHubBody"></div>
+  `);
+  if (tab === 'annonces') await annonces_mgmt();
+  else await talents_mgmt();
+}
+
 async function talents_mgmt() {
+  if (!document.getElementById('contenuMembresHubBody')) { return contenuMembresHubView('talents'); }
   const [data, allUsers] = await Promise.all([
     api('/talents/all'),
     api('/users')
@@ -8788,16 +8785,11 @@ async function talents_mgmt() {
   window._talentById = {}; data.forEach(t => window._talentById[t.id] = t);
   const eligibles = allUsers.filter(u => ['bienfaiteur','partenaire'].includes(u.plan));
 
-  setContent(`
-    <div class="page-header">
-      <div>
-        <h2>⭐ Nos talents</h2>
-        <p>Fiches professionnelles des membres — accessible publiquement sur <a href="../talents.html" target="_blank" style="color:var(--g2)">talents.html</a></p>
-      </div>
-      <div class="page-actions">
-        <a href="../talents.html" target="_blank" class="btn btn-ghost">🔗 Page publique</a>
-        <button class="btn btn-primary" onclick="openTalentForm(null)">+ Ajouter une fiche</button>
-      </div>
+  document.getElementById('contenuMembresHubBody').innerHTML = `
+    <div class="page-actions" style="margin-bottom:14px">
+      <p style="flex:1;margin:0;font-size:.82rem;color:var(--muted)">Accessible publiquement sur <a href="../talents.html" target="_blank" style="color:var(--g2)">talents.html</a></p>
+      <a href="../talents.html" target="_blank" class="btn btn-ghost">🔗 Page publique</a>
+      <button class="btn btn-primary" onclick="openTalentForm(null)">+ Ajouter une fiche</button>
     </div>
 
     ${eligibles.length === 0 ? `
@@ -8843,7 +8835,7 @@ async function talents_mgmt() {
         </div>`;
     }).join('')}
     ${!data.length ? `<div class="empty-state"><div class="es-icon">⭐</div><p>Aucune fiche talent. Cliquez sur "+ Ajouter une fiche".</p></div>` : ''}
-  `);
+  `;
 }
 
 function openTalentForm(t) {
@@ -8943,17 +8935,13 @@ const ANNONCE_CATS = [
 ];
 
 async function annonces_mgmt() {
+  if (!document.getElementById('contenuMembresHubBody')) { return contenuMembresHubView('annonces'); }
   const data = await api('/annonces/all');
 
-  setContent(`
-    <div class="page-header">
-      <div>
-        <h2>📌 Petites annonces</h2>
-        <p>Gestion des annonces membres — visible sur <a href="../annonces.html" target="_blank" style="color:var(--g2)">annonces.html</a></p>
-      </div>
-      <div class="page-actions">
-        <a href="../annonces.html" target="_blank" class="btn btn-ghost">🔗 Page publique</a>
-      </div>
+  document.getElementById('contenuMembresHubBody').innerHTML = `
+    <div class="page-actions" style="margin-bottom:14px">
+      <p style="flex:1;margin:0;font-size:.82rem;color:var(--muted)">Visible sur <a href="../annonces.html" target="_blank" style="color:var(--g2)">annonces.html</a></p>
+      <a href="../annonces.html" target="_blank" class="btn btn-ghost">🔗 Page publique</a>
     </div>
 
     <div class="table-card">
@@ -8989,7 +8977,7 @@ async function annonces_mgmt() {
         </tbody>
       </table></div>
     </div>
-  `);
+  `;
 }
 
 async function toggleAnnonce(id, current) {
@@ -9497,7 +9485,26 @@ async function rejectAnnonce(id) {
 // INSCRIPTIONS EN ATTENTE (admin/staff)
 // ══════════════════════════════════════════════════════════════════════════════
 
+// ══ MEMBRES — hub fusionné (Inscriptions / Répertoire / Photos) ══════════════
+async function membresHubView(tab) {
+  tab = tab || window._membresTab || 'repertoire';
+  window._membresTab = tab;
+  setContent(`
+    <div class="page-header"><div><h2>🪪 Membres</h2><p>Inscriptions, répertoire et photos des membres</p></div></div>
+    <div class="page-tabs-inline">
+      <button class="ptab ${tab==='inscriptions'?'active':''}" onclick="membresHubView('inscriptions')">Inscriptions</button>
+      <button class="ptab ${tab==='repertoire'?'active':''}" onclick="membresHubView('repertoire')">Répertoire</button>
+      <button class="ptab ${tab==='photos'?'active':''}" onclick="membresHubView('photos')">Photos</button>
+    </div>
+    <div id="membresHubBody"></div>
+  `);
+  if (tab === 'inscriptions') await inscriptions();
+  else if (tab === 'photos') await photosMembresView();
+  else await carteGestionView();
+}
+
 async function inscriptions() {
+  if (!document.getElementById('membresHubBody')) { return membresHubView('inscriptions'); }
   const data = await api('/inscriptions');
   const pending   = data.filter(d => d.statut === 'en_attente');
   const processed = data.filter(d => d.statut !== 'en_attente');
@@ -9516,10 +9523,7 @@ async function inscriptions() {
     return j === 0 ? "aujourd'hui" : `depuis ${j} jour${j>1?'s':''}`;
   };
 
-  setContent(
-    '<div class="page-header"><div><h2>📋 Inscriptions en attente</h2>' +
-    '<p>Demandes d\'adhésion à approuver avant la création du compte.</p></div></div>' +
-
+  document.getElementById('membresHubBody').innerHTML = (
     '<div class="table-card" style="margin-bottom:20px;border-left:4px solid #1565c0">' +
     '<div class="table-card-header"><h3 style="color:#1565c0">📧 Inviter un membre par courriel</h3></div>' +
     '<div style="padding:8px 20px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
@@ -11499,15 +11503,33 @@ async function documentDelete(id) {
 const CORR_METHODES = { courriel:'✉️ Courriel', poste:'📮 Poste', main_propre:'🤝 En main propre', telephone:'📞 Téléphone' };
 const CORR_STATUTS = { classe:'Classé', en_attente_reponse:'⏳ En attente de réponse', repondu:'✅ Répondu' };
 
+// ══ GOUVERNANCE — hub fusionné (Décisions / Politiques / Délégation / Correspondance) ═
+async function gouvernanceHubView(tab) {
+  tab = tab || window._gouvernanceTab || 'decisions';
+  window._gouvernanceTab = tab;
+  setContent(`
+    <div class="page-header"><div><h2>📒 Gouvernance</h2><p>Registres et dossiers administratifs du comité</p></div></div>
+    <div class="page-tabs-inline">
+      <button class="ptab ${tab==='decisions'?'active':''}" onclick="gouvernanceHubView('decisions')">Décisions</button>
+      <button class="ptab ${tab==='politiques'?'active':''}" onclick="gouvernanceHubView('politiques')">Politiques</button>
+      <button class="ptab ${tab==='delegation'?'active':''}" onclick="gouvernanceHubView('delegation')">Délégation présidence</button>
+      <button class="ptab ${tab==='correspondance'?'active':''}" onclick="gouvernanceHubView('correspondance')">Correspondance</button>
+    </div>
+    <div id="gouvernanceHubBody"></div>
+  `);
+  if (tab === 'politiques') await policiesView();
+  else if (tab === 'delegation') await presidenceDelegationView();
+  else if (tab === 'correspondance') await correspondance();
+  else await decisionRegistryView();
+}
+
 async function correspondance() {
+  if (!document.getElementById('gouvernanceHubBody')) { return gouvernanceHubView('correspondance'); }
   const canEdit = can.adminOrSec();
   const data = await api('/correspondance').catch(() => []);
   window._corrById = {}; data.forEach(c => window._corrById[c.id] = c);
-  setContent(`
-    <div class="page-header">
-      <div><h2>📨 Correspondance officielle</h2><p>Registre des lettres et courriers entrants/sortants du secrétariat</p></div>
-      ${canEdit ? `<div class="page-actions"><button class="btn btn-primary" onclick="openCorrespondanceForm()">+ Nouvelle entrée</button></div>` : ''}
-    </div>
+  document.getElementById('gouvernanceHubBody').innerHTML = `
+    ${canEdit ? `<div class="page-actions" style="margin-bottom:14px"><button class="btn btn-primary" onclick="openCorrespondanceForm()">+ Nouvelle entrée</button></div>` : ''}
     <div class="table-card">
       <div class="table-card-header" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
         <h3 style="margin:0">Registre</h3>
@@ -11523,7 +11545,7 @@ async function correspondance() {
         <tbody id="corrBody"></tbody>
       </table></div>
     </div>
-  `);
+  `;
   window._corrAll = data;
   filterCorrespondance();
 }
@@ -11623,19 +11645,35 @@ async function correspondanceDelete(id) {
 }
 
 // ══ COMMANDITAIRES ═══════════════════════════════════════════════════════════
+// ══ VITRINE PUBLIQUE — hub fusionné (Commanditaires / Équipe dirigeante) ══════
+async function vitrineHubView(tab) {
+  tab = tab || window._vitrineTab || 'sponsors';
+  window._vitrineTab = tab;
+  setContent(`
+    <div class="page-header"><div><h2>🤝 Vitrine publique</h2><p>Contenu affiché sur le site public de l'association</p></div></div>
+    <div class="page-tabs-inline">
+      <button class="ptab ${tab==='sponsors'?'active':''}" onclick="vitrineHubView('sponsors')">Commanditaires</button>
+      <button class="ptab ${tab==='equipe'?'active':''}" onclick="vitrineHubView('equipe')">Équipe dirigeante</button>
+    </div>
+    <div id="vitrineHubBody"></div>
+  `);
+  if (tab === 'equipe') await equipe_mgmt();
+  else await sponsors_mgmt();
+}
+
 async function sponsors_mgmt() {
+  if (!document.getElementById('vitrineHubBody')) { return vitrineHubView('sponsors'); }
   const canEdit = can.adminOrSec();
   const sponsors = await api('/sponsors/all').catch(() => []);
   window._sponsors_cache = sponsors;
   const CAT_LABELS = { platine:'Platine', or:'Or', argent:'Argent', bronze:'Bronze' };
   const CAT_COLORS = { platine:'#B0BEC5', or:'#F9A825', argent:'#9E9E9E', bronze:'#BF8A30' };
 
-  setContent(`
-    <div class="page-header">
-      <h1>🤝 Commanditaires</h1>
+  document.getElementById('vitrineHubBody').innerHTML = `
+    <div class="page-actions" style="margin-bottom:10px">
+      <p style="flex:1;margin:0;color:var(--muted);font-size:.85rem">Gérez les commanditaires affichés sur le site public.</p>
       ${canEdit ? '<button class="btn btn-primary" onclick="sponsorForm()">+ Ajouter</button>' : ''}
     </div>
-    <p style="color:var(--muted);margin-bottom:24px">Gérez les commanditaires affichés sur le site public.</p>
     <div id="sponsorsList">
       ${sponsors.length === 0
         ? '<p style="color:var(--muted);text-align:center;padding:40px 0">Aucun commanditaire pour l\'instant.</p>'
@@ -11665,7 +11703,7 @@ async function sponsors_mgmt() {
             </div>` : ''}
           </div>`).join('')}
     </div>
-  `);
+  `;
 }
 
 function sponsorForm(id) {
@@ -11737,15 +11775,15 @@ async function sponsorDelete(id, nom) {
 // ÉQUIPE DIRIGEANTE (page publique index.html + equipe.html)
 // ══════════════════════════════════════════════════════════════════════════════
 async function equipe_mgmt() {
+  if (!document.getElementById('vitrineHubBody')) { return vitrineHubView('equipe'); }
   const team = await api('/team/all').catch(() => []);
   window._team_cache = team;
 
-  setContent(`
-    <div class="page-header">
-      <h1>👥 Équipe dirigeante</h1>
+  document.getElementById('vitrineHubBody').innerHTML = `
+    <div class="page-actions" style="margin-bottom:10px">
+      <p style="flex:1;margin:0;color:var(--muted);font-size:.85rem">Gérez les membres du comité affichés sur le site public (nom, titre, photo, citation).</p>
       <button class="btn btn-primary" onclick="teamForm()">+ Ajouter un membre</button>
     </div>
-    <p style="color:var(--muted);margin-bottom:24px">Gérez les membres du comité affichés sur le site public (nom, titre, photo, citation).</p>
     <div id="teamList">
       ${team.length === 0
         ? '<p style="color:var(--muted);text-align:center;padding:40px 0">Aucun membre pour l\'instant.</p>'
@@ -11773,7 +11811,7 @@ async function equipe_mgmt() {
             </div>
           </div>`).join('')}
     </div>
-  `);
+  `;
 }
 
 function teamForm(id) {
@@ -12559,11 +12597,28 @@ async function sendExternalEmailMsg() {
 
 // ══ COMMANDES DE BILLETS EN ATTENTE ══════════════════════════════════════════
 
+// ══ BILLETTERIE — hub fusionné (Vente en personne / Commandes en attente) ═════
+async function billetterieHubView(tab) {
+  tab = tab || window._billetterieTab || 'vente';
+  window._billetterieTab = tab;
+  setContent(`
+    <div class="page-header"><div><h2>🎟 Billetterie</h2><p>Vente en personne et commandes en ligne en attente de paiement</p></div></div>
+    <div class="page-tabs-inline">
+      <button class="ptab ${tab==='vente'?'active':''}" onclick="billetterieHubView('vente')">Vente en personne</button>
+      <button class="ptab ${tab==='commandes'?'active':''}" onclick="billetterieHubView('commandes')">Commandes en attente</button>
+    </div>
+    <div id="billetterieHubBody"></div>
+  `);
+  if (tab === 'commandes') await pendingOrders();
+  else await ventePersonne();
+}
+
 async function pendingOrders() {
+  if (!document.getElementById('billetterieHubBody')) { return billetterieHubView('commandes'); }
   const orders = await api('/orders/pending').catch(() => []);
 
   if (!orders.length) {
-    setContent('<div style="padding:40px;text-align:center"><div style="font-size:3rem;margin-bottom:12px">✅</div><div style="color:var(--muted)">Aucune commande en attente de paiement</div></div>');
+    document.getElementById('billetterieHubBody').innerHTML = '<div style="padding:40px;text-align:center"><div style="font-size:3rem;margin-bottom:12px">✅</div><div style="color:var(--muted)">Aucune commande en attente de paiement</div></div>';
     return;
   }
 
@@ -12584,7 +12639,7 @@ async function pendingOrders() {
       '</td></tr>';
   }).join('');
 
-  setContent(
+  document.getElementById('billetterieHubBody').innerHTML = (
     '<div style="padding:20px">' +
     '<h2 style="margin-bottom:18px">Commandes en attente (' + orders.length + ')</h2>' +
     '<div style="overflow-x:auto">' +
@@ -13042,9 +13097,10 @@ async function deleteActivityPhoto(photoId, actId, actTitre, btn) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 async function ventePersonne() {
+  if (!document.getElementById('billetterieHubBody')) { return billetterieHubView('vente'); }
   const acts = await api('/activities').catch(() => []);
   const actives = acts.filter(a => ['planifiee','en_cours'].includes(a.statut));
-  setContent(`
+  document.getElementById('billetterieHubBody').innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
 
       <!-- Colonne gauche : Formulaire -->
@@ -13111,7 +13167,7 @@ async function ventePersonne() {
       <div id="vpVendusList" style="padding:16px;color:var(--muted);font-size:.85rem">
         Sélectionnez une activité pour voir les billets déjà vendus.
       </div>
-    </div>`);
+    </div>`;
 }
 
 function vpLoadActivity() {
@@ -13682,14 +13738,28 @@ async function _rapportsRenderCroissance() {
 // ══════════════════════════════════════════════════════════════════════════════
 // 4. VOTES & ÉLECTIONS
 // ══════════════════════════════════════════════════════════════════════════════
+// ══ VOTES & ÉLECTIONS — hub fusionné (Votes / Élections de comité) ════════════
+async function votesHubView(tab) {
+  tab = tab || window._votesTab || 'votes';
+  window._votesTab = tab;
+  setContent(`
+    <div class="page-header"><div><h2>🗳️ Votes & Élections</h2><p>Votes officiels et élections de comité</p></div></div>
+    <div class="page-tabs-inline">
+      <button class="ptab ${tab==='votes'?'active':''}" onclick="votesHubView('votes')">Votes</button>
+      <button class="ptab ${tab==='elections'?'active':''}" onclick="votesHubView('elections')">Élections de comité</button>
+    </div>
+    <div id="votesHubBody"></div>
+  `);
+  if (tab === 'elections') await committeeElectionsView();
+  else await votesView();
+}
+
 async function votesView() {
+  if (!document.getElementById('votesHubBody')) { return votesHubView('votes'); }
   const votes = await api('/votes').catch(() => []);
   const canManage = can.executive();
-  setContent(`
-    <div class="page-header">
-      <div><h2>🗳️ Votes & Élections</h2><p>Votes officiels et sondages de gouvernance</p></div>
-      ${canManage ? '<div class="page-actions"><button class="btn btn-primary" onclick="voteNewForm()">+ Créer un vote</button></div>' : ''}
-    </div>
+  document.getElementById('votesHubBody').innerHTML = `
+    ${canManage ? '<div class="page-actions" style="margin-bottom:14px"><button class="btn btn-primary" onclick="voteNewForm()">+ Créer un vote</button></div>' : ''}
     ${!votes.length ? '<div class="empty-state"><div class="es-icon">🗳️</div><p>Aucun vote pour le moment</p></div>' :
       votes.map(v => {
         const opts = JSON.parse(v.options_json||'[]');
@@ -13714,7 +13784,7 @@ async function votesView() {
             ${opts.map((o,i) => `<span style="background:var(--off);border-radius:20px;padding:3px 10px;font-size:.78rem">${escHtml(o)}</span>`).join('')}
           </div>
         </div>`;
-      }).join('')}`);
+      }).join('')}`;
 }
 
 async function voteNewForm() {
@@ -13799,11 +13869,12 @@ window._ceCommittee = [];
 let _ceSearchTimer = null;
 
 async function committeeElectionsView() {
+  if (!document.getElementById('votesHubBody')) { return votesHubView('elections'); }
   const elections = await api('/committee-elections').catch(() => []);
-  setContent(`
-    <div class="page-header">
-      <div><h2>🗳️ Élections de comité</h2><p>Mini-comité électoral indépendant, vote public sécurisé</p></div>
-      <div class="page-actions">${can.executive() ? '<button class="btn btn-primary" onclick="committeeElectionProposeForm()">+ Proposer une élection</button>' : ''}</div>
+  document.getElementById('votesHubBody').innerHTML = `
+    <div class="page-actions" style="margin-bottom:14px">
+      <p style="flex:1;margin:0;font-size:.82rem;color:var(--muted)">Mini-comité électoral indépendant, vote public sécurisé</p>
+      ${can.executive() ? '<button class="btn btn-primary" onclick="committeeElectionProposeForm()">+ Proposer une élection</button>' : ''}
     </div>
     ${!elections.length ? '<div class="empty-state"><div class="es-icon">🗳️</div><p>Aucune élection de comité visible pour vous en ce moment</p></div>' :
       elections.map(e => {
@@ -13820,7 +13891,7 @@ async function committeeElectionsView() {
             </div>
           </div>
         </div>`;
-      }).join('')}`);
+      }).join('')}`;
 }
 
 function committeeElectionProposeForm() {
@@ -13905,15 +13976,16 @@ function _ceRenderChips() {
 }
 
 async function committeeElectionDetail(id) {
+  if (!document.getElementById('votesHubBody')) { window._votesTab = 'elections'; await votesHubView('elections'); }
   let e;
   try { e = await api('/committee-elections/' + id); }
   catch(ex) { toast(ex.message, 'error'); return committeeElectionsView(); }
 
   const pending = e.statut === 'proposition';
-  setContent(`
-    <div class="page-header">
-      <div><h2>🗳️ ${escHtml(e.titre)}</h2><p>${escHtml(e.description||'')}</p></div>
-      <div class="page-actions"><button class="btn btn-ghost" onclick="committeeElectionsView()">← Retour</button></div>
+  document.getElementById('votesHubBody').innerHTML = `
+    <div class="page-actions" style="margin-bottom:14px">
+      <div><h3 style="margin:0">🗳️ ${escHtml(e.titre)}</h3><p style="margin:4px 0 0;font-size:.82rem;color:var(--muted)">${escHtml(e.description||'')}</p></div>
+      <button class="btn btn-ghost" onclick="committeeElectionsView()">← Retour</button>
     </div>
 
     ${pending ? `
@@ -13968,7 +14040,7 @@ async function committeeElectionDetail(id) {
         </div>
       </div>
     `}
-  `);
+  `;
 }
 
 async function _ceApprove(id) {
@@ -14193,6 +14265,7 @@ async function renewMyCard() {
 // GESTION DES CARTES DE MEMBRE (comité)
 // ══════════════════════════════════════════════════════════════════════════════
 async function carteGestionView() {
+  if (!document.getElementById('membresHubBody')) { return membresHubView('repertoire'); }
   const [membres, connexions] = await Promise.all([
     api('/admin/cartes').catch(() => []),
     api('/stats/connexions').catch(() => [])
@@ -14203,11 +14276,8 @@ async function carteGestionView() {
   const planLabel = { gratuit:'Gratuit', bienfaiteur:'Bienfaiteur', partenaire:'Partenaire' };
   const roleLabel = { admin:'Admin', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Délégué', member:'Membre' };
 
-  setContent(`
-    <div class="page-header">
-      <div><h2>🪪 Nos membres</h2><p>Photos · Expirations · Connexions · Profils</p></div>
-      <div class="page-actions" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-outline" onclick="notifierPhotoManquante()">✉️ Rappel photo manquante</button><button class="btn btn-outline" onclick="openVolunteerLetterForm()">📝 Lettre bénévolat</button><button class="btn btn-outline" onclick="carteGestionView()">↻ Actualiser</button></div>
-    </div>
+  document.getElementById('membresHubBody').innerHTML = `
+    <div class="page-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn btn-outline" onclick="notifierPhotoManquante()">✉️ Rappel photo manquante</button><button class="btn btn-outline" onclick="openVolunteerLetterForm()">📝 Lettre bénévolat</button><button class="btn btn-outline" onclick="carteGestionView()">↻ Actualiser</button></div>
     <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
       <input type="text" id="cgSearch" placeholder="🔍 Rechercher nom, email, rôle..." oninput="_cgFilter()" style="flex:1;min-width:200px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:.84rem"/>
       <select id="cgRole" onchange="_cgFilter()" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:.84rem">
@@ -14344,25 +14414,23 @@ async function carteGestionView() {
         '</div>';
       }).join('') || '<div class="m-empty">Aucun membre</div>'}
     </div>
-  `);
+  `;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
 // PHOTOS DES MEMBRES (galerie unique — comité)
 // ══════════════════════════════════════════════════════════════════════════════
 async function photosMembresView() {
+  if (!document.getElementById('membresHubBody')) { return membresHubView('photos'); }
   const members = (await api('/users').catch(() => [])).filter(m => m.actif);
   window._photosMembresData = members;
   const roleLabel = { admin:'Admin', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Délégué', member:'Membre' };
 
-  setContent(`
-    <div class="page-header">
-      <div><h2>🖼️ Photos des membres</h2><p>${members.filter(m=>m.photo_url).length} photo(s) sur ${members.length} membres actifs</p></div>
-      <div class="page-actions"><button class="btn btn-outline" onclick="photosMembresView()">↻ Actualiser</button></div>
-    </div>
+  document.getElementById('membresHubBody').innerHTML = `
+    <div class="page-actions" style="margin-bottom:10px"><p style="flex:1;margin:0;color:var(--muted);font-size:.85rem">${members.filter(m=>m.photo_url).length} photo(s) sur ${members.length} membres actifs</p><button class="btn btn-outline" onclick="photosMembresView()">↻ Actualiser</button></div>
     <input type="text" id="pmSearch" placeholder="🔍 Rechercher par nom..." oninput="_pmFilter()" style="width:100%;padding:9px 14px;border:1px solid var(--border);border-radius:8px;font-size:.85rem;margin-bottom:16px"/>
     <div id="pmGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:16px"></div>
-  `);
+  `;
   _pmRender(members);
 }
 
@@ -15317,7 +15385,24 @@ async function youngHome() {
     </div>`);
 }
 
+// ══ OPPORTUNITÉS — hub fusionné (Stages & emplois / Formations) ═══════════════
+async function opportunitesHubView(tab) {
+  tab = tab || window._opportunitesTab || 'jobs';
+  window._opportunitesTab = tab;
+  setContent(`
+    <div class="page-header"><div><h2>💼 Opportunités</h2><p>Stages, emplois et formations pour la communauté</p></div></div>
+    <div class="page-tabs-inline">
+      <button class="ptab ${tab==='jobs'?'active':''}" onclick="opportunitesHubView('jobs')">Stages & emplois</button>
+      <button class="ptab ${tab==='trainings'?'active':''}" onclick="opportunitesHubView('trainings')">Formations</button>
+    </div>
+    <div id="opportunitesHubBody"></div>
+  `);
+  if (tab === 'trainings') await youngTrainings();
+  else await youngJobs();
+}
+
 async function youngJobs() {
+  if (!document.getElementById('opportunitesHubBody')) { return opportunitesHubView('jobs'); }
   const [jobs, canManage] = await Promise.all([
     api('/young/jobs').catch(() => []),
     Promise.resolve(can.executive())
@@ -15328,14 +15413,12 @@ async function youngJobs() {
   var approved = jobs.filter(function(j) { return j.statut !== 'en_attente'; });
   window._yjFilter = window._yjFilter || 'all';
 
-  setContent(`
-    <div class="page-header">
-      <div><h2>💼 Stages & Emplois — Hamilton</h2><p>Offres d'emploi automatiques via Adzuna + ajouts manuels</p></div>
-      <div class="page-actions" style="display:flex;gap:8px;flex-wrap:wrap">
-        ${canManage ? '<button class="btn btn-outline btn-sm" onclick="_yjFetchNow()">🔄 Chercher maintenant</button>' : ''}
-        ${canManage ? '<button class="btn btn-sm" style="background:#e8f5e9;color:#1b5e20;border:1px solid #a5d6a7" onclick="youngNotifyAllJobs()">📧 Notifier</button>' : ''}
-        ${canManage ? '<button class="btn btn-primary btn-sm" onclick="youngJobForm()">+ Ajouter manuellement</button>' : ''}
-      </div>
+  document.getElementById('opportunitesHubBody').innerHTML = `
+    <div class="page-actions" style="margin-bottom:14px">
+      <p style="flex:1;margin:0;font-size:.82rem;color:var(--muted)">Offres d'emploi automatiques via Adzuna + ajouts manuels</p>
+      ${canManage ? '<button class="btn btn-outline btn-sm" onclick="_yjFetchNow()">🔄 Chercher maintenant</button>' : ''}
+      ${canManage ? '<button class="btn btn-sm" style="background:#e8f5e9;color:#1b5e20;border:1px solid #a5d6a7" onclick="youngNotifyAllJobs()">📧 Notifier</button>' : ''}
+      ${canManage ? '<button class="btn btn-primary btn-sm" onclick="youngJobForm()">+ Ajouter manuellement</button>' : ''}
     </div>
     ${canManage && pending.length ? '<div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">' +
       '<button class="btn btn-sm ' + (window._yjFilter==='all'?'btn-primary':'btn-ghost') + '" onclick="window._yjFilter=\'all\';youngJobs()">Toutes (' + jobs.length + ')</button>' +
@@ -15391,7 +15474,7 @@ async function youngJobs() {
           '</div>';
         }).join('');
       })()}
-    </div>`);
+    </div>`;
 }
 
 function _yjUpdateBulkBar() {
@@ -15513,8 +15596,9 @@ async function youngNotifyJob(id, titre) {
 }
 
 async function youngTrainings() {
+  if (!document.getElementById('opportunitesHubBody')) { return opportunitesHubView('trainings'); }
   const [trainings, canManage] = await Promise.all([api('/young/trainings').catch(()=>[]), Promise.resolve(can.executive())]);
-  setContent(`
+  document.getElementById('opportunitesHubBody').innerHTML = `
     <div class="table-card">
       <div class="table-card-header">
         <h3>📚 Formations & Ateliers</h3>
@@ -15541,7 +15625,7 @@ async function youngTrainings() {
               </div>
             </div>`).join('') + '</div>'}
       </div>
-    </div>`);
+    </div>`;
 }
 async function youngTrainingForm() {
   openModal('📚 Nouvelle formation',
@@ -16387,14 +16471,31 @@ async function sendNewsletter() {
 // ══════════════════════════════════════════════════════════════════════════════
 // AMBASSADEUR DU MOIS (admin)
 // ══════════════════════════════════════════════════════════════════════════════
+// ══ MISE EN VALEUR — hub fusionné (Mur de fierté / Ambassadeur du mois) ═══════
+async function miseEnValeurHubView(tab) {
+  tab = tab || window._miseEnValeurTab || 'fierte';
+  window._miseEnValeurTab = tab;
+  setContent(`
+    <div class="page-header"><div><h2>🏆 Mise en valeur des membres</h2><p>Contenu qui met en avant des membres sur le site public</p></div></div>
+    <div class="page-tabs-inline">
+      <button class="ptab ${tab==='fierte'?'active':''}" onclick="miseEnValeurHubView('fierte')">Mur de fierté</button>
+      <button class="ptab ${tab==='ambassadeur'?'active':''}" onclick="miseEnValeurHubView('ambassadeur')">Ambassadeur du mois</button>
+    </div>
+    <div id="miseEnValeurHubBody"></div>
+  `);
+  if (tab === 'ambassadeur') await ambassadeurAdmin();
+  else await fierteMgmtView();
+}
+
 async function ambassadeurAdmin() {
+  if (!document.getElementById('miseEnValeurHubBody')) { return miseEnValeurHubView('ambassadeur'); }
   const [current, membres] = await Promise.all([
     api('/ambassador').catch(() => null),
     api('/users').then(u => u.filter(m => m.actif)).catch(() => [])
   ]);
 
-  setContent(
-    '<div class="page-header"><div><h2>⭐ Ambassadeur du mois</h2><p>Mettez en valeur un membre exceptionnel sur la page d\'accueil.</p></div></div>' +
+  document.getElementById('miseEnValeurHubBody').innerHTML = (
+    '<p style="color:var(--muted);font-size:.85rem;margin-bottom:16px">Mettez en valeur un membre exceptionnel sur la page d\'accueil.</p>' +
 
     (current && current.nom ? `
     <div class="table-card" style="margin-bottom:24px">
@@ -16433,6 +16534,7 @@ async function ambassadeurAdmin() {
     '</div></div>'
   );
 }
+
 
 function ambassadeurAutoFill(userId) {
   if (!userId) return;
@@ -16495,8 +16597,25 @@ async function saveAmbassadeur() {
 }
 
 // ── Abonnés newsletter ────────────────────────────────────────────────────────
-async function abonnesNewsletter() {
+// ══ COMMUNICATION (config) — hub fusionné (Modèles courriel / Abonnés infolettre) ═════
+async function communicationConfigHubView(tab) {
+  tab = tab || window._commConfigTab || 'templates';
+  window._commConfigTab = tab;
   setContent(`
+    <div class="page-header"><div><h2>✉️ Communication</h2><p>Modèles de courriels et abonnés à l'infolettre</p></div></div>
+    <div class="page-tabs-inline">
+      <button class="ptab ${tab==='templates'?'active':''}" onclick="communicationConfigHubView('templates')">Modèles courriel</button>
+      <button class="ptab ${tab==='abonnes'?'active':''}" onclick="communicationConfigHubView('abonnes')">Abonnés infolettre</button>
+    </div>
+    <div id="commConfigHubBody"></div>
+  `);
+  if (tab === 'abonnes') await abonnesNewsletter();
+  else await emailTemplatesView();
+}
+
+async function abonnesNewsletter() {
+  if (!document.getElementById('commConfigHubBody')) { return communicationConfigHubView('abonnes'); }
+  document.getElementById('commConfigHubBody').innerHTML = `
     <div class="table-card" style="max-width:100%">
       <div class="table-card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <h3>📧 Abonnés à la newsletter</h3>
@@ -16505,7 +16624,7 @@ async function abonnesNewsletter() {
       <div style="padding:0 20px 20px">
         <div id="nlSubsContainer"><div style="text-align:center;padding:32px;color:var(--muted)">Chargement…</div></div>
       </div>
-    </div>`);
+    </div>`;
   await refreshNlSubs();
 }
 
@@ -17097,6 +17216,7 @@ async function _saveAgendaSignature(agendaId) {
 
 // ══ DECISION REGISTRY ══════════════════════════════════════════════════════
 async function decisionRegistryView() {
+  if (!document.getElementById('gouvernanceHubBody')) { return gouvernanceHubView('decisions'); }
   try {
     const decisions = await api('/decisions');
     const statutOptions = { en_cours:'En cours', completee:'Complétée', reportee:'Reportée', annulee:'Annulée' };
@@ -17111,7 +17231,7 @@ async function decisionRegistryView() {
       <td>${pill(statutOptions[d.statut] || d.statut || '–', statutPills[d.statut] || 'bp-gray')}</td>
     </tr>`).join('');
 
-    setContent(`
+    document.getElementById('gouvernanceHubBody').innerHTML = `
       <div class="table-card">
         <div class="table-card-header">
           <h3>Registre des décisions</h3>
@@ -17124,7 +17244,7 @@ async function decisionRegistryView() {
             <tbody>${rows || '<tr><td colspan="6" style="text-align:center;color:var(--muted)">Aucune décision</td></tr>'}</tbody>
           </table>
         </div>
-      </div>`);
+      </div>`;
   } catch(e) { toast(e.message, true); }
 }
 
@@ -17193,6 +17313,7 @@ async function decisionEdit(id) {
 
 // ══ POLICIES ═══════════════════════════════════════════════════════════════
 async function policiesView() {
+  if (!document.getElementById('gouvernanceHubBody')) { return gouvernanceHubView('politiques'); }
   try {
     const policies = await api('/policies');
     const catLabels = { reglement:'Règlement', politique:'Politique', procedure:'Procédure', guide:'Guide' };
@@ -17218,7 +17339,7 @@ async function policiesView() {
       <td>${fmt(p.date_adoption)}</td>
     </tr>`).join('');
 
-    setContent(`
+    document.getElementById('gouvernanceHubBody').innerHTML = `
       <div class="table-card">
         <div class="table-card-header"><h3>Politiques et règlements</h3></div>
         <div style="padding:0 16px">
@@ -17232,7 +17353,7 @@ async function policiesView() {
           </table>
         </div>
         <div id="policyDetailArea" style="padding:16px"></div>
-      </div>`);
+      </div>`;
   } catch(e) { toast(e.message, true); }
 }
 
@@ -17340,6 +17461,7 @@ async function policyDelete(id) {
 
 // ══ EMAIL TEMPLATES ════════════════════════════════════════════════════════
 async function emailTemplatesView() {
+  if (!document.getElementById('commConfigHubBody')) { return communicationConfigHubView('templates'); }
   try {
     const templates = await api('/email-templates');
     const catLabels = { notification:'Notification', rappel:'Rappel', bienvenue:'Bienvenue', evenement:'Événement', administratif:'Administratif' };
@@ -17358,7 +17480,7 @@ async function emailTemplatesView() {
         </div>
       </div>`).join('');
 
-    setContent(`
+    document.getElementById('commConfigHubBody').innerHTML = `
       <div class="table-card">
         <div class="table-card-header">
           <h3>Modèles de courriels</h3>
@@ -17369,7 +17491,7 @@ async function emailTemplatesView() {
           ${cards || '<p style="color:var(--muted);text-align:center;grid-column:1/-1">Aucun modèle</p>'}
         </div>
         <div id="emailTplPreviewArea" style="padding:0 16px 16px"></div>
-      </div>`);
+      </div>`;
   } catch(e) { toast(e.message, true); }
 }
 
@@ -17557,16 +17679,15 @@ async function _sdRevoke(id) {
 // ══ DÉLÉGATION DE PRÉSIDENCE (INTÉRIM) ══════════════════════════════════════
 async function presidenceDelegationView() {
   if (!can.executive()) { toast('Accès réservé au comité', true); return; }
+  if (!document.getElementById('gouvernanceHubBody')) { return gouvernanceHubView('delegation'); }
   try {
     const [history, active] = await Promise.all([
       api('/presidence-delegations'),
       api('/presidence-delegations/active').catch(() => null)
     ]);
 
-    setContent(`
-      <div class="page-header">
-        <div><h2>🎗️ Délégation de présidence</h2><p>Désignez un membre du comité comme président(e) par intérim pendant une absence.</p></div>
-      </div>
+    document.getElementById('gouvernanceHubBody').innerHTML = `
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:16px">Désignez un membre du comité comme président(e) par intérim pendant une absence.</p>
 
       ${active ? `
       <div class="table-card" style="margin-bottom:18px;border-left:4px solid #f9a825">
@@ -17617,7 +17738,7 @@ async function presidenceDelegationView() {
           </tbody>
         </table></div>
       </div>
-    `);
+    `;
 
     setTimeout(() => {
       const dd = document.getElementById('pdDropdown');
@@ -19283,6 +19404,7 @@ const FIERTE_CATS = {
 };
 
 async function fierteMgmtView() {
+  if (!document.getElementById('miseEnValeurHubBody')) { return miseEnValeurHubView('fierte'); }
   const entries = await api('/fierte');
   const rows = entries.length ? entries.map(e => `
     <tr>
@@ -19294,20 +19416,17 @@ async function fierteMgmtView() {
       <td><button class="btn btn-sm" style="background:var(--danger);color:#fff" onclick="_fierteSupprimer(${e.id})">🗑</button></td>
     </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted)">Aucune réalisation publiée</td></tr>';
 
-  setContent(`
-    <div class="view-header">
-      <h1>🏆 Mur de fierté</h1>
-      <div style="display:flex;gap:10px">
-        <a href="/fierte.html" target="_blank" class="btn">Voir la page publique ↗</a>
-        <button class="btn btn-primary" onclick="_fierteNouveau()">+ Ajouter une réalisation</button>
-      </div>
+  document.getElementById('miseEnValeurHubBody').innerHTML = `
+    <div class="page-actions" style="margin-bottom:14px">
+      <a href="/fierte.html" target="_blank" class="btn">Voir la page publique ↗</a>
+      <button class="btn btn-primary" onclick="_fierteNouveau()">+ Ajouter une réalisation</button>
     </div>
     <div class="card">
       <table class="data-table">
         <thead><tr><th>Membre</th><th>Catégorie</th><th>Texte</th><th>Date</th><th>Publié par</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
-    </div>`);
+    </div>`;
 }
 
 function _fierteNouveau() {
