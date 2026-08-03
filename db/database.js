@@ -1529,6 +1529,14 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS presidence_delegations (
 try { db.exec("ALTER TABLE volunteer_letters ADD COLUMN total_heures REAL"); } catch {}
 try { db.exec("ALTER TABLE volunteer_letters ADD COLUMN heures_json TEXT"); } catch {}
 
+// Lettres de recommandation — même circuit de signature (une seule, président ou VP) + envoi
+// que les lettres de bénévolat. signe_par/date_signature existaient déjà mais n'étaient jamais
+// utilisés (aucune route ne les remplissait) ; on ajoute ce qu'il manque pour l'envoi.
+try { db.exec("ALTER TABLE recommendation_letters ADD COLUMN signature_data TEXT"); } catch {}
+try { db.exec("ALTER TABLE recommendation_letters ADD COLUMN date_envoi TEXT"); } catch {}
+try { db.exec("ALTER TABLE recommendation_letters ADD COLUMN envoye_par INTEGER REFERENCES users(id)"); } catch {}
+try { db.exec("ALTER TABLE recommendation_letters ADD COLUMN print_token TEXT"); } catch {}
+
 // Ordre du jour — devient un document officiel (lettre AHH, listes seulement) avec verrouillage 2 signatures
 try { db.exec("ALTER TABLE agendas ADD COLUMN contenu TEXT"); } catch {}
 try { db.exec("ALTER TABLE agendas ADD COLUMN verrouille INTEGER DEFAULT 0"); } catch {}

@@ -2688,6 +2688,117 @@ app.get('/api/ai/recommendations', authMiddleware, (req, res) => {
   res.json(rows);
 });
 
+// ── Signature du comité pour les lettres de recommandation (même circuit que les lettres de bénévolat) ──
+// Demander une signature — notifie tous les admins (président/VP)
+app.post('/api/ai/recommendations/:id/request-signature', authMiddleware, requireRole('admin','secretaire'), (req, res) => {
+  const rl = db.prepare('SELECT * FROM recommendation_letters WHERE id=?').get(req.params.id);
+  if (!rl) return res.status(404).json({ error: 'Lettre introuvable' });
+  if (rl.statut === 'en_attente_signature') return res.json(rl);
+  const print_token = crypto.randomBytes(24).toString('hex');
+  db.prepare("UPDATE recommendation_letters SET statut='en_attente_signature', print_token=? WHERE id=?").run(print_token, rl.id);
+  const membre = db.prepare('SELECT prenom, nom FROM users WHERE id=?').get(rl.membre_id);
+  db.prepare("SELECT id FROM users WHERE role='admin' AND actif=1").all()
+    .forEach(a => createAlert(a.id, 'lettre', '🖊️ Signature requise — lettre de recommandation', `Pour ${membre.prenom} ${membre.nom}`, rl.id));
+  res.json({ ok: true });
+});
+
+// Signer — réservé aux admins (président/VP) ; une seule signature suffit
+app.post('/api/ai/recommendations/:id/sign', authMiddleware, requireRole('admin'), (req, res) => {
+  const { signature_data } = req.body;
+  if (!signature_data) return res.status(400).json({ error: 'Signature requise' });
+  const rl = db.prepare('SELECT * FROM recommendation_letters WHERE id=?').get(req.params.id);
+  if (!rl) return res.status(404).json({ error: 'Lettre introuvable' });
+  if (rl.statut !== 'en_attente_signature') return res.status(409).json({ error: 'Déjà signée' });
+
+  db.prepare("UPDATE recommendation_letters SET statut='signee', signe_par=?, signature_data=?, date_signature=CURRENT_TIMESTAMP WHERE id=?")
+    .run(req.user.id, signature_data, rl.id);
+
+  const membre = db.prepare('SELECT prenom, nom FROM users WHERE id=?').get(rl.membre_id);
+  const notifIds = new Set();
+  if (rl.genere_par) notifIds.add(rl.genere_par);
+  db.prepare("SELECT id FROM users WHERE role='secretaire' AND actif=1").all().forEach(s => notifIds.add(s.id));
+  notifIds.forEach(id => createAlert(id, 'lettre', '✅ Lettre de recommandation signée', `Prête à envoyer à ${membre.prenom} ${membre.nom}`, rl.id));
+  res.json({ ok: true });
+});
+
+// Envoyer au membre par courriel — le secrétariat ou tout admin (président/VP)
+app.post('/api/ai/recommendations/:id/send', authMiddleware, requireRole('admin','secretaire'), async (req, res) => {
+  const rl = db.prepare('SELECT * FROM recommendation_letters WHERE id=?').get(req.params.id);
+  if (!rl) return res.status(404).json({ error: 'Lettre introuvable' });
+  if (rl.statut !== 'signee') return res.status(409).json({ error: 'La lettre doit être signée avant l\'envoi' });
+  const membre = db.prepare('SELECT * FROM users WHERE id=?').get(rl.membre_id);
+  if (!membre) return res.status(404).json({ error: 'Membre introuvable' });
+
+  db.prepare("UPDATE recommendation_letters SET statut='envoyee', date_envoi=CURRENT_TIMESTAMP, envoye_par=? WHERE id=?").run(req.user.id, rl.id);
+  const siteUrl = process.env.SITE_URL || 'https://ahhamilton.ca';
+  const printUrl = `${siteUrl}/api/ai/recommendations/${rl.id}/print?token=${rl.print_token}`;
+  try { await mailer.sendVolunteerLetterSigned(membre, printUrl); } catch(e) { console.error('[recommendation send]', e.message); }
+  createAlert(membre.id, 'lettre', '📄 Votre lettre de recommandation est prête', 'Consultez votre courriel pour la télécharger', rl.id);
+  res.json({ ok: true });
+});
+
+// Version imprimable / PDF — accès par lien courriel (token) ou JWT comité
+app.get('/api/ai/recommendations/:id/print', (req, res) => {
+  const rl = db.prepare('SELECT * FROM recommendation_letters WHERE id=?').get(req.params.id);
+  if (!rl) return res.status(404).send('Lettre introuvable');
+  const { token } = req.query;
+  if (token) {
+    if (!rl.print_token || rl.print_token !== token) return res.status(403).send('Lien invalide ou expiré.');
+  } else {
+    const bearer = req.headers.authorization?.split(' ')[1];
+    if (!bearer) return res.status(401).json({ error: 'Non autorisé' });
+    try {
+      const payload = jwt.verify(bearer, JWT_SECRET);
+      if (!['admin','tresoriere','secretaire','delegue'].includes(payload.role) && payload.id !== rl.membre_id)
+        return res.status(403).send('Accès refusé');
+    } catch { return res.status(401).json({ error: 'Non autorisé' }); }
+  }
+
+  const membre = db.prepare('SELECT prenom, nom FROM users WHERE id=?').get(rl.membre_id);
+  if (!membre) return res.status(404).send('Membre introuvable');
+  const dateSignature = rl.date_signature ? new Date(rl.date_signature).toLocaleDateString('fr-CA', { year:'numeric', month:'long', day:'numeric' }) : '';
+  const signataire = rl.signe_par ? db.prepare('SELECT prenom, nom, titre_comite FROM users WHERE id=?').get(rl.signe_par) : null;
+  const corpsHtml = (rl.contenu || '').split(/\n{2,}/).map(p => `<div class="ed">${escHtmlServer(p).replace(/\n/g,'<br/>')}</div>`).join('');
+
+  res.send(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/>
+  <title>Lettre de recommandation — ${membre.prenom} ${membre.nom}</title>
+  <style>
+    @page{size:letter;margin:0}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Georgia,'Times New Roman',serif;color:#1a1a1a;background:#fff}
+    .tb{background:#fff;padding:12px 24px;border-bottom:2px solid #1b5e20;position:sticky;top:0}
+    .tb button{background:#1b5e20;color:#fff;border:none;padding:10px 24px;border-radius:8px;cursor:pointer;font-size:.9rem;font-weight:700}
+    .hd{background:#1b5e20;color:#fff;padding:28px 50px;display:flex;align-items:center;gap:24px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .hd img{width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid #fff}
+    .hd h1{font-family:Arial,sans-serif;font-size:1.5rem;font-weight:900}
+    .hd .a1{font-size:.82rem;opacity:.9;margin-top:4px;font-family:Arial,sans-serif}
+    .bar{height:5px;background:#c8a415;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .page{max-width:760px;margin:0 auto;padding:40px 56px 100px}
+    .date{text-align:right;font-size:.9rem;color:#444;margin-bottom:32px}
+    .title{text-align:center;font-size:1.2rem;font-weight:900;color:#1b5e20;margin-bottom:28px;font-family:Arial,sans-serif;text-transform:uppercase;letter-spacing:.1em}
+    .ed{font-size:13.5px;line-height:1.9;margin-bottom:16px;text-align:justify}
+    .sigs{margin-top:60px;display:flex;gap:100px}
+    .sig{width:220px;text-align:center}
+    .sig img{max-width:200px;max-height:70px;display:block;margin:0 auto 4px}
+    .sig .ln{border-top:1.5px solid #222;padding-top:8px;font-size:.8rem;color:#555;font-family:Arial,sans-serif;font-weight:600}
+    @media print{.tb{display:none !important}}
+  </style></head><body>
+  <div class="tb"><button onclick="window.print()">🖨️ Imprimer / PDF</button></div>
+  <div class="hd"><img src="/Public/logo1.png" alt="AHH" onerror="this.style.display='none'"/>
+    <div><h1>Association Haïtienne de Hamilton</h1><div class="a1">231 Fernwood Crescent, Hamilton, ON L8T 3L7</div></div>
+  </div>
+  <div class="bar"></div>
+  <div class="page">
+    <div class="date">Hamilton, le ${dateSignature || new Date().toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'})}</div>
+    <div class="title">Lettre de recommandation</div>
+    ${corpsHtml}
+    <div class="sigs">
+      <div class="sig">${rl.signature_data ? `<img src="${rl.signature_data}"/>` : '<div style="height:44px"></div>'}<div class="ln">${signataire ? (signataire.titre_comite || (signataire.prenom + ' ' + signataire.nom)) : 'Président(e) / VP'}</div></div>
+    </div>
+  </div>
+  </body></html>`);
+});
+
 // ══════════════════════════════════════════════════════════════════════════════
 // SUB-COMMITTEES
 // ══════════════════════════════════════════════════════════════════════════════

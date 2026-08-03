@@ -6104,6 +6104,93 @@ function printAHHReport(title, tableHtml) {
 }
 
 // ══ LETTERS ════════════════════════════════════════════════════════════════
+// ── Signature du comité pour les lettres de recommandation (une seule signature — président ou VP) ──
+function _recLetterButtonHtml(l) {
+  const nomEsc = escHtml(l.membre_nom).replace(/'/g, "\\'");
+  if (l.statut === 'genere') {
+    return can.adminOrSec() ? `<button class="btn btn-sm btn-outline" onclick="_recRequestSignature(${l.id})">🖊️ Demander signature</button>` : '';
+  }
+  if (l.statut === 'en_attente_signature') {
+    if (USER.role === 'admin') return `<button class="btn btn-sm btn-primary" onclick="openRecLetterSignModal(${l.id},'${nomEsc}')">✍️ Signer</button>`;
+    return `<span style="background:#fff3e0;color:#e65100;padding:2px 8px;border-radius:20px;font-size:.7rem;font-weight:700;white-space:nowrap">⏳ En attente de signature</span>`;
+  }
+  if (l.statut === 'signee') {
+    if (can.adminOrSec()) return `<button class="btn btn-sm btn-primary" onclick="_recSendLetter(${l.id},'${nomEsc}')">📤 Envoyer au membre</button>`;
+    return `<span style="background:#e3f2fd;color:#1565c0;padding:2px 8px;border-radius:20px;font-size:.7rem;font-weight:700;white-space:nowrap">✅ Signée</span>`;
+  }
+  if (l.statut === 'envoyee') {
+    return `<span style="background:#e8f5e9;color:#1b5e20;padding:2px 8px;border-radius:20px;font-size:.7rem;font-weight:700;white-space:nowrap">✅ Envoyée</span>`;
+  }
+  return '';
+}
+
+async function _recRequestSignature(id) {
+  try {
+    await api('/ai/recommendations/' + id + '/request-signature', { method:'POST' });
+    toast('🖊️ Demande de signature envoyée à la présidence / VP');
+    letters();
+  } catch(e) { toast(e.message, true); }
+}
+
+function openRecLetterSignModal(id, nom) {
+  openModal('✍️ Signer la lettre de recommandation — ' + nom, `
+    <p style="font-size:.85rem;color:var(--muted);margin-bottom:12px">Dessinez votre signature ci-dessous. Une seule signature (président ou VP) suffit pour approuver cette lettre.</p>
+    <canvas id="recSigCanvas" width="540" height="160" style="border:1px solid #ccc;border-radius:8px;cursor:crosshair;display:block;width:100%;touch-action:none"></canvas>
+    <div style="margin-top:8px;display:flex;gap:8px">
+      <button class="btn btn-sm btn-ghost" onclick="_clearRecCanvas()">🗑 Effacer</button>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="_saveRecLetterSignature(${id})">✅ Signer la lettre</button>
+      <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+    </div>
+  `);
+  setTimeout(() => {
+    const canvas = document.getElementById('recSigCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let drawing = false;
+    const getPos = e => {
+      const r = canvas.getBoundingClientRect();
+      const src = e.touches ? e.touches[0] : e;
+      return { x: (src.clientX - r.left) * (canvas.width / r.width), y: (src.clientY - r.top) * (canvas.height / r.height) };
+    };
+    canvas.addEventListener('mousedown', e => { drawing = true; const p = getPos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); });
+    canvas.addEventListener('mousemove', e => { if (!drawing) return; const p = getPos(e); ctx.lineWidth = 2.5; ctx.strokeStyle = '#1b5e20'; ctx.lineCap = 'round'; ctx.lineTo(p.x, p.y); ctx.stroke(); });
+    canvas.addEventListener('mouseup', () => { drawing = false; });
+    canvas.addEventListener('touchstart', e => { e.preventDefault(); drawing = true; const p = getPos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); }, { passive: false });
+    canvas.addEventListener('touchmove', e => { e.preventDefault(); if (!drawing) return; const p = getPos(e); ctx.lineWidth = 2.5; ctx.strokeStyle = '#1b5e20'; ctx.lineCap = 'round'; ctx.lineTo(p.x, p.y); ctx.stroke(); }, { passive: false });
+    canvas.addEventListener('touchend', () => { drawing = false; });
+  }, 50);
+}
+
+function _clearRecCanvas() {
+  const c = document.getElementById('recSigCanvas');
+  if (c) c.getContext('2d').clearRect(0, 0, c.width, c.height);
+}
+
+async function _saveRecLetterSignature(id) {
+  const canvas = document.getElementById('recSigCanvas');
+  if (!canvas) return;
+  const blank = document.createElement('canvas'); blank.width = canvas.width; blank.height = canvas.height;
+  if (canvas.toDataURL() === blank.toDataURL()) return toast('Veuillez dessiner votre signature', true);
+  const signature_data = canvas.toDataURL('image/png');
+  try {
+    await api('/ai/recommendations/' + id + '/sign', { method:'POST', body: JSON.stringify({ signature_data }) });
+    closeModal();
+    toast('✅ Lettre signée');
+    letters();
+  } catch(e) { toast(e.message, true); }
+}
+
+async function _recSendLetter(id, nom) {
+  if (!confirm('Envoyer la lettre signée à ' + nom + ' par courriel ?')) return;
+  try {
+    await api('/ai/recommendations/' + id + '/send', { method:'POST' });
+    toast('📤 Lettre envoyée à ' + nom);
+    letters();
+  } catch(e) { toast(e.message, true); }
+}
+
 async function letters() {
   const [data, allUsers] = await Promise.all([api('/ai/recommendations'), api('/users')]);
   window._letAllUsers = allUsers;
@@ -6124,6 +6211,7 @@ async function letters() {
           <div class="tc-actions">
             <button class="btn btn-sm btn-outline" onclick="previewLetter(${l.id},'${l.membre_nom}',\`${(l.contenu||'').replace(/`/g,"'")}\`)">👁️ Voir</button>
             <button class="btn btn-sm btn-ghost" onclick="printLetter(\`${(l.contenu||'').replace(/`/g,"'")}\`,'${l.membre_nom}')">🖨️ Imprimer</button>
+            ${_recLetterButtonHtml(l)}
           </div>
         </div>
       </div>
