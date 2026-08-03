@@ -2077,6 +2077,156 @@ app.get('/api/volunteer/letter/:userId', authMiddleware, requireRole('admin','se
   res.json({ nom: membre.prenom + ' ' + membre.nom, total_heures: totalH, heures: hours, email: membre.email, membre_id: membre.id, date_inscription: membre.date_inscription });
 });
 
+// ── Lettres de bénévolat signées (une seule signature — président ou VP, tous deux role=admin) ──
+function volunteerLetterData(userId) {
+  const membre = db.prepare('SELECT * FROM users WHERE id=?').get(userId);
+  if (!membre) return null;
+  const hours = db.prepare("SELECT vh.*, a.titre AS activite FROM volunteer_hours vh LEFT JOIN activities a ON a.id=vh.activity_id WHERE vh.user_id=? AND vh.statut='approuve' ORDER BY vh.date_service DESC").all(userId);
+  const totalH = hours.reduce((s, h) => s + (h.heures || 0), 0);
+  return { membre, hours, totalH };
+}
+
+// Liste des demandes — utilisé pour afficher l'état (bouton) par membre dans Bénévolat et la fiche membre
+app.get('/api/volunteer-letters', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  let sql = `SELECT vl.*, u.prenom, u.nom, s.prenom AS sig_prenom, s.nom AS sig_nom
+    FROM volunteer_letters vl JOIN users u ON u.id = vl.user_id
+    LEFT JOIN users s ON s.id = vl.signataire_id`;
+  const params = [];
+  if (req.query.user_id) { sql += ' WHERE vl.user_id = ?'; params.push(req.query.user_id); }
+  sql += ' ORDER BY vl.date_creation DESC';
+  res.json(db.prepare(sql).all(...params));
+});
+
+// Demander une signature — notifie tous les admins (président/VP)
+app.post('/api/volunteer-letters', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
+  const { user_id } = req.body;
+  if (!user_id) return res.status(400).json({ error: 'user_id requis' });
+  const membre = db.prepare('SELECT * FROM users WHERE id=?').get(user_id);
+  if (!membre) return res.status(404).json({ error: 'Membre introuvable' });
+
+  const existing = db.prepare("SELECT * FROM volunteer_letters WHERE user_id=? AND statut='en_attente'").get(user_id);
+  if (existing) return res.json(existing);
+
+  const print_token = crypto.randomBytes(24).toString('hex');
+  const r = db.prepare('INSERT INTO volunteer_letters (user_id, demande_par, print_token) VALUES (?,?,?)').run(user_id, req.user.id, print_token);
+  const admins = db.prepare("SELECT id FROM users WHERE role='admin' AND actif=1").all();
+  admins.forEach(a => createAlert(a.id, 'benevolat', '🖊️ Signature requise — lettre de bénévolat', `Pour ${membre.prenom} ${membre.nom}`, r.lastInsertRowid));
+  res.status(201).json({ id: r.lastInsertRowid, statut: 'en_attente' });
+});
+
+// Signer — réservé aux admins (président/VP) ; une seule signature suffit
+app.post('/api/volunteer-letters/:id/sign', authMiddleware, requireRole('admin'), (req, res) => {
+  const { signature_data } = req.body;
+  if (!signature_data) return res.status(400).json({ error: 'Signature requise' });
+  const vl = db.prepare('SELECT * FROM volunteer_letters WHERE id=?').get(req.params.id);
+  if (!vl) return res.status(404).json({ error: 'Demande introuvable' });
+  if (vl.statut !== 'en_attente') return res.status(409).json({ error: 'Déjà signée' });
+
+  db.prepare("UPDATE volunteer_letters SET statut='signee', signataire_id=?, signature_data=?, date_signature=CURRENT_TIMESTAMP WHERE id=?")
+    .run(req.user.id, signature_data, req.params.id);
+
+  const membre = db.prepare('SELECT prenom, nom FROM users WHERE id=?').get(vl.user_id);
+  const notifIds = new Set();
+  if (vl.demande_par) notifIds.add(vl.demande_par);
+  db.prepare("SELECT id FROM users WHERE role='secretaire' AND actif=1").all().forEach(s => notifIds.add(s.id));
+  notifIds.forEach(id => createAlert(id, 'benevolat', '✅ Lettre de bénévolat signée', `Prête à envoyer à ${membre.prenom} ${membre.nom}`, vl.id));
+  res.json({ ok: true });
+});
+
+// Envoyer au membre par courriel — le secrétariat ou tout admin (président/VP)
+app.post('/api/volunteer-letters/:id/send', authMiddleware, requireRole('admin','secretaire'), async (req, res) => {
+  const vl = db.prepare('SELECT * FROM volunteer_letters WHERE id=?').get(req.params.id);
+  if (!vl) return res.status(404).json({ error: 'Demande introuvable' });
+  if (vl.statut !== 'signee') return res.status(409).json({ error: 'La lettre doit être signée avant l\'envoi' });
+  const membre = db.prepare('SELECT * FROM users WHERE id=?').get(vl.user_id);
+  if (!membre) return res.status(404).json({ error: 'Membre introuvable' });
+
+  db.prepare("UPDATE volunteer_letters SET statut='envoyee', date_envoi=CURRENT_TIMESTAMP, envoye_par=? WHERE id=?").run(req.user.id, vl.id);
+  const siteUrl = process.env.SITE_URL || 'https://ahhamilton.ca';
+  const printUrl = `${siteUrl}/api/volunteer-letters/${vl.id}/print?token=${vl.print_token}`;
+  try { await mailer.sendVolunteerLetterSigned(membre, printUrl); } catch(e) { console.error('[volunteer-letter send]', e.message); }
+  createAlert(membre.id, 'benevolat', '📄 Votre lettre de bénévolat est prête', 'Consultez votre courriel pour la télécharger', vl.id);
+  res.json({ ok: true });
+});
+
+// Version imprimable / PDF — accès par lien courriel (token) ou JWT comité
+app.get('/api/volunteer-letters/:id/print', (req, res) => {
+  const vl = db.prepare('SELECT * FROM volunteer_letters WHERE id=?').get(req.params.id);
+  if (!vl) return res.status(404).send('Lettre introuvable');
+  const { token } = req.query;
+  if (token) {
+    if (!vl.print_token || vl.print_token !== token) return res.status(403).send('Lien invalide ou expiré.');
+  } else {
+    const bearer = req.headers.authorization?.split(' ')[1];
+    if (!bearer) return res.status(401).json({ error: 'Non autorisé' });
+    try {
+      const payload = jwt.verify(bearer, JWT_SECRET);
+      if (!['admin','tresoriere','secretaire','delegue'].includes(payload.role) && payload.id !== vl.user_id)
+        return res.status(403).send('Accès refusé');
+    } catch { return res.status(401).json({ error: 'Non autorisé' }); }
+  }
+
+  const data = volunteerLetterData(vl.user_id);
+  if (!data) return res.status(404).send('Membre introuvable');
+  const { membre, hours, totalH } = data;
+  const dateSignature = vl.date_signature ? new Date(vl.date_signature).toLocaleDateString('fr-CA', { year:'numeric', month:'long', day:'numeric' }) : '';
+  const signataire = vl.signataire_id ? db.prepare('SELECT prenom, nom, titre_comite FROM users WHERE id=?').get(vl.signataire_id) : null;
+
+  const tableHtml = hours.length ? `<table><thead><tr><th>Date</th><th>Activité</th><th>Description</th><th style="text-align:right">Heures</th></tr></thead><tbody>
+    ${hours.map(h => `<tr><td>${h.date_service||'–'}</td><td>${(h.activite||'–')}</td><td>${(h.description||'–')}</td><td style="text-align:right;font-weight:700">${h.heures||0}h</td></tr>`).join('')}
+    <tr class="total"><td colspan="3">Total</td><td style="text-align:right">${totalH.toFixed(1)}h</td></tr>
+    </tbody></table>` : '';
+
+  res.send(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/>
+  <title>Attestation de bénévolat — ${membre.prenom} ${membre.nom}</title>
+  <style>
+    @page{size:letter;margin:0}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Georgia,'Times New Roman',serif;color:#1a1a1a;background:#fff}
+    .tb{background:#fff;padding:12px 24px;border-bottom:2px solid #1b5e20;position:sticky;top:0}
+    .tb button{background:#1b5e20;color:#fff;border:none;padding:10px 24px;border-radius:8px;cursor:pointer;font-size:.9rem;font-weight:700}
+    .hd{background:#1b5e20;color:#fff;padding:28px 50px;display:flex;align-items:center;gap:24px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .hd img{width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid #fff}
+    .hd h1{font-family:Arial,sans-serif;font-size:1.5rem;font-weight:900}
+    .hd .a1{font-size:.82rem;opacity:.9;margin-top:4px;font-family:Arial,sans-serif}
+    .bar{height:5px;background:#c8a415;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .page{max-width:760px;margin:0 auto;padding:40px 56px 100px}
+    .date{text-align:right;font-size:.9rem;color:#444;margin-bottom:32px}
+    .title{text-align:center;font-size:1.2rem;font-weight:900;color:#1b5e20;margin-bottom:28px;font-family:Arial,sans-serif;text-transform:uppercase;letter-spacing:.1em}
+    .ed{font-size:13.5px;line-height:1.9;margin-bottom:16px;text-align:justify}
+    table{width:100%;border-collapse:collapse;margin:20px 0;font-family:Arial,sans-serif;font-size:11.5px}
+    th{background:#1b5e20;color:#fff;padding:9px 12px;text-align:left;font-size:10.5px;text-transform:uppercase;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    td{padding:7px 12px;border-bottom:1px solid #e0e0e0}
+    tr.total{background:#e8f5e9;font-weight:800;font-size:12px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    tr.total td{color:#1b5e20;border-bottom:none}
+    .sigs{margin-top:60px;display:flex;gap:100px}
+    .sig{width:220px;text-align:center}
+    .sig img{max-width:200px;max-height:70px;display:block;margin:0 auto 4px}
+    .sig .ln{border-top:1.5px solid #222;padding-top:8px;font-size:.8rem;color:#555;font-family:Arial,sans-serif;font-weight:600}
+    @media print{.tb{display:none !important}}
+  </style></head><body>
+  <div class="tb"><button onclick="window.print()">🖨️ Imprimer / PDF</button></div>
+  <div class="hd"><img src="/Public/logo1.png" alt="AHH" onerror="this.style.display='none'"/>
+    <div><h1>Association Haïtienne de Hamilton</h1><div class="a1">231 Fernwood Crescent, Hamilton, ON L8T 3L7</div></div>
+  </div>
+  <div class="bar"></div>
+  <div class="page">
+    <div class="date">Hamilton, le ${dateSignature || new Date().toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'})}</div>
+    <div class="title">Attestation de bénévolat</div>
+    <div class="ed">À qui de droit,</div>
+    <div class="ed">Par la présente, nous attestons que <strong>${membre.prenom} ${membre.nom}</strong> est un membre actif de l'Association Haïtienne de Hamilton (AHH) et a contribué bénévolement à nos activités communautaires.</div>
+    <div class="ed">${totalH > 0 ? `Au total, <strong>${totalH.toFixed(1)} heures</strong> de bénévolat ont été enregistrées et approuvées à son dossier.` : 'Ce membre participe activement à nos activités communautaires.'}</div>
+    ${tableHtml}
+    <div class="ed">L'Association Haïtienne de Hamilton est un organisme communautaire à but non lucratif dédié au rapprochement, à l'intégration et au soutien de la communauté haïtienne de Hamilton, Ontario.</div>
+    <div class="ed">Cette attestation est délivrée pour servir et valoir ce que de droit.</div>
+    <div class="ed" style="margin-top:28px">Cordialement,</div>
+    <div class="sigs">
+      <div class="sig">${vl.signature_data ? `<img src="${vl.signature_data}"/>` : '<div style="height:44px"></div>'}<div class="ln">${signataire ? (signataire.titre_comite || (signataire.prenom + ' ' + signataire.nom)) : 'Président(e) / VP'}</div></div>
+    </div>
+  </div>
+  </body></html>`);
+});
+
 app.delete('/api/volunteer/:id', authMiddleware, requireRole('admin','tresoriere','secretaire','delegue'), (req, res) => {
   db.prepare('DELETE FROM volunteer_hours WHERE id = ?').run(req.params.id);
   res.json({ message: 'Supprimé' });

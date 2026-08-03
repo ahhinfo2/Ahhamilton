@@ -722,6 +722,20 @@ function init() {
       date_approbation TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS volunteer_letters (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      demande_par INTEGER REFERENCES users(id),
+      statut TEXT DEFAULT 'en_attente',
+      signataire_id INTEGER REFERENCES users(id),
+      signature_data TEXT,
+      date_signature TEXT,
+      date_envoi TEXT,
+      envoye_par INTEGER REFERENCES users(id),
+      print_token TEXT,
+      date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS meeting_notes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       auteur_id INTEGER REFERENCES users(id),

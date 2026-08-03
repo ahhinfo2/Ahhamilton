@@ -4547,15 +4547,107 @@ function _volBuildParActivite(data) {
   return parActivite;
 }
 
+// ── Lettres de bénévolat signées (une seule signature — président ou VP) ──────
+// letterMap : { user_id -> dernière demande { id, statut, ... } }
+function _volLetterButtonHtml(userId, nom, ctx, letterMap) {
+  const req = (letterMap || {})[userId];
+  const nomEsc = escHtml(nom).replace(/'/g, "\\'");
+  if (!req) {
+    return can.executive() ? `<button class="btn btn-sm btn-outline" onclick="_volRequestLetter(${userId},'${nomEsc}','${ctx}')">🖊️ Demander signature</button>` : '';
+  }
+  if (req.statut === 'en_attente') {
+    if (USER.role === 'admin') return `<button class="btn btn-sm btn-primary" onclick="openVolunteerLetterSignModal(${req.id},'${nomEsc}','${ctx}',${userId})">✍️ Signer</button>`;
+    return `<span style="background:#fff3e0;color:#e65100;padding:2px 8px;border-radius:20px;font-size:.7rem;font-weight:700;white-space:nowrap">⏳ En attente de signature</span>`;
+  }
+  if (req.statut === 'signee') {
+    if (can.adminOrSec()) return `<button class="btn btn-sm btn-primary" onclick="_volSendLetter(${req.id},'${nomEsc}','${ctx}',${userId})">📤 Envoyer au membre</button>`;
+    return `<span style="background:#e3f2fd;color:#1565c0;padding:2px 8px;border-radius:20px;font-size:.7rem;font-weight:700;white-space:nowrap">✅ Signée</span>`;
+  }
+  return `<span style="background:#e8f5e9;color:#1b5e20;padding:2px 8px;border-radius:20px;font-size:.7rem;font-weight:700;white-space:nowrap">✅ Envoyée</span>`;
+}
+
+async function _volRequestLetter(userId, nom, ctx) {
+  try {
+    await api('/volunteer-letters', { method:'POST', body: JSON.stringify({ user_id: userId }) });
+    toast('🖊️ Demande de signature envoyée à la présidence / VP');
+    if (ctx === 'profile') _cgOpenProfile(userId); else volunteer();
+  } catch(e) { toast(e.message, true); }
+}
+
+function openVolunteerLetterSignModal(reqId, nom, ctx, userId) {
+  window._vlCtx = ctx; window._vlUserId = userId;
+  openModal('✍️ Signer la lettre de bénévolat — ' + nom, `
+    <p style="font-size:.85rem;color:var(--muted);margin-bottom:12px">Dessinez votre signature ci-dessous. Une seule signature (président ou VP) suffit pour approuver cette lettre.</p>
+    <canvas id="vlSigCanvas" width="540" height="160" style="border:1px solid #ccc;border-radius:8px;cursor:crosshair;display:block;width:100%;touch-action:none"></canvas>
+    <div style="margin-top:8px;display:flex;gap:8px">
+      <button class="btn btn-sm btn-ghost" onclick="_clearVlCanvas()">🗑 Effacer</button>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="_saveVolunteerLetterSignature(${reqId})">✅ Signer la lettre</button>
+      <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+    </div>
+  `);
+  setTimeout(() => {
+    const canvas = document.getElementById('vlSigCanvas');
+    if (!canvas) return;
+    const ctx2 = canvas.getContext('2d');
+    let drawing = false;
+    const getPos = e => {
+      const r = canvas.getBoundingClientRect();
+      const src = e.touches ? e.touches[0] : e;
+      return { x: (src.clientX - r.left) * (canvas.width / r.width), y: (src.clientY - r.top) * (canvas.height / r.height) };
+    };
+    canvas.addEventListener('mousedown', e => { drawing = true; const p = getPos(e); ctx2.beginPath(); ctx2.moveTo(p.x, p.y); });
+    canvas.addEventListener('mousemove', e => { if (!drawing) return; const p = getPos(e); ctx2.lineWidth = 2.5; ctx2.strokeStyle = '#1b5e20'; ctx2.lineCap = 'round'; ctx2.lineTo(p.x, p.y); ctx2.stroke(); });
+    canvas.addEventListener('mouseup', () => { drawing = false; });
+    canvas.addEventListener('touchstart', e => { e.preventDefault(); drawing = true; const p = getPos(e); ctx2.beginPath(); ctx2.moveTo(p.x, p.y); }, { passive: false });
+    canvas.addEventListener('touchmove', e => { e.preventDefault(); if (!drawing) return; const p = getPos(e); ctx2.lineWidth = 2.5; ctx2.strokeStyle = '#1b5e20'; ctx2.lineCap = 'round'; ctx2.lineTo(p.x, p.y); ctx2.stroke(); }, { passive: false });
+    canvas.addEventListener('touchend', () => { drawing = false; });
+  }, 50);
+}
+
+function _clearVlCanvas() {
+  const c = document.getElementById('vlSigCanvas');
+  if (c) c.getContext('2d').clearRect(0, 0, c.width, c.height);
+}
+
+async function _saveVolunteerLetterSignature(reqId) {
+  const canvas = document.getElementById('vlSigCanvas');
+  if (!canvas) return;
+  const blank = document.createElement('canvas'); blank.width = canvas.width; blank.height = canvas.height;
+  if (canvas.toDataURL() === blank.toDataURL()) return toast('Veuillez dessiner votre signature', true);
+  const signature_data = canvas.toDataURL('image/png');
+  try {
+    await api('/volunteer-letters/' + reqId + '/sign', { method:'POST', body: JSON.stringify({ signature_data }) });
+    closeModal();
+    toast('✅ Lettre signée');
+    if (window._vlCtx === 'profile') _cgOpenProfile(window._vlUserId); else volunteer();
+  } catch(e) { toast(e.message, true); }
+}
+
+async function _volSendLetter(reqId, nom, ctx, userId) {
+  if (!confirm('Envoyer la lettre signée à ' + nom + ' par courriel ?')) return;
+  try {
+    await api('/volunteer-letters/' + reqId + '/send', { method:'POST' });
+    toast('📤 Lettre envoyée à ' + nom);
+    if (ctx === 'profile') _cgOpenProfile(userId); else volunteer();
+  } catch(e) { toast(e.message, true); }
+}
+
 async function volunteer() {
-  const [data, allUsers, allActs] = await Promise.all([
+  const [data, allUsers, allActs, letters] = await Promise.all([
     api('/volunteer'),
     can.adminOrSec() ? api('/users') : Promise.resolve([]),
-    api('/activities')
+    api('/activities'),
+    can.executive() ? api('/volunteer-letters').catch(() => []) : Promise.resolve([])
   ]);
   window._volAllUsers = allUsers;
   window._volAllActs = allActs.filter(a => a.statut !== 'archivee');
   window._volData = data;
+  // Dernière demande de lettre par membre (les lignes sont triées par date_creation DESC)
+  const letterMap = {};
+  letters.forEach(l => { if (!letterMap[l.user_id]) letterMap[l.user_id] = l; });
+  window._volLetterMap = letterMap;
   const approuvees = data.filter(v=>v.statut==='approuve');
   const totalApp = approuvees.reduce((s,v)=>s+v.heures,0);
 
@@ -4619,6 +4711,7 @@ async function volunteer() {
           <div class="m-item-actions">
             ${can.adminOrSec() ? `<button class="btn btn-sm btn-outline" onclick="editVol(${v.id})">✏️ Éditer</button>` : ''}
             ${can.admin() ? `<button class="btn btn-sm btn-ghost" style="color:var(--red)" onclick="deleteVol(${v.id})">🗑 Supprimer</button>` : ''}
+            ${_volLetterButtonHtml(v.user_id, v.membre||USER.prenom+' '+USER.nom, 'volunteer', window._volLetterMap)}
           </div>
         </div>`).join('') || '<div class="m-empty">Aucune entrée</div>'}
       </div>
@@ -4639,6 +4732,7 @@ async function volunteer() {
           <button class="btn btn-sm btn-danger" onclick="approveVol(${v.id},'rejete')">❌</button>` : ''}
           ${can.adminOrSec() ? `<button class="btn btn-sm btn-outline" onclick="editVol(${v.id})" title="Modifier">✏️</button>` : ''}
           ${can.admin() ? `<button class="btn btn-sm" style="color:var(--red);border:1px solid var(--red);background:transparent" onclick="deleteVol(${v.id})">🗑</button>` : ''}
+          ${_volLetterButtonHtml(v.user_id, v.membre||USER.prenom+' '+USER.nom, 'volunteer', window._volLetterMap)}
         </td>
       </tr>`).join('')}</tbody>
     </table></div></div>
@@ -14564,6 +14658,8 @@ async function _cgOpenProfile(id) {
     if (!m) return;
     window._cgProfileOpenFor = id;
     const h = await api(`/members/${id}/history`).catch(() => null);
+    const vlReqs = can.executive() ? await api(`/volunteer-letters?user_id=${id}`).catch(() => []) : [];
+    const vlLetterMap = vlReqs.length ? { [id]: vlReqs[0] } : {};
     const nomEsc = escHtml(m.prenom + ' ' + m.nom).replace(/'/g, "\\'");
 
     const roleLabel = { admin:'Admin', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Délégué', member:'Membre' }[m.role] || 'Membre';
@@ -14601,6 +14697,7 @@ async function _cgOpenProfile(id) {
         <button class="btn btn-sm" style="color:var(--g2);border:1px solid var(--g2);background:var(--off)" onclick="_cgPayerActivite(${m.id},'${nomEsc}')">🎟️ Payé une activité</button>
         <button class="btn btn-outline btn-sm" onclick="closeModal();generateVolunteerLetter(${m.id},'fr')" title="Lettre FR">📝 Lettre FR</button>
         <button class="btn btn-outline btn-sm" onclick="closeModal();generateVolunteerLetter(${m.id},'en')" title="Lettre EN">📝 EN</button>
+        ${_volLetterButtonHtml(m.id, m.prenom + ' ' + m.nom, 'profile', vlLetterMap)}
       </div>
 
       <p style="font-size:.68rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0 0 8px">Fiche membre</p>

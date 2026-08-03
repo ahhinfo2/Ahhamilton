@@ -263,6 +263,19 @@ async function sendRecuFiscal(user, annee, montant, recuId, printToken) {
   });
 }
 
+async function sendVolunteerLetterSigned(user, printUrl) {
+  await sendMail({
+    to: user.email,
+    subject: `Votre lettre de bénévolat signée | AHH`,
+    html: wrap('Lettre de bénévolat', `
+      <p>Bonjour <strong>${user.prenom} ${user.nom}</strong>,</p>
+      <p>Votre attestation de bénévolat, signée par le comité, est prête.</p>
+      <p>Cliquez sur le bouton ci-dessous pour la consulter et l'imprimer (ou l'enregistrer en PDF) :</p>
+      <a href="${printUrl}" style="display:inline-block;background:#2e7d32;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:.9rem;font-family:Arial,sans-serif">Voir mon attestation</a>
+    `)
+  });
+}
+
 async function sendInscriptionActivite(user, activite) {
   await sendMail({
     to: user.email,
@@ -627,5 +640,6 @@ module.exports = {
   sendRecuFiscal, sendRecuFiscalAuto, sendRappelExpiration,
   sendInscriptionActivite, sendNouvelleAdhesion, sendInvitation, sendHeuresBenevolat,
   sendBilletInterac, sendBilletQR, sendNouvelleCommandeBillet, sendExternalEmail,
-  sendCarteRenewal, sendAnniversaire, sendCartePhotoManquante, sendActivityBulkEmail, SMS_GATEWAYS
+  sendCarteRenewal, sendAnniversaire, sendCartePhotoManquante, sendActivityBulkEmail, SMS_GATEWAYS,
+  sendVolunteerLetterSigned
 };
