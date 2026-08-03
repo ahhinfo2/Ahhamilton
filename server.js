@@ -2122,8 +2122,11 @@ app.post('/api/volunteer-letters/:id/sign', authMiddleware, requireRole('admin')
   if (!vl) return res.status(404).json({ error: 'Demande introuvable' });
   if (vl.statut !== 'en_attente') return res.status(409).json({ error: 'Déjà signée' });
 
-  db.prepare("UPDATE volunteer_letters SET statut='signee', signataire_id=?, signature_data=?, date_signature=CURRENT_TIMESTAMP WHERE id=?")
-    .run(req.user.id, signature_data, req.params.id);
+  // Figer le total et le détail des heures au moment de la signature — le président/VP certifie
+  // ce total précis, il ne doit pas bouger si de nouvelles heures sont approuvées après coup.
+  const snapshot = volunteerLetterData(vl.user_id);
+  db.prepare("UPDATE volunteer_letters SET statut='signee', signataire_id=?, signature_data=?, date_signature=CURRENT_TIMESTAMP, total_heures=?, heures_json=? WHERE id=?")
+    .run(req.user.id, signature_data, snapshot ? snapshot.totalH : 0, snapshot ? JSON.stringify(snapshot.hours) : '[]', req.params.id);
 
   const membre = db.prepare('SELECT prenom, nom FROM users WHERE id=?').get(vl.user_id);
   const notifIds = new Set();
@@ -2166,9 +2169,18 @@ app.get('/api/volunteer-letters/:id/print', (req, res) => {
     } catch { return res.status(401).json({ error: 'Non autorisé' }); }
   }
 
-  const data = volunteerLetterData(vl.user_id);
-  if (!data) return res.status(404).send('Membre introuvable');
-  const { membre, hours, totalH } = data;
+  const membre = db.prepare('SELECT * FROM users WHERE id=?').get(vl.user_id);
+  if (!membre) return res.status(404).send('Membre introuvable');
+  // Une fois signée, on affiche le détail figé au moment de la signature (pas les heures
+  // courantes) — la signature certifie ce total précis, il ne doit pas changer après coup.
+  let hours, totalH;
+  if (vl.heures_json) {
+    hours = JSON.parse(vl.heures_json);
+    totalH = vl.total_heures || 0;
+  } else {
+    const data = volunteerLetterData(vl.user_id);
+    hours = data.hours; totalH = data.totalH;
+  }
   const dateSignature = vl.date_signature ? new Date(vl.date_signature).toLocaleDateString('fr-CA', { year:'numeric', month:'long', day:'numeric' }) : '';
   const signataire = vl.signataire_id ? db.prepare('SELECT prenom, nom, titre_comite FROM users WHERE id=?').get(vl.signataire_id) : null;
 

@@ -733,6 +733,8 @@ function init() {
       date_envoi TEXT,
       envoye_par INTEGER REFERENCES users(id),
       print_token TEXT,
+      total_heures REAL,
+      heures_json TEXT,
       date_creation TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -1520,6 +1522,12 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS presidence_delegations (
   date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
   date_expiration TEXT
 )`); } catch {}
+
+// Lettres de bénévolat — total et détail des heures figés au moment de la signature
+// (sans ça, le lien envoyé au membre afficherait un total qui bouge si de nouvelles heures
+// sont approuvées après coup, alors que la signature est censée certifier un total précis).
+try { db.exec("ALTER TABLE volunteer_letters ADD COLUMN total_heures REAL"); } catch {}
+try { db.exec("ALTER TABLE volunteer_letters ADD COLUMN heures_json TEXT"); } catch {}
 
 // Ordre du jour — devient un document officiel (lettre AHH, listes seulement) avec verrouillage 2 signatures
 try { db.exec("ALTER TABLE agendas ADD COLUMN contenu TEXT"); } catch {}
