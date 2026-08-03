@@ -2942,6 +2942,12 @@ app.get('/api/stats', authMiddleware, (req, res) => {
     notes_actives: isExec
       ? db.prepare("SELECT COUNT(*) AS c FROM meeting_notes WHERE verrouille=0").get().c
       : 0,
+    // Cumul "à signer" pour le hub Réunions (notes + ordres du jour + rencontres comité non verrouillés et pas encore signés par moi)
+    reunions_a_faire: isExec
+      ? db.prepare("SELECT COUNT(*) AS c FROM meeting_notes n WHERE (n.verrouille=0 OR n.verrouille IS NULL) AND NOT EXISTS (SELECT 1 FROM note_signatures ns WHERE ns.note_id=n.id AND ns.user_id=?)").get(uid).c
+      + db.prepare("SELECT COUNT(*) AS c FROM agendas a WHERE (a.verrouille=0 OR a.verrouille IS NULL) AND NOT EXISTS (SELECT 1 FROM agenda_signatures ags WHERE ags.agenda_id=a.id AND ags.user_id=?)").get(uid).c
+      + db.prepare("SELECT COUNT(*) AS c FROM committee_meetings cm WHERE (cm.verrouille=0 OR cm.verrouille IS NULL) AND NOT EXISTS (SELECT 1 FROM committee_meeting_signatures cms WHERE cms.meeting_id=cm.id AND cms.user_id=?)").get(uid).c
+      : 0,
     forum_non_lu: db.prepare(`SELECT COUNT(*) AS c FROM forum_posts fp
       WHERE fp.date_creation > COALESCE((SELECT MAX(date_creation) FROM forum_posts WHERE auteur_id=?), '2000-01-01')
       AND fp.auteur_id != ?`).get(uid, uid).c,

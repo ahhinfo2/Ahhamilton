@@ -333,7 +333,6 @@ async function buildSidebar() {
       'inscriptions': sc.inscriptions,
       'carte-gestion': sc.carte_gestion,
       'tasks': sc.tasks,
-      'notes': sc.notes,
       'alerts': sc.alerts,
       'forms-mgmt': sc.forms,
       'pending-orders': sc.pending_orders,
@@ -889,10 +888,8 @@ async function pollBadges() {
       setSidebarBadge('paiements',          stats.paiements_en_attente);
       setSidebarBadge('tasks',              stats.taches_a_faire);
       setSidebarBadge('activities',         stats.activites_a_venir);
-      setSidebarBadge('meeting-calendar',   stats.reunions_a_venir);
-      setSidebarBadge('meeting-agendas',    stats.agendas_brouillon);
+      setSidebarBadge('reunions',           stats.reunions_a_faire);
       setSidebarBadge('decision-registry',  stats.decisions_en_cours);
-      setSidebarBadge('notes',              stats.notes_actives);
       setSidebarBadge('forum',              stats.forum_non_lu);
       setSidebarBadge('young-polls',        stats.sondages_actifs);
       setSidebarBadge('mes_billets',        stats.billets_a_venir);
@@ -4914,9 +4911,9 @@ async function reunionsHubView(tab) {
     <div class="page-header"><div><h2>📅 Réunions</h2><p>Planification, ordre du jour, séance et notes du comité</p></div></div>
     <div class="page-tabs-inline">
       <button class="ptab ${tab==='calendrier'?'active':''}" onclick="reunionsHubView('calendrier')">Calendrier</button>
-      <button class="ptab ${tab==='agendas'?'active':''}" onclick="reunionsHubView('agendas')">Ordre du jour</button>
-      <button class="ptab ${tab==='seance'?'active':''}" onclick="reunionsHubView('seance')">Séance</button>
-      <button class="ptab ${tab==='notes'?'active':''}" onclick="reunionsHubView('notes')">Notes</button>
+      <button class="ptab ${tab==='agendas'?'active':''}" id="ptab-agendas" onclick="reunionsHubView('agendas')">Ordre du jour</button>
+      <button class="ptab ${tab==='seance'?'active':''}" id="ptab-seance" onclick="reunionsHubView('seance')">Séance</button>
+      <button class="ptab ${tab==='notes'?'active':''}" id="ptab-notes" onclick="reunionsHubView('notes')">Notes</button>
     </div>
     <div id="reunionsHubBody"></div>
   `);
@@ -4924,6 +4921,32 @@ async function reunionsHubView(tab) {
   else if (tab === 'agendas') await meetingAgendasView();
   else if (tab === 'seance') await committeeMeetingsView();
   else await notes();
+  _reunionsLoadBadges();
+}
+
+// Compte, pour chaque onglet, les éléments non verrouillés que JE n'ai pas encore signés
+async function _reunionsLoadBadges() {
+  try {
+    const [agendas, meetings, noteList] = await Promise.all([
+      api('/agendas').catch(() => []),
+      api('/committee-meetings').catch(() => []),
+      api('/notes').catch(() => [])
+    ]);
+    const pendingAgendas  = agendas.filter(a => !a.verrouille && !a.date_ma_signature).length;
+    const pendingSeance   = meetings.filter(m => !m.verrouille && !m.date_ma_signature).length;
+    const pendingNotes    = noteList.filter(n => !n.verrouille && !n.date_ma_signature).length;
+    _setPtabBadge('ptab-agendas', pendingAgendas);
+    _setPtabBadge('ptab-seance', pendingSeance);
+    _setPtabBadge('ptab-notes', pendingNotes);
+  } catch(e) {}
+}
+function _setPtabBadge(btnId, count) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  let b = btn.querySelector('.ptab-badge');
+  if (!count) { if (b) b.remove(); return; }
+  if (!b) { b = document.createElement('span'); b.className = 'ptab-badge'; btn.appendChild(b); }
+  b.textContent = count > 99 ? '99+' : count;
 }
 
 async function notes() {
