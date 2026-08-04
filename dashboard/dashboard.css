@@ -1192,7 +1192,6 @@ html.dark .search-results { background: var(--white); }
 @media(max-width:600px){
   .cal-toolbar { padding: 10px 12px; }
   .cal-title { font-size: .9rem; }
-  .cal-legend { display: none; }
   .cal-cell { min-height: 52px; padding: 4px; }
   .cal-day-num { font-size: .75rem; width: 22px; height: 22px; }
   .cal-pill { display: none; }

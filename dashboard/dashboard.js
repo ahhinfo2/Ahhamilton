@@ -8632,6 +8632,18 @@ function calToggleType(type) {
   renderCalendar(_calAllActivities);
 }
 
+// Légende cliquable (masquer/réafficher un type) — partagée entre la grille desktop et la vue mobile
+function calLegendHtml() {
+  return '<div class="cal-legend">' +
+    Object.entries(CAL_TYPE_COLORS).map(function(kv) {
+      const isOff = _calHiddenTypes.has(kv[0]);
+      return '<span class="cal-leg-item' + (isOff ? ' cal-leg-item--off' : '') + '" onclick="calToggleType(\'' + kv[0] + '\')" title="' +
+        (isOff ? 'Cliquer pour réafficher' : 'Cliquer pour masquer') + '">' +
+        '<span class="cal-leg-dot" style="background:' + kv[1].bg + '"></span>' + kv[0] + '</span>';
+    }).join('') +
+  '</div>';
+}
+
 async function activityCalendar() {
   setContent(skeletonRows(6));
   // Les activités archivées n'ont pas leur place dans le calendrier (elles restent
@@ -8738,14 +8750,7 @@ function renderCalendar(activities) {
         '<button class="cal-nav-btn" onclick="(_calDate.setMonth(_calDate.getMonth()+1),renderCalendar(_calAllActivities))">&#8250;</button>' +
       '</div>' +
 
-      '<div class="cal-legend">' +
-        Object.entries(CAL_TYPE_COLORS).map(function(kv) {
-          const isOff = _calHiddenTypes.has(kv[0]);
-          return '<span class="cal-leg-item' + (isOff ? ' cal-leg-item--off' : '') + '" onclick="calToggleType(\'' + kv[0] + '\')" title="' +
-            (isOff ? 'Cliquer pour réafficher' : 'Cliquer pour masquer') + '">' +
-            '<span class="cal-leg-dot" style="background:' + kv[1].bg + '"></span>' + kv[0] + '</span>';
-        }).join('') +
-      '</div>' +
+      calLegendHtml() +
 
       '<div class="cal-grid-wrap">' +
         '<div class="cal-grid">' + headers + cells.join('') + '</div>' +
@@ -8885,6 +8890,7 @@ function renderMobileCalDay(visibleActivities) {
     : '';
 
   return (
+    calLegendHtml() +
     '<div class="cal-mobile-strip">' + stripDays.join('') + '</div>' +
     '<div class="cal-mobile-header">' +
       '<button class="cal-mobile-nav" onclick="calMobileShiftDay(-1)">&#8249;</button>' +
