@@ -2068,15 +2068,6 @@ app.put('/api/volunteer/:id', authMiddleware, requireRole('admin', 'secretaire')
   res.json({ message: 'Entrée mise à jour' });
 });
 
-// Lettre de bénévolat — données pour le frontend
-app.get('/api/volunteer/letter/:userId', authMiddleware, requireRole('admin','secretaire','tresoriere','delegue'), (req, res) => {
-  const membre = db.prepare('SELECT * FROM users WHERE id=?').get(req.params.userId);
-  if (!membre) return res.status(404).json({ error: 'Membre introuvable' });
-  const hours = db.prepare("SELECT vh.*, a.titre AS activite FROM volunteer_hours vh LEFT JOIN activities a ON a.id=vh.activity_id WHERE vh.user_id=? AND vh.statut='approuve' ORDER BY vh.date_service DESC").all(req.params.userId);
-  const totalH = hours.reduce(function(s, h) { return s + (h.heures || 0); }, 0);
-  res.json({ nom: membre.prenom + ' ' + membre.nom, total_heures: totalH, heures: hours, email: membre.email, membre_id: membre.id, date_inscription: membre.date_inscription });
-});
-
 // ── Lettres de bénévolat signées (une seule signature — président ou VP, tous deux role=admin) ──
 function volunteerLetterData(userId) {
   const membre = db.prepare('SELECT * FROM users WHERE id=?').get(userId);
