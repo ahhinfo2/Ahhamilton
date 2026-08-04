@@ -8634,7 +8634,9 @@ function calToggleType(type) {
 
 async function activityCalendar() {
   setContent(skeletonRows(6));
-  _calAllActivities = await api('/activities');
+  // Les activités archivées n'ont pas leur place dans le calendrier (elles restent
+  // consultables via le bouton "📦 Archivées" de la page Activités).
+  _calAllActivities = (await api('/activities')).filter(function(a) { return a.statut !== 'archivee'; });
   renderCalendar(_calAllActivities);
 }
 
