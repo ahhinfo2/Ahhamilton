@@ -1034,10 +1034,67 @@ html.dark .search-results { background: var(--white); }
   display: flex; align-items: center; gap: 5px;
   font-size: .72rem; font-weight: 600; color: var(--muted);
   text-transform: capitalize;
+  cursor: pointer; padding: 3px 8px; border-radius: 20px;
+  border: 1.5px solid transparent; transition: var(--tr);
+  user-select: none;
 }
+.cal-leg-item:hover { background: var(--off); }
+.cal-leg-item--off { opacity: .45; border-color: var(--border); }
+.cal-leg-item--off .cal-leg-dot { filter: grayscale(1); }
 .cal-leg-dot {
   width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
 }
+
+/* ── Vue mobile jour-par-jour (PWA) ───────────────────────────────────── */
+.cal-mobile-strip {
+  display: flex; gap: 5px; margin-bottom: 12px;
+}
+.cal-strip-day {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 8px 0 7px; border-radius: 10px; cursor: pointer;
+  background: var(--white); border: 1.5px solid var(--border);
+}
+.cal-strip-day--today { border-color: var(--g3); }
+.cal-strip-day--active { background: var(--g2); border-color: var(--g2); }
+.csd-l { font-size: .62rem; font-weight: 700; color: var(--muted); text-transform: uppercase; }
+.cal-strip-day--active .csd-l { color: rgba(255,255,255,.8); }
+.csd-n { font-size: .88rem; font-weight: 800; color: var(--text); }
+.cal-strip-day--active .csd-n { color: #fff; }
+.csd-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--g3); }
+.cal-strip-day--active .csd-dot { background: var(--accent-lt); }
+
+.cal-mobile-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.cal-mobile-date { font-size: .95rem; font-weight: 700; color: var(--text); }
+.cal-mobile-nav {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--off); border: 1.5px solid var(--border);
+  font-size: 1.3rem; line-height: 1; cursor: pointer; color: var(--text);
+  display: flex; align-items: center; justify-content: center;
+}
+.cal-mobile-nav:hover { background: var(--g2); color: #fff; border-color: var(--g2); }
+
+.cal-mobile-body { touch-action: pan-y; }
+.cal-mobile-card {
+  background: var(--white); border: 1px solid var(--border);
+  border-left: 3px solid var(--g3); border-radius: 10px;
+  padding: 11px 14px; margin-bottom: 8px; cursor: pointer;
+  box-shadow: var(--shadow); transition: opacity .15s;
+}
+.cal-mobile-card:hover { opacity: .85; }
+.cmc-title { font-size: .85rem; font-weight: 700; color: var(--text); }
+.cmc-meta { font-size: .72rem; color: var(--muted); margin-top: 3px; }
+.cal-mobile-empty {
+  text-align: center; color: var(--muted); font-size: .84rem;
+  padding: 32px 16px; background: var(--white); border: 1px dashed var(--border); border-radius: 10px;
+}
+.cal-mobile-add {
+  text-align: center; color: var(--g2); font-size: .8rem; font-weight: 700;
+  padding: 12px; border: 1.5px dashed var(--border); border-radius: 10px; cursor: pointer;
+}
+.cal-mobile-add:hover { background: var(--off); }
 
 /* Grille */
 .cal-grid-wrap {

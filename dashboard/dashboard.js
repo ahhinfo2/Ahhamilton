@@ -8611,6 +8611,8 @@ async function compressImage(file, maxW, quality) {
 // ══════════════════════════════════════════════════════════════════════════════
 var _calDate = new Date();
 var _calAllActivities = [];
+var _calHiddenTypes = new Set(); // types masqués via la légende cliquable (desktop)
+var _calMobileDay = new Date();  // jour ciblé par la vue mobile jour-par-jour
 
 const CAL_TYPE_COLORS = {
   culturel:  { bg:'#1b5e20', light:'#e8f5e9', border:'#a5d6a7' },
@@ -8620,6 +8622,14 @@ const CAL_TYPE_COLORS = {
   general:   { bg:'#6a1b9a', light:'#f3e5f5', border:'#ce93d8' },
 };
 function calColor(type) { return CAL_TYPE_COLORS[type] || CAL_TYPE_COLORS.general; }
+const CAL_MONTH_NAMES = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+const CAL_DAY_NAMES   = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+const CAL_DAY_FULL    = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+
+function calToggleType(type) {
+  if (_calHiddenTypes.has(type)) _calHiddenTypes.delete(type); else _calHiddenTypes.add(type);
+  renderCalendar(_calAllActivities);
+}
 
 async function activityCalendar() {
   setContent(skeletonRows(6));
@@ -8630,15 +8640,18 @@ async function activityCalendar() {
 function renderCalendar(activities) {
   const y = _calDate.getFullYear(), m = _calDate.getMonth();
   const today = new Date();
+  // Type masqués via la légende cliquable — appliqué en amont pour que la grille,
+  // le compteur d'en-tête et la vue mobile restent cohérents.
+  const visibleActivities = activities.filter(function(a) { return !_calHiddenTypes.has(a.type); });
   // Sunday=0 is first column
   let firstDay = new Date(y, m, 1).getDay();
   const daysInMonth = new Date(y, m + 1, 0).getDate();
-  const MONTH_NAMES = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
-  const DAY_NAMES   = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+  const MONTH_NAMES = CAL_MONTH_NAMES;
+  const DAY_NAMES   = CAL_DAY_NAMES;
 
   // Index activities by day
   const byDay = {};
-  activities.forEach(function(a) {
+  visibleActivities.forEach(function(a) {
     if (!a.date_debut) return;
     const d = new Date(a.date_debut);
     if (d.getFullYear() === y && d.getMonth() === m) {
@@ -8703,47 +8716,53 @@ function renderCalendar(activities) {
     );
   }
 
-  const prevMonth = function() { _calDate.setMonth(_calDate.getMonth() - 1); renderCalendar(_calAllActivities); };
-  const nextMonth = function() { _calDate.setMonth(_calDate.getMonth() + 1); renderCalendar(_calAllActivities); };
-  const goToday   = function() { _calDate = new Date(); renderCalendar(_calAllActivities); };
-
   setContent(
     '<div class="page-header" style="margin-bottom:12px">' +
-      '<div><h2>🗓️ Calendrier</h2><p>' + MONTH_NAMES[m] + ' ' + y + ' · ' + activities.length + ' activité(s)</p></div>' +
+      '<div><h2>🗓️ Calendrier</h2><p>' + MONTH_NAMES[m] + ' ' + y + ' · ' + visibleActivities.length + ' activité(s)</p></div>' +
       '<div class="page-actions">' +
         '<button class="btn btn-ghost btn-sm" onclick="showView(\'activities\')">☰ Liste</button>' +
         '<button class="btn btn-outline btn-sm" onclick="printSection(\'Calendrier\')">🖨️ Imprimer</button>' +
       '</div>' +
     '</div>' +
 
-    '<div class="cal-toolbar">' +
-      '<button class="cal-nav-btn" onclick="(_calDate.setMonth(_calDate.getMonth()-1),renderCalendar(_calAllActivities))">&#8249;</button>' +
-      '<div class="cal-title-wrap">' +
-        '<h2 class="cal-title">' + MONTH_NAMES[m] + ' ' + y + '</h2>' +
-        '<button class="cal-today-btn" onclick="(_calDate=new Date(),renderCalendar(_calAllActivities))">Aujourd\'hui</button>' +
+    '<div class="desktop-page-only">' +
+      '<div class="cal-toolbar">' +
+        '<button class="cal-nav-btn" onclick="(_calDate.setMonth(_calDate.getMonth()-1),renderCalendar(_calAllActivities))">&#8249;</button>' +
+        '<div class="cal-title-wrap">' +
+          '<h2 class="cal-title">' + MONTH_NAMES[m] + ' ' + y + '</h2>' +
+          '<button class="cal-today-btn" onclick="(_calDate=new Date(),renderCalendar(_calAllActivities))">Aujourd\'hui</button>' +
+        '</div>' +
+        '<button class="cal-nav-btn" onclick="(_calDate.setMonth(_calDate.getMonth()+1),renderCalendar(_calAllActivities))">&#8250;</button>' +
       '</div>' +
-      '<button class="cal-nav-btn" onclick="(_calDate.setMonth(_calDate.getMonth()+1),renderCalendar(_calAllActivities))">&#8250;</button>' +
+
+      '<div class="cal-legend">' +
+        Object.entries(CAL_TYPE_COLORS).map(function(kv) {
+          const isOff = _calHiddenTypes.has(kv[0]);
+          return '<span class="cal-leg-item' + (isOff ? ' cal-leg-item--off' : '') + '" onclick="calToggleType(\'' + kv[0] + '\')" title="' +
+            (isOff ? 'Cliquer pour réafficher' : 'Cliquer pour masquer') + '">' +
+            '<span class="cal-leg-dot" style="background:' + kv[1].bg + '"></span>' + kv[0] + '</span>';
+        }).join('') +
+      '</div>' +
+
+      '<div class="cal-grid-wrap">' +
+        '<div class="cal-grid">' + headers + cells.join('') + '</div>' +
+      '</div>' +
     '</div>' +
 
-    '<div class="cal-legend">' +
-      Object.entries(CAL_TYPE_COLORS).map(function(kv) {
-        return '<span class="cal-leg-item"><span class="cal-leg-dot" style="background:' + kv[1].bg + '"></span>' + kv[0] + '</span>';
-      }).join('') +
-    '</div>' +
-
-    '<div class="cal-grid-wrap">' +
-      '<div class="cal-grid">' + headers + cells.join('') + '</div>' +
-    '</div>'
+    '<div class="mobile-page-only">' + renderMobileCalDay(visibleActivities) + '</div>'
   );
+
+  setTimeout(_calBindSwipe, 0);
 }
 
 // Affiche le panneau latéral d'une journée
 function calShowDay(y, m, d) {
-  const MONTH_NAMES = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
-  const DAY_FULL = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+  const MONTH_NAMES = CAL_MONTH_NAMES;
+  const DAY_FULL = CAL_DAY_FULL;
   const dow = new Date(y, m, d).getDay();
   const evts = _calAllActivities.filter(function(a) {
     if (!a.date_debut) return false;
+    if (_calHiddenTypes.has(a.type)) return false;
     const dt = new Date(a.date_debut);
     return dt.getFullYear() === y && dt.getMonth() === m && dt.getDate() === d;
   });
@@ -8809,6 +8828,96 @@ function calAddOnDay(y, m, d) {
   openActivityForm({ date_debut: dateDebut, date_fin: dateFin });
 }
 
+// ── Vue mobile jour-par-jour (PWA) ──────────────────────────────────────────
+// Bande de 7 jours (semaine courante) + carte des activités du jour ciblé,
+// navigable par flèches ou par glissement tactile (voir _calBindSwipe).
+function renderMobileCalDay(visibleActivities) {
+  const focus = _calMobileDay;
+  const today = new Date();
+  const weekStart = new Date(focus);
+  weekStart.setDate(focus.getDate() - focus.getDay()); // dimanche de la semaine du jour ciblé
+
+  const evtsByKey = {};
+  visibleActivities.forEach(function(a) {
+    if (!a.date_debut) return;
+    const dt = new Date(a.date_debut);
+    const k = dt.getFullYear() + '-' + dt.getMonth() + '-' + dt.getDate();
+    if (!evtsByKey[k]) evtsByKey[k] = [];
+    evtsByKey[k].push(a);
+  });
+
+  const stripDays = [];
+  for (let i = 0; i < 7; i++) {
+    const day = new Date(weekStart);
+    day.setDate(weekStart.getDate() + i);
+    const key = day.getFullYear() + '-' + day.getMonth() + '-' + day.getDate();
+    const isActive = day.toDateString() === focus.toDateString();
+    const isToday = day.toDateString() === today.toDateString();
+    stripDays.push(
+      '<div class="cal-strip-day' + (isActive ? ' cal-strip-day--active' : '') + (isToday ? ' cal-strip-day--today' : '') + '" ' +
+        'onclick="calMobileGoToDay(' + day.getFullYear() + ',' + day.getMonth() + ',' + day.getDate() + ')">' +
+        '<span class="csd-l">' + CAL_DAY_NAMES[i][0] + '</span>' +
+        '<span class="csd-n">' + day.getDate() + '</span>' +
+        (evtsByKey[key] ? '<span class="csd-dot"></span>' : '') +
+      '</div>'
+    );
+  }
+
+  const key = focus.getFullYear() + '-' + focus.getMonth() + '-' + focus.getDate();
+  const dayEvts = (evtsByKey[key] || []).slice().sort(function(a, b) { return new Date(a.date_debut) - new Date(b.date_debut); });
+
+  const cardsHtml = dayEvts.length ? dayEvts.map(function(e) {
+    const c = calColor(e.type);
+    return '<div class="cal-mobile-card" style="border-left-color:' + c.bg + '" onclick="calOpenEvent(' + e.id + ')">' +
+      '<div class="cmc-title">' + escHtml(e.titre) + '</div>' +
+      '<div class="cmc-meta">' +
+        (e.lieu ? '📍 ' + escHtml(e.lieu) + '  ' : '') +
+        (e.date_debut ? '🕐 ' + new Date(e.date_debut).toLocaleTimeString('fr-CA', {hour:'2-digit',minute:'2-digit'}) : '') +
+      '</div>' +
+    '</div>';
+  }).join('') : '<div class="cal-mobile-empty">📭 Aucune activité ce jour</div>';
+
+  const addBtn = canCreateActivity()
+    ? '<div class="cal-mobile-add" onclick="calAddOnDay(' + focus.getFullYear() + ',' + focus.getMonth() + ',' + focus.getDate() + ')">+ Ajouter une activité ce jour</div>'
+    : '';
+
+  return (
+    '<div class="cal-mobile-strip">' + stripDays.join('') + '</div>' +
+    '<div class="cal-mobile-header">' +
+      '<button class="cal-mobile-nav" onclick="calMobileShiftDay(-1)">&#8249;</button>' +
+      '<div class="cal-mobile-date">' + CAL_DAY_FULL[focus.getDay()] + ' ' + focus.getDate() + ' ' + CAL_MONTH_NAMES[focus.getMonth()] + '</div>' +
+      '<button class="cal-mobile-nav" onclick="calMobileShiftDay(1)">&#8250;</button>' +
+    '</div>' +
+    '<div class="cal-mobile-body" id="calMobileBody">' + cardsHtml + addBtn + '</div>'
+  );
+}
+
+function calMobileShiftDay(delta) {
+  _calMobileDay.setDate(_calMobileDay.getDate() + delta);
+  _calDate = new Date(_calMobileDay); // garde la vue desktop sur le bon mois si on bascule
+  renderCalendar(_calAllActivities);
+}
+
+function calMobileGoToDay(y, m, d) {
+  _calMobileDay = new Date(y, m, d);
+  _calDate = new Date(_calMobileDay);
+  renderCalendar(_calAllActivities);
+}
+
+// Glissement tactile gauche/droite pour changer de jour sur la vue mobile
+function _calBindSwipe() {
+  const el = document.getElementById('calMobileBody');
+  if (!el) return;
+  let sx = 0, sy = 0;
+  el.ontouchstart = function(e) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; };
+  el.ontouchend = function(e) {
+    const dx = e.changedTouches[0].clientX - sx;
+    const dy = e.changedTouches[0].clientY - sy;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
+      calMobileShiftDay(dx > 0 ? -1 : 1);
+    }
+  };
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TALENTS MANAGEMENT (admin)
