@@ -367,7 +367,7 @@ async function buildSidebar() {
 
     // ── Activités ─────────────────────────────────────────────────
     { label: 'Activités', items: [
-      { id:'activities',    icon:'◉', label:'Calendrier',   roles: ALL },
+      { id:'calendrier-activites', icon:'◉', label:'Calendrier', roles: ALL },
       { id:'subcommittees', icon:'◐', label:'Sous-comités', roles: ALL },
       { id:'volunteer',     icon:'🤝', label:'Bénévolat',    roles: ALL },
     ]},
@@ -580,7 +580,7 @@ function setActiveNav(viewId) {
     if (el) el.classList.toggle('active', viewId === id);
   });
   const labels = {
-    home:'Tableau de bord', activities:'Activités', members:'Membres', subcommittees:'Sous-comités',
+    home:'Tableau de bord', activities:'Activités', 'calendrier-activites':'Calendrier', members:'Membres', subcommittees:'Sous-comités',
     finance:'Finance', invoices:'Factures', fournisseurs:'Fournisseurs', correspondance:'Correspondance', messages:'Messages', volunteer:'Heures de bénévolat',
     reports:'Rapports', letters:'Lettres de recommandation',
     projects:'Projets', alerts:'Alertes', profile:'Mon profil', gallery_mgmt:'Gérer la galerie',
@@ -882,7 +882,7 @@ async function pollBadges() {
       setSidebarBadge('membres',            stats.inscriptions_en_attente);
       setSidebarBadge('paiements',          stats.paiements_en_attente);
       setSidebarBadge('tasks',              stats.taches_a_faire);
-      setSidebarBadge('activities',         stats.activites_a_venir);
+      setSidebarBadge('calendrier-activites', stats.activites_a_venir);
       setSidebarBadge('reunions',           stats.reunions_a_faire);
       setSidebarBadge('decision-registry',  stats.decisions_en_cours);
       setSidebarBadge('forum',              stats.forum_non_lu);
@@ -1213,6 +1213,7 @@ async function showView(viewId) {
     scanner, forum, newsletter, rapports_finance, documents_mgmt, recus_archive
   };
   const extViews = {
+    'calendrier-activites': activityCalendar,
     'membres': membresHubView,
     'contenu-membres': contenuMembresHubView,
     'vitrine': vitrineHubView,
@@ -1896,7 +1897,7 @@ async function activities() {
         <div><h2>Activités</h2><p>Toutes les activités communautaires</p></div>
         <div class="page-actions">
           ${canCreateActivity() ? '<button class="btn btn-primary" onclick=\'openActivityForm(null)\'>+ Nouvelle</button>' : ''}
-          <button class="btn btn-ghost" onclick="activityCalendar()">🗓️ Calendrier</button>
+          <button class="btn btn-ghost" onclick="showView('calendrier-activites')">🗓️ Calendrier</button>
           <button class="btn btn-outline" onclick="printSection(\'Activités\')">🖨️ Imprimer</button>
         </div>
       </div>
@@ -8720,7 +8721,7 @@ function renderCalendar(activities) {
     '<div class="page-header" style="margin-bottom:12px">' +
       '<div><h2>🗓️ Calendrier</h2><p>' + MONTH_NAMES[m] + ' ' + y + ' · ' + visibleActivities.length + ' activité(s)</p></div>' +
       '<div class="page-actions">' +
-        '<button class="btn btn-ghost btn-sm" onclick="showView(\'activities\')">☰ Liste</button>' +
+        '<button class="btn btn-ghost btn-sm" onclick="showView(\'activities\')">📋 Activités</button>' +
         '<button class="btn btn-outline btn-sm" onclick="printSection(\'Calendrier\')">🖨️ Imprimer</button>' +
       '</div>' +
     '</div>' +
