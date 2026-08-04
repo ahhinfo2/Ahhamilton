@@ -18257,8 +18257,16 @@ async function formsMgmtView() {
   try { forms = await api('/forms'); } catch(e) { setContent('<div class="empty-state"><p>Erreur : '+escHtml(e.message)+'</p></div>'); return; }
   window._formsList = forms;
 
-  const rows = forms.map(f => {
-    const statutPill = f.statut === 'actif'
+  // Les formulaires archivés sont masqués par défaut (même schéma que la page Activités) —
+  // il faut cliquer sur "📦 Archivés" pour les voir.
+  const showArchived = !!window._formsShowArchived;
+  const archivedCount = forms.filter(f => f.statut === 'archivee').length;
+  const visible = forms.filter(f => showArchived ? f.statut === 'archivee' : f.statut !== 'archivee');
+
+  const rows = visible.map(f => {
+    const statutPill = f.statut === 'archivee'
+      ? '<span style="background:var(--off);color:var(--muted);padding:3px 10px;border-radius:12px;font-size:.78rem;font-weight:600">📦 Archivé</span>'
+      : f.statut === 'actif'
       ? '<span style="background:#e8f5e9;color:#2e7d32;padding:3px 10px;border-radius:12px;font-size:.78rem;font-weight:600">Actif</span>'
       : '<span style="background:#fce4ec;color:#c62828;padding:3px 10px;border-radius:12px;font-size:.78rem;font-weight:600">Fermé</span>';
     return `<tr>
@@ -18269,8 +18277,13 @@ async function formsMgmtView() {
       <td>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button onclick="viewFormResults(${f.id})" style="background:#e3f2fd;color:#1565c0;border:none;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:.78rem">Résultats</button>
+          ${f.statut === 'archivee' ? `
+          <button onclick="_unarchiveForm(${f.id})" style="background:#e3f2fd;color:#1565c0;border:none;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:.78rem">↩️ Restaurer</button>
+          ` : `
           <button onclick="openFormBuilder(${f.id})" style="background:#fff3e0;color:#e65100;border:none;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:.78rem">Modifier</button>
           <button onclick="_copyFormLink(${f.id})" style="background:#e8f5e9;color:#2e7d32;border:none;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:.78rem">Copier lien</button>
+          <button onclick="_archiveForm(${f.id})" style="background:var(--off);color:var(--muted);border:none;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:.78rem">📦 Archiver</button>
+          `}
           <button onclick="_deleteForm(${f.id})" style="background:#fce4ec;color:#c62828;border:none;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:.78rem">Supprimer</button>
         </div>
       </td>
@@ -18280,9 +18293,12 @@ async function formsMgmtView() {
   setContent(`
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px">
       <h2 style="margin:0;font-size:1.3rem">Formulaires</h2>
-      <button onclick="openFormBuilder(0)" style="background:var(--g2);color:#fff;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-weight:600;font-size:.9rem">+ Nouveau formulaire</button>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-sm ${showArchived ? 'btn-primary' : 'btn-ghost'}" onclick="_toggleFormsArchived()">📦 Archivés (${archivedCount})</button>
+        <button onclick="openFormBuilder(0)" style="background:var(--g2);color:#fff;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-weight:600;font-size:.9rem">+ Nouveau formulaire</button>
+      </div>
     </div>
-    ${forms.length === 0 ? '<div class="empty-state"><div class="es-icon">📋</div><p>Aucun formulaire créé</p><p style="color:var(--muted);font-size:.85rem">Créez votre premier formulaire pour collecter des réponses</p></div>' : `
+    ${visible.length === 0 ? `<div class="empty-state"><div class="es-icon">📋</div><p>${showArchived ? 'Aucun formulaire archivé' : 'Aucun formulaire créé'}</p>${showArchived ? '' : '<p style="color:var(--muted);font-size:.85rem">Créez votre premier formulaire pour collecter des réponses</p>'}</div>` : `
     <div style="overflow-x:auto">
       <table class="data-table">
         <thead><tr>
@@ -18296,6 +18312,27 @@ async function formsMgmtView() {
       </table>
     </div>`}
   `);
+}
+
+function _toggleFormsArchived() {
+  window._formsShowArchived = !window._formsShowArchived;
+  formsMgmtView();
+}
+
+async function _archiveForm(formId) {
+  try {
+    await api('/forms/' + formId + '/archive', { method: 'PATCH' });
+    toast('📦 Formulaire archivé');
+    formsMgmtView();
+  } catch(e) { toast('Erreur : ' + e.message, 'error'); }
+}
+
+async function _unarchiveForm(formId) {
+  try {
+    await api('/forms/' + formId + '/unarchive', { method: 'PATCH' });
+    toast('↩️ Formulaire restauré');
+    formsMgmtView();
+  } catch(e) { toast('Erreur : ' + e.message, 'error'); }
 }
 
 function _copyFormLink(formId) {

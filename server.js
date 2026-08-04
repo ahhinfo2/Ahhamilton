@@ -9207,6 +9207,17 @@ app.delete('/api/forms/:id', authMiddleware, requireRole(...FORM_EXEC), (req, re
   res.json({ message: 'Formulaire supprimé' });
 });
 
+// ── Archiver / restaurer un formulaire (même schéma que les activités) ──────
+app.patch('/api/forms/:id/archive', authMiddleware, requireRole(...FORM_EXEC), (req, res) => {
+  db.prepare("UPDATE forms SET statut = 'archivee' WHERE id = ?").run(req.params.id);
+  res.json({ message: 'Formulaire archivé' });
+});
+
+app.patch('/api/forms/:id/unarchive', authMiddleware, requireRole(...FORM_EXEC), (req, res) => {
+  db.prepare("UPDATE forms SET statut = 'actif' WHERE id = ?").run(req.params.id);
+  res.json({ message: 'Formulaire restauré' });
+});
+
 // ── Upload image pour un formulaire ─────────────────────────────────────────
 app.post('/api/forms/:id/image', authMiddleware, requireRole(...FORM_EXEC), uploadFormImage.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Image requise' });
