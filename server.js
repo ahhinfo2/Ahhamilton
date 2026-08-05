@@ -3202,6 +3202,9 @@ app.get('/api/stats', authMiddleware, (req, res) => {
     inscriptions_en_attente: isExec
       ? db.prepare("SELECT COUNT(*) AS c FROM pending_registrations WHERE statut='en_attente'").get().c
       : 0,
+    photos_en_attente: isExec
+      ? db.prepare("SELECT COUNT(*) AS c FROM users WHERE actif=1 AND photo_url IS NOT NULL AND (carte_photo_approuvee=0 OR carte_photo_approuvee IS NULL)").get().c
+      : 0,
     paiements_en_attente: isExec
       ? db.prepare("SELECT COUNT(*) AS c FROM payments WHERE statut='en_attente'").get().c
       : 0,

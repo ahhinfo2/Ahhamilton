@@ -879,7 +879,7 @@ async function pollBadges() {
       // ── Badges sur tous les items du sidebar ──
       setSidebarBadge('annuaire',           newMsgs);
       setSidebarBadge('alerts',             newAlerts);
-      setSidebarBadge('membres',            stats.inscriptions_en_attente);
+      setSidebarBadge('membres',            stats.inscriptions_en_attente + stats.photos_en_attente);
       setSidebarBadge('paiements',          stats.paiements_en_attente);
       setSidebarBadge('tasks',              stats.taches_a_faire);
       setSidebarBadge('calendrier-activites', stats.activites_a_venir);
@@ -9677,15 +9677,26 @@ async function membresHubView(tab) {
   setContent(`
     <div class="page-header"><div><h2>🪪 Membres</h2><p>Inscriptions, répertoire et photos des membres</p></div></div>
     <div class="page-tabs-inline">
-      <button class="ptab ${tab==='inscriptions'?'active':''}" onclick="membresHubView('inscriptions')">Inscriptions</button>
+      <button class="ptab ${tab==='inscriptions'?'active':''}" id="ptab-inscriptions" onclick="membresHubView('inscriptions')">Inscriptions</button>
       <button class="ptab ${tab==='repertoire'?'active':''}" onclick="membresHubView('repertoire')">Répertoire</button>
-      <button class="ptab ${tab==='photos'?'active':''}" onclick="membresHubView('photos')">Photos</button>
+      <button class="ptab ${tab==='photos'?'active':''}" id="ptab-photos" onclick="membresHubView('photos')">Photos</button>
     </div>
     <div id="membresHubBody"></div>
   `);
   if (tab === 'inscriptions') await inscriptions();
   else if (tab === 'photos') await photosMembresView();
   else await carteGestionView();
+  _membresLoadBadges();
+}
+
+// Compte, pour chaque onglet, les éléments en attente (même principe que _reunionsLoadBadges)
+async function _membresLoadBadges() {
+  try {
+    const stats = await api('/stats').catch(() => null);
+    if (!stats) return;
+    _setPtabBadge('ptab-inscriptions', stats.inscriptions_en_attente);
+    _setPtabBadge('ptab-photos', stats.photos_en_attente);
+  } catch(e) {}
 }
 
 async function inscriptions() {
