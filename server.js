@@ -265,7 +265,7 @@ const cspMiddleware = (req, res, next) => {
   if (!req.path.startsWith('/dashboard')) {
     res.setHeader('Content-Security-Policy',
       "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://js.stripe.com; " +
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; " +
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://unpkg.com; font-src 'self' https://fonts.gstatic.com; " +
       "img-src 'self' data: blob: https:; media-src 'self' data:; frame-src 'self' https://www.youtube-nocookie.com https://www.youtube.com https://www.google.com https://maps.google.com https://js.stripe.com; " +
       "connect-src 'self' https://api.open-meteo.com https://api.stripe.com; object-src 'none'; base-uri 'self'");
   }
@@ -3220,6 +3220,9 @@ app.get('/api/stats', authMiddleware, (req, res) => {
     paiements_en_attente: isExec
       ? db.prepare("SELECT COUNT(*) AS c FROM payments WHERE statut='en_attente'").get().c
       : 0,
+    commerces_en_attente: isExec
+      ? db.prepare("SELECT COUNT(*) AS c FROM business_listings WHERE statut='en_attente'").get().c
+      : 0,
     taches_a_faire: db.prepare("SELECT COUNT(*) AS c FROM tasks WHERE assigne_a=? AND statut IN ('a_faire','en_cours')").get(uid).c,
     activites_a_venir: db.prepare("SELECT COUNT(*) AS c FROM activities WHERE statut='planifiee' AND date_debut >= date('now')").get().c,
     reunions_a_venir: isExec
@@ -5000,6 +5003,97 @@ app.patch('/api/users/:id/plan', authMiddleware, requireRole('admin','secretaire
 });
 
 app.use('/uploads/annonces', express.static(path.join(__dirname, 'uploads', 'annonces')));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CARTE DES COMMERCES (membres) — soumission, approbation comité, géocodage, carte publique
+// ══════════════════════════════════════════════════════════════════════════════
+
+const businessStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, 'uploads', 'commerces');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => cb(null, safeFilename(file))
+});
+const uploadBusiness = multer({ storage: businessStorage, limits: { fileSize: 8 * 1024 * 1024 }, fileFilter: imageFilter });
+app.use('/uploads/commerces', express.static(path.join(__dirname, 'uploads', 'commerces')));
+
+// Géocodage via Nominatim (OpenStreetMap) — gratuit, sans clé API. User-Agent requis par leur
+// politique d'utilisation ; un seul appel par approbation (pas d'usage en volume).
+async function geocodeAddress(adresse) {
+  try {
+    const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(adresse);
+    const resp = await fetch(url, { headers: { 'User-Agent': 'AHH-Hamilton-App/1.0 (contact@ahhamilton.ca)' } });
+    if (!resp.ok) return null;
+    const results = await resp.json();
+    if (!results.length) return null;
+    return { lat: parseFloat(results[0].lat), lng: parseFloat(results[0].lon) };
+  } catch (e) { console.error('[geocode]', e.message); return null; }
+}
+
+// Soumettre un commerce — tout membre connecté, statut "en_attente" par défaut
+app.post('/api/commerces', authMiddleware, uploadBusiness.single('photo'), (req, res) => {
+  const { nom, categorie, description, adresse, telephone, email, site_web } = req.body;
+  if (!nom?.trim() || !adresse?.trim()) return res.status(400).json({ error: 'Nom et adresse requis' });
+  const photo_url = req.file ? `/uploads/commerces/${req.file.filename}` : null;
+  const r = db.prepare(`INSERT INTO business_listings (user_id, nom, categorie, description, adresse, telephone, email, site_web, photo_url)
+    VALUES (?,?,?,?,?,?,?,?,?)`)
+    .run(req.user.id, nom.trim(), categorie || 'autre', description || null, adresse.trim(), telephone || null, email || null, site_web || null, photo_url);
+  const admins = db.prepare("SELECT id FROM users WHERE role IN ('admin','secretaire') AND actif=1").all();
+  admins.forEach(a => createAlert(a.id, 'commerce', '🏪 Nouveau commerce à approuver', nom.trim(), r.lastInsertRowid));
+  res.status(201).json({ id: r.lastInsertRowid });
+});
+
+// Liste complète (comité) — pour la file de modération
+app.get('/api/commerces', authMiddleware, requireRole(...COMITE_ROLES), (req, res) => {
+  const rows = db.prepare(`SELECT b.*, u.prenom, u.nom AS user_nom, u.email AS user_email
+    FROM business_listings b LEFT JOIN users u ON u.id = b.user_id ORDER BY b.date_creation DESC`).all();
+  res.json(rows);
+});
+
+// Mes propres soumissions (membre)
+app.get('/api/commerces/mine', authMiddleware, (req, res) => {
+  const rows = db.prepare('SELECT * FROM business_listings WHERE user_id=? ORDER BY date_creation DESC').all(req.user.id);
+  res.json(rows);
+});
+
+// Liste publique — uniquement les commerces approuvés et géocodés
+app.get('/api/commerces/public', (req, res) => {
+  const rows = db.prepare(`SELECT id, nom, categorie, description, adresse, telephone, email, site_web, lat, lng, photo_url
+    FROM business_listings WHERE statut='approuve' AND lat IS NOT NULL AND lng IS NOT NULL ORDER BY nom`).all();
+  res.json(rows);
+});
+
+app.patch('/api/commerces/:id/approve', authMiddleware, requireRole(...COMITE_ROLES), async (req, res) => {
+  const b = db.prepare('SELECT * FROM business_listings WHERE id=?').get(req.params.id);
+  if (!b) return res.status(404).json({ error: 'Introuvable' });
+  const geo = await geocodeAddress(b.adresse);
+  if (!geo) return res.status(422).json({ error: "Adresse introuvable — impossible de la localiser sur la carte. Vérifiez l'orthographe ou précisez la ville/province." });
+  db.prepare("UPDATE business_listings SET statut='approuve', lat=?, lng=?, date_approbation=CURRENT_TIMESTAMP WHERE id=?")
+    .run(geo.lat, geo.lng, req.params.id);
+  if (b.user_id) createAlert(b.user_id, 'commerce', '✅ Votre commerce est approuvé', b.nom + ' est maintenant visible sur la carte publique', b.id);
+  res.json({ ok: true, lat: geo.lat, lng: geo.lng });
+});
+
+app.patch('/api/commerces/:id/refuse', authMiddleware, requireRole(...COMITE_ROLES), (req, res) => {
+  const b = db.prepare('SELECT * FROM business_listings WHERE id=?').get(req.params.id);
+  if (!b) return res.status(404).json({ error: 'Introuvable' });
+  const { raison } = req.body;
+  db.prepare("UPDATE business_listings SET statut='refuse', refus_raison=? WHERE id=?").run(raison || null, req.params.id);
+  if (b.user_id) createAlert(b.user_id, 'commerce', '❌ Commerce refusé', b.nom + (raison ? ' — ' + raison : ''), b.id);
+  res.json({ ok: true });
+});
+
+app.delete('/api/commerces/:id', authMiddleware, (req, res) => {
+  const b = db.prepare('SELECT * FROM business_listings WHERE id=?').get(req.params.id);
+  if (!b) return res.status(404).json({ error: 'Introuvable' });
+  if (!COMITE_ROLES.includes(req.user.role) && b.user_id !== req.user.id)
+    return res.status(403).json({ error: 'Accès refusé' });
+  if (b.photo_url) { const fp = path.join(__dirname, b.photo_url); if (fs.existsSync(fp)) fs.unlinkSync(fp); }
+  db.prepare('DELETE FROM business_listings WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
 
 // ══════════════════════════════════════════════════════════════════════════════
 // QR CODE ACTIVITÉ

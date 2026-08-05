@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Carte des commerces | AHH</title>
+  <meta name="description" content="Découvrez les commerces et services tenus par des membres de l'Association Haïtienne de Hamilton, sur une carte interactive."/>
+  <meta property="og:title" content="Carte des commerces | AHH"/>
+  <meta property="og:description" content="Commerces et services tenus par des membres de la communauté haïtienne de Hamilton."/>
+  <meta property="og:image" content="https://ahhamilton.ca/Public/logo1.png"/>
+  <meta property="og:url" content="https://ahhamilton.ca/commerces.html"/>
+  <meta property="og:type" content="website"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <link rel="canonical" href="https://ahhamilton.ca/commerces.html"/>
+  <link rel="icon" type="image/png" href="Public/logo1.png"/>
+  <link rel="manifest" href="/manifest.json"/>
+  <meta name="theme-color" content="#1b5e20"/>
+  <link rel="stylesheet" href="style.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    .com-section { padding: 64px 0 96px; }
+    .com-filter-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; align-items: center; }
+    .com-filter { padding: 7px 16px; border-radius: 50px; border: 1.5px solid var(--border); background: #fff;
+      font-family: 'Poppins',sans-serif; font-size: .78rem; font-weight: 600; cursor: pointer;
+      transition: var(--tr); color: var(--muted); }
+    .com-filter.active, .com-filter:hover { background: var(--g2); color: #fff; border-color: var(--g2); }
+
+    #comMap { height: 460px; border-radius: 18px; border: 1px solid var(--border); box-shadow: var(--shadow); margin-bottom: 40px; z-index: 1; }
+    .leaflet-popup-content b { color: var(--g1); }
+
+    .com-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; margin-bottom: 40px; }
+    .com-card { background: #fff; border-radius: 18px; border: 1px solid var(--border); box-shadow: var(--shadow); overflow: hidden; transition: var(--tr); cursor: pointer; }
+    .com-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
+    .com-photo { height: 150px; background: linear-gradient(135deg, var(--g1), var(--g2)); display: flex; align-items: center; justify-content: center; font-size: 3rem; overflow: hidden; }
+    .com-photo img { width: 100%; height: 100%; object-fit: cover; }
+    .com-body { padding: 16px 18px; }
+    .com-cat { font-size: .74rem; color: var(--g2); font-weight: 700; margin-bottom: 4px; }
+    .com-name { font-size: .98rem; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+    .com-desc { font-size: .8rem; color: var(--muted); line-height: 1.6; margin-bottom: 10px;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .com-addr { font-size: .76rem; color: var(--muted); display: flex; align-items: center; gap: 5px; }
+
+    .com-empty { text-align: center; padding: 64px 24px; color: var(--muted); }
+    .com-empty .ce-icon { font-size: 3rem; margin-bottom: 12px; }
+
+    .com-cta { background: linear-gradient(135deg, var(--g1), var(--g2)); border-radius: 20px;
+      padding: 44px 36px; text-align: center; color: #fff; margin-top: 8px; }
+    .com-cta h2 { font-family: 'Playfair Display',serif; font-size: 1.6rem; margin-bottom: 10px; }
+    .com-cta p { color: rgba(255,255,255,.82); font-size: .88rem; margin-bottom: 22px; }
+    .com-cta a { display: inline-block; background: #fff; color: var(--g1); padding: 11px 26px; border-radius: 50px; font-size: .86rem; font-weight: 700; text-decoration: none; }
+
+    @media(max-width:600px) { .com-grid { grid-template-columns: 1fr; } #comMap { height: 340px; } }
+  </style>
+</head>
+<body>
+
+  <section class="page-hero">
+    <div class="container page-hero-content">
+      <div class="breadcrumb"><a href="index.html">Accueil</a><span>›</span><span>Commerces</span></div>
+      <h1>Carte des commerces</h1>
+      <p>Découvrez les commerces et services tenus par des membres de notre communauté à Hamilton.</p>
+    </div>
+  </section>
+
+  <main id="main-content" role="main">
+  <section class="com-section">
+    <div class="container">
+
+      <div class="com-filter-bar" id="comFilterBar">
+        <button class="com-filter active" data-cat="tous">Tous</button>
+        <button class="com-filter" data-cat="construction">🔨 Construction</button>
+        <button class="com-filter" data-cat="art">🎨 Art</button>
+        <button class="com-filter" data-cat="cuisine">🍽️ Cuisine</button>
+        <button class="com-filter" data-cat="beaute">💅 Beauté</button>
+        <button class="com-filter" data-cat="technologie">💻 Technologie</button>
+        <button class="com-filter" data-cat="education">📚 Éducation</button>
+        <button class="com-filter" data-cat="sante">🏥 Santé</button>
+        <button class="com-filter" data-cat="transport">🚗 Transport</button>
+        <button class="com-filter" data-cat="finance">💰 Finance</button>
+        <button class="com-filter" data-cat="autre">✨ Autre</button>
+      </div>
+
+      <div id="comMap"></div>
+      <div id="comGrid" class="com-grid">
+        <div class="com-empty"><div class="ce-icon">🏪</div><p>Chargement…</p></div>
+      </div>
+
+      <div class="com-cta">
+        <h2>Vous êtes membre et vous tenez un commerce ?</h2>
+        <p>Ajoutez-le à la carte — visible par toute la communauté après vérification du comité.</p>
+        <a href="dashboard/login.html">Soumettre mon commerce →</a>
+      </div>
+
+    </div>
+  </section>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="script.js"></script>
+  <script src="_lang.js"></script>
+  <script src="_nav.js"></script>
+  <script src="nav-auth.js"></script>
+  <script src="casl-consent.js"></script>
+  <script>
+    const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001/api' : '/api';
+    const CAT_LABELS = {
+      construction: '🔨 Construction & Rénovation', art: '🎨 Art & Créativité', cuisine: '🍽️ Cuisine & Traiteur',
+      beaute: '💅 Beauté & Bien-être', technologie: '💻 Technologie & Informatique', education: '📚 Éducation & Coaching',
+      sante: '🏥 Santé & Sport', transport: '🚗 Transport & Livraison', finance: '💰 Finance & Comptabilité', autre: '✨ Autre'
+    };
+
+    var map = L.map('comMap').setView([43.2557, -79.8711], 12); // Hamilton, ON
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+
+    var allBusinesses = [];
+    var markers = {};
+    var activeFilter = 'tous';
+
+    function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+    function renderList() {
+      var grid = document.getElementById('comGrid');
+      var filtered = activeFilter === 'tous' ? allBusinesses : allBusinesses.filter(function(b) { return b.categorie === activeFilter; });
+      if (!filtered.length) {
+        grid.innerHTML = '<div class="com-empty" style="grid-column:1/-1"><div class="ce-icon">🏪</div><p>Aucun commerce dans cette catégorie pour le moment.</p></div>';
+        return;
+      }
+      grid.innerHTML = filtered.map(function(b) {
+        return '<div class="com-card" onclick="focusBusiness(' + b.id + ')">' +
+          '<div class="com-photo">' + (b.photo_url ? '<img src="' + b.photo_url + '" alt="' + escHtml(b.nom) + '" loading="lazy">' : '🏪') + '</div>' +
+          '<div class="com-body">' +
+            '<div class="com-cat">' + (CAT_LABELS[b.categorie] || b.categorie) + '</div>' +
+            '<div class="com-name">' + escHtml(b.nom) + '</div>' +
+            (b.description ? '<div class="com-desc">' + escHtml(b.description) + '</div>' : '') +
+            '<div class="com-addr">📍 ' + escHtml(b.adresse) + '</div>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    }
+
+    function focusBusiness(id) {
+      var m = markers[id];
+      if (!m) return;
+      document.getElementById('comMap').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      map.setView(m.getLatLng(), 15);
+      m.openPopup();
+    }
+
+    function renderMarkers() {
+      Object.values(markers).forEach(function(m) { map.removeLayer(m); });
+      markers = {};
+      var filtered = activeFilter === 'tous' ? allBusinesses : allBusinesses.filter(function(b) { return b.categorie === activeFilter; });
+      var bounds = [];
+      filtered.forEach(function(b) {
+        var marker = L.marker([b.lat, b.lng]).addTo(map);
+        marker.bindPopup(
+          '<b>' + escHtml(b.nom) + '</b><br/>' + (CAT_LABELS[b.categorie] || b.categorie) + '<br/>' +
+          escHtml(b.adresse) +
+          (b.telephone ? '<br/>📞 ' + escHtml(b.telephone) : '') +
+          (b.site_web ? '<br/><a href="' + escHtml(b.site_web) + '" target="_blank" rel="noopener">🔗 Site web</a>' : '')
+        );
+        markers[b.id] = marker;
+        bounds.push([b.lat, b.lng]);
+      });
+      if (bounds.length) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
+    }
+
+    document.getElementById('comFilterBar').addEventListener('click', function(e) {
+      var btn = e.target.closest('.com-filter');
+      if (!btn) return;
+      document.querySelectorAll('.com-filter').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      activeFilter = btn.dataset.cat;
+      renderList();
+      renderMarkers();
+    });
+
+    (async function loadBusinesses() {
+      try {
+        var res = await fetch(API_URL + '/commerces/public');
+        allBusinesses = await res.json();
+        renderList();
+        renderMarkers();
+      } catch(e) {
+        document.getElementById('comGrid').innerHTML = '<div class="com-empty" style="grid-column:1/-1"><div class="ce-icon">⚠️</div><p>Impossible de charger les commerces pour le moment.</p></div>';
+      }
+    })();
+  </script>
+</body>
+</html>

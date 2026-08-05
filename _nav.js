@@ -23,7 +23,7 @@
       'Politique de confidentialité':'Privacy Policy',
       'Intégration':'Integration', 'Langue créole':'Creole Language', 'Rejoindre':'Join Online',
       'Recettes haïtiennes':'Haitian Recipes', 'Mur de fierté':'Pride Wall', 'Espace familles':'Family Space',
-      'Infolettres':'Newsletters',
+      'Infolettres':'Newsletters', 'Commerces':'Businesses',
       'footer-desc':'Haitian Association of Hamilton, a community united in culture and solidarity.',
       'footer-copy':'© 2026 AHH | Association Haïtienne de Hamilton. All rights reserved.',
     },
@@ -39,7 +39,7 @@
       'Politique de confidentialité':'Politik konfidansyalite',
       'Intégration':'Entegrasyon', 'Langue créole':'Lang kreyòl', 'Rejoindre':'Rantre an liy',
       'Recettes haïtiennes':'Resèt ayisyen', 'Mur de fierté':'Mi fyète', 'Espace familles':'Espas fanmi',
-      'Infolettres':'Bilten',
+      'Infolettres':'Bilten', 'Commerces':'Biznis',
       'footer-desc':'Asosyasyon Ayisyen Hamilton, yon kominote ini nan kilti ak solidarite.',
       'footer-copy':'© 2026 AHH | Asosyasyon Ayisyen Hamilton. Tout dwa rezève.',
     }
@@ -146,11 +146,12 @@
 
         <!-- Dropdown : Communauté -->
         <div class="dropdown">
-          <button class="${activeDrop(['talents.html','annonces.html','integration.html','creole.html','rejoindre.html','recettes.html','fierte.html','enfants.html'])} dropdown-toggle">
+          <button class="${activeDrop(['talents.html','commerces.html','annonces.html','integration.html','creole.html','rejoindre.html','recettes.html','fierte.html','enfants.html'])} dropdown-toggle">
             <span data-i18n="Communauté">Communauté</span> <span class="dropdown-caret">▾</span>
           </button>
           <div class="dropdown-menu">
             <a href="${pre}talents.html"     class="${active('talents.html')}"     data-i18n="Nos talents">Nos talents</a>
+            <a href="${pre}commerces.html"   class="${active('commerces.html')}"   data-i18n="Commerces">Commerces</a>
             <a href="${pre}annonces.html"    class="${active('annonces.html')}"    data-i18n="Petites annonces">Petites annonces</a>
             <a href="${pre}integration.html" class="${active('integration.html')}" data-i18n="Intégration">Intégration</a>
             <a href="${pre}creole.html"      class="${active('creole.html')}"      data-i18n="Langue créole">Langue créole</a>
@@ -222,6 +223,7 @@
         <a href="${pre}infolettres.html" data-i18n="Infolettres">Infolettres</a>
         <a href="${pre}galerie.html"    data-i18n="Galerie">Galerie</a>
         <a href="${pre}talents.html"    data-i18n="Nos talents">Nos talents</a>
+        <a href="${pre}commerces.html"  data-i18n="Commerces">Commerces</a>
         <a href="${pre}annonces.html"   data-i18n="Petites annonces">Petites annonces</a>
         <a href="${pre}integration.html" data-i18n="Intégration">Intégration</a>
         <a href="${pre}creole.html"      data-i18n="Langue créole">Langue créole</a>

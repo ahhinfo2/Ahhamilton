@@ -416,6 +416,7 @@ async function buildSidebar() {
       { id:'documents_mgmt',    icon:'📁', label:'Documents',         roles:['admin','secretaire'] },
       { id:'vitrine',           icon:'🤝', label:'Vitrine publique',  roles:['admin','tresoriere','secretaire','delegue'] },
       { id:'shop-mgmt',         icon:'🛒', label:'Boutique',           roles:EXEC },
+      { id:'commerces',         icon:'🏪', label:'Commerces',          roles:EXEC },
     ]},
 
     // ── Espace Jeunes ─────────────────────────────────────────────
@@ -459,6 +460,7 @@ async function buildSidebar() {
       USER.in_subcommittee ? { id:'subcommittees', icon:'◐', label:'Sous-comités' } : null,
       ['bienfaiteur','partenaire'].includes(USER.plan) ? { id:'mes_talents',  icon:'◈', label:'Mon talent' }   : null,
       ['bienfaiteur','partenaire'].includes(USER.plan) ? { id:'mes_annonces', icon:'◉', label:'Mes annonces' } : null,
+      ['bienfaiteur','partenaire'].includes(USER.plan) ? { id:'commerces', icon:'🏪', label:'Mon commerce' } : null,
       { id:'annuaire',     icon:'✉️', label:'Courriel' },
       { id:'forum',        icon:'◫', label:'Forum' },
       { id:'alertes-urgentes', icon:'🚨', label:'Alertes urgentes' },
@@ -580,7 +582,7 @@ function setActiveNav(viewId) {
     if (el) el.classList.toggle('active', viewId === id);
   });
   const labels = {
-    home:'Tableau de bord', activities:'Activités', 'calendrier-activites':'Calendrier', members:'Membres', subcommittees:'Sous-comités',
+    home:'Tableau de bord', activities:'Activités', 'calendrier-activites':'Calendrier', 'commerces':'Commerces', members:'Membres', subcommittees:'Sous-comités',
     finance:'Finance', invoices:'Factures', fournisseurs:'Fournisseurs', correspondance:'Correspondance', messages:'Messages', volunteer:'Heures de bénévolat',
     reports:'Rapports', letters:'Lettres de recommandation',
     projects:'Projets', alerts:'Alertes', profile:'Mon profil', gallery_mgmt:'Gérer la galerie',
@@ -881,6 +883,7 @@ async function pollBadges() {
       setSidebarBadge('alerts',             newAlerts);
       setSidebarBadge('membres',            stats.inscriptions_en_attente + stats.photos_en_attente);
       setSidebarBadge('paiements',          stats.paiements_en_attente);
+      setSidebarBadge('commerces',          stats.commerces_en_attente);
       setSidebarBadge('tasks',              stats.taches_a_faire);
       setSidebarBadge('calendrier-activites', stats.activites_a_venir);
       setSidebarBadge('reunions',           stats.reunions_a_faire);
@@ -1214,6 +1217,7 @@ async function showView(viewId) {
   };
   const extViews = {
     'calendrier-activites': activityCalendar,
+    'commerces': commercesHubView,
     'membres': membresHubView,
     'contenu-membres': contenuMembresHubView,
     'vitrine': vitrineHubView,
@@ -9632,6 +9636,195 @@ function openMemberAnnonceForm() {
       closeModal();
       toast('✅ Annonce soumise ! L\'admin va la valider sous peu.', 'info');
       mes_annonces();
+    } catch(ex) {
+      toast(ex.message, 'error');
+      btn.disabled = false; btn.textContent = '📤 Soumettre pour validation';
+    }
+  };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CARTE DES COMMERCES — soumission membre, modération comité, carte publique
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function commercesHubView(tab) {
+  tab = tab || window._commercesTab || 'mine';
+  window._commercesTab = tab;
+  setContent(`
+    <div class="page-header"><div><h2>🏪 Commerces des membres</h2><p>Répertoire des commerces tenus par des membres, visible sur la carte publique</p></div></div>
+    <div class="page-tabs-inline">
+      <button class="ptab ${tab==='mine'?'active':''}" onclick="commercesHubView('mine')">Mes commerces</button>
+      ${can.executive() ? `<button class="ptab ${tab==='moderation'?'active':''}" id="ptab-commerces" onclick="commercesHubView('moderation')">Modération</button>` : ''}
+    </div>
+    <div id="commercesHubBody"></div>
+  `);
+  if (tab === 'moderation' && can.executive()) await commercesModerationView();
+  else await mesCommercesView();
+  if (can.executive()) _commercesLoadBadge();
+}
+
+async function _commercesLoadBadge() {
+  try {
+    const all = await api('/commerces').catch(() => []);
+    const pending = all.filter(function(b) { return b.statut === 'en_attente'; }).length;
+    _setPtabBadge('ptab-commerces', pending);
+  } catch(e) {}
+}
+
+const BUSINESS_STATUT_BADGE = {
+  approuve:   '<span class="plan-badge-ok">✅ Approuvé</span>',
+  en_attente: '<span class="plan-badge-wait">⏳ En attente</span>',
+  refuse:     '<span class="plan-badge-err">❌ Refusé</span>',
+};
+
+async function mesCommercesView() {
+  if (!document.getElementById('commercesHubBody')) { return commercesHubView('mine'); }
+  const items = await api('/commerces/mine').catch(() => []);
+  const rowsHtml = items.length
+    ? '<div class="table-card"><div class="table-wrapper"><table>' +
+      '<thead><tr><th>Nom</th><th>Catégorie</th><th>Adresse</th><th>Statut</th><th>Soumis le</th><th>Actions</th></tr></thead><tbody>' +
+      items.map(function(b) {
+        const cat = TALENT_CATS.find(function(c) { return c.key === b.categorie; });
+        return '<tr>' +
+          '<td><strong>' + escHtml(b.nom) + '</strong>' + (b.description ? '<br/><small style="color:var(--muted)">' + escHtml(b.description.substring(0,60)) + '…</small>' : '') + '</td>' +
+          '<td>' + (cat ? cat.emoji + ' ' + cat.label : escHtml(b.categorie)) + '</td>' +
+          '<td>' + escHtml(b.adresse) + '</td>' +
+          '<td>' + (BUSINESS_STATUT_BADGE[b.statut] || b.statut) + (b.statut === 'refuse' && b.refus_raison ? '<br/><small style="color:var(--red)">' + escHtml(b.refus_raison) + '</small>' : '') + '</td>' +
+          '<td>' + fmt(b.date_creation) + '</td>' +
+          '<td><button class="btn btn-sm btn-danger" onclick="deleteCommerce(' + b.id + ')">🗑 Retirer</button></td>' +
+        '</tr>';
+      }).join('') +
+      '</tbody></table></div></div>'
+    : '<div class="empty-state"><div class="es-icon">🏪</div><p>Vous n\'avez soumis aucun commerce.</p></div>';
+
+  document.getElementById('commercesHubBody').innerHTML =
+    '<div class="page-actions" style="margin-bottom:16px"><button class="btn btn-primary" onclick="openBusinessForm()">+ Soumettre un commerce</button>' +
+    '<a href="../commerces.html" target="_blank" class="btn btn-ghost">🗺️ Voir la carte publique</a></div>' +
+    '<div style="background:#e3f2fd;border-radius:10px;padding:12px 14px;margin-bottom:20px;font-size:.82rem;color:#0d47a1">' +
+      'ℹ️ Chaque soumission est vérifiée par le comité (adresse localisée sur la carte) avant publication.' +
+    '</div>' +
+    rowsHtml;
+}
+
+async function commercesModerationView() {
+  if (!document.getElementById('commercesHubBody')) { return commercesHubView('moderation'); }
+  const items = await api('/commerces').catch(() => []);
+  const pending = items.filter(function(b) { return b.statut === 'en_attente'; });
+  const rest = items.filter(function(b) { return b.statut !== 'en_attente'; });
+
+  function row(b, actionable) {
+    const cat = TALENT_CATS.find(function(c) { return c.key === b.categorie; });
+    const soumisPar = b.prenom ? escHtml(b.prenom + ' ' + b.user_nom) : '–';
+    return '<tr>' +
+      '<td><strong>' + escHtml(b.nom) + '</strong>' + (b.description ? '<br/><small style="color:var(--muted)">' + escHtml(b.description.substring(0,60)) + '…</small>' : '') + '</td>' +
+      '<td>' + (cat ? cat.emoji + ' ' + cat.label : escHtml(b.categorie)) + '</td>' +
+      '<td>' + escHtml(b.adresse) + '</td>' +
+      '<td>' + soumisPar + '</td>' +
+      '<td>' + (BUSINESS_STATUT_BADGE[b.statut] || b.statut) + '</td>' +
+      '<td>' +
+        (actionable
+          ? '<button class="btn btn-sm btn-primary" onclick="approveCommerce(' + b.id + ')">✅ Approuver</button> ' +
+            '<button class="btn btn-sm btn-danger" onclick="refuseCommerce(' + b.id + ')">❌ Refuser</button>'
+          : '<button class="btn btn-sm btn-ghost" style="color:var(--red)" onclick="deleteCommerce(' + b.id + ')">🗑</button>') +
+      '</td>' +
+    '</tr>';
+  }
+
+  document.getElementById('commercesHubBody').innerHTML =
+    '<h3 style="font-size:.9rem;margin-bottom:10px">⏳ En attente (' + pending.length + ')</h3>' +
+    (pending.length
+      ? '<div class="table-card" style="margin-bottom:24px"><div class="table-wrapper"><table>' +
+        '<thead><tr><th>Nom</th><th>Catégorie</th><th>Adresse</th><th>Soumis par</th><th>Statut</th><th>Actions</th></tr></thead><tbody>' +
+        pending.map(function(b) { return row(b, true); }).join('') +
+        '</tbody></table></div></div>'
+      : '<div class="empty-state" style="padding:24px;margin-bottom:24px"><p>Aucune soumission en attente.</p></div>') +
+    '<h3 style="font-size:.9rem;margin-bottom:10px">Historique</h3>' +
+    (rest.length
+      ? '<div class="table-card"><div class="table-wrapper"><table>' +
+        '<thead><tr><th>Nom</th><th>Catégorie</th><th>Adresse</th><th>Soumis par</th><th>Statut</th><th>Actions</th></tr></thead><tbody>' +
+        rest.map(function(b) { return row(b, false); }).join('') +
+        '</tbody></table></div></div>'
+      : '<div class="empty-state" style="padding:24px"><p>Aucun historique.</p></div>');
+}
+
+async function approveCommerce(id) {
+  try {
+    await api('/commerces/' + id + '/approve', { method: 'PATCH' });
+    toast('✅ Commerce approuvé et localisé sur la carte');
+    commercesModerationView();
+    _commercesLoadBadge();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function refuseCommerce(id) {
+  const raison = prompt('Raison du refus (optionnel, envoyée au membre) :');
+  if (raison === null) return;
+  await api('/commerces/' + id + '/refuse', { method: 'PATCH', body: JSON.stringify({ raison: raison || '' }) });
+  toast('Commerce refusé — membre notifié');
+  commercesModerationView();
+  _commercesLoadBadge();
+}
+
+async function deleteCommerce(id) {
+  if (!confirm('Retirer ce commerce définitivement ?')) return;
+  await api('/commerces/' + id, { method: 'DELETE' });
+  toast('Commerce retiré');
+  if (window._commercesTab === 'moderation') commercesModerationView();
+  else mesCommercesView();
+}
+
+function openBusinessForm() {
+  const catOpts = TALENT_CATS.map(function(c) {
+    return '<option value="' + c.key + '">' + c.emoji + ' ' + c.label + '</option>';
+  }).join('');
+
+  openModal('🏪 Soumettre un commerce',
+    '<form id="myBusinessForm">' +
+      '<div style="background:#e3f2fd;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:.82rem;color:#0d47a1">' +
+        'ℹ️ Votre commerce sera vérifié et localisé sur la carte par le comité avant d\'être visible publiquement.' +
+      '</div>' +
+      '<div class="form-group"><label>Nom du commerce *</label>' +
+        '<input id="mb_nom" placeholder="ex: Boutique Ti Kreyòl" required/></div>' +
+      '<div class="form-group"><label>Catégorie</label><select id="mb_cat">' + catOpts + '</select></div>' +
+      '<div class="form-group"><label>Adresse complète *</label>' +
+        '<input id="mb_adresse" placeholder="123 Rue Principale, Hamilton, ON" required/>' +
+        '<small style="color:var(--muted);font-size:.72rem">Adresse précise pour la localiser correctement sur la carte</small></div>' +
+      '<div class="form-group"><label>Description</label>' +
+        '<textarea id="mb_desc" rows="3" placeholder="Décrivez vos produits ou services…"></textarea></div>' +
+      '<div class="form-row">' +
+        '<div class="form-group"><label>Téléphone</label><input id="mb_tel" placeholder="905-000-0000"/></div>' +
+        '<div class="form-group"><label>Courriel</label><input type="email" id="mb_email" placeholder="contact@commerce.com"/></div>' +
+      '</div>' +
+      '<div class="form-group"><label>Site web</label><input id="mb_site" placeholder="https://…"/></div>' +
+      '<div class="form-group"><label>Photo / logo</label><input type="file" id="mb_photo" accept="image/*"/></div>' +
+      '<div class="form-actions">' +
+        '<button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>' +
+        '<button type="submit" class="btn btn-primary">📤 Soumettre pour validation</button>' +
+      '</div>' +
+    '</form>'
+  );
+
+  document.getElementById('myBusinessForm').onsubmit = async function(e) {
+    e.preventDefault();
+    const btn = e.target.querySelector('[type=submit]');
+    btn.disabled = true; btn.textContent = 'Envoi…';
+    const fd = new FormData();
+    fd.append('nom',         document.getElementById('mb_nom').value);
+    fd.append('categorie',   document.getElementById('mb_cat').value);
+    fd.append('adresse',     document.getElementById('mb_adresse').value);
+    fd.append('description', document.getElementById('mb_desc').value);
+    fd.append('telephone',   document.getElementById('mb_tel').value);
+    fd.append('email',       document.getElementById('mb_email').value);
+    fd.append('site_web',    document.getElementById('mb_site').value);
+    const files = document.getElementById('mb_photo').files;
+    if (files.length) fd.append('photo', await compressImage(files[0], 1200, 0.82));
+    try {
+      const res = await fetch(API + '/commerces', { method: 'POST', headers: { Authorization: 'Bearer ' + TOKEN }, body: fd });
+      const data = await res.json().catch(function() { return {}; });
+      if (!res.ok) throw new Error(data.error || 'Erreur');
+      closeModal();
+      toast('✅ Commerce soumis ! Le comité va le vérifier sous peu.', 'info');
+      mesCommercesView();
     } catch(ex) {
       toast(ex.message, 'error');
       btn.disabled = false; btn.textContent = '📤 Soumettre pour validation';

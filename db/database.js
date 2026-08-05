@@ -367,6 +367,28 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS annonce_photos (
   ordre INTEGER DEFAULT 0
 )`); } catch {}
 
+// Carte des commerces tenus par des membres — soumission par un membre, publication après
+// approbation du comité (contrairement aux annonces/talents, auto-publiés par défaut) :
+// une adresse publique sur une carte mérite une vérification avant mise en ligne.
+try { db.exec(`CREATE TABLE IF NOT EXISTS business_listings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER REFERENCES users(id),
+  nom TEXT NOT NULL,
+  categorie TEXT NOT NULL DEFAULT 'autre',
+  description TEXT,
+  adresse TEXT NOT NULL,
+  telephone TEXT,
+  email TEXT,
+  site_web TEXT,
+  lat REAL,
+  lng REAL,
+  photo_url TEXT,
+  statut TEXT DEFAULT 'en_attente',
+  refus_raison TEXT,
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+  date_approbation TEXT
+)`); } catch {}
+
 try { db.exec(`CREATE TABLE IF NOT EXISTS testimonials (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   prenom TEXT NOT NULL,
