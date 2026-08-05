@@ -6979,7 +6979,7 @@ async function gmLoadExtSent() {
   const tabBar = `
     <div style="display:flex;gap:0;border-bottom:2px solid var(--gm-border);background:#fff;flex-shrink:0">
       <button onclick="gmRenderExternal('inbox')" style="padding:10px 20px;border:none;background:none;cursor:pointer;font-size:.85rem;font-weight:400;border-bottom:2px solid transparent;color:var(--muted);margin-bottom:-2px">📥 Reçus (${_extEmails.length})</button>
-      <button style="padding:10px 20px;border:none;background:none;cursor:pointer;font-size:.85rem;font-weight:700;border-bottom:2px solid #1565c0;color:#1565c0;margin-bottom:-2px">📤 Envoyés</button>
+      <button onclick="gmLoadExtSent()" style="padding:10px 20px;border:none;background:none;cursor:pointer;font-size:.85rem;font-weight:700;border-bottom:2px solid #1565c0;color:#1565c0;margin-bottom:-2px">📤 Envoyés</button>
       <button class="gm-tb-btn" style="margin-left:auto;margin-right:8px" onclick="gmLoadExtSent()" title="Actualiser">↻</button>
     </div>`;
   el.innerHTML = tabBar + '<div style="padding:24px;text-align:center"><div class="spinner"></div></div>';
