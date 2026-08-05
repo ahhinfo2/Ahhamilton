@@ -1945,9 +1945,11 @@ section[id] { scroll-margin-top: 100px; }
 /* #16 Bigger WhatsApp button */
 #whatsappBtn { width: 60px !important; height: 60px !important; }
 
-/* #17 Mobile menu blur */
+/* #17 Mobile menu — fond plein forcé (le blur seul, sans fond opaque garanti,
+   rendait le panneau semi-transparent sur certains navigateurs mobiles,
+   laissant le contenu de la page se mélanger avec les liens du menu). */
 @media (max-width: 900px) {
-  .nav-links { backdrop-filter: blur(12px) !important; -webkit-backdrop-filter: blur(12px) !important; }
+  .nav-links { background: #0a1f0b !important; }
 }
 
 /* #18 Countdown mobile fix */
