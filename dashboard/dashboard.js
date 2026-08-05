@@ -1304,7 +1304,7 @@ async function home() {
         <div style="font-weight:600;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(a.titre)}</div>
         <div style="font-size:.75rem;color:var(--muted)">${a.lieu || '–'} · ${a.nb_inscrits || 0} inscrits</div>
       </div>
-    </div>`).join('') : '<div class="empty-state" style="padding:24px"><div class="es-icon">📅</div><p>Aucune activité planifiée</p></div>';
+    </div>`).join('') : `<div class="empty-state" style="padding:24px"><div class="es-icon">📅</div><p>Aucune activité planifiée</p>${canCreateActivity() ? `<button class="btn btn-outline btn-sm" onclick="openActivityForm()">+ Planifier une activité</button>` : ''}</div>`;
 
   const alertsHtml = can.adminOrSec()
     ? (unreadAlerts.length ? unreadAlerts.slice(0,3).map(a => `

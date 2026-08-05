@@ -212,11 +212,14 @@ img{display:block;max-width:100%}
   border:1px solid var(--border);box-shadow:var(--shadow);
   display:flex;flex-direction:column;gap:4px;
 }
-.stat-card .sc-icon{font-size:1.6rem;margin-bottom:2px}
-.stat-card .sc-value{font-size:1.7rem;font-weight:800;color:var(--g2);line-height:1}
+.stat-card .sc-icon{
+  width:34px;height:34px;border-radius:10px;font-size:1.05rem;margin-bottom:8px;
+  display:flex;align-items:center;justify-content:center;
+  background:color-mix(in srgb, var(--sc-color, var(--g2)) 14%, white);
+}
+.stat-card .sc-value{font-size:1.7rem;font-weight:800;color:var(--text);line-height:1;font-variant-numeric:tabular-nums}
 .stat-card .sc-label{font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:500}
-.stat-card.accent{background:linear-gradient(135deg,var(--g2),var(--g3));border-color:transparent}
-.stat-card.accent .sc-value,.stat-card.accent .sc-label,.stat-card.accent .sc-icon{color:#fff}
+.stat-card.accent{--sc-color:var(--g2);border-left:3px solid var(--sc-color)}
 
 /* ── TABLE ─────────────────────────────────────────────────────────────── */
 .table-card{background:var(--white);border-radius:var(--radius);border:1px solid var(--border);box-shadow:var(--shadow);overflow:hidden;margin-bottom:16px}
@@ -1803,34 +1806,24 @@ html.dark .search-results { background: var(--white); }
   font-size: .72rem; font-weight: 600; margin-top: 2px;
   display: flex; align-items: center; gap: 3px;
 }
-.stat-card.card-blue  { background: linear-gradient(135deg,#003F87,#1565c0); border-color:transparent; }
-.stat-card.card-red   { background: linear-gradient(135deg,#CE1126,#e53935); border-color:transparent; }
-.stat-card.card-gold  { background: linear-gradient(135deg,#e65100,#f9a825); border-color:transparent; }
-.stat-card.card-navy  { background: linear-gradient(135deg,#1a237e,#283593); border-color:transparent; }
-.stat-card.card-blue  .sc-value,.stat-card.card-blue  .sc-label,.stat-card.card-blue  .sc-icon,
-.stat-card.card-blue  .sc-trend { color: #fff; }
-.stat-card.card-red   .sc-value,.stat-card.card-red   .sc-label,.stat-card.card-red   .sc-icon,
-.stat-card.card-red   .sc-trend { color: #fff; }
-.stat-card.card-gold  .sc-value,.stat-card.card-gold  .sc-label,.stat-card.card-gold  .sc-icon,
-.stat-card.card-gold  .sc-trend { color: #fff; }
-.stat-card.card-navy  .sc-value,.stat-card.card-navy  .sc-label,.stat-card.card-navy  .sc-icon,
-.stat-card.card-navy  .sc-trend { color: #fff; }
+/* Palette coordonnée : chaque couleur porte un sens répété (bleu = décompte info,
+   navy = marque par défaut, or = bénévolat, vert = argent) plutôt qu'un arc-en-ciel. */
+.stat-card.card-blue  { --sc-color: #1565c0; border-left: 3px solid var(--sc-color); }
+.stat-card.card-red   { --sc-color: var(--navy1, #003F87); border-left: 3px solid var(--sc-color); }
+.stat-card.card-gold  { --sc-color: var(--accent); border-left: 3px solid var(--sc-color); }
+.stat-card.card-navy  { --sc-color: #1565c0; border-left: 3px solid var(--sc-color); }
 
-/* ── Quick actions colorées ─────────────────────────────────────────────── */
+/* ── Quick actions : badge d'icône teinté au lieu d'un bouton plein saturé ── */
 .quick-action-btn { font-size: .8rem; }
-.quick-action-btn.qa-red    { background:linear-gradient(135deg,#CE1126,#e53935); border-color:transparent; }
-.quick-action-btn.qa-red    .qa-icon,.quick-action-btn.qa-red    .qa-label { color:#fff; }
-.quick-action-btn.qa-blue   { background:linear-gradient(135deg,#003F87,#1565c0); border-color:transparent; }
-.quick-action-btn.qa-blue   .qa-icon,.quick-action-btn.qa-blue   .qa-label { color:#fff; }
-.quick-action-btn.qa-gold   { background:linear-gradient(135deg,#bf360c,#f9a825); border-color:transparent; }
-.quick-action-btn.qa-gold   .qa-icon,.quick-action-btn.qa-gold   .qa-label { color:#fff; }
-.quick-action-btn.qa-purple { background:linear-gradient(135deg,#6a1b9a,#9c27b0); border-color:transparent; }
-.quick-action-btn.qa-purple .qa-icon,.quick-action-btn.qa-purple .qa-label { color:#fff; }
-.quick-action-btn.qa-green  { background:linear-gradient(135deg,#1b5e20,#43a047); border-color:transparent; }
-.quick-action-btn.qa-green  .qa-icon,.quick-action-btn.qa-green  .qa-label { color:#fff; }
-.quick-action-btn.qa-red:hover,.quick-action-btn.qa-blue:hover,
-.quick-action-btn.qa-gold:hover,.quick-action-btn.qa-purple:hover,
-.quick-action-btn.qa-green:hover { transform:translateY(-3px); box-shadow:0 6px 20px rgba(0,0,0,.28); border-color:transparent; }
+.quick-action-btn .qa-icon {
+  width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+  background:color-mix(in srgb, var(--qa-color, var(--navy1, #003F87)) 12%, white);
+}
+.quick-action-btn.qa-red    { --qa-color: var(--navy1, #003F87); }
+.quick-action-btn.qa-blue   { --qa-color: var(--navy1, #003F87); }
+.quick-action-btn.qa-gold   { --qa-color: var(--accent); }
+.quick-action-btn.qa-purple { --qa-color: var(--navy1, #003F87); }
+.quick-action-btn.qa-green  { --qa-color: var(--g2); }
 
 /* ── Accueil mobile/PWA : bandeau de stats + accordéon ──────────────────── */
 .mobile-home-only { display:none; }
