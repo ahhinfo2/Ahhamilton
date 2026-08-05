@@ -335,6 +335,8 @@ function safeFilename(file) { return `${Date.now()}-${_crypto.randomBytes(8).toS
 function slugifyName(str) { return String(str||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-zA-Z0-9]+/g,'_').replace(/^_+|_+$/g,'') || 'membre'; }
 function imageFilter(req, file, cb) { cb(ALLOWED_IMAGE_MIMES.includes(file.mimetype) ? null : new Error('Type de fichier non autorisé'), ALLOWED_IMAGE_MIMES.includes(file.mimetype)); }
 function docFilter(req, file, cb) { cb(ALLOWED_DOC_MIMES.includes(file.mimetype) ? null : new Error('Type de fichier non autorisé'), ALLOWED_DOC_MIMES.includes(file.mimetype)); }
+const ALLOWED_CSV_MIMES = ['text/csv','application/vnd.ms-excel','application/csv','text/plain'];
+function csvFilter(req, file, cb) { cb(ALLOWED_CSV_MIMES.includes(file.mimetype) ? null : new Error('Type de fichier non autorisé'), ALLOWED_CSV_MIMES.includes(file.mimetype)); }
 function escHtmlServer(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 const SMTP_CIPHER_KEY = process.env.SMTP_CIPHER_KEY || _crypto.createHash('sha256').update(JWT_SECRET).digest();
@@ -832,7 +834,7 @@ const profileStorage = multer.diskStorage({
     cb(null, `${namePart}_${targetId}${suffix}_${Date.now()}${path.extname(file.originalname).toLowerCase()}`);
   }
 });
-const uploadProfile = multer({ storage: profileStorage, limits: { fileSize: 8 * 1024 * 1024 } });
+const uploadProfile = multer({ storage: profileStorage, limits: { fileSize: 8 * 1024 * 1024 }, fileFilter: imageFilter });
 const uploadProfileFields = uploadProfile.fields([{ name: 'photo', maxCount: 1 }, { name: 'original', maxCount: 1 }]);
 
 const ambassadorPhotoStorage = multer.diskStorage({
@@ -843,7 +845,7 @@ const ambassadorPhotoStorage = multer.diskStorage({
   },
   filename: (req, file, cb) => cb(null, `ambassador_${Date.now()}${path.extname(file.originalname)}`)
 });
-const uploadAmbassador = multer({ storage: ambassadorPhotoStorage, limits: { fileSize: 5 * 1024 * 1024 } });
+const uploadAmbassador = multer({ storage: ambassadorPhotoStorage, limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: imageFilter });
 
 app.post('/api/users/:id/photo', authMiddleware, uploadProfileFields, async (req, res) => {
   if (req.user.id !== parseInt(req.params.id) && req.user.role !== 'admin')
@@ -862,13 +864,20 @@ app.post('/api/users/:id/photo', authMiddleware, uploadProfileFields, async (req
   const photoFile = req.files?.photo?.[0];
   const originalFile = req.files?.original?.[0];
   if (!photoFile) return res.status(400).json({ error: 'Photo requise' });
-  await compressImage(photoFile.path, 1200);
+  if (!(await compressImage(photoFile.path, 1200))) {
+    fs.unlink(photoFile.path, () => {});
+    return res.status(400).json({ error: 'Fichier image invalide' });
+  }
   const photo_url = `/uploads/profiles/${photoFile.filename}`;
   const updates = ['photo_url = ?', 'carte_photo_approuvee = 0'];
   const vals = [photo_url];
   let photo_original_url;
   if (originalFile) {
-    await compressImage(originalFile.path, 2000);
+    if (!(await compressImage(originalFile.path, 2000))) {
+      fs.unlink(photoFile.path, () => {});
+      fs.unlink(originalFile.path, () => {});
+      return res.status(400).json({ error: 'Fichier image invalide' });
+    }
     photo_original_url = `/uploads/profiles/${originalFile.filename}`;
     updates.push('photo_original_url = ?');
     vals.push(photo_original_url);
@@ -1024,6 +1033,8 @@ const jimp    = require('jimp');
 const bwipjs  = require('bwip-js');
 
 // ── Image compression helper ─────────────────────────────────────────────
+// Retourne false si le fichier n'est pas une image valide (le type MIME déclaré par le client
+// peut être falsifié en dehors d'un navigateur — jimp valide le contenu réel, pas l'en-tête).
 async function compressImage(filePath, maxWidth) {
   try {
     const img = await jimp.Jimp.read(filePath);
@@ -1031,7 +1042,8 @@ async function compressImage(filePath, maxWidth) {
       img.resize({ w: maxWidth || 1200 });
     }
     await img.write(filePath);
-  } catch(e) { console.error('[COMPRESS]', e.message); }
+    return true;
+  } catch(e) { console.error('[COMPRESS]', e.message); return false; }
 }
 
 // Génère un code-barres Code128 PNG en buffer
@@ -2969,7 +2981,7 @@ app.get('/api/email/test-smtp', authMiddleware, requireRole(...COMITE_ROLES), as
   res.json({ ok: anyOk, results, smtpHost, orgEmail });
 });
 
-const uploadEmailAttach = multer({ dest: path.join(__dirname, 'uploads/email-temp'), limits: { fileSize: 10 * 1024 * 1024 } });
+const uploadEmailAttach = multer({ dest: path.join(__dirname, 'uploads/email-temp'), limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: docFilter });
 app.post('/api/email/send', authMiddleware, requireRole(...COMITE_ROLES), uploadEmailAttach.array('attachments', 5), async (req, res) => {
   const { to, subject, body } = req.body;
   if (!to || !subject || !body) return res.status(400).json({ error: 'Champs manquants' });
@@ -3871,7 +3883,7 @@ const attachmentStorage = multer.diskStorage({
   },
   filename: (req, file, cb) => cb(null, safeFilename(file))
 });
-const uploadAttachment = multer({ storage: attachmentStorage, limits: { fileSize: 10 * 1024 * 1024 } });
+const uploadAttachment = multer({ storage: attachmentStorage, limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: docFilter });
 
 app.post('/api/messages/with-attachment', authMiddleware, uploadAttachment.single('attachment'), (req, res) => {
   const { sujet, contenu, destinataires } = req.body;
@@ -3907,7 +3919,7 @@ const talentStorage = multer.diskStorage({
   },
   filename: (req, file, cb) => cb(null, safeFilename(file))
 });
-const uploadTalent = multer({ storage: talentStorage, limits: { fileSize: 8 * 1024 * 1024 } });
+const uploadTalent = multer({ storage: talentStorage, limits: { fileSize: 8 * 1024 * 1024 }, fileFilter: imageFilter });
 
 // ── Règles de plan ────────────────────────────────────────────────────────────
 // perMonth = créations autorisées par mois calendaire
@@ -4062,7 +4074,7 @@ const paymentStorage = multer.diskStorage({
   },
   filename: (req, file, cb) => cb(null, safeFilename(file))
 });
-const uploadPayment = multer({ storage: paymentStorage, limits: { fileSize: 10 * 1024 * 1024 } });
+const uploadPayment = multer({ storage: paymentStorage, limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: imageFilter });
 
 const PLAN_PRIX = { bienfaiteur: 10, partenaire: 20 };
 
@@ -4843,7 +4855,7 @@ const annonceStorage = multer.diskStorage({
   },
   filename: (req, file, cb) => cb(null, safeFilename(file))
 });
-const uploadAnnonce = multer({ storage: annonceStorage, limits: { fileSize: 8 * 1024 * 1024 } });
+const uploadAnnonce = multer({ storage: annonceStorage, limits: { fileSize: 8 * 1024 * 1024 }, fileFilter: imageFilter });
 
 // GET public — annonces approuvées
 app.get('/api/annonces', (req, res) => {
@@ -8441,7 +8453,7 @@ const sponsorStorage = multer.diskStorage({
   },
   filename: (req, file, cb) => cb(null, `sponsor_${Date.now()}${path.extname(file.originalname)}`)
 });
-const uploadSponsor = multer({ storage: sponsorStorage, limits: { fileSize: 10 * 1024 * 1024 } });
+const uploadSponsor = multer({ storage: sponsorStorage, limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: imageFilter });
 
 app.use('/uploads/sponsors', express.static(path.join(__dirname, 'uploads', 'sponsors')));
 
@@ -8517,7 +8529,7 @@ const teamBureauStorage = multer.diskStorage({
   },
   filename: (req, file, cb) => cb(null, `team_${Date.now()}${path.extname(file.originalname).toLowerCase()}`)
 });
-const uploadTeamBureau = multer({ storage: teamBureauStorage, limits: { fileSize: 8 * 1024 * 1024 } });
+const uploadTeamBureau = multer({ storage: teamBureauStorage, limits: { fileSize: 8 * 1024 * 1024 }, fileFilter: imageFilter });
 app.use('/uploads/team', express.static(path.join(__dirname, 'uploads', 'team')));
 
 const TEAM_ROLES = ['admin','tresoriere','secretaire','delegue'];
@@ -9142,7 +9154,7 @@ const formImageStorage = multer.diskStorage({
   },
   filename: (req, file, cb) => cb(null, safeFilename(file))
 });
-const uploadFormImage = multer({ storage: formImageStorage, limits: { fileSize: 15 * 1024 * 1024 } });
+const uploadFormImage = multer({ storage: formImageStorage, limits: { fileSize: 15 * 1024 * 1024 }, fileFilter: imageFilter });
 
 // ── Liste tous les formulaires ──────────────────────────────────────────────
 app.get('/api/forms', authMiddleware, requireRole(...FORM_EXEC), (req, res) => {
@@ -10360,7 +10372,7 @@ const shopStorage = multer.diskStorage({
   destination: (req, file, cb) => { const d = path.join(__dirname,'uploads','shop'); fs.mkdirSync(d,{recursive:true}); cb(null,d); },
   filename:    (req, file, cb) => cb(null, `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g,'_')}`)
 });
-const uploadShop = multer({ storage: shopStorage, limits: { fileSize: 10 * 1024 * 1024 } });
+const uploadShop = multer({ storage: shopStorage, limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: imageFilter });
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ── BOUTIQUE EN LIGNE ─────────────────────────────────────────────────────────
@@ -11147,7 +11159,7 @@ app.post('/api/tickets/:id/transfer', authMiddleware, (req, res) => {
 // FEATURE: CSV import members
 // ══════════════════════════════════════════════════════════════════════════════
 
-const uploadCsv = multer({ dest: path.join(__dirname, 'uploads'), limits: { fileSize: 5 * 1024 * 1024 } });
+const uploadCsv = multer({ dest: path.join(__dirname, 'uploads'), limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: csvFilter });
 
 app.post('/api/admin/import-csv', authMiddleware, requireRole('admin','secretaire'), uploadCsv.single('csv'), async (req, res) => {
   try {
@@ -11279,7 +11291,7 @@ const memberPhotoStorage = multer.diskStorage({
   },
   filename: (req, file, cb) => cb(null, safeFilename(file))
 });
-const uploadMemberPhoto = multer({ storage: memberPhotoStorage, limits: { fileSize: 15 * 1024 * 1024 } });
+const uploadMemberPhoto = multer({ storage: memberPhotoStorage, limits: { fileSize: 15 * 1024 * 1024 }, fileFilter: imageFilter });
 
 // Upload photo — member submits, status = en_attente
 app.post('/api/activities/:id/member-photos', authMiddleware, uploadMemberPhoto.single('photo'), async (req, res) => {
@@ -12025,6 +12037,15 @@ app.delete('/api/alertes-urgentes/:id', authMiddleware, (req, res) => {
 app.use((req, res) => {
   if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Route introuvable' });
   res.status(404).sendFile(path.join(__dirname, '404.html'));
+});
+
+// Erreurs multer (ex. fileFilter qui rejette un type de fichier) — sans ce handler,
+// elles tombent dans le gestionnaire d'erreur générique d'Express et sortent en 500.
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError || (err && /non autorisé/i.test(err.message || ''))) {
+    return res.status(400).json({ error: err.message });
+  }
+  next(err);
 });
 
 // ── Start ───────────────────────────────────────────────────────────────────
