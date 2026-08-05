@@ -240,13 +240,20 @@
       var grid = document.getElementById('galVideosGrid');
       var section = document.getElementById('videos-section');
       if (!grid || !section) return;
+      // Vignette cliquable qui ouvre YouTube dans un nouvel onglet, plutôt qu'un <iframe> intégré :
+      // certaines vidéos ont l'intégration désactivée côté YouTube (Error 153, invisible tant qu'on
+      // ne clique pas sur "play") — le lien direct fonctionne toujours, intégration autorisée ou non.
       grid.innerHTML = videos.map(function(v) {
         var vid = ytId(v.youtube_url);
+        var watchUrl = vid ? 'https://www.youtube.com/watch?v=' + vid : v.youtube_url;
         return '<div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 16px rgba(27,94,32,.08)">' +
-          (vid ? '<div style="position:relative;padding-bottom:56.25%"><iframe src="https://www.youtube.com/embed/' + vid +
-          '" style="position:absolute;inset:0;width:100%;height:100%;border:none" allowfullscreen loading="lazy"></iframe></div>' : '') +
+          (vid ? '<a href="' + watchUrl + '" target="_blank" rel="noopener" style="display:block;position:relative;padding-bottom:56.25%;background:linear-gradient(135deg,#1b5e20,#43a047)">' +
+            '<img src="https://img.youtube.com/vi/' + vid + '/hqdefault.jpg" alt="' + v.titre + '" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" onerror="this.style.display=\'none\'">' +
+            '<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center"><span style="width:52px;height:52px;border-radius:50%;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.3rem">▶</span></span>' +
+          '</a>' : '') +
           '<div style="padding:14px"><strong style="font-size:.95rem">' + v.titre + '</strong>' +
           (v.description ? '<p style="font-size:.82rem;color:#6a6a6a;margin-top:4px">' + v.description + '</p>' : '') +
+          (vid ? '<a href="' + watchUrl + '" target="_blank" rel="noopener" style="display:inline-block;margin-top:8px;font-size:.78rem;font-weight:700;color:#1b5e20;text-decoration:none">🔗 Voir sur YouTube →</a>' : '') +
           '</div></div>';
       }).join('');
       section.style.display = 'block';

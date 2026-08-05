@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Infolettres | AHH</title>
+  <meta name="description" content="Consultez les infolettres passées de l'Association Haïtienne de Hamilton : nouvelles, activités et annonces communautaires."/>
+  <meta property="og:title" content="Infolettres | AHH"/>
+  <meta property="og:description" content="Les dernières nouvelles et annonces de l'Association Haïtienne de Hamilton."/>
+  <meta property="og:image" content="https://ahhamilton.ca/Public/logo1.png"/>
+  <meta property="og:url" content="https://ahhamilton.ca/infolettres.html"/>
+  <meta property="og:type" content="website"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <link rel="canonical" href="https://ahhamilton.ca/infolettres.html"/>
+  <link rel="icon" type="image/png" href="Public/logo1.png"/>
+  <link rel="manifest" href="/manifest.json"/>
+  <meta name="theme-color" content="#1b5e20"/>
+  <link rel="stylesheet" href="style.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet"/>
+  <style>
+    .nl-section { padding: 64px 0 96px; background: #fff; }
+    .nl-list { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+    .nl-card { background: #fff; border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; }
+    .nl-card-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 18px 22px; cursor: pointer; transition: var(--tr);
+    }
+    .nl-card-head:hover { background: var(--off); }
+    .nl-card-title { font-size: 1rem; font-weight: 700; color: var(--text); }
+    .nl-card-date { font-size: .76rem; color: var(--muted); margin-top: 3px; }
+    .nl-card-chev { color: var(--muted); font-size: .8rem; transition: transform .2s; flex-shrink: 0; }
+    .nl-card.open .nl-card-chev { transform: rotate(180deg); }
+    .nl-card-body { max-height: 0; overflow: hidden; transition: max-height .3s ease; }
+    .nl-card.open .nl-card-body { max-height: 3000px; }
+    .nl-card-content { padding: 0 22px 22px; border-top: 1px solid var(--border); padding-top: 18px; font-size: .88rem; line-height: 1.75; color: var(--text); }
+    .nl-card-content img { max-width: 100%; height: auto; }
+    .nl-empty { text-align: center; padding: 64px 20px; color: var(--muted); }
+    .nl-empty .ic { font-size: 2.4rem; margin-bottom: 12px; }
+    .nl-cta { text-align: center; margin-top: 40px; }
+    .nl-cta a { display: inline-block; background: var(--g2); color: #fff; padding: 11px 26px; border-radius: 50px; font-size: .86rem; font-weight: 700; text-decoration: none; }
+  </style>
+</head>
+<body>
+
+  <section class="page-hero">
+    <div class="container page-hero-content">
+      <div class="breadcrumb"><a href="index.html">Accueil</a><span>›</span><span>Infolettres</span></div>
+      <h1>Infolettres</h1>
+      <p>Les dernières nouvelles et annonces envoyées à notre communauté.</p>
+    </div>
+  </section>
+
+  <main id="main-content" role="main">
+    <section class="nl-section">
+      <div class="container">
+        <div id="nlList" class="nl-list">
+          <div class="nl-empty"><div class="ic">📰</div><p>Chargement…</p></div>
+        </div>
+        <div class="nl-cta">
+          <a href="index.html#contact">📩 S'abonner pour recevoir les prochaines</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+  <script src="_lang.js"></script>
+  <script src="_nav.js"></script>
+  <script src="nav-auth.js"></script>
+  <script src="casl-consent.js"></script>
+  <script>
+    const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001/api' : '/api';
+
+    function fmtDate(iso) {
+      try {
+        return new Date(iso).toLocaleDateString('fr-CA', { year: 'numeric', month: 'long', day: 'numeric' });
+      } catch(e) { return iso; }
+    }
+
+    (async function loadArchive() {
+      const list = document.getElementById('nlList');
+      try {
+        const res = await fetch(API_URL + '/newsletter/public-archive');
+        const items = await res.json();
+        if (!items.length) {
+          list.innerHTML = '<div class="nl-empty"><div class="ic">📰</div><p>Aucune infolettre archivée pour le moment.</p></div>';
+          return;
+        }
+        list.innerHTML = items.map(function(n, i) {
+          return '<div class="nl-card' + (i === 0 ? ' open' : '') + '">' +
+            '<div class="nl-card-head" onclick="this.closest(\'.nl-card\').classList.toggle(\'open\')">' +
+              '<div><div class="nl-card-title">' + n.sujet + '</div><div class="nl-card-date">' + fmtDate(n.date_envoi) + '</div></div>' +
+              '<span class="nl-card-chev">▾</span>' +
+            '</div>' +
+            '<div class="nl-card-body"><div class="nl-card-content">' + n.corps + '</div></div>' +
+          '</div>';
+        }).join('');
+      } catch(e) {
+        list.innerHTML = '<div class="nl-empty"><div class="ic">⚠️</div><p>Impossible de charger les infolettres pour le moment.</p></div>';
+      }
+    })();
+  </script>
+</body>
+</html>

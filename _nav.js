@@ -23,6 +23,7 @@
       'Politique de confidentialité':'Privacy Policy',
       'Intégration':'Integration', 'Langue créole':'Creole Language', 'Rejoindre':'Join Online',
       'Recettes haïtiennes':'Haitian Recipes', 'Mur de fierté':'Pride Wall', 'Espace familles':'Family Space',
+      'Infolettres':'Newsletters',
       'footer-desc':'Haitian Association of Hamilton, a community united in culture and solidarity.',
       'footer-copy':'© 2026 AHH | Association Haïtienne de Hamilton. All rights reserved.',
     },
@@ -38,6 +39,7 @@
       'Politique de confidentialité':'Politik konfidansyalite',
       'Intégration':'Entegrasyon', 'Langue créole':'Lang kreyòl', 'Rejoindre':'Rantre an liy',
       'Recettes haïtiennes':'Resèt ayisyen', 'Mur de fierté':'Mi fyète', 'Espace familles':'Espas fanmi',
+      'Infolettres':'Bilten',
       'footer-desc':'Asosyasyon Ayisyen Hamilton, yon kominote ini nan kilti ak solidarite.',
       'footer-copy':'© 2026 AHH | Asosyasyon Ayisyen Hamilton. Tout dwa rezève.',
     }
@@ -217,6 +219,7 @@
       <div class="footer-links">
         <h5 data-i18n="Découvrir">Découvrir</h5>
         <a href="${pre}actualites.html" data-i18n="Événements">Événements</a>
+        <a href="${pre}infolettres.html" data-i18n="Infolettres">Infolettres</a>
         <a href="${pre}galerie.html"    data-i18n="Galerie">Galerie</a>
         <a href="${pre}talents.html"    data-i18n="Nos talents">Nos talents</a>
         <a href="${pre}annonces.html"   data-i18n="Petites annonces">Petites annonces</a>

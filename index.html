@@ -883,13 +883,20 @@
       var wrap = document.getElementById('videosSectionWrap');
       if (!grid || !wrap) return;
       function ytId(url) { var m = url.match(/(?:youtu\.be\/|watch\?v=|embed\/|shorts\/)([^&\s?]+)/); return m ? m[1] : null; }
+      // Vignette cliquable qui ouvre YouTube dans un nouvel onglet, plutôt qu'un <iframe> intégré :
+      // certaines vidéos ont l'intégration désactivée côté YouTube (Error 153, invisible tant qu'on
+      // ne clique pas sur "play") — le lien direct fonctionne toujours, intégration autorisée ou non.
       grid.innerHTML = list.map(function(v) {
         var vid = ytId(v.youtube_url);
+        var watchUrl = vid ? 'https://www.youtube.com/watch?v=' + vid : v.youtube_url;
         return '<div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 16px rgba(27,94,32,.1)">' +
-          (vid ? '<div style="position:relative;padding-bottom:56.25%"><iframe src="https://www.youtube-nocookie.com/embed/' + vid +
-          '" style="position:absolute;inset:0;width:100%;height:100%;border:none" allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture;web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen loading="lazy"></iframe></div>' : '') +
+          (vid ? '<a href="' + watchUrl + '" target="_blank" rel="noopener" style="display:block;position:relative;padding-bottom:56.25%;background:linear-gradient(135deg,#1b5e20,#43a047)">' +
+            '<img src="https://img.youtube.com/vi/' + vid + '/hqdefault.jpg" alt="' + v.titre + '" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" onerror="this.style.display=\'none\'">' +
+            '<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center"><span style="width:52px;height:52px;border-radius:50%;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.3rem">▶</span></span>' +
+          '</a>' : '') +
           '<div style="padding:14px"><h3 style="font-size:.95rem;font-weight:700;margin-bottom:4px">' + v.titre + '</h3>' +
           (v.description ? '<p style="font-size:.82rem;color:#6a6a6a">' + v.description + '</p>' : '') +
+          (vid ? '<a href="' + watchUrl + '" target="_blank" rel="noopener" style="display:inline-block;margin-top:8px;font-size:.78rem;font-weight:700;color:#1b5e20;text-decoration:none">🔗 Voir sur YouTube →</a>' : '') +
           '</div></div>';
       }).join('');
       wrap.style.display = '';
@@ -928,9 +935,22 @@
       if (!r.ok) return;
       var list = await r.json();
       var grid = document.getElementById('sponsorsGrid');
-      var section = document.querySelector('.sponsors-section');
       if (!grid) return;
-      if (!list.length) { if (section) section.style.display = 'none'; return; }
+      if (!list.length) {
+        grid.innerHTML =
+          '<div class="sponsor-cta">' +
+            '<div class="sponsor-cta-ic">🤝</div>' +
+            '<h3>Devenez le premier commanditaire d\'AHH</h3>' +
+            '<p>Votre logo ici, visible par toute la communauté haïtienne de Hamilton. Trois formules disponibles.</p>' +
+            '<a href="#contact" class="sponsor-cta-btn" onclick="var s=document.getElementById(\'cf_sujet\');if(s){s.value=\'Partenariat\';}">Devenir commanditaire →</a>' +
+            '<div class="sponsor-cta-tiers">' +
+              '<span class="sponsor-cta-tier" style="background:#B0BEC5">Platine</span>' +
+              '<span class="sponsor-cta-tier" style="background:#F9A825">Or</span>' +
+              '<span class="sponsor-cta-tier" style="background:#BF8A30">Bronze</span>' +
+            '</div>' +
+          '</div>';
+        return;
+      }
       var CAT_COLORS = { platine:'#B0BEC5', or:'#F9A825', argent:'#9E9E9E', bronze:'#BF8A30' };
       var CAT_LABELS = { platine:'Platine', or:'Or', argent:'Argent', bronze:'Bronze' };
       grid.innerHTML = list.map(function(s) {

@@ -6309,6 +6309,13 @@ app.patch('/api/newsletter/:id/archive', authMiddleware, requireRole('admin','se
   res.json({ ok: true, archive: !!newVal });
 });
 
+// Archive publique — pas d'authentification, uniquement les infolettres marquées "archive"
+// par le comité, et seulement les champs destinés à être vus (pas nb_destinataires/segment/expediteur).
+app.get('/api/newsletter/public-archive', (req, res) => {
+  const rows = db.prepare(`SELECT id, sujet, corps, date_envoi FROM newsletter_sends WHERE archive=1 ORDER BY date_envoi DESC LIMIT 20`).all();
+  res.json(rows);
+});
+
 // ══════════════════════════════════════════════════════════════════════════════
 // VENTE EN PERSONNE (cash, par membre comité)
 // ══════════════════════════════════════════════════════════════════════════════

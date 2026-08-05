@@ -464,9 +464,28 @@ img   { display: block; max-width: 100%; }
 .sponsor-card-name { font-size: 1.05rem; font-weight: 700; margin-bottom: 4px; }
 .sponsor-card-desc { font-size: .84rem; color: var(--muted); line-height: 1.5; }
 
+/* État vide — invite à devenir le premier commanditaire plutôt que masquer la section */
+.sponsor-cta {
+  max-width: 480px; margin: 0 auto; text-align: center;
+  border: 2px dashed var(--border); border-radius: 16px;
+  padding: 36px 28px; background: linear-gradient(180deg, var(--off), #fff);
+}
+.sponsor-cta .sponsor-cta-ic { font-size: 2rem; margin-bottom: 10px; }
+.sponsor-cta h3 { margin: 0 0 8px; font-size: 1.15rem; font-weight: 700; color: var(--g1); }
+.sponsor-cta p { margin: 0 0 20px; font-size: .88rem; color: var(--muted); line-height: 1.6; }
+.sponsor-cta-btn {
+  display: inline-block; background: var(--g2); color: #fff; border: none;
+  border-radius: 8px; padding: 11px 26px; font-size: .88rem; font-weight: 700;
+  font-family: inherit; cursor: pointer; text-decoration: none;
+}
+.sponsor-cta-btn:hover { background: var(--g1); }
+.sponsor-cta-tiers { display: flex; gap: 8px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
+.sponsor-cta-tier { font-size: .68rem; font-weight: 700; padding: 3px 12px; border-radius: 20px; color: #fff; }
+
 @media (max-width: 600px) {
   .sponsors-grid { gap: 18px; }
   .sponsor-card { max-width: 100%; }
+  .sponsor-cta { padding: 28px 18px; }
 }
 
 /* ═══════════════════════════════════════════════

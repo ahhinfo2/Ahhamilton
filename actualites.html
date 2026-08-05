@@ -96,6 +96,7 @@
         <span class="section-badge" data-i18n="act.upcoming.badge">À venir</span>
         <h2 data-i18n="act.upcoming.h2">Prochains événements</h2>
         <p data-i18n="act.upcoming.p">Rejoignez-nous pour ces moments de partage, culture et solidarité.</p>
+        <a id="calSubscribeBtn" href="#" style="display:inline-flex;align-items:center;gap:6px;margin-top:14px;background:var(--off);border:1.5px solid var(--border);border-radius:50px;padding:8px 18px;font-size:.82rem;font-weight:700;color:var(--g2);text-decoration:none">📅 S'abonner à notre calendrier</a>
       </div>
       <div class="filter-bar" id="filterBar">
         <button class="filter-btn active" data-cat="tous" data-i18n="Tous">Tous</button>
@@ -194,6 +195,13 @@
   <script>
     const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001/api' : '/api';
     const BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001' : '';
+
+    // Abonnement calendrier — même origine que la page (le feed iCal est servi par le même serveur)
+    (function() {
+      var btn = document.getElementById('calSubscribeBtn');
+      if (!btn) return;
+      btn.href = 'webcal://' + window.location.host + '/api/calendar/feed.ics';
+    })();
 
     const TYPE_ICONS = {
       culturel:  { icon: '🌺', gradient: 'linear-gradient(135deg,#1b5e20,#43a047)', emoji: '🇭🇹' },
@@ -357,11 +365,38 @@
       }
     }
 
+    // Balisage Schema.org Event — permet à Google d'afficher les activités directement
+    // dans les résultats de recherche (date, lieu) sans que l'utilisateur clique.
+    function injectEventSchema(events) {
+      var old = document.getElementById('eventSchemaLd');
+      if (old) old.remove();
+      if (!events.length) return;
+      var ld = events.slice(0, 10).map(function(e) {
+        return {
+          '@type': 'Event',
+          'name': e.titre,
+          'startDate': e.date_debut,
+          'endDate': e.date_fin || e.date_debut,
+          'eventAttendanceMode': 'https://schema.org/OfflineEventAttendanceMode',
+          'eventStatus': 'https://schema.org/EventScheduled',
+          'location': { '@type': 'Place', 'name': e.lieu || 'Hamilton, ON', 'address': e.lieu || 'Hamilton, ON' },
+          'description': e.description || e.titre,
+          'organizer': { '@type': 'Organization', 'name': 'Association Haïtienne de Hamilton', 'url': 'https://ahhamilton.ca' }
+        };
+      });
+      var script = document.createElement('script');
+      script.type = 'application/ld+json';
+      script.id = 'eventSchemaLd';
+      script.textContent = JSON.stringify(ld.length === 1 ? ld[0] : ld);
+      document.head.appendChild(script);
+    }
+
     async function loadEvents() {
       try {
         const res = await fetch(API_URL + '/activities/public');
         allEvents = await res.json();
         renderGrid();
+        injectEventSchema(allEvents);
       } catch(e) {
         document.getElementById('upcomingGrid').innerHTML =
           '<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted)">' +
