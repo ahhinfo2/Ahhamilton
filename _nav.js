@@ -55,20 +55,22 @@
 
   function t(key) {
     var dict = T[_lang];
-    if (!dict || !dict[key]) {
-      // Fallback : pour FR, cherche dans T.fr, sinon retourne la clé
-      return (_lang === 'fr' && T.fr && T.fr[key]) ? T.fr[key] : key;
-    }
-    return dict[key];
+    if (dict && dict[key]) return dict[key];
+    // En français (langue par défaut), le HTML contient déjà le bon texte — si la clé n'a pas
+    // de traduction dédiée, ne rien renvoyer plutôt que d'écraser ce texte par la clé elle-même
+    // (c'est ce qui causait "footer-desc"/"footer-copy" affichés tels quels sur le site).
+    if (_lang === 'fr') return null;
+    return (T.fr && T.fr[key]) ? T.fr[key] : key;
   }
 
   function applyTranslations() {
     document.querySelectorAll('[data-i18n]').forEach(function(el) {
-      var key = el.getAttribute('data-i18n');
-      el.textContent = t(key);
+      var val = t(el.getAttribute('data-i18n'));
+      if (val !== null) el.textContent = val;
     });
     document.querySelectorAll('[data-i18n-ph]').forEach(function(el) {
-      el.placeholder = t(el.getAttribute('data-i18n-ph'));
+      var val = t(el.getAttribute('data-i18n-ph'));
+      if (val !== null) el.placeholder = val;
     });
     // Update label
     var lbl = document.getElementById('pubLangLabel');

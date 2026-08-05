@@ -266,7 +266,7 @@ const cspMiddleware = (req, res, next) => {
     res.setHeader('Content-Security-Policy',
       "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://js.stripe.com; " +
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; " +
-      "img-src 'self' data: blob: https:; media-src 'self' data:; frame-src 'self' https://www.youtube-nocookie.com https://www.youtube.com https://www.google.com https://js.stripe.com; " +
+      "img-src 'self' data: blob: https:; media-src 'self' data:; frame-src 'self' https://www.youtube-nocookie.com https://www.youtube.com https://www.google.com https://maps.google.com https://js.stripe.com; " +
       "connect-src 'self' https://api.open-meteo.com https://api.stripe.com; object-src 'none'; base-uri 'self'");
   }
   next();

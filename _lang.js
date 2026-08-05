@@ -99,6 +99,8 @@ window.AHH_T = {
     'ann.cta.h2': 'Vous voulez publier une annonce ?',
     'ann.cta.p': 'Les membres peuvent publier leurs annonces depuis le portail membre. Rejoignez-nous !',
     'ann.cta.btn': 'Devenir membre',
+    'footer-desc': 'Association Haïtienne de Hamilton, une communauté unie dans la culture et la solidarité.',
+    'footer-copy': '© 2026 AHH | Association Haïtienne de Hamilton. Tous droits réservés.',
   },
 
   en: {
