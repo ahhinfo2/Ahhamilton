@@ -71,7 +71,7 @@
 
   <section class="page-hero">
     <div class="container page-hero-content">
-      <div class="breadcrumb"><a href="index.html">Accueil</a><span>›</span><span>Nos talents</span></div>
+      <div class="breadcrumb"><a href="index.html" data-i18n="Accueil">Accueil</a><span>›</span><span data-i18n="Nos talents">Nos talents</span></div>
       <h1 data-i18n="tal.h1">Nos talents communautaires</h1>
       <p data-i18n="tal.p1">Découvrez les professionnels et artisans de la communauté haïtienne de Hamilton.</p>
     </div>
@@ -86,18 +86,18 @@
         <input class="tal-search" id="talSearch" type="text" placeholder="🔍 Rechercher un talent…" data-i18n-ph="Rechercher un talent…"/>
         <button class="tal-filter active" data-cat="tous" data-i18n="Tous">Tous</button>
         <button class="tal-filter" data-cat="construction" data-i18n="Construction">🔨 Construction</button>
-        <button class="tal-filter" data-cat="art">🎨 Art</button>
+        <button class="tal-filter" data-cat="art" data-i18n="tal.cat.art">🎨 Art</button>
         <button class="tal-filter" data-cat="cuisine" data-i18n="Cuisine">🍽️ Cuisine</button>
-        <button class="tal-filter" data-cat="beaute">💅 Beauté</button>
+        <button class="tal-filter" data-cat="beaute" data-i18n="tal.cat.beaute">💅 Beauté</button>
         <button class="tal-filter" data-cat="technologie" data-i18n="Technologie">💻 Tech</button>
         <button class="tal-filter" data-cat="education" data-i18n="Éducation">📚 Éducation</button>
         <button class="tal-filter" data-cat="sante" data-i18n="Santé">🏥 Santé</button>
-        <button class="tal-filter" data-cat="autre">✨ Autre</button>
+        <button class="tal-filter" data-cat="autre" data-i18n="tal.cat.autre">✨ Autre</button>
       </div>
 
       <!-- Grille dynamique -->
       <div id="talContainer">
-        <div style="text-align:center;padding:60px;color:var(--muted)">⏳ Chargement…</div>
+        <div style="text-align:center;padding:60px;color:var(--muted)">⏳ <span data-i18n="nlp.loading">Chargement…</span></div>
       </div>
 
       <!-- CTA -->
@@ -105,7 +105,7 @@
         <h2 data-i18n="tal.cta.h2">Vous êtes membre et souhaitez vous afficher ?</h2>
         <p data-i18n="tal.cta.p">Les membres avec un plan bienfaiteur ($10/mois) peuvent créer leur fiche professionnelle. Contactez l'administration pour mettre à jour votre plan.</p>
         <a href="adhesion.html" class="btn btn-primary" style="margin-right:12px" data-i18n="tal.cta.btn">Devenir bienfaiteur →</a>
-        <a href="index.html#contact" class="btn btn-ghost">Nous contacter</a>
+        <a href="index.html#contact" class="btn btn-ghost" data-i18n="tal.contact">Nous contacter</a>
       </div>
     </div>
   </section>
@@ -120,17 +120,18 @@
     const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001/api' : '/api';
     const BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001' : '';
 
+    function _talDt(key, fallback) { return (window.AHH_t && window.AHH_t(key)) || fallback; }
     const CAT_META = {
-      construction: { label:'Construction & Rénovation', emoji:'🔨' },
-      art:          { label:'Art & Créativité',          emoji:'🎨' },
-      cuisine:      { label:'Cuisine & Traiteur',        emoji:'🍽️' },
-      beaute:       { label:'Beauté & Bien-être',        emoji:'💅' },
-      technologie:  { label:'Technologie & Informatique',emoji:'💻' },
-      education:    { label:'Éducation & Coaching',      emoji:'📚' },
-      sante:        { label:'Santé & Sport',             emoji:'🏥' },
-      transport:    { label:'Transport & Livraison',     emoji:'🚗' },
-      finance:      { label:'Finance & Comptabilité',    emoji:'💰' },
-      autre:        { label:'Autre',                     emoji:'✨' },
+      construction: { label:_talDt('tal.catfull.construction','Construction & Rénovation'), emoji:'🔨' },
+      art:          { label:_talDt('tal.catfull.art','Art & Créativité'),          emoji:'🎨' },
+      cuisine:      { label:_talDt('tal.catfull.cuisine','Cuisine & Traiteur'),        emoji:'🍽️' },
+      beaute:       { label:_talDt('tal.catfull.beaute','Beauté & Bien-être'),        emoji:'💅' },
+      technologie:  { label:_talDt('tal.catfull.technologie','Technologie & Informatique'),emoji:'💻' },
+      education:    { label:_talDt('tal.catfull.education','Éducation & Coaching'),      emoji:'📚' },
+      sante:        { label:_talDt('tal.catfull.sante','Santé & Sport'),             emoji:'🏥' },
+      transport:    { label:_talDt('tal.catfull.transport','Transport & Livraison'),     emoji:'🚗' },
+      finance:      { label:_talDt('tal.catfull.finance','Finance & Comptabilité'),    emoji:'💰' },
+      autre:        { label:_talDt('tal.catfull.autre','Autre'),                     emoji:'✨' },
     };
 
     let allTalents = [];
@@ -171,7 +172,7 @@
       }
 
       if (!filtered.length) {
-        container.innerHTML = '<div class="tal-empty"><div class="te-icon">🔍</div><p>Aucun résultat.</p></div>';
+        container.innerHTML = '<div class="tal-empty"><div class="te-icon">🔍</div><p>' + _talDt('tal.noResult', 'Aucun résultat.') + '</p></div>';
         return;
       }
 
@@ -201,7 +202,7 @@
         render();
       } catch(e) {
         document.getElementById('talContainer').innerHTML =
-          '<div class="tal-empty"><div class="te-icon">⚠️</div><p>Impossible de charger les talents.</p></div>';
+          '<div class="tal-empty"><div class="te-icon">⚠️</div><p>' + _talDt('tal.loadError', 'Impossible de charger les talents.') + '</p></div>';
       }
     }
 

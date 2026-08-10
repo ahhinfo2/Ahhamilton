@@ -82,7 +82,7 @@
 
   <section class="page-hero">
     <div class="container page-hero-content">
-      <div class="breadcrumb"><a href="index.html">Accueil</a><span>›</span><span>Activités</span></div>
+      <div class="breadcrumb"><a href="index.html" data-i18n="Accueil">Accueil</a><span>›</span><span data-i18n="Activités">Activités</span></div>
       <h1 data-i18n="act.h1">Activités & Événements</h1>
       <p data-i18n="act.p1">Découvrez nos prochains rassemblements et revivez nos moments passés.</p>
     </div>
@@ -106,7 +106,7 @@
         <button class="filter-btn" data-cat="reunion" data-i18n="Réunion">📋 Réunion</button>
       </div>
       <div id="upcomingGrid" class="events-grid">
-        <div class="events-loading">⏳ Chargement des événements...</div>
+        <div class="events-loading" data-i18n="act.loadingEvents">⏳ Chargement des événements...</div>
       </div>
 
       <div class="register-cta" data-reveal>
@@ -114,7 +114,7 @@
         <p data-i18n="act.cta.p">Devenez membre d'AHH pour accéder aux événements réservés aux membres, recevoir les invitations en avant-première et profiter de tarifs préférentiels.</p>
         <a href="adhesion.html" class="btn btn-primary" data-i18n="act.cta.btn">Devenir membre →</a>
         &nbsp;&nbsp;
-        <a href="https://wa.me/19055197967?text=Bonjour%2C%20je%20voudrais%20contacter%20l%27AHH%20Hamilton." class="btn btn-ghost" target="_blank" rel="noopener">Nous contacter</a>
+        <a href="https://wa.me/19055197967?text=Bonjour%2C%20je%20voudrais%20contacter%20l%27AHH%20Hamilton." class="btn btn-ghost" target="_blank" rel="noopener" data-i18n="act.contact">Nous contacter</a>
       </div>
     </div>
   </section>
@@ -125,10 +125,10 @@
       <div class="section-header" data-reveal>
         <span class="section-badge" data-i18n="act.past.badge">Archives</span>
         <h2 data-i18n="act.past.h2">Événements passés</h2>
-        <p>Revivez nos plus beaux moments ensemble.</p>
+        <p data-i18n="act.past.p">Revivez nos plus beaux moments ensemble.</p>
       </div>
       <div id="pastGrid" class="events-grid">
-        <div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted)">⏳ Chargement des archives...</div>
+        <div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted)" data-i18n="act.loadingArchives">⏳ Chargement des archives...</div>
       </div>
     </div>
   </section>
@@ -137,40 +137,40 @@
   <section style="padding:64px 0;background:#fff">
     <div class="container">
       <div class="section-header" data-reveal>
-        <span class="section-badge">🇭🇹 Patrimoine</span>
-        <h2>Calendrier culturel haïtien</h2>
-        <p>Les dates importantes de notre histoire et de notre culture.</p>
+        <span class="section-badge" data-i18n="act.heritage.badge">🇭🇹 Patrimoine</span>
+        <h2 data-i18n="act.heritage.h2">Calendrier culturel haïtien</h2>
+        <p data-i18n="act.heritage.p">Les dates importantes de notre histoire et de notre culture.</p>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:28px">
         <div style="background:#f0f7ff;border-radius:var(--radius);padding:20px;border-left:4px solid #003F87">
-          <div style="font-weight:800;color:#003F87;font-size:1rem">1er janvier</div>
-          <div style="font-weight:700;margin:6px 0">Fête de l'Indépendance 🇭🇹</div>
-          <div style="font-size:.83rem;color:var(--muted)">Indépendance d'Haïti (1804) — on mange la Soup Joumou en famille.</div>
+          <div style="font-weight:800;color:#003F87;font-size:1rem" data-i18n="act.d1.date">1er janvier</div>
+          <div style="font-weight:700;margin:6px 0" data-i18n="act.d1.title">Fête de l'Indépendance 🇭🇹</div>
+          <div style="font-size:.83rem;color:var(--muted)" data-i18n="act.d1.desc">Indépendance d'Haïti (1804) — on mange la Soup Joumou en famille.</div>
         </div>
         <div style="background:#fff5f5;border-radius:var(--radius);padding:20px;border-left:4px solid #D21034">
-          <div style="font-weight:800;color:#D21034;font-size:1rem">2 janvier</div>
-          <div style="font-weight:700;margin:6px 0">Jour des Aïeux</div>
-          <div style="font-size:.83rem;color:var(--muted)">Hommage aux ancêtres et aux héros de l'indépendance haïtienne.</div>
+          <div style="font-weight:800;color:#D21034;font-size:1rem" data-i18n="act.d2.date">2 janvier</div>
+          <div style="font-weight:700;margin:6px 0" data-i18n="act.d2.title">Jour des Aïeux</div>
+          <div style="font-size:.83rem;color:var(--muted)" data-i18n="act.d2.desc">Hommage aux ancêtres et aux héros de l'indépendance haïtienne.</div>
         </div>
         <div style="background:#f5fff5;border-radius:var(--radius);padding:20px;border-left:4px solid #2e7d32">
-          <div style="font-weight:800;color:#2e7d32;font-size:1rem">Février–Mars</div>
-          <div style="font-weight:700;margin:6px 0">Kanaval (Carnaval) 🎉</div>
-          <div style="font-size:.83rem;color:var(--muted)">Le Carnaval haïtien — musique, défilés, konpa. L'AHH organise une soirée culturelle.</div>
+          <div style="font-weight:800;color:#2e7d32;font-size:1rem" data-i18n="act.d3.date">Février–Mars</div>
+          <div style="font-weight:700;margin:6px 0" data-i18n="act.d3.title">Kanaval (Carnaval) 🎉</div>
+          <div style="font-size:.83rem;color:var(--muted)" data-i18n="act.d3.desc">Le Carnaval haïtien — musique, défilés, konpa. L'AHH organise une soirée culturelle.</div>
         </div>
         <div style="background:#fff8e1;border-radius:var(--radius);padding:20px;border-left:4px solid #f57f17">
-          <div style="font-weight:800;color:#f57f17;font-size:1rem">18 mai</div>
-          <div style="font-weight:700;margin:6px 0">Fête du Drapeau 🎌</div>
-          <div style="font-size:.83rem;color:var(--muted)">Jour national du drapeau haïtien créé en 1803 à Arcahaie.</div>
+          <div style="font-weight:800;color:#f57f17;font-size:1rem" data-i18n="act.d4.date">18 mai</div>
+          <div style="font-weight:700;margin:6px 0" data-i18n="act.d4.title">Fête du Drapeau 🎌</div>
+          <div style="font-size:.83rem;color:var(--muted)" data-i18n="act.d4.desc">Jour national du drapeau haïtien créé en 1803 à Arcahaie.</div>
         </div>
         <div style="background:#f3e5f5;border-radius:var(--radius);padding:20px;border-left:4px solid #7b1fa2">
-          <div style="font-weight:800;color:#7b1fa2;font-size:1rem">18 novembre</div>
-          <div style="font-weight:700;margin:6px 0">Bataille de Vertières ⚔️</div>
-          <div style="font-size:.83rem;color:var(--muted)">Dernière grande bataille de l'indépendance (1803) — victoire décisive sur Napoléon.</div>
+          <div style="font-weight:800;color:#7b1fa2;font-size:1rem" data-i18n="act.d5.date">18 novembre</div>
+          <div style="font-weight:700;margin:6px 0" data-i18n="act.d5.title">Bataille de Vertières ⚔️</div>
+          <div style="font-size:.83rem;color:var(--muted)" data-i18n="act.d5.desc">Dernière grande bataille de l'indépendance (1803) — victoire décisive sur Napoléon.</div>
         </div>
         <div style="background:#e8f5e9;border-radius:var(--radius);padding:20px;border-left:4px solid #388e3c">
-          <div style="font-weight:800;color:#388e3c;font-size:1rem">1er novembre</div>
-          <div style="font-weight:700;margin:6px 0">Fête des Morts (Gede) 💀</div>
-          <div style="font-size:.83rem;color:var(--muted)">Célébration spirituelle des ancêtres défunts, rituel vodou et couleurs noir et violet.</div>
+          <div style="font-weight:800;color:#388e3c;font-size:1rem" data-i18n="act.d6.date">1er novembre</div>
+          <div style="font-weight:700;margin:6px 0" data-i18n="act.d6.title">Fête des Morts (Gede) 💀</div>
+          <div style="font-size:.83rem;color:var(--muted)" data-i18n="act.d6.desc">Célébration spirituelle des ancêtres défunts, rituel vodou et couleurs noir et violet.</div>
         </div>
       </div>
     </div>
@@ -195,6 +195,7 @@
   <script>
     const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001/api' : '/api';
     const BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001' : '';
+    function _actDt(key, fallback) { return (window.AHH_t && window.AHH_t(key)) || fallback; }
 
     // Abonnement calendrier — même origine que la page (le feed iCal est servi par le même serveur)
     (function() {
@@ -273,23 +274,23 @@
       const t = TYPE_ICONS[ev.type] || TYPE_ICONS.general;
       const d = formatDate(ev.date_debut);
       const spots = ev.max_participants
-        ? '👥 ' + (ev.nb_inscrits || 0) + '/' + ev.max_participants + ' places'
-        : '👥 Entrée libre';
+        ? '👥 ' + (ev.nb_inscrits || 0) + '/' + ev.max_participants + ' ' + _actDt('act.spots', 'places')
+        : _actDt('act.freeEntry', '👥 Entrée libre');
       const isLoggedIn = !!localStorage.getItem('ahh_token');
       const isPaid = ev.paiement_requis && ev.prix > 0;
       let btnHtml;
       if (isPaid) {
-        btnHtml = '<a href="billets.html?id=' + ev.id + '" class="btn btn-primary btn-sm" style="font-size:.8rem;padding:9px 18px">🎟️ Acheter un billet →</a>';
+        btnHtml = '<a href="billets.html?id=' + ev.id + '" class="btn btn-primary btn-sm" style="font-size:.8rem;padding:9px 18px">' + _actDt('act.buyTicket', '🎟️ Acheter un billet →') + '</a>';
       } else if (isLoggedIn) {
-        btnHtml = '<a href="dashboard/app.html" class="btn btn-primary btn-sm" style="font-size:.8rem;padding:9px 18px">S\'inscrire via mon espace →</a>';
+        btnHtml = '<a href="dashboard/app.html" class="btn btn-primary btn-sm" style="font-size:.8rem;padding:9px 18px">' + _actDt('act.registerViaSpace', "S'inscrire via mon espace →") + '</a>';
       } else {
-        btnHtml = '<a href="dashboard/login.html" class="btn btn-primary btn-sm" style="font-size:.8rem;padding:9px 18px">Connexion pour s\'inscrire →</a>';
+        btnHtml = '<a href="dashboard/login.html" class="btn btn-primary btn-sm" style="font-size:.8rem;padding:9px 18px">' + _actDt('act.loginToRegister', "Connexion pour s'inscrire →") + '</a>';
       }
 
       const typeLabel = ev.type.charAt(0).toUpperCase() + ev.type.slice(1);
       const dateStr  = ev.date_debut ? '📅 ' + new Date(ev.date_debut).toLocaleDateString('fr-CA') : '';
       const lieuStr  = ev.lieu ? '📍 ' + ev.lieu : '';
-      var descRaw = ev.description || 'Rejoignez-nous pour cet événement communautaire.';
+      var descRaw = ev.description || _actDt('act.defaultDesc', 'Rejoignez-nous pour cet événement communautaire.');
       var descTmp = document.createElement('div'); descTmp.innerHTML = descRaw;
       var descPlain = descTmp.textContent || descTmp.innerText || '';
       const desc = descPlain.length <= 200 ? descRaw : descPlain.substring(0, 200) + '…';
@@ -321,10 +322,10 @@
       const siteUrl = 'https://ahhamilton.ca/actualites.html';
       const shareText = encodeURIComponent('🎉 ' + ev.titre + (ev.date_debut ? ', ' + new Date(ev.date_debut).toLocaleDateString('fr-CA') : '') + (ev.lieu ? ' à ' + ev.lieu : '') + '\n\nAssociation Haïtienne de Hamilton\n' + siteUrl);
       const shareBar = '<div class="share-bar">' +
-        '<span class="share-label">Partager :</span>' +
+        '<span class="share-label">' + _actDt('act.share', 'Partager :') + '</span>' +
         '<a class="share-btn share-btn-fb" href="https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(siteUrl) + '" target="_blank" rel="noopener">f Facebook</a>' +
         '<a class="share-btn share-btn-wa" href="https://wa.me/?text=' + shareText + '" target="_blank" rel="noopener">📲 WhatsApp</a>' +
-        '<button class="share-btn share-btn-copy" onclick="navigator.clipboard.writeText(\'' + siteUrl + '\');this.textContent=\'✓ Copié!\';setTimeout(()=>this.textContent=\'🔗 Copier\',1800)">🔗 Copier</button>' +
+        '<button class="share-btn share-btn-copy" onclick="navigator.clipboard.writeText(\'' + siteUrl + '\');this.textContent=\'' + _actDt('act.copied','✓ Copié!') + '\';setTimeout(()=>this.textContent=\'' + _actDt('act.copy','🔗 Copier') + '\',1800)">' + _actDt('act.copy', '🔗 Copier') + '</button>' +
         '</div>';
 
       return '<div class="event-card" data-type="' + ev.type + '" data-reveal>' +
@@ -359,7 +360,7 @@
       if (!filtered.length) {
         grid.innerHTML = '<div class="events-empty" style="grid-column:1/-1">' +
           '<div class="ee-icon">📅</div>' +
-          '<p>Aucun événement à venir pour cette catégorie.</p></div>';
+          '<p>' + _actDt('act.noEventsCat', 'Aucun événement à venir pour cette catégorie.') + '</p></div>';
       } else {
         grid.innerHTML = filtered.map(renderCard).join('');
       }
@@ -401,8 +402,8 @@
         document.getElementById('upcomingGrid').innerHTML =
           '<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted)">' +
           '<div style="font-size:2rem;margin-bottom:8px">📅</div>' +
-          '<p>Événements temporairement indisponibles. ' +
-          '<a href="index.html#contact">Contactez-nous</a> pour plus d\'info.</p></div>';
+          '<p>' + _actDt('act.unavailable', 'Événements temporairement indisponibles.') + ' ' +
+          '<a href="index.html#contact">' + _actDt('act.contactUs', 'Contactez-nous') + '</a> ' + _actDt('act.forMoreInfo', "pour plus d'info.") + '</p></div>';
       }
     }
 
@@ -423,13 +424,13 @@
         const res = await fetch(API_URL + '/activities/public/past');
         const events = await res.json();
         if (!events.length) {
-          grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted)"><div style="font-size:2rem;margin-bottom:8px">📅</div><p>Aucun événement passé pour le moment.</p></div>';
+          grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted)"><div style="font-size:2rem;margin-bottom:8px">📅</div><p>' + _actDt('act.noPastEvents', 'Aucun événement passé pour le moment.') + '</p></div>';
           return;
         }
         grid.innerHTML = events.map(function(ev) {
           var t = TYPE_ICONS[ev.type] || TYPE_ICONS.general;
           var dateStr = ev.date_debut ? new Date(ev.date_debut).toLocaleDateString('fr-CA', { year:'numeric', month:'long', day:'numeric' }) : '';
-          var participants = ev.nb_inscrits > 0 ? '👥 ' + ev.nb_inscrits + ' participants' : '';
+          var participants = ev.nb_inscrits > 0 ? '👥 ' + ev.nb_inscrits + ' ' + _actDt('act.participants', 'participants') : '';
           var headerHtml;
           if (ev.thumbnail) {
             headerHtml = '<div class="event-thumb-wrap" style="position:relative;cursor:pointer" onclick="openActPhotos(' + ev.id + ',\'' + (ev.titre||'').replace(/'/g,"\\'") + '\')">' +
@@ -443,18 +444,18 @@
           return '<div class="event-card" style="opacity:.85" data-reveal>' +
             headerHtml +
             '<div class="event-body">' +
-              '<h3>' + ev.titre + ' <span style="background:var(--off);color:var(--muted);font-size:.68rem;font-weight:600;padding:3px 10px;border-radius:50px;margin-left:8px">Terminé</span></h3>' +
+              '<h3>' + ev.titre + ' <span style="background:var(--off);color:var(--muted);font-size:.68rem;font-weight:600;padding:3px 10px;border-radius:50px;margin-left:8px">' + _actDt('act.done', 'Terminé') + '</span></h3>' +
               '<div class="event-meta">' +
                 (dateStr ? '<span>📅 ' + dateStr + '</span>' : '') +
                 (participants ? '<span>' + participants + '</span>' : '') +
               '</div>' +
-              '<p>' + (ev.description || 'Merci à tous les participants pour cet événement mémorable !').substring(0, 160) + '</p>' +
-              '<a href="galerie.html" class="btn btn-ghost btn-sm" style="font-size:.78rem;padding:7px 14px">Voir les photos →</a>' +
+              '<p>' + (ev.description || _actDt('act.defaultPastDesc', 'Merci à tous les participants pour cet événement mémorable !')).substring(0, 160) + '</p>' +
+              '<a href="galerie.html" class="btn btn-ghost btn-sm" style="font-size:.78rem;padding:7px 14px">' + _actDt('act.seePhotos', 'Voir les photos →') + '</a>' +
             '</div>' +
           '</div>';
         }).join('');
       } catch(e) {
-        grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted)">Archives temporairement indisponibles.</div>';
+        grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted)">' + _actDt('act.archivesUnavailable', 'Archives temporairement indisponibles.') + '</div>';
       }
     }
     loadPastEvents();
