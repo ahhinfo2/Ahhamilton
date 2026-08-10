@@ -13,6 +13,12 @@
   <meta name="twitter:card" content="summary_large_image"/>
   <link rel="canonical" href="https://ahhamilton.ca/recettes.html"/>
   <link rel="icon" type="image/png" href="Public/logo1.png"/>
+  <link rel="manifest" href="/manifest.json"/>
+  <meta name="theme-color" content="#1b5e20"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="AHH"/>
+  <link rel="apple-touch-icon" href="/Public/logo1.png"/>
   <link rel="stylesheet" href="style.css"/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
@@ -267,6 +273,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeRecipe(
 <script src="_nav.js"></script>
 <script src="script.js"></script>
 <script src="casl-consent.js"></script>
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
 </body>
 </html>
 
