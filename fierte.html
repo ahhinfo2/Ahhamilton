@@ -57,9 +57,9 @@
 
 <section class="page-hero">
   <div class="container page-hero-content">
-    <div class="breadcrumb"><a href="index.html">Accueil</a><span>›</span><span>Mur de fierté</span></div>
-    <h1>🏆 Mur de fierté</h1>
-    <p>Pitit tig se tig — célébrons chaque succès de nos membres avec toute la communauté.</p>
+    <div class="breadcrumb"><a href="index.html" data-i18n="Accueil">Accueil</a><span>›</span><span data-i18n="Mur de fierté">Mur de fierté</span></div>
+    <h1 data-i18n="fi.h1">🏆 Mur de fierté</h1>
+    <p data-i18n="fi.sub">Pitit tig se tig — célébrons chaque succès de nos membres avec toute la communauté.</p>
   </div>
 </section>
 
@@ -69,30 +69,30 @@
   <div class="container">
 
     <div class="section-header" data-reveal>
-      <span class="section-badge">Nos succès</span>
-      <h2>Réalisations de la communauté</h2>
-      <p>Chaque succès individuel est une fierté collective.</p>
+      <span class="section-badge" data-i18n="fi.badge">Nos succès</span>
+      <h2 data-i18n="fi.h2_1">Réalisations de la communauté</h2>
+      <p data-i18n="fi.p1">Chaque succès individuel est une fierté collective.</p>
     </div>
 
     <div class="pride-filter" id="prideFilter">
-      <button class="filter-btn active" onclick="filterPride('all',this)">Tous</button>
-      <button class="filter-btn" onclick="filterPride('diplome',this)">🎓 Diplômes</button>
-      <button class="filter-btn" onclick="filterPride('emploi',this)">💼 Emploi</button>
-      <button class="filter-btn" onclick="filterPride('arts',this)">🎨 Arts & Culture</button>
-      <button class="filter-btn" onclick="filterPride('sport',this)">⚽ Sport</button>
-      <button class="filter-btn" onclick="filterPride('entreprise',this)">🚀 Entrepreneuriat</button>
-      <button class="filter-btn" onclick="filterPride('communaute',this)">🤝 Communauté</button>
+      <button class="filter-btn active" onclick="filterPride('all',this)" data-i18n="com.cat.tous">Tous</button>
+      <button class="filter-btn" onclick="filterPride('diplome',this)" data-i18n="fi.f.diplome">🎓 Diplômes</button>
+      <button class="filter-btn" onclick="filterPride('emploi',this)" data-i18n="fi.f.emploi">💼 Emploi</button>
+      <button class="filter-btn" onclick="filterPride('arts',this)" data-i18n="fi.f.arts">🎨 Arts & Culture</button>
+      <button class="filter-btn" onclick="filterPride('sport',this)" data-i18n="fi.f.sport">⚽ Sport</button>
+      <button class="filter-btn" onclick="filterPride('entreprise',this)" data-i18n="fi.f.entreprise">🚀 Entrepreneuriat</button>
+      <button class="filter-btn" onclick="filterPride('communaute',this)" data-i18n="fi.f.communaute">🤝 Communauté</button>
     </div>
 
     <div class="pride-grid" id="prideGrid">
-      <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">⏳ Chargement…</div>
+      <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)" data-i18n="fi.loading">⏳ Chargement…</div>
     </div>
 
     <div class="submit-box" style="margin-top:40px">
       <div style="font-size:2.5rem;margin-bottom:14px">🌟</div>
-      <h3 style="margin-bottom:10px">Partagez votre succès !</h3>
-      <p style="color:var(--muted);font-size:.9rem;margin-bottom:20px;max-width:460px;margin-left:auto;margin-right:auto">Vous ou un membre de votre famille avez accompli quelque chose de remarquable ? Envoyez-nous votre histoire — nous sommes fiers de tous nos membres.</p>
-      <a href="https://wa.me/19055197967?text=Bonjour%2C%20je%20voudrais%20soumettre%20une%20r%C3%A9alisation%20pour%20le%20Mur%20de%20fiert%C3%A9%20AHH." class="btn btn-primary" target="_blank" rel="noopener">Soumettre une réalisation</a>
+      <h3 style="margin-bottom:10px" data-i18n="fi.h3">Partagez votre succès !</h3>
+      <p style="color:var(--muted);font-size:.9rem;margin-bottom:20px;max-width:460px;margin-left:auto;margin-right:auto" data-i18n="fi.p2">Vous ou un membre de votre famille avez accompli quelque chose de remarquable ? Envoyez-nous votre histoire — nous sommes fiers de tous nos membres.</p>
+      <a href="https://wa.me/19055197967?text=Bonjour%2C%20je%20voudrais%20soumettre%20une%20r%C3%A9alisation%20pour%20le%20Mur%20de%20fiert%C3%A9%20AHH." class="btn btn-primary" target="_blank" rel="noopener" data-i18n="fi.submit">Soumettre une réalisation</a>
     </div>
   </div>
 </section>
@@ -102,24 +102,29 @@
   <div class="container">
     <div style="text-align:center;margin-bottom:40px">
       <span style="font-size:2rem">🇭🇹</span>
-      <h2 style="color:#fff;margin-bottom:8px">Notre communauté en chiffres</h2>
-      <p style="opacity:.85">La force de la diaspora haïtienne de Hamilton</p>
+      <h2 style="color:#fff;margin-bottom:8px" data-i18n="fi.h2_2">Notre communauté en chiffres</h2>
+      <p style="opacity:.85" data-i18n="fi.p3">La force de la diaspora haïtienne de Hamilton</p>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:24px;text-align:center">
-      <div><div style="font-size:2.5rem;font-weight:800">200+</div><div style="opacity:.85;font-size:.9rem">Membres actifs</div></div>
-      <div><div style="font-size:2.5rem;font-weight:800">15+</div><div style="opacity:.85;font-size:.9rem">Diplômés universitaires par année</div></div>
-      <div><div style="font-size:2.5rem;font-weight:800">8</div><div style="opacity:.85;font-size:.9rem">Entrepreneurs dans la communauté</div></div>
-      <div><div style="font-size:2.5rem;font-weight:800">2008</div><div style="opacity:.85;font-size:.9rem">Année de fondation de l'AHH</div></div>
+      <div><div style="font-size:2.5rem;font-weight:800">200+</div><div style="opacity:.85;font-size:.9rem" data-i18n="stat.membres">Membres actifs</div></div>
+      <div><div style="font-size:2.5rem;font-weight:800">15+</div><div style="opacity:.85;font-size:.9rem" data-i18n="fi.stat2">Diplômés universitaires par année</div></div>
+      <div><div style="font-size:2.5rem;font-weight:800">8</div><div style="opacity:.85;font-size:.9rem" data-i18n="fi.stat3">Entrepreneurs dans la communauté</div></div>
+      <div><div style="font-size:2.5rem;font-weight:800">2008</div><div style="opacity:.85;font-size:.9rem" data-i18n="fi.stat4">Année de fondation de l'AHH</div></div>
     </div>
   </div>
 </section>
 
 </main>
 
+<script src="_lang.js"></script>
+<script src="_nav.js"></script>
+<script src="script.js"></script>
+<script src="casl-consent.js"></script>
 <script>
+function _fiDt(key, fallback) { return (window.AHH_t && window.AHH_t(key)) || fallback; }
 const CAT_LABELS = {
-  diplome:'🎓 Diplôme', emploi:'💼 Emploi', arts:'🎨 Arts',
-  sport:'⚽ Sport', entreprise:'🚀 Entrepreneuriat', communaute:'🤝 Communauté'
+  diplome:_fiDt('fi.badge.diplome','🎓 Diplôme'), emploi:_fiDt('fi.badge.emploi','💼 Emploi'), arts:_fiDt('fi.badge.arts','🎨 Arts'),
+  sport:_fiDt('fi.badge.sport','⚽ Sport'), entreprise:_fiDt('fi.badge.entreprise','🚀 Entrepreneuriat'), communaute:_fiDt('fi.badge.communaute','🤝 Communauté')
 };
 
 let _fierteAll = [];
@@ -137,7 +142,7 @@ function filterPride(cat, btn) {
 function _renderFierte(entries) {
   const grid = document.getElementById('prideGrid');
   if (!entries.length) {
-    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px;color:var(--muted)">Aucune réalisation publiée pour l\'instant.<br/>Contactez-nous pour soumettre la vôtre !</div>';
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px;color:var(--muted)">' + _fiDt('fi.empty', "Aucune réalisation publiée pour l'instant.<br/>Contactez-nous pour soumettre la vôtre !") + '</div>';
     return;
   }
   grid.innerHTML = entries.map(e => {
@@ -159,13 +164,9 @@ fetch('/api/fierte')
   .then(data => { _fierteAll = data; _renderFierte(data); })
   .catch(() => {
     document.getElementById('prideGrid').innerHTML =
-      '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">Impossible de charger les réalisations.</div>';
+      '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">' + _fiDt('fi.loadError', 'Impossible de charger les réalisations.') + '</div>';
   });
 </script>
-<script src="_lang.js"></script>
-<script src="_nav.js"></script>
-<script src="script.js"></script>
-<script src="casl-consent.js"></script>
 </body>
 </html>
 

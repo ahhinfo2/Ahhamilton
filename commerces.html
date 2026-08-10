@@ -59,9 +59,9 @@
 
   <section class="page-hero">
     <div class="container page-hero-content">
-      <div class="breadcrumb"><a href="index.html">Accueil</a><span>›</span><span>Commerces</span></div>
-      <h1>Carte des commerces</h1>
-      <p>Découvrez les commerces et services tenus par des membres de notre communauté à Hamilton.</p>
+      <div class="breadcrumb"><a href="index.html" data-i18n="Accueil">Accueil</a><span>›</span><span data-i18n="Commerces">Commerces</span></div>
+      <h1 data-i18n="com.h1">Carte des commerces</h1>
+      <p data-i18n="com.sub">Découvrez les commerces et services tenus par des membres de notre communauté à Hamilton.</p>
     </div>
   </section>
 
@@ -70,28 +70,28 @@
     <div class="container">
 
       <div class="com-filter-bar" id="comFilterBar">
-        <button class="com-filter active" data-cat="tous">Tous</button>
-        <button class="com-filter" data-cat="construction">🔨 Construction</button>
-        <button class="com-filter" data-cat="art">🎨 Art</button>
-        <button class="com-filter" data-cat="cuisine">🍽️ Cuisine</button>
-        <button class="com-filter" data-cat="beaute">💅 Beauté</button>
-        <button class="com-filter" data-cat="technologie">💻 Technologie</button>
-        <button class="com-filter" data-cat="education">📚 Éducation</button>
-        <button class="com-filter" data-cat="sante">🏥 Santé</button>
-        <button class="com-filter" data-cat="transport">🚗 Transport</button>
-        <button class="com-filter" data-cat="finance">💰 Finance</button>
-        <button class="com-filter" data-cat="autre">✨ Autre</button>
+        <button class="com-filter active" data-cat="tous" data-i18n="com.cat.tous">Tous</button>
+        <button class="com-filter" data-cat="construction" data-i18n="com.cat.construction">🔨 Construction</button>
+        <button class="com-filter" data-cat="art" data-i18n="com.cat.art">🎨 Art</button>
+        <button class="com-filter" data-cat="cuisine" data-i18n="com.cat.cuisine">🍽️ Cuisine</button>
+        <button class="com-filter" data-cat="beaute" data-i18n="com.cat.beaute">💅 Beauté</button>
+        <button class="com-filter" data-cat="technologie" data-i18n="com.cat.technologie">💻 Technologie</button>
+        <button class="com-filter" data-cat="education" data-i18n="com.cat.education">📚 Éducation</button>
+        <button class="com-filter" data-cat="sante" data-i18n="com.cat.sante">🏥 Santé</button>
+        <button class="com-filter" data-cat="transport" data-i18n="com.cat.transport">🚗 Transport</button>
+        <button class="com-filter" data-cat="finance" data-i18n="com.cat.finance">💰 Finance</button>
+        <button class="com-filter" data-cat="autre" data-i18n="com.cat.autre">✨ Autre</button>
       </div>
 
       <div id="comMap"></div>
       <div id="comGrid" class="com-grid">
-        <div class="com-empty"><div class="ce-icon">🏪</div><p>Chargement…</p></div>
+        <div class="com-empty"><div class="ce-icon">🏪</div><p data-i18n="com.loading">Chargement…</p></div>
       </div>
 
       <div class="com-cta">
-        <h2>Vous êtes membre et vous tenez un commerce ?</h2>
-        <p>Ajoutez-le à la carte — visible par toute la communauté après vérification du comité.</p>
-        <a href="dashboard/login.html">Soumettre mon commerce →</a>
+        <h2 data-i18n="com.cta.h2">Vous êtes membre et vous tenez un commerce ?</h2>
+        <p data-i18n="com.cta.p">Ajoutez-le à la carte — visible par toute la communauté après vérification du comité.</p>
+        <a href="dashboard/login.html" data-i18n="com.cta.btn">Soumettre mon commerce →</a>
       </div>
 
     </div>
@@ -106,10 +106,11 @@
   <script src="casl-consent.js"></script>
   <script>
     const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3001/api' : '/api';
+    function dt(key, fallback) { return (window.AHH_t && window.AHH_t(key)) || fallback; }
     const CAT_LABELS = {
-      construction: '🔨 Construction & Rénovation', art: '🎨 Art & Créativité', cuisine: '🍽️ Cuisine & Traiteur',
-      beaute: '💅 Beauté & Bien-être', technologie: '💻 Technologie & Informatique', education: '📚 Éducation & Coaching',
-      sante: '🏥 Santé & Sport', transport: '🚗 Transport & Livraison', finance: '💰 Finance & Comptabilité', autre: '✨ Autre'
+      construction: dt('com.catfull.construction', '🔨 Construction & Rénovation'), art: dt('com.catfull.art', '🎨 Art & Créativité'), cuisine: dt('com.catfull.cuisine', '🍽️ Cuisine & Traiteur'),
+      beaute: dt('com.catfull.beaute', '💅 Beauté & Bien-être'), technologie: dt('com.catfull.technologie', '💻 Technologie & Informatique'), education: dt('com.catfull.education', '📚 Éducation & Coaching'),
+      sante: dt('com.catfull.sante', '🏥 Santé & Sport'), transport: dt('com.catfull.transport', '🚗 Transport & Livraison'), finance: dt('com.catfull.finance', '💰 Finance & Comptabilité'), autre: dt('com.catfull.autre', '✨ Autre')
     };
 
     var map = L.map('comMap').setView([43.2557, -79.8711], 12); // Hamilton, ON
@@ -127,7 +128,7 @@
       var grid = document.getElementById('comGrid');
       var filtered = activeFilter === 'tous' ? allBusinesses : allBusinesses.filter(function(b) { return b.categorie === activeFilter; });
       if (!filtered.length) {
-        grid.innerHTML = '<div class="com-empty" style="grid-column:1/-1"><div class="ce-icon">🏪</div><p>Aucun commerce dans cette catégorie pour le moment.</p></div>';
+        grid.innerHTML = '<div class="com-empty" style="grid-column:1/-1"><div class="ce-icon">🏪</div><p>' + dt('com.emptyCat', 'Aucun commerce dans cette catégorie pour le moment.') + '</p></div>';
         return;
       }
       grid.innerHTML = filtered.map(function(b) {
@@ -162,7 +163,7 @@
           '<b>' + escHtml(b.nom) + '</b><br/>' + (CAT_LABELS[b.categorie] || b.categorie) + '<br/>' +
           escHtml(b.adresse) +
           (b.telephone ? '<br/>📞 ' + escHtml(b.telephone) : '') +
-          (b.site_web ? '<br/><a href="' + escHtml(b.site_web) + '" target="_blank" rel="noopener">🔗 Site web</a>' : '')
+          (b.site_web ? '<br/><a href="' + escHtml(b.site_web) + '" target="_blank" rel="noopener">🔗 ' + dt('com.website', 'Site web') + '</a>' : '')
         );
         markers[b.id] = marker;
         bounds.push([b.lat, b.lng]);
@@ -187,7 +188,7 @@
         renderList();
         renderMarkers();
       } catch(e) {
-        document.getElementById('comGrid').innerHTML = '<div class="com-empty" style="grid-column:1/-1"><div class="ce-icon">⚠️</div><p>Impossible de charger les commerces pour le moment.</p></div>';
+        document.getElementById('comGrid').innerHTML = '<div class="com-empty" style="grid-column:1/-1"><div class="ce-icon">⚠️</div><p>' + dt('com.loadError', 'Impossible de charger les commerces pour le moment.') + '</p></div>';
       }
     })();
   </script>

@@ -56,35 +56,35 @@
 </style>
 </head>
 <body>
-<script src="_lang.js"></script>
-<script src="_nav.js"></script>
 
 <section class="page-hero">
   <div class="container page-hero-content">
-    <div class="breadcrumb"><a href="index.html">Accueil</a><span>›</span><span>Réalisations</span></div>
-    <h1>Nos réalisations</h1>
-    <p>Depuis notre fondation en 2008, l'AHH construit une communauté forte, unie et engagée à Hamilton.</p>
+    <div class="breadcrumb"><a href="index.html" data-i18n="Accueil">Accueil</a><span>›</span><span data-i18n="Nos réalisations">Réalisations</span></div>
+    <h1 data-i18n="real.h1">Nos réalisations</h1>
+    <p data-i18n="real.sub">Depuis notre fondation en 2008, l'AHH construit une communauté forte, unie et engagée à Hamilton.</p>
   </div>
 </section>
 
 <main id="main-content" role="main">
 <div class="tl-section">
   <div class="tl-stats" id="tlStats">
-    <div class="tl-stat"><div class="num" id="tlMembers">-</div><div class="lbl">Membres actifs</div></div>
-    <div class="tl-stat"><div class="num" id="tlActivities">-</div><div class="lbl">Activit&eacute;s organis&eacute;es</div></div>
-    <div class="tl-stat"><div class="num" id="tlVolunteer">-</div><div class="lbl">Heures de b&eacute;n&eacute;volat</div></div>
-    <div class="tl-stat"><div class="num" id="tlYears">-</div><div class="lbl">Ann&eacute;es d'histoire</div></div>
+    <div class="tl-stat"><div class="num" id="tlMembers">-</div><div class="lbl" data-i18n="stat.membres">Membres actifs</div></div>
+    <div class="tl-stat"><div class="num" id="tlActivities">-</div><div class="lbl" data-i18n="real.stat2">Activit&eacute;s organis&eacute;es</div></div>
+    <div class="tl-stat"><div class="num" id="tlVolunteer">-</div><div class="lbl" data-i18n="stat.benevoles">Heures de b&eacute;n&eacute;volat</div></div>
+    <div class="tl-stat"><div class="num" id="tlYears">-</div><div class="lbl" data-i18n="real.stat4">Ann&eacute;es d'histoire</div></div>
   </div>
 
   <div class="timeline" id="timelineList"></div>
 
   <div class="tl-cta">
-    <h2>Faites partie de l'histoire</h2>
-    <p>Rejoignez l'Association Ha&iuml;tienne de Hamilton et contribuez &agrave; b&acirc;tir notre communaut&eacute;.</p>
-    <a href="/adhesion.html">Devenir membre</a>
+    <h2 data-i18n="real.cta.h2">Faites partie de l'histoire</h2>
+    <p data-i18n="real.cta.p">Rejoignez l'Association Ha&iuml;tienne de Hamilton et contribuez &agrave; b&acirc;tir notre communaut&eacute;.</p>
+    <a href="/adhesion.html" data-i18n="real.cta.btn">Devenir membre</a>
   </div>
 </div>
 
+<script src="_lang.js"></script>
+<script src="_nav.js"></script>
 <script>
 (async function() {
   // Charger les stats publiques
@@ -99,15 +99,16 @@
   } catch(e) {}
 
   // Timeline statique (le comite peut la modifier via le dashboard plus tard)
+  function _realDt(key, fallback) { return (window.AHH_t && window.AHH_t(key)) || fallback; }
   var events = [
-    { year:'2024', icon:'🌱', title:'Fondation de l\'AHH', desc:'Création officielle de l\'Association Haïtienne de Hamilton par un groupe de citoyens engagés de la communauté haïtienne.' },
-    { year:'2024', icon:'🤝', title:'Premiers membres', desc:'Recrutement des premiers membres fondateurs et mise en place du comité exécutif (président, secrétaire, trésorière, délégués).' },
-    { year:'2025', icon:'🎉', title:'Premiers événements communautaires', desc:'Organisation des premières activités culturelles et sociales pour rassembler la communauté haïtienne de Hamilton.' },
-    { year:'2025', icon:'💻', title:'Lancement de la plateforme numérique', desc:'Mise en ligne du site web ahhamilton.ca avec tableau de bord, billetterie, carte de membre numérique et outils de gestion.' },
-    { year:'2025', icon:'🪪', title:'Cartes de membre numériques', desc:'Déploiement des cartes de membre avec QR code, validation par photo et scanner unifié pour les événements.' },
-    { year:'2026', icon:'💼', title:'Portail emplois et stages', desc:'Intégration automatique des offres d\'emploi à Hamilton via Adzuna, avec approbation par le comité avant publication.' },
-    { year:'2026', icon:'📱', title:'Application mobile PWA', desc:'Lancement de l\'application mobile progressive (PWA) permettant l\'accès hors ligne, les notifications et le scanner depuis le téléphone.' },
-    { year:'2026', icon:'🌍', title:'Croissance communautaire', desc:'L\'AHH atteint 50+ membres actifs et organise régulièrement des événements culturels, des ateliers et des activités de réseautage.' },
+    { year:'2024', icon:'🌱', title:_realDt('real.ev1.title','Fondation de l\'AHH'), desc:_realDt('real.ev1.desc','Création officielle de l\'Association Haïtienne de Hamilton par un groupe de citoyens engagés de la communauté haïtienne.') },
+    { year:'2024', icon:'🤝', title:_realDt('real.ev2.title','Premiers membres'), desc:_realDt('real.ev2.desc','Recrutement des premiers membres fondateurs et mise en place du comité exécutif (président, secrétaire, trésorière, délégués).') },
+    { year:'2025', icon:'🎉', title:_realDt('real.ev3.title','Premiers événements communautaires'), desc:_realDt('real.ev3.desc','Organisation des premières activités culturelles et sociales pour rassembler la communauté haïtienne de Hamilton.') },
+    { year:'2025', icon:'💻', title:_realDt('real.ev4.title','Lancement de la plateforme numérique'), desc:_realDt('real.ev4.desc','Mise en ligne du site web ahhamilton.ca avec tableau de bord, billetterie, carte de membre numérique et outils de gestion.') },
+    { year:'2025', icon:'🪪', title:_realDt('real.ev5.title','Cartes de membre numériques'), desc:_realDt('real.ev5.desc','Déploiement des cartes de membre avec QR code, validation par photo et scanner unifié pour les événements.') },
+    { year:'2026', icon:'💼', title:_realDt('real.ev6.title','Portail emplois et stages'), desc:_realDt('real.ev6.desc','Intégration automatique des offres d\'emploi à Hamilton via Adzuna, avec approbation par le comité avant publication.') },
+    { year:'2026', icon:'📱', title:_realDt('real.ev7.title','Application mobile PWA'), desc:_realDt('real.ev7.desc','Lancement de l\'application mobile progressive (PWA) permettant l\'accès hors ligne, les notifications et le scanner depuis le téléphone.') },
+    { year:'2026', icon:'🌍', title:_realDt('real.ev8.title','Croissance communautaire'), desc:_realDt('real.ev8.desc','L\'AHH atteint 50+ membres actifs et organise régulièrement des événements culturels, des ateliers et des activités de réseautage.') },
   ];
 
   var html = events.map(function(e) {

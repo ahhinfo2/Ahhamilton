@@ -24,6 +24,7 @@
       'Intégration':'Integration', 'Langue créole':'Creole Language', 'Rejoindre':'Join Online',
       'Recettes haïtiennes':'Haitian Recipes', 'Mur de fierté':'Pride Wall', 'Espace familles':'Family Space',
       'Infolettres':'Newsletters', 'Commerces':'Businesses',
+      'Nos réalisations':'Our Achievements', 'Mentions légales':'Legal Notice',
       'footer-desc':'Haitian Association of Hamilton, a community united in culture and solidarity.',
       'footer-copy':'© 2026 AHH | Association Haïtienne de Hamilton. All rights reserved.',
     },
@@ -40,6 +41,7 @@
       'Intégration':'Entegrasyon', 'Langue créole':'Lang kreyòl', 'Rejoindre':'Rantre an liy',
       'Recettes haïtiennes':'Resèt ayisyen', 'Mur de fierté':'Mi fyète', 'Espace familles':'Espas fanmi',
       'Infolettres':'Bilten', 'Commerces':'Biznis',
+      'Nos réalisations':'Reyalizasyon nou yo', 'Mentions légales':'Avi legal',
       'footer-desc':'Asosyasyon Ayisyen Hamilton, yon kominote ini nan kilti ak solidarite.',
       'footer-copy':'© 2026 AHH | Asosyasyon Ayisyen Hamilton. Tout dwa rezève.',
     }
