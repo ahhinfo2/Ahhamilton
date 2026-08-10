@@ -1952,6 +1952,14 @@ section[id] { scroll-margin-top: 100px; }
   .nav-links { background: #0a1f0b !important; }
 }
 
+/* #17b Sous-menu mobile (ex. "Communauté" déplié) — même bug que #17 : son fond
+   était rgba(255,255,255,.07), quasi transparent, donc le contenu de la page
+   derrière (texte, badges, la pastille du compte à rebours) se voyait au travers.
+   Fond plein équivalent (mélange du même blanc 7% sur le vert #0a1f0b du menu). */
+@media (max-width: 768px) {
+  .dropdown-menu { background: #1b2f1c !important; }
+}
+
 /* #18 Countdown mobile fix */
 @media (max-width: 640px) {
   .countdown-bar-inner { flex-wrap: wrap !important; justify-content: center !important; gap: 6px !important; }
