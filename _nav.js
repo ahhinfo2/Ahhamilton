@@ -70,6 +70,10 @@
       var val = t(el.getAttribute('data-i18n'));
       if (val !== null) el.textContent = val;
     });
+    document.querySelectorAll('[data-i18n-html]').forEach(function(el) {
+      var val = t(el.getAttribute('data-i18n-html'));
+      if (val !== null) el.innerHTML = val;
+    });
     document.querySelectorAll('[data-i18n-ph]').forEach(function(el) {
       var val = t(el.getAttribute('data-i18n-ph'));
       if (val !== null) el.placeholder = val;
@@ -263,6 +267,10 @@
   if (!document.querySelector('footer.footer')) {
     document.body.insertAdjacentHTML('beforeend', footerHTML);
   }
+
+  // Exposer pour le contenu injecté dynamiquement par d'autres scripts (ex. index.html)
+  window.AHH_t = t;
+  window.AHH_applyTranslations = applyTranslations;
 
   // Appliquer la langue sauvegardée au chargement
   applyTranslations();

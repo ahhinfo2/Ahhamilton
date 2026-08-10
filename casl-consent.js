@@ -32,13 +32,18 @@
   `;
   document.head.appendChild(style);
 
+  const t = window.AHH_t || (() => null);
+  const text = t('casl.text') || '🍪 Ce site utilise des témoins (cookies) essentiels à son fonctionnement, conformément à la <strong>Loi canadienne anti-pourriel (LCAP/CASL)</strong>. En continuant à naviguer, vous acceptez notre <a href="/privacy.html">politique de confidentialité</a>.';
+  const acceptLabel = t('casl.accept') || 'Accepter';
+  const declineLabel = t('casl.decline') || 'Refuser';
+
   const banner = document.createElement('div');
   banner.id = 'caslBanner';
   banner.innerHTML = `
-    <p>🍪 Ce site utilise des témoins (cookies) essentiels à son fonctionnement, conformément à la <strong>Loi canadienne anti-pourriel (LCAP/CASL)</strong>. En continuant à naviguer, vous acceptez notre <a href="/privacy.html">politique de confidentialité</a>.</p>
+    <p>${text}</p>
     <div class="casl-btns">
-      <button class="casl-accept" id="caslAccept">Accepter</button>
-      <button class="casl-decline" id="caslDecline">Refuser</button>
+      <button class="casl-accept" id="caslAccept">${acceptLabel}</button>
+      <button class="casl-decline" id="caslDecline">${declineLabel}</button>
     </div>
   `;
   document.body.appendChild(banner);

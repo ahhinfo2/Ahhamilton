@@ -46,16 +46,16 @@
   <!-- ===== COUNTDOWN BAR ===== -->
   <div id="countdownBar" class="countdown-bar" style="display:none">
     <div class="container countdown-bar-inner">
-      <span class="countdown-label">Prochain événement :</span>
+      <span class="countdown-label" data-i18n="cd.next">Prochain événement :</span>
       <span class="countdown-event"></span>
       <div class="countdown-digits">
-        <div class="countdown-unit"><span class="cd-num" id="cd-d">00</span><span class="cd-lbl">jours</span></div>
+        <div class="countdown-unit"><span class="cd-num" id="cd-d">00</span><span class="cd-lbl" data-i18n="cd.days">jours</span></div>
         <span class="countdown-sep">:</span>
-        <div class="countdown-unit"><span class="cd-num" id="cd-h">00</span><span class="cd-lbl">heures</span></div>
+        <div class="countdown-unit"><span class="cd-num" id="cd-h">00</span><span class="cd-lbl" data-i18n="cd.hours">heures</span></div>
         <span class="countdown-sep">:</span>
-        <div class="countdown-unit"><span class="cd-num" id="cd-m">00</span><span class="cd-lbl">min</span></div>
+        <div class="countdown-unit"><span class="cd-num" id="cd-m">00</span><span class="cd-lbl" data-i18n="cd.min">min</span></div>
         <span class="countdown-sep">:</span>
-        <div class="countdown-unit"><span class="cd-num" id="cd-s">00</span><span class="cd-lbl">sec</span></div>
+        <div class="countdown-unit"><span class="cd-num" id="cd-s">00</span><span class="cd-lbl" data-i18n="cd.sec">sec</span></div>
       </div>
     </div>
   </div>
@@ -66,14 +66,14 @@
       <div class="welcome-banner">
         <button class="welcome-close" id="welcomeClose" aria-label="Fermer">✕</button>
         <div class="wb-flag">🇭🇹🤝🇨🇦</div>
-        <h2>Bienvenue dans la communauté AHH !</h2>
-        <p>Association Haïtienne de Hamilton : culture, solidarité et entraide depuis 2008.</p>
+        <h2 data-i18n="welcome.h2">Bienvenue dans la communauté AHH !</h2>
+        <p data-i18n="welcome.p1">Association Haïtienne de Hamilton : culture, solidarité et entraide depuis 2008.</p>
       </div>
       <div class="welcome-body">
-        <p>Rejoignez notre communauté grandissante. Accédez aux activités, aux événements culturels et au réseau d'entraide haïtien-canadien.</p>
+        <p data-i18n="welcome.p2">Rejoignez notre communauté grandissante. Accédez aux activités, aux événements culturels et au réseau d'entraide haïtien-canadien.</p>
         <div class="welcome-actions">
-          <a href="adhesion.html" class="btn btn-primary">Devenir membre →</a>
-          <button class="btn btn-outline" id="welcomeDismiss">Explorer le site</button>
+          <a href="adhesion.html" class="btn btn-primary" data-i18n="welcome.btn1">Devenir membre →</a>
+          <button class="btn btn-outline" id="welcomeDismiss" data-i18n="welcome.btn2">Explorer le site</button>
         </div>
       </div>
     </div>
@@ -144,29 +144,29 @@
   <section style="padding:60px 0;background:#f7faf7">
     <div class="container">
       <div style="text-align:center;margin-bottom:40px" data-reveal>
-        <span class="section-badge" style="background:rgba(27,94,32,.08);color:#1b5e20;border-color:rgba(27,94,32,.2)">Avantages</span>
-        <h2 style="font-size:clamp(1.6rem,3vw,2.2rem);font-weight:800;color:var(--text);margin-top:12px">Pourquoi rejoindre l'AHH ?</h2>
+        <span class="section-badge" style="background:rgba(27,94,32,.08);color:#1b5e20;border-color:rgba(27,94,32,.2)" data-i18n="why.badge">Avantages</span>
+        <h2 style="font-size:clamp(1.6rem,3vw,2.2rem);font-weight:800;color:var(--text);margin-top:12px" data-i18n="why.h2">Pourquoi rejoindre l'AHH ?</h2>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:24px;max-width:960px;margin:0 auto">
         <div class="ahh-why-card" style="text-align:center;padding:28px 20px;background:#fff;border-radius:16px;box-shadow:0 2px 16px rgba(0,0,0,.06)" data-reveal data-delay="0">
           <div style="font-size:2.4rem;margin-bottom:12px">🤝</div>
-          <h3 style="font-size:1rem;font-weight:700;margin-bottom:8px;color:var(--g1)">Réseau communautaire</h3>
-          <p style="font-size:.85rem;color:var(--muted);line-height:1.6">Connectez-vous avec des familles haïtiennes de Hamilton et de la région.</p>
+          <h3 style="font-size:1rem;font-weight:700;margin-bottom:8px;color:var(--g1)" data-i18n="why1.h3">Réseau communautaire</h3>
+          <p style="font-size:.85rem;color:var(--muted);line-height:1.6" data-i18n="why1.p">Connectez-vous avec des familles haïtiennes de Hamilton et de la région.</p>
         </div>
         <div class="ahh-why-card" style="text-align:center;padding:28px 20px;background:#fff;border-radius:16px;box-shadow:0 2px 16px rgba(0,0,0,.06)" data-reveal data-delay="120">
           <div style="font-size:2.4rem;margin-bottom:12px">🎭</div>
-          <h3 style="font-size:1rem;font-weight:700;margin-bottom:8px;color:var(--g1)">Culture & traditions</h3>
-          <p style="font-size:.85rem;color:var(--muted);line-height:1.6">Célébrez la richesse culturelle haïtienne à travers nos événements et activités.</p>
+          <h3 style="font-size:1rem;font-weight:700;margin-bottom:8px;color:var(--g1)" data-i18n="why2.h3">Culture & traditions</h3>
+          <p style="font-size:.85rem;color:var(--muted);line-height:1.6" data-i18n="why2.p">Célébrez la richesse culturelle haïtienne à travers nos événements et activités.</p>
         </div>
         <div class="ahh-why-card" style="text-align:center;padding:28px 20px;background:#fff;border-radius:16px;box-shadow:0 2px 16px rgba(0,0,0,.06)" data-reveal data-delay="240">
           <div style="font-size:2.4rem;margin-bottom:12px">💼</div>
-          <h3 style="font-size:1rem;font-weight:700;margin-bottom:8px;color:var(--g1)">Opportunités</h3>
-          <p style="font-size:.85rem;color:var(--muted);line-height:1.6">Accédez à des stages, formations et offres d'emploi pour la communauté.</p>
+          <h3 style="font-size:1rem;font-weight:700;margin-bottom:8px;color:var(--g1)" data-i18n="why3.h3">Opportunités</h3>
+          <p style="font-size:.85rem;color:var(--muted);line-height:1.6" data-i18n="why3.p">Accédez à des stages, formations et offres d'emploi pour la communauté.</p>
         </div>
         <div class="ahh-why-card" style="text-align:center;padding:28px 20px;background:#fff;border-radius:16px;box-shadow:0 2px 16px rgba(0,0,0,.06)" data-reveal data-delay="360">
           <div style="font-size:2.4rem;margin-bottom:12px">❤️</div>
-          <h3 style="font-size:1rem;font-weight:700;margin-bottom:8px;color:var(--g1)">Entraide & soutien</h3>
-          <p style="font-size:.85rem;color:var(--muted);line-height:1.6">Bénéficiez d'un réseau d'entraide pour les nouvelles familles arrivant au Canada.</p>
+          <h3 style="font-size:1rem;font-weight:700;margin-bottom:8px;color:var(--g1)" data-i18n="why4.h3">Entraide & soutien</h3>
+          <p style="font-size:.85rem;color:var(--muted);line-height:1.6" data-i18n="why4.p">Bénéficiez d'un réseau d'entraide pour les nouvelles familles arrivant au Canada.</p>
         </div>
       </div>
     </div>
@@ -195,10 +195,10 @@
       <div style="margin-bottom:36px">
         <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.12);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.2);border-radius:30px;padding:6px 18px;margin-bottom:16px">
           <span style="font-size:1rem">🎂</span>
-          <span style="color:rgba(255,255,255,.9);font-size:.78rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Aujourd'hui</span>
+          <span style="color:rgba(255,255,255,.9);font-size:.78rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase" data-i18n="bday.today">Aujourd'hui</span>
         </div>
-        <h2 style="font-size:2.2rem;font-weight:900;color:#fff;margin:0 0 8px;text-shadow:0 2px 20px rgba(0,0,0,.3)">Joyeux anniversaire !</h2>
-        <p style="color:rgba(255,255,255,.75);font-size:.95rem;margin:0">La grande famille AHH vous souhaite une très belle fête 🥳</p>
+        <h2 style="font-size:2.2rem;font-weight:900;color:#fff;margin:0 0 8px;text-shadow:0 2px 20px rgba(0,0,0,.3)" data-i18n="bday.h2">Joyeux anniversaire !</h2>
+        <p style="color:rgba(255,255,255,.75);font-size:.95rem;margin:0" data-i18n="bday.p">La grande famille AHH vous souhaite une très belle fête 🥳</p>
       </div>
       <!-- Cartes membres -->
       <div id="anniversairesGrid" style="display:flex;flex-wrap:wrap;gap:24px;justify-content:center"></div>
@@ -209,7 +209,7 @@
   <section id="featured-activity" style="display:none;background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:60px 0">
     <div class="container">
       <div style="text-align:center;margin-bottom:8px">
-        <span style="background:rgba(255,255,255,.2);color:#fff;font-size:.75rem;font-weight:700;padding:4px 14px;border-radius:20px;letter-spacing:.08em">⭐ À LA UNE</span>
+        <span style="background:rgba(255,255,255,.2);color:#fff;font-size:.75rem;font-weight:700;padding:4px 14px;border-radius:20px;letter-spacing:.08em" data-i18n="featured.badge">⭐ À LA UNE</span>
       </div>
       <div id="featured-card" style="display:flex;gap:40px;align-items:center;flex-wrap:wrap;margin-top:24px">
         <div id="featured-img" style="flex:0 0 380px;max-width:100%"></div>
@@ -219,7 +219,7 @@
           <div id="featured-desc" style="font-size:.9rem;opacity:.8;margin-bottom:28px;line-height:1.7;max-width:480px"></div>
           <div style="display:flex;gap:12px;flex-wrap:wrap">
             <a id="featured-btn" href="#" class="btn btn-primary" style="background:#fff;color:#1b5e20;font-weight:700;padding:14px 28px;border-radius:12px;font-size:1rem">🎟️ S'inscrire</a>
-            <a id="featured-btn2" href="actualites.html" class="btn" style="border:2px solid rgba(255,255,255,.5);color:#fff;padding:14px 22px;border-radius:12px;font-size:.95rem">Voir toutes les activités →</a>
+            <a id="featured-btn2" href="actualites.html" class="btn" style="border:2px solid rgba(255,255,255,.5);color:#fff;padding:14px 22px;border-radius:12px;font-size:.95rem" data-i18n="link.allActivities">Voir toutes les activités →</a>
           </div>
         </div>
       </div>
@@ -230,13 +230,13 @@
   <section class="feed-section" id="feed-section" style="display:none">
     <div class="container">
       <div class="section-header" data-reveal>
-        <span class="section-badge blue"><span class="feed-live-dot"></span>En direct</span>
-        <h2>Prochaines activités</h2>
-        <p>Restez connecté aux événements de votre communauté.</p>
+        <span class="section-badge blue"><span class="feed-live-dot"></span><span data-i18n="feed.badge">En direct</span></span>
+        <h2 data-i18n="feed.h2">Prochaines activités</h2>
+        <p data-i18n="feed.p">Restez connecté aux événements de votre communauté.</p>
       </div>
       <div class="feed-grid" id="feedGrid"></div>
       <div style="text-align:center;margin-top:32px">
-        <a href="actualites.html" class="btn btn-outline">Voir toutes les activités →</a>
+        <a href="actualites.html" class="btn btn-outline" data-i18n="link.allActivities">Voir toutes les activités →</a>
       </div>
     </div>
   </section>
@@ -245,13 +245,13 @@
   <section class="gallery-preview-section" id="gallery-preview-section" style="display:none">
     <div class="container">
       <div class="section-header" data-reveal>
-        <span class="section-badge red">Galerie</span>
-        <h2>Nos plus beaux moments</h2>
-        <p>Une fenêtre sur la vie et la culture de notre communauté.</p>
+        <span class="section-badge red" data-i18n="galprev.badge">Galerie</span>
+        <h2 data-i18n="galprev.h2">Nos plus beaux moments</h2>
+        <p data-i18n="galprev.p">Une fenêtre sur la vie et la culture de notre communauté.</p>
       </div>
       <div class="gallery-preview-grid" id="galleryPreviewGrid"></div>
       <div style="text-align:center;margin-top:32px">
-        <a href="galerie.html" class="btn btn-outline">Voir toute la galerie →</a>
+        <a href="galerie.html" class="btn btn-outline" data-i18n="galprev.link">Voir toute la galerie →</a>
       </div>
     </div>
   </section>
@@ -355,9 +355,9 @@
   <section id="videos-section" style="padding:72px 0;background:#fff">
     <div class="container" id="videosSectionWrap" style="display:none">
       <div class="section-header" data-reveal>
-        <span class="section-badge">Nos vidéos</span>
-        <h2>Revivez nos moments</h2>
-        <p>Découvrez nos événements et activités en vidéo.</p>
+        <span class="section-badge" data-i18n="videos.badge">Nos vidéos</span>
+        <h2 data-i18n="videos.h2">Revivez nos moments</h2>
+        <p data-i18n="videos.p">Découvrez nos événements et activités en vidéo.</p>
       </div>
       <div id="videosGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:24px;margin-top:32px"></div>
     </div>
@@ -367,9 +367,9 @@
   <section class="sponsors-section" id="commanditaires">
     <div class="container">
       <div class="section-header" data-reveal>
-        <span class="section-badge">Partenaires</span>
-        <h2>Nos commanditaires</h2>
-        <p>Merci à ceux qui soutiennent la mission de l'Association Haïtienne de Hamilton.</p>
+        <span class="section-badge" data-i18n="sponsors.badge">Partenaires</span>
+        <h2 data-i18n="sponsors.h2">Nos commanditaires</h2>
+        <p data-i18n="sponsors.p">Merci à ceux qui soutiennent la mission de l'Association Haïtienne de Hamilton.</p>
       </div>
       <div id="sponsorsGrid" class="sponsors-grid"></div>
     </div>
@@ -380,44 +380,44 @@
     <div class="donation-bg"></div>
     <div class="container donation-content">
       <div class="section-header light" data-reveal>
-        <span class="section-badge">Soutenir AHH</span>
-        <h2>Contribuez à notre mission</h2>
-        <p>Votre don finance nos activités, soutient les familles et fait rayonner la culture haïtienne à Hamilton.</p>
+        <span class="section-badge" data-i18n="don.badge">Soutenir AHH</span>
+        <h2 data-i18n="don.h2">Contribuez à notre mission</h2>
+        <p data-i18n="don.p">Votre don finance nos activités, soutient les familles et fait rayonner la culture haïtienne à Hamilton.</p>
       </div>
       <!-- Toggle don mensuel -->
       <div style="display:flex;justify-content:center;margin-bottom:24px">
         <button id="donToggle" onclick="_toggleDonMode()" style="background:rgba(255,255,255,.15);color:#fff;border:2px solid rgba(255,255,255,.4);padding:12px 28px;border-radius:30px;font-weight:700;font-size:.9rem;cursor:pointer;transition:all .3s">
-          🔄 Don mensuel
+          <span data-i18n="don.toggle">🔄 Don mensuel</span>
         </button>
       </div>
       <div class="donation-cards">
         <div class="donation-card" data-reveal data-delay="0">
           <div class="donation-amount">$10</div>
-          <div class="donation-label">Ami</div>
-          <p>Couvre les frais d'une activité communautaire.</p>
-          <a href="https://donate.stripe.com/fZe9CTg1Oh0qehacMM" target="_blank" rel="noopener" class="btn btn-outline-white">Donner $10</a>
+          <div class="donation-label" data-i18n="don.label1">Ami</div>
+          <p data-i18n="don.desc1">Couvre les frais d'une activité communautaire.</p>
+          <a href="https://donate.stripe.com/fZe9CTg1Oh0qehacMM" target="_blank" rel="noopener" class="btn btn-outline-white" data-i18n="don.give10">Donner $10</a>
         </div>
         <div class="donation-card featured" data-reveal data-delay="120">
-          <div class="donation-badge">Populaire</div>
+          <div class="donation-badge" data-i18n="don.popular">Populaire</div>
           <div class="donation-amount">$50</div>
-          <div class="donation-label">Bienfaiteur</div>
-          <p>Soutient une famille dans son installation à Hamilton.</p>
-          <a href="https://donate.stripe.com/fZe9CTg1Oh0qehacMM" target="_blank" rel="noopener" class="btn btn-primary">Donner $50</a>
+          <div class="donation-label" data-i18n="don.label2">Bienfaiteur</div>
+          <p data-i18n="don.desc2">Soutient une famille dans son installation à Hamilton.</p>
+          <a href="https://donate.stripe.com/fZe9CTg1Oh0qehacMM" target="_blank" rel="noopener" class="btn btn-primary" data-i18n="don.give50">Donner $50</a>
         </div>
         <div class="donation-card" data-reveal data-delay="240">
           <div class="donation-amount">$100</div>
-          <div class="donation-label">Partenaire</div>
-          <p>Sponsor un événement culturel ou un projet communautaire.</p>
-          <a href="https://donate.stripe.com/fZe9CTg1Oh0qehacMM" target="_blank" rel="noopener" class="btn btn-outline-white">Donner $100</a>
+          <div class="donation-label" data-i18n="don.label3">Partenaire</div>
+          <p data-i18n="don.desc3">Sponsor un événement culturel ou un projet communautaire.</p>
+          <a href="https://donate.stripe.com/fZe9CTg1Oh0qehacMM" target="_blank" rel="noopener" class="btn btn-outline-white" data-i18n="don.give100">Donner $100</a>
         </div>
         <div class="donation-card" data-reveal data-delay="360">
           <div class="donation-amount">✦</div>
-          <div class="donation-label">Montant libre</div>
-          <p>Choisissez le montant qui vous convient. Chaque dollar compte !</p>
+          <div class="donation-label" data-i18n="don.label4">Montant libre</div>
+          <p data-i18n="don.desc4">Choisissez le montant qui vous convient. Chaque dollar compte !</p>
           <div style="display:flex;gap:8px;align-items:center;margin-top:auto">
             <input type="number" id="customDonation" min="1" placeholder="$" step="1"
               style="width:80px;padding:10px;border:2px solid rgba(255,255,255,.4);border-radius:8px;background:rgba(255,255,255,.15);color:#fff;font-size:.9rem;font-weight:700;outline:none;text-align:center"/>
-            <a id="customDonateBtn" href="https://donate.stripe.com/fZe9CTg1Oh0qehacMM" target="_blank" rel="noopener" class="btn btn-outline-white" style="flex:1">Donner</a>
+            <a id="customDonateBtn" href="https://donate.stripe.com/fZe9CTg1Oh0qehacMM" target="_blank" rel="noopener" class="btn btn-outline-white" style="flex:1" data-i18n="don.giveGeneric">Donner</a>
           </div>
         </div>
       </div>
@@ -425,24 +425,26 @@
   </section>
   <script>
   (function() {
+    function dt(key, fallback) { return (window.AHH_t && window.AHH_t(key)) || fallback; }
     var input = document.getElementById('customDonation');
     var btn   = document.getElementById('customDonateBtn');
     if (!input || !btn) return;
     input.addEventListener('input', function() {
       var val = parseInt(this.value);
-      btn.textContent = val > 0 ? 'Donner $' + val : 'Donner';
+      btn.textContent = val > 0 ? dt('don.giveAmount', 'Donner $') + val : dt('don.giveGeneric', 'Donner');
     });
   })();
   var _donRecurring = false;
   var _donOriginalLinks = [];
   function _toggleDonMode() {
+    function dt(key, fallback) { return (window.AHH_t && window.AHH_t(key)) || fallback; }
     _donRecurring = !_donRecurring;
     var toggle = document.getElementById('donToggle');
     var cards = document.querySelectorAll('.donation-card');
     if (_donRecurring) {
       toggle.style.background = '#e65100';
       toggle.style.borderColor = '#e65100';
-      toggle.textContent = '✅ Mode mensuel actif, cliquez pour revenir au don unique';
+      toggle.textContent = dt('don.toggleActive', '✅ Mode mensuel actif, cliquez pour revenir au don unique');
       cards.forEach(function(card, i) {
         var link = card.querySelector('a.btn, a.btn-primary, a.btn-outline-white');
         if (link) {
@@ -452,20 +454,20 @@
           link.removeAttribute('href');
           link.removeAttribute('target');
           link.style.cursor = 'pointer';
-          link.textContent = amount ? 'Don mensuel $' + amount + '/mois' : link.textContent;
+          link.textContent = amount ? dt('don.monthlyAmount', 'Don mensuel $') + amount + dt('don.perMonth', '/mois') : link.textContent;
           link.onclick = function(e) {
             e.preventDefault();
             var m = amount || parseInt(document.getElementById('customDonation')?.value) || 0;
-            if (m < 1) { alert('Veuillez entrer un montant minimum de 1$.'); return; }
-            var email = prompt('Votre courriel (optionnel) :');
+            if (m < 1) { alert(dt('don.minAmount', 'Veuillez entrer un montant minimum de 1$.')); return; }
+            var email = prompt(dt('don.emailPrompt', 'Votre courriel (optionnel) :'));
             fetch((window.location.hostname === 'localhost' ? 'http://localhost:3001' : '') + '/api/donations/recurring', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ montant: m, email: email || '' })
             }).then(function(r) { return r.json(); }).then(function(d) {
               if (d.url) window.location.href = d.url;
-              else alert(d.error || 'Erreur');
-            }).catch(function() { alert('Erreur de connexion'); });
+              else alert(d.error || dt('don.error', 'Erreur'));
+            }).catch(function() { alert(dt('don.connError', 'Erreur de connexion')); });
           };
         }
       });
@@ -476,26 +478,26 @@
         customBtn.removeAttribute('href');
         customBtn.removeAttribute('target');
         customBtn.style.cursor = 'pointer';
-        customBtn.textContent = 'Don mensuel';
+        customBtn.textContent = dt('don.toggle', '🔄 Don mensuel').replace('🔄 ', '');
         customBtn.onclick = function(e) {
           e.preventDefault();
           var m = parseInt(document.getElementById('customDonation')?.value) || 0;
-          if (m < 1) { alert('Veuillez entrer un montant minimum de 1$.'); return; }
-          var email = prompt('Votre courriel (optionnel) :');
+          if (m < 1) { alert(dt('don.minAmount', 'Veuillez entrer un montant minimum de 1$.')); return; }
+          var email = prompt(dt('don.emailPrompt', 'Votre courriel (optionnel) :'));
           fetch((window.location.hostname === 'localhost' ? 'http://localhost:3001' : '') + '/api/donations/recurring', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ montant: m, email: email || '' })
           }).then(function(r) { return r.json(); }).then(function(d) {
             if (d.url) window.location.href = d.url;
-            else alert(d.error || 'Erreur');
-          }).catch(function() { alert('Erreur de connexion'); });
+            else alert(d.error || dt('don.error', 'Erreur'));
+          }).catch(function() { alert(dt('don.connError', 'Erreur de connexion')); });
         };
       }
     } else {
       toggle.style.background = 'rgba(255,255,255,.15)';
       toggle.style.borderColor = 'rgba(255,255,255,.4)';
-      toggle.textContent = '🔄 Don mensuel';
+      toggle.textContent = dt('don.toggle', '🔄 Don mensuel');
       cards.forEach(function(card, i) {
         var link = card.querySelector('a.btn, a.btn-primary, a.btn-outline-white');
         if (link && _donOriginalLinks[i]) {
@@ -522,12 +524,12 @@
   <section class="ambassador-section" id="ambassador-section" style="display:none">
     <div class="container">
       <div class="section-header" data-reveal>
-        <span class="section-badge" style="background:rgba(249,168,37,.12);color:#c77700;border-color:rgba(249,168,37,.3)">⭐ Honneur</span>
-        <h2>Ambassadeur <span class="italic-accent">du mois</span></h2>
-        <p>Chaque mois, nous célébrons un membre exceptionnel de notre communauté.</p>
+        <span class="section-badge" style="background:rgba(249,168,37,.12);color:#c77700;border-color:rgba(249,168,37,.3)" data-i18n="amb.badge">⭐ Honneur</span>
+        <h2 data-i18n-html="amb.h2">Ambassadeur <span class="italic-accent">du mois</span></h2>
+        <p data-i18n="amb.p">Chaque mois, nous célébrons un membre exceptionnel de notre communauté.</p>
       </div>
       <div class="ambassador-card" id="ambassadorCard" data-reveal>
-        <div class="ambassador-badge-crown">👑 Ambassadeur du mois</div>
+        <div class="ambassador-badge-crown" data-i18n="amb.crown">👑 Ambassadeur du mois</div>
         <div class="ambassador-photo-placeholder" id="ambassadorPhoto">?</div>
         <div class="ambassador-info">
           <div class="ambassador-name" id="ambassadorName">—</div>
@@ -542,57 +544,57 @@
   <section class="timeline-section" id="histoire">
     <div class="container">
       <div class="section-header" data-reveal>
-        <span class="section-badge blue">Notre histoire</span>
-        <h2>AHH depuis <span class="italic-accent-blue">2008</span></h2>
-        <p>Plus de 17 ans de solidarité, culture et engagement au service de la communauté haïtienne de Hamilton.</p>
+        <span class="section-badge blue" data-i18n="tl.badge">Notre histoire</span>
+        <h2 data-i18n-html="tl.h2">AHH depuis <span class="italic-accent-blue">2008</span></h2>
+        <p data-i18n="tl.p">Plus de 17 ans de solidarité, culture et engagement au service de la communauté haïtienne de Hamilton.</p>
       </div>
       <div class="timeline">
         <div class="timeline-item" data-spring data-delay="0">
           <div class="timeline-dot">🌱</div>
           <div class="timeline-content">
             <div class="timeline-year">2008</div>
-            <h4>Fondation de l'AHH</h4>
-            <p>Un groupe de familles haïtiennes de Hamilton se réunit pour créer une association communautaire ancrée dans les valeurs d'entraide et de solidarité.</p>
+            <h4 data-i18n="tl1.h4">Fondation de l'AHH</h4>
+            <p data-i18n="tl1.p">Un groupe de familles haïtiennes de Hamilton se réunit pour créer une association communautaire ancrée dans les valeurs d'entraide et de solidarité.</p>
           </div>
         </div>
         <div class="timeline-item" data-spring data-delay="120">
           <div class="timeline-dot">🎭</div>
           <div class="timeline-content">
             <div class="timeline-year">2012</div>
-            <h4>Premiers grands événements culturels</h4>
-            <p>Organisation des premières soirées culturelles haïtiennes à Hamilton, célébrant la musique, la cuisine et les traditions du peuple haïtien.</p>
+            <h4 data-i18n="tl2.h4">Premiers grands événements culturels</h4>
+            <p data-i18n="tl2.p">Organisation des premières soirées culturelles haïtiennes à Hamilton, célébrant la musique, la cuisine et les traditions du peuple haïtien.</p>
           </div>
         </div>
         <div class="timeline-item" data-spring data-delay="240">
           <div class="timeline-dot">🤲</div>
           <div class="timeline-content">
             <div class="timeline-year">2016</div>
-            <h4>Programme d'assistance aux nouveaux arrivants</h4>
-            <p>Lancement d'un programme structuré d'aide à l'intégration pour les familles haïtiennes nouvellement arrivées au Canada.</p>
+            <h4 data-i18n="tl3.h4">Programme d'assistance aux nouveaux arrivants</h4>
+            <p data-i18n="tl3.p">Lancement d'un programme structuré d'aide à l'intégration pour les familles haïtiennes nouvellement arrivées au Canada.</p>
           </div>
         </div>
         <div class="timeline-item" data-spring data-delay="360">
           <div class="timeline-dot">🌐</div>
           <div class="timeline-content">
             <div class="timeline-year">2020</div>
-            <h4>Transition numérique</h4>
-            <p>Face à la pandémie, l'AHH innove en organisant ses activités en ligne, renforçant les liens communautaires malgré la distance.</p>
+            <h4 data-i18n="tl4.h4">Transition numérique</h4>
+            <p data-i18n="tl4.p">Face à la pandémie, l'AHH innove en organisant ses activités en ligne, renforçant les liens communautaires malgré la distance.</p>
           </div>
         </div>
         <div class="timeline-item" data-spring data-delay="480">
           <div class="timeline-dot">🚀</div>
           <div class="timeline-content">
             <div class="timeline-year">2024</div>
-            <h4>Plateforme numérique AHH</h4>
-            <p>Lancement de la plateforme en ligne complète : gestion des membres, événements, billets, paiements et communications, une première dans la région.</p>
+            <h4 data-i18n="tl5.h4">Plateforme numérique AHH</h4>
+            <p data-i18n="tl5.p">Lancement de la plateforme en ligne complète : gestion des membres, événements, billets, paiements et communications, une première dans la région.</p>
           </div>
         </div>
         <div class="timeline-item" data-spring data-delay="600">
           <div class="timeline-dot">⭐</div>
           <div class="timeline-content">
             <div class="timeline-year">2025+</div>
-            <h4>Croissance et rayonnement</h4>
-            <p>L'AHH continue de grandir, d'innover et de rayonner, avec une communauté plus soudée que jamais autour des valeurs haïtiennes et canadiennes.</p>
+            <h4 data-i18n="tl6.h4">Croissance et rayonnement</h4>
+            <p data-i18n="tl6.p">L'AHH continue de grandir, d'innover et de rayonner, avec une communauté plus soudée que jamais autour des valeurs haïtiennes et canadiennes.</p>
           </div>
         </div>
       </div>
@@ -603,40 +605,40 @@
   <section class="infographie-section">
     <div class="container" style="position:relative;z-index:1">
       <div class="section-header light" data-reveal>
-        <span class="section-badge" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)">🇭🇹 Haïti</span>
-        <h2>Haïti en quelques chiffres</h2>
-        <p>La perle des Antilles, une nation riche d'histoire, de culture et de résilience.</p>
+        <span class="section-badge" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)" data-i18n="info.badge">🇭🇹 Haïti</span>
+        <h2 data-i18n="info.h2">Haïti en quelques chiffres</h2>
+        <p data-i18n="info.p">La perle des Antilles, une nation riche d'histoire, de culture et de résilience.</p>
       </div>
       <div class="infographie-grid">
         <div class="info-card" data-reveal data-delay="0">
           <span class="info-icon">📅</span>
           <div class="info-stat">1804</div>
-          <div class="info-label">Première république noire indépendante au monde</div>
+          <div class="info-label" data-i18n="info1.label">Première république noire indépendante au monde</div>
         </div>
         <div class="info-card" data-reveal data-delay="80">
           <span class="info-icon">👥</span>
           <div class="info-stat">11M+</div>
-          <div class="info-label">Habitants sur l'île</div>
+          <div class="info-label" data-i18n="info2.label">Habitants sur l'île</div>
         </div>
         <div class="info-card" data-reveal data-delay="160">
           <span class="info-icon">🗣️</span>
           <div class="info-stat">2</div>
-          <div class="info-label">Langues officielles : français et créole haïtien</div>
+          <div class="info-label" data-i18n="info3.label">Langues officielles : français et créole haïtien</div>
         </div>
         <div class="info-card" data-reveal data-delay="240">
           <span class="info-icon">🎵</span>
           <div class="info-stat">200+</div>
-          <div class="info-label">Ans d'histoire musicale (Rara, Kompa, Jazz)</div>
+          <div class="info-label" data-i18n="info4.label">Ans d'histoire musicale (Rara, Kompa, Jazz)</div>
         </div>
         <div class="info-card" data-reveal data-delay="320">
           <span class="info-icon">🍽️</span>
           <div class="info-stat">Griot</div>
-          <div class="info-label">Plat national : porc frit accompagné de bannann peze</div>
+          <div class="info-label" data-i18n="info5.label">Plat national : porc frit accompagné de bannann peze</div>
         </div>
         <div class="info-card" data-reveal data-delay="400">
           <span class="info-icon">🏳️</span>
           <div class="info-stat">1803</div>
-          <div class="info-label">Année de création du drapeau haïtien bleu et rouge</div>
+          <div class="info-label" data-i18n="info6.label">Année de création du drapeau haïtien bleu et rouge</div>
         </div>
       </div>
     </div>
@@ -646,62 +648,62 @@
   <section class="faq-section">
     <div class="container">
       <div class="section-header" data-reveal>
-        <span class="section-badge">Questions fréquentes</span>
-        <h2>Tout ce que vous voulez <span class="highlight">savoir</span></h2>
-        <p>Les réponses aux questions les plus posées sur l'AHH.</p>
+        <span class="section-badge" data-i18n="faq.badge">Questions fréquentes</span>
+        <h2 data-i18n-html="faq.h2">Tout ce que vous voulez <span class="highlight">savoir</span></h2>
+        <p data-i18n="faq.p">Les réponses aux questions les plus posées sur l'AHH.</p>
       </div>
       <div class="faq-list">
         <div class="faq-item">
           <button class="faq-btn">
-            Comment devenir membre de l'AHH ?
+            <span data-i18n="faq1.q">Comment devenir membre de l'AHH ?</span>
             <span class="faq-chevron">▾</span>
           </button>
-          <div class="faq-body"><div class="faq-body-inner">
+          <div class="faq-body"><div class="faq-body-inner" data-i18n-html="faq1.a">
             Vous pouvez devenir membre en remplissant notre <a href="adhesion.html" style="color:var(--g2);font-weight:600">formulaire d'adhésion en ligne</a>. L'adhésion est ouverte à toute personne intéressée par la communauté haïtienne de Hamilton. Un courriel de confirmation vous sera envoyé après approbation.
           </div></div>
         </div>
         <div class="faq-item">
           <button class="faq-btn">
-            Quel est le coût de la cotisation annuelle ?
+            <span data-i18n="faq2.q">Quel est le coût de la cotisation annuelle ?</span>
             <span class="faq-chevron">▾</span>
           </button>
-          <div class="faq-body"><div class="faq-body-inner">
+          <div class="faq-body"><div class="faq-body-inner" data-i18n="faq2.a">
             La cotisation varie selon le plan choisi. Nous offrons un plan gratuit de base, ainsi que des plans Bienfaiteur et Partenaire pour ceux qui souhaitent soutenir davantage nos activités. Tous les détails sont sur la page d'adhésion.
           </div></div>
         </div>
         <div class="faq-item">
           <button class="faq-btn">
-            Comment m'inscrire à une activité ou événement ?
+            <span data-i18n="faq3.q">Comment m'inscrire à une activité ou événement ?</span>
             <span class="faq-chevron">▾</span>
           </button>
-          <div class="faq-body"><div class="faq-body-inner">
+          <div class="faq-body"><div class="faq-body-inner" data-i18n-html="faq3.a">
             Consultez notre <a href="actualites.html" style="color:var(--g2);font-weight:600">page d'activités</a> et cliquez sur l'événement qui vous intéresse. Si l'événement est payant, vous pourrez acheter vos billets directement en ligne via notre système de paiement sécurisé Stripe.
           </div></div>
         </div>
         <div class="faq-item">
           <button class="faq-btn">
-            Comment faire un don à l'association ?
+            <span data-i18n="faq4.q">Comment faire un don à l'association ?</span>
             <span class="faq-chevron">▾</span>
           </button>
-          <div class="faq-body"><div class="faq-body-inner">
+          <div class="faq-body"><div class="faq-body-inner" data-i18n-html="faq4.a">
             Vous pouvez faire un don directement depuis notre <a href="#don" style="color:var(--g2);font-weight:600">section Dons</a> en bas de la page d'accueil. Nous acceptons les paiements en ligne sécurisés via Stripe. Chaque contribution, petite ou grande, aide notre communauté à grandir.
           </div></div>
         </div>
         <div class="faq-item">
           <button class="faq-btn">
-            Je suis un nouveau arrivant haïtien à Hamilton, comment l'AHH peut m'aider ?
+            <span data-i18n="faq5.q">Je suis un nouveau arrivant haïtien à Hamilton, comment l'AHH peut m'aider ?</span>
             <span class="faq-chevron">▾</span>
           </button>
-          <div class="faq-body"><div class="faq-body-inner">
+          <div class="faq-body"><div class="faq-body-inner" data-i18n-html="faq5.a">
             L'AHH offre un programme d'accompagnement pour les nouveaux arrivants : orientation, ressources d'intégration, accès au réseau communautaire et soutien administratif. Contactez-nous via notre <a href="#contact" style="color:var(--g2);font-weight:600">formulaire de contact</a> ou par téléphone.
           </div></div>
         </div>
         <div class="faq-item">
           <button class="faq-btn">
-            Comment rejoindre le groupe WhatsApp de l'AHH ?
+            <span data-i18n="faq6.q">Comment rejoindre le groupe WhatsApp de l'AHH ?</span>
             <span class="faq-chevron">▾</span>
           </button>
-          <div class="faq-body"><div class="faq-body-inner">
+          <div class="faq-body"><div class="faq-body-inner" data-i18n="faq6.a">
             Cliquez sur le bouton WhatsApp vert en bas à droite de la page, ou contactez directement Jean Raymond Antoine au 905-519-7967. Le groupe est ouvert à tous les membres actifs de la communauté haïtienne de Hamilton.
           </div></div>
         </div>
@@ -713,13 +715,13 @@
   <section class="newsletter-section">
     <div class="container newsletter-inner">
       <div class="newsletter-text">
-        <h2>Restez informé</h2>
-        <p>Recevez nos nouvelles, invitations et annonces directement dans votre boîte courriel. Gratuit, sans publicité.</p>
+        <h2 data-i18n="nl.h2">Restez informé</h2>
+        <p data-i18n="nl.p">Recevez nos nouvelles, invitations et annonces directement dans votre boîte courriel. Gratuit, sans publicité.</p>
       </div>
       <div class="newsletter-form-wrap">
         <div class="newsletter-form" id="newsletterForm">
-          <input type="email" class="newsletter-input" id="nlEmail" placeholder="votre@courriel.com" autocomplete="email"/>
-          <button class="newsletter-btn" id="nlBtn" type="button">S'abonner</button>
+          <input type="email" class="newsletter-input" id="nlEmail" placeholder="votre@courriel.com" data-i18n-ph="nl.placeholder" autocomplete="email"/>
+          <button class="newsletter-btn" id="nlBtn" type="button" data-i18n="nl.btn">S'abonner</button>
         </div>
         <div class="newsletter-msg" id="nlMsg"></div>
       </div>
@@ -730,21 +732,21 @@
   <section class="contact-section" id="contact">
     <div class="container contact-grid">
       <div class="contact-info" data-reveal>
-        <span class="section-badge">Contact</span>
-        <h2>Écrivez-nous</h2>
-        <p>Nous sommes heureux de vous accueillir. Contactez-nous pour toute question.</p>
+        <span class="section-badge" data-i18n="contact.badge">Contact</span>
+        <h2 data-i18n="contact.h2">Écrivez-nous</h2>
+        <p data-i18n="contact.p">Nous sommes heureux de vous accueillir. Contactez-nous pour toute question.</p>
         <div class="contact-items">
           <div class="contact-item">
             <span class="contact-icon">📍</span>
             <div>
-              <strong>Adresse</strong>
+              <strong data-i18n="contact.address">Adresse</strong>
               <span>231 Fernwood Crescent, Hamilton, ON  L8T 3L7</span>
             </div>
           </div>
           <div class="contact-item">
             <span class="contact-icon">📞</span>
             <div>
-              <strong>Téléphone</strong>
+              <strong data-i18n="contact.phone">Téléphone</strong>
               <span>
                 <a href="tel:9058188269">905-818-8269</a> /
                 <a href="tel:9055197967">905-519-7967</a>
@@ -754,7 +756,7 @@
           <div class="contact-item">
             <span class="contact-icon">✉️</span>
             <div>
-              <strong>Courriel</strong>
+              <strong data-i18n="contact.email">Courriel</strong>
               <span><a href="mailto:contact@ahhamilton.ca">contact@ahhamilton.ca</a></span>
             </div>
           </div>
@@ -769,43 +771,43 @@
         </div>
       </div>
       <form class="contact-form" id="contactForm" data-reveal data-delay="150">
-        <h3 class="form-title">Envoyez-nous un message</h3>
+        <h3 class="form-title" data-i18n="cf.title">Envoyez-nous un message</h3>
         <div class="contact-success" id="contactSuccess">
           <div class="cs-icon">✅</div>
-          <h3>Message envoyé !</h3>
-          <p>Merci de nous avoir contactés. Nous vous répondrons dans les plus brefs délais.</p>
+          <h3 data-i18n="cf.sentH3">Message envoyé !</h3>
+          <p data-i18n="cf.sentP">Merci de nous avoir contactés. Nous vous répondrons dans les plus brefs délais.</p>
         </div>
         <div id="contactMsg" style="display:none;padding:10px 14px;border-radius:8px;font-size:.82rem;margin-bottom:14px"></div>
         <div class="form-group">
-          <label>Nom complet</label>
+          <label data-i18n="cf.name">Nom complet</label>
           <input type="text" id="cf_nom" placeholder="Jean Dupont" required/>
         </div>
         <div class="form-group">
-          <label>Courriel</label>
+          <label data-i18n="cf.email">Courriel</label>
           <input type="email" id="cf_email" placeholder="votre@email.com" required/>
         </div>
         <div class="form-group">
-          <label>Sujet</label>
+          <label data-i18n="cf.subject">Sujet</label>
           <select id="cf_sujet">
-            <option value="">Choisir un sujet…</option>
-            <option>Information générale</option>
-            <option>Adhésion</option>
-            <option>Bénévolat</option>
-            <option>Événements</option>
-            <option>Partenariat</option>
-            <option>Autre</option>
+            <option value="" data-i18n="cf.subject.choose">Choisir un sujet…</option>
+            <option value="Information générale" data-i18n="cf.subject.general">Information générale</option>
+            <option value="Adhésion" data-i18n="cf.subject.adhesion">Adhésion</option>
+            <option value="Bénévolat" data-i18n="cf.subject.benevolat">Bénévolat</option>
+            <option value="Événements" data-i18n="cf.subject.evenements">Événements</option>
+            <option value="Partenariat" data-i18n="cf.subject.partenariat">Partenariat</option>
+            <option value="Autre" data-i18n="cf.subject.autre">Autre</option>
           </select>
-          <div id="cf_adhesion_notice" style="display:none;margin-top:10px;background:#e8f5e9;border:1px solid #c8e6c9;border-radius:8px;padding:12px 14px;font-size:.84rem;color:#1b5e20">
+          <div id="cf_adhesion_notice" style="display:none;margin-top:10px;background:#e8f5e9;border:1px solid #c8e6c9;border-radius:8px;padding:12px 14px;font-size:.84rem;color:#1b5e20" data-i18n-html="cf.adhesionNotice">
             Pour devenir membre AHH, utilisez notre formulaire dédié :
             <a href="adhesion.html" style="color:#1b5e20;font-weight:700;display:block;margin-top:6px">→ Formulaire d'adhésion</a>
           </div>
         </div>
         <div class="form-group">
-          <label>Message</label>
-          <textarea id="cf_message" rows="4" placeholder="Comment pouvons-nous vous aider ?" required></textarea>
+          <label data-i18n="cf.message">Message</label>
+          <textarea id="cf_message" rows="4" placeholder="Comment pouvons-nous vous aider ?" data-i18n-ph="cf.message.placeholder" required></textarea>
         </div>
-        <button type="submit" id="cf_btn" class="btn btn-primary full">Envoyer le message</button>
-        <p style="font-size:.72rem;color:var(--muted);margin-top:10px;text-align:center">
+        <button type="submit" id="cf_btn" class="btn btn-primary full" data-i18n="cf.submit">Envoyer le message</button>
+        <p style="font-size:.72rem;color:var(--muted);margin-top:10px;text-align:center" data-i18n-html="cf.privacyNote">
           Vos données sont traitées selon notre <a href="privacy.html" style="color:var(--g2)">politique de confidentialité</a>.
         </p>
       </form>
@@ -1002,10 +1004,11 @@
         // Guard: adhesion must go through the proper form
         if (sujet === 'Adhésion') { window.location.href = 'adhesion.html'; return; }
         if (!nom || !email || !message) {
-          if (msg) { msg.style.cssText = 'display:block;background:#fdecea;color:#c62828;border-left:3px solid #c62828;padding:10px 14px;border-radius:8px;font-size:.82rem;margin-bottom:14px'; msg.textContent = 'Veuillez remplir tous les champs obligatoires.'; }
+          if (msg) { msg.style.cssText = 'display:block;background:#fdecea;color:#c62828;border-left:3px solid #c62828;padding:10px 14px;border-radius:8px;font-size:.82rem;margin-bottom:14px'; msg.textContent = (window.AHH_t && window.AHH_t('cf.fillRequired')) || 'Veuillez remplir tous les champs obligatoires.'; }
           return;
         }
-        btn.disabled = true; btn.textContent = 'Envoi en cours…';
+        function dt(key, fallback) { return (window.AHH_t && window.AHH_t(key)) || fallback; }
+        btn.disabled = true; btn.textContent = dt('cf.sending', 'Envoi en cours…');
         if (msg) msg.style.display = 'none';
         try {
           var res = await fetch(BASE_API + '/contact', {
@@ -1013,13 +1016,13 @@
             body: JSON.stringify({ nom: nom, email: email, sujet: sujet, message: message })
           });
           var data = await res.json().catch(function(){ return {}; });
-          if (!res.ok) throw new Error(data.error || 'Erreur serveur');
+          if (!res.ok) throw new Error(data.error || dt('cf.serverError', 'Erreur serveur'));
           // Masquer le formulaire, afficher la confirmation animée
           form.querySelectorAll('label,input,select,textarea,button,h3.form-title,.form-row,.form-group').forEach(function(el){ el.style.display='none'; });
           if (success) success.classList.add('show');
         } catch(ex) {
-          if (msg) { msg.style.cssText = 'display:block;background:#fdecea;color:#c62828;border-left:3px solid #c62828;padding:10px 14px;border-radius:8px;font-size:.82rem;margin-bottom:14px'; msg.textContent = ex.message || 'Erreur lors de l\'envoi.'; }
-          btn.disabled = false; btn.textContent = 'Envoyer le message';
+          if (msg) { msg.style.cssText = 'display:block;background:#fdecea;color:#c62828;border-left:3px solid #c62828;padding:10px 14px;border-radius:8px;font-size:.82rem;margin-bottom:14px'; msg.textContent = ex.message || dt('cf.sendError', "Erreur lors de l'envoi."); }
+          btn.disabled = false; btn.textContent = dt('cf.submit', 'Envoyer le message');
         }
       });
     }
@@ -1049,8 +1052,9 @@
       nlBtn.addEventListener('click', async function() {
         var email = (document.getElementById('nlEmail')||{}).value || '';
         var nlMsg = document.getElementById('nlMsg');
+        function dt(key, fallback) { return (window.AHH_t && window.AHH_t(key)) || fallback; }
         if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-          if (nlMsg) { nlMsg.textContent = '❌ Veuillez entrer un courriel valide.'; nlMsg.classList.add('show'); }
+          if (nlMsg) { nlMsg.textContent = '❌ ' + dt('nl.invalidEmail', 'Veuillez entrer un courriel valide.'); nlMsg.classList.add('show'); }
           return;
         }
         nlBtn.disabled = true; nlBtn.textContent = '…';
@@ -1060,12 +1064,12 @@
             body: JSON.stringify({ email: email })
           });
           if (!r.ok) throw new Error();
-          if (nlMsg) { nlMsg.textContent = '✅ Abonnement confirmé ! Merci de rejoindre notre communauté.'; nlMsg.classList.add('show'); }
+          if (nlMsg) { nlMsg.textContent = '✅ ' + dt('nl.success', 'Abonnement confirmé ! Merci de rejoindre notre communauté.'); nlMsg.classList.add('show'); }
           document.getElementById('nlEmail').value = '';
         } catch(e) {
-          if (nlMsg) { nlMsg.textContent = '❌ Erreur. Veuillez réessayer.'; nlMsg.classList.add('show'); }
+          if (nlMsg) { nlMsg.textContent = '❌ ' + dt('nl.error', 'Erreur. Veuillez réessayer.'); nlMsg.classList.add('show'); }
         } finally {
-          nlBtn.disabled = false; nlBtn.textContent = 'S\'abonner';
+          nlBtn.disabled = false; nlBtn.textContent = dt('nl.btn', "S'abonner");
         }
       });
     }
@@ -1188,10 +1192,11 @@
       }
       if (total > shown) html += '<div class="ms-more">+' + (total - shown) + '</div>';
       html += '</div>';
-      html += '<div class="members-join-text">Rejoignez <strong>' + total + '+ membres</strong> actifs de la communauté AHH</div>';
-      html += '<a href="adhesion.html" class="btn btn-outline" style="padding:8px 20px;font-size:.82rem">Nous rejoindre →</a>';
+      html += '<div class="members-join-text"><span data-i18n="members.join1">Rejoignez</span> <strong>' + total + '+</strong> <span data-i18n="members.join2">membres actifs de la communauté AHH</span></div>';
+      html += '<a href="adhesion.html" class="btn btn-outline" style="padding:8px 20px;font-size:.82rem" data-i18n="members.cta">Nous rejoindre →</a>';
       container.innerHTML = html;
       wrap.style.display = '';
+      if (window.AHH_applyTranslations) window.AHH_applyTranslations();
     } catch(e) {}
   })();
   </script>
