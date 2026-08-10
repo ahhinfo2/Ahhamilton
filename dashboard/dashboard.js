@@ -19452,7 +19452,7 @@ function showSocialShareModal(act) {
 // ── RENCONTRE COMITÉ (présences + signatures) ────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 
-const ROLE_LABELS_CM = { admin:'Administrateur', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Délégué' };
+const ROLE_LABELS_CM = { admin:'Administrateur', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Délégué', member:'Membre' };
 
 function _fmtToronto(d) {
   try { return new Date(d).toLocaleString('fr-CA', { timeZone:'America/Toronto', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' }); }
@@ -19537,15 +19537,25 @@ async function committeeMeetingDetail(id) {
   const locked = data.verrouille;
 
   let membresHtml = data.membres.map(u => {
-    const checked = s => data.membres.find(m => m.id === u.id)?.statut === s ? 'checked' : '';
     return `<tr>
-      <td><strong>${escHtml(u.prenom)} ${escHtml(u.nom)}</strong></td>
+      <td><strong>${escHtml(u.prenom)} ${escHtml(u.nom)}</strong>${u.ponctuel ? ' <span style="font-size:.68rem;color:var(--muted);font-weight:400">(invité·e à cette rencontre)</span>' : ''}</td>
       <td>${u.titre_comite || ROLE_LABELS_CM[u.role] || u.role}</td>
       <td style="text-align:center"><input type="radio" name="att_${u.id}" value="present" ${u.statut==='present'?'checked':''} ${locked?'disabled':''}></td>
       <td style="text-align:center"><input type="radio" name="att_${u.id}" value="absent" ${u.statut==='absent'?'checked':''} ${locked?'disabled':''}></td>
       <td style="text-align:center"><input type="radio" name="att_${u.id}" value="excuse" ${u.statut==='excuse'?'checked':''} ${locked?'disabled':''}></td>
+      <td style="text-align:center">${u.ponctuel && !locked ? `<button class="btn btn-sm btn-ghost" style="color:var(--red)" onclick="_removeCmMember(${id},${u.id})" title="Retirer">🗑</button>` : ''}</td>
     </tr>`;
   }).join('');
+
+  let guestsHtml = (data.invites || []).map(g => `
+    <tr>
+      <td><strong>${escHtml(g.nom)}</strong> <span style="font-size:.68rem;color:var(--muted);font-weight:400">(invité·e externe)</span></td>
+      <td style="color:var(--muted)">—</td>
+      <td style="text-align:center"><input type="radio" name="attg_${g.id}" value="present" ${g.statut==='present'?'checked':''} ${locked?'disabled':''} onchange="_updateCmGuest(${id},${g.id},'present')"></td>
+      <td style="text-align:center"><input type="radio" name="attg_${g.id}" value="absent" ${g.statut==='absent'?'checked':''} ${locked?'disabled':''} onchange="_updateCmGuest(${id},${g.id},'absent')"></td>
+      <td style="text-align:center"><input type="radio" name="attg_${g.id}" value="excuse" ${g.statut==='excuse'?'checked':''} ${locked?'disabled':''} onchange="_updateCmGuest(${id},${g.id},'excuse')"></td>
+      <td style="text-align:center">${!locked ? `<button class="btn btn-sm btn-ghost" style="color:var(--red)" onclick="_removeCmGuest(${id},${g.id})" title="Retirer">🗑</button>` : ''}</td>
+    </tr>`).join('');
 
   let sigsHtml = data.signatures.length ? data.signatures.map(s => `
     <div style="display:flex;align-items:center;gap:14px;background:var(--off);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
@@ -19586,11 +19596,15 @@ async function committeeMeetingDetail(id) {
     </div>
 
     <div class="table-card" style="margin-bottom:16px">
-      <div class="table-card-header"><h3>📋 Présences</h3></div>
+      <div class="table-card-header">
+        <h3>📋 Présences</h3>
+        ${!locked ? `<div class="tc-actions"><button class="btn btn-sm btn-outline" onclick="_openAddCmPersonForm(${id})">➕ Ajouter quelqu'un</button></div>` : ''}
+      </div>
+      <div id="cmAddPersonArea"></div>
       <div class="table-wrapper">
         <table>
-          <thead><tr><th>Membre</th><th>Rôle</th><th style="text-align:center">Présent</th><th style="text-align:center">Absent</th><th style="text-align:center">Excusé</th></tr></thead>
-          <tbody>${membresHtml}</tbody>
+          <thead><tr><th>Membre</th><th>Rôle</th><th style="text-align:center">Présent</th><th style="text-align:center">Absent</th><th style="text-align:center">Excusé</th><th></th></tr></thead>
+          <tbody>${membresHtml}${guestsHtml}</tbody>
         </table>
       </div>
       ${!locked ? '<div style="padding:12px 16px;border-top:1px solid var(--border)"><button class="btn btn-primary" onclick="_saveCmAttendance(' + id + ')">Enregistrer les présences</button></div>' : ''}
@@ -19647,6 +19661,84 @@ async function _saveCmAttendance(meetingId) {
     const r = await api('/committee-meetings/' + meetingId + '/attendance', { method:'PUT', body: JSON.stringify({ attendance }) });
     if (r.signatures_annulees) toast('⚠️ Les signatures ont été annulées suite à la modification', true);
     else toast('✅ Présences enregistrées');
+    committeeMeetingDetail(meetingId);
+  } catch(e) { toast(e.message, true); }
+}
+
+async function _openAddCmPersonForm(meetingId) {
+  const area = document.getElementById('cmAddPersonArea');
+  if (!area) return;
+  const allUsers = (await api('/users').catch(() => [])).filter(u => u.actif);
+  window._cmAddUsers = allUsers;
+  area.innerHTML = `
+    <div style="padding:0 16px 16px;display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">
+      <div style="flex:1;min-width:220px">
+        <label style="font-size:.78rem;color:var(--muted);display:block;margin-bottom:4px">Membre AHH existant</label>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="cmAddSearch" list="cmAddDatalist" placeholder="Nom, courriel ou téléphone..." autocomplete="off" style="flex:1"/>
+          <button class="btn btn-sm btn-primary" onclick="_addCmMember(${meetingId})">Ajouter</button>
+        </div>
+        <datalist id="cmAddDatalist">
+          ${allUsers.map(u => `<option value="${escHtml(_volMembreLabel(u))}">`).join('')}
+        </datalist>
+        <input type="hidden" id="cmAddUserId"/>
+      </div>
+      <div style="flex:1;min-width:220px">
+        <label style="font-size:.78rem;color:var(--muted);display:block;margin-bottom:4px">Invité·e externe (sans compte AHH)</label>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="cmAddGuestNom" placeholder="Nom complet..." autocomplete="off" style="flex:1"/>
+          <button class="btn btn-sm btn-outline" onclick="_addCmGuest(${meetingId})">Ajouter</button>
+        </div>
+      </div>
+      <button class="btn btn-sm btn-ghost" onclick="document.getElementById('cmAddPersonArea').innerHTML=''">Annuler</button>
+    </div>`;
+  document.getElementById('cmAddSearch').oninput = function() {
+    const match = (window._cmAddUsers || []).find(u => _volMembreLabel(u) === this.value);
+    document.getElementById('cmAddUserId').value = match ? match.id : '';
+  };
+}
+
+async function _addCmMember(meetingId) {
+  const uid = document.getElementById('cmAddUserId')?.value;
+  if (!uid) return toast('Choisissez un membre valide dans les suggestions', true);
+  try {
+    await api('/committee-meetings/' + meetingId + '/attendance', { method:'PUT', body: JSON.stringify({ attendance: [{ user_id: parseInt(uid), statut: 'present' }] }) });
+    toast('✅ Membre ajouté');
+    committeeMeetingDetail(meetingId);
+  } catch(e) { toast(e.message, true); }
+}
+
+async function _removeCmMember(meetingId, userId) {
+  if (!confirm('Retirer cette personne des présences ?')) return;
+  try {
+    await api('/committee-meetings/' + meetingId + '/attendance/' + userId, { method:'DELETE' });
+    toast('✅ Retiré·e');
+    committeeMeetingDetail(meetingId);
+  } catch(e) { toast(e.message, true); }
+}
+
+async function _addCmGuest(meetingId) {
+  const nom = document.getElementById('cmAddGuestNom')?.value.trim();
+  if (!nom) return toast('Entrez un nom', true);
+  try {
+    await api('/committee-meetings/' + meetingId + '/guests', { method:'POST', body: JSON.stringify({ nom }) });
+    toast('✅ Invité·e ajouté·e');
+    committeeMeetingDetail(meetingId);
+  } catch(e) { toast(e.message, true); }
+}
+
+async function _updateCmGuest(meetingId, guestId, statut) {
+  try {
+    await api('/committee-meetings/' + meetingId + '/guests/' + guestId, { method:'PUT', body: JSON.stringify({ statut }) });
+    toast('✅ Présence mise à jour');
+  } catch(e) { toast(e.message, true); }
+}
+
+async function _removeCmGuest(meetingId, guestId) {
+  if (!confirm('Retirer cet·te invité·e ?')) return;
+  try {
+    await api('/committee-meetings/' + meetingId + '/guests/' + guestId, { method:'DELETE' });
+    toast('✅ Retiré·e');
     committeeMeetingDetail(meetingId);
   } catch(e) { toast(e.message, true); }
 }

@@ -11839,10 +11839,57 @@ app.get('/api/committee-meetings/:id', authMiddleware, requireRole(...CM_ROLES),
   const att = db.prepare('SELECT user_id, statut FROM committee_meeting_attendance WHERE meeting_id=?').all(m.id);
   const attMap = {};
   att.forEach(a => { attMap[a.user_id] = a.statut; });
-  m.membres = exec.map(u => ({ ...u, statut: attMap[u.id] || 'absent' }));
+  // Membres ajoutés ponctuellement à cette rencontre (pas dans le comité exécutif fixe) —
+  // identifiés par une présence enregistrée pour un user_id hors de la liste exec ci-dessus.
+  const execIds = new Set(exec.map(u => u.id));
+  const extraIds = att.map(a => a.user_id).filter(uid => !execIds.has(uid));
+  const extra = extraIds.length
+    ? db.prepare(`SELECT id, prenom, nom, role, titre_comite FROM users WHERE id IN (${extraIds.map(() => '?').join(',')})`).all(...extraIds)
+    : [];
+  m.membres = [...exec, ...extra].map(u => ({ ...u, statut: attMap[u.id] || 'absent', ponctuel: !execIds.has(u.id) }));
+  m.invites = db.prepare('SELECT * FROM committee_meeting_guests WHERE meeting_id=? ORDER BY id').all(m.id);
   m.signatures = db.prepare(`SELECT s.*, u.prenom||' '||u.nom AS nom_signataire, u.role, u.titre_comite FROM committee_meeting_signatures s JOIN users u ON u.id=s.user_id WHERE s.meeting_id=? ORDER BY s.date_signature`).all(m.id);
   m.nb_signatures = m.signatures.length;
   res.json(m);
+});
+
+// Retirer un membre ajouté ponctuellement (jamais les 6 rôles fixes du comité exécutif, qui
+// n'ont pas de ligne de présence propre tant qu'ils n'ont pas été explicitement enregistrés).
+app.delete('/api/committee-meetings/:id/attendance/:userId', authMiddleware, requireRole(...CM_ROLES), (req, res) => {
+  const m = db.prepare('SELECT * FROM committee_meetings WHERE id=?').get(req.params.id);
+  if (!m) return res.status(404).json({ error: 'Rencontre introuvable' });
+  if (m.verrouille) return res.status(403).json({ error: 'Rencontre verrouillée' });
+  db.prepare('DELETE FROM committee_meeting_attendance WHERE meeting_id=? AND user_id=?').run(m.id, req.params.userId);
+  res.json({ ok: true });
+});
+
+// Invités externes (sans compte AHH) — CRUD simple, pas de user_id
+app.post('/api/committee-meetings/:id/guests', authMiddleware, requireRole(...CM_ROLES), (req, res) => {
+  const m = db.prepare('SELECT * FROM committee_meetings WHERE id=?').get(req.params.id);
+  if (!m) return res.status(404).json({ error: 'Rencontre introuvable' });
+  if (m.verrouille) return res.status(403).json({ error: 'Rencontre verrouillée' });
+  const { nom } = req.body;
+  if (!nom?.trim()) return res.status(400).json({ error: 'Nom requis' });
+  const r = db.prepare("INSERT INTO committee_meeting_guests (meeting_id, nom, statut) VALUES (?,?,'present')").run(m.id, nom.trim());
+  res.status(201).json({ id: r.lastInsertRowid });
+});
+
+app.put('/api/committee-meetings/:id/guests/:guestId', authMiddleware, requireRole(...CM_ROLES), (req, res) => {
+  const m = db.prepare('SELECT * FROM committee_meetings WHERE id=?').get(req.params.id);
+  if (!m) return res.status(404).json({ error: 'Rencontre introuvable' });
+  if (m.verrouille) return res.status(403).json({ error: 'Rencontre verrouillée' });
+  const { statut } = req.body;
+  if (!['present','absent','excuse'].includes(statut)) return res.status(400).json({ error: 'Statut invalide' });
+  db.prepare('UPDATE committee_meeting_guests SET statut=? WHERE id=? AND meeting_id=?').run(statut, req.params.guestId, m.id);
+  res.json({ ok: true });
+});
+
+app.delete('/api/committee-meetings/:id/guests/:guestId', authMiddleware, requireRole(...CM_ROLES), (req, res) => {
+  const m = db.prepare('SELECT * FROM committee_meetings WHERE id=?').get(req.params.id);
+  if (!m) return res.status(404).json({ error: 'Rencontre introuvable' });
+  if (m.verrouille) return res.status(403).json({ error: 'Rencontre verrouillée' });
+  db.prepare('DELETE FROM committee_meeting_guests WHERE id=? AND meeting_id=?').run(req.params.guestId, m.id);
+  res.json({ ok: true });
 });
 
 app.put('/api/committee-meetings/:id', authMiddleware, requireRole(...CM_ROLES), (req, res) => {

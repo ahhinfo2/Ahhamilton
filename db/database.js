@@ -1081,6 +1081,17 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS committee_meeting_attendance (
   UNIQUE(meeting_id, user_id)
 )`); } catch {}
 
+// Invités ponctuels à une rencontre du comité — personnes sans compte AHH (ex. un(e) invité(e)
+// externe). Les membres AHH (comité ou non) qui assistent occasionnellement utilisent plutôt
+// committee_meeting_attendance ci-dessus (user_id réel), déjà prévue pour n'importe quel membre.
+try { db.exec(`CREATE TABLE IF NOT EXISTS committee_meeting_guests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  meeting_id INTEGER NOT NULL REFERENCES committee_meetings(id) ON DELETE CASCADE,
+  nom TEXT NOT NULL,
+  statut TEXT NOT NULL DEFAULT 'present',
+  date_ajout TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
 try { db.exec(`CREATE TABLE IF NOT EXISTS committee_meeting_signatures (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   meeting_id INTEGER NOT NULL REFERENCES committee_meetings(id) ON DELETE CASCADE,
