@@ -284,14 +284,18 @@ app.use('/api/auth/forgot-password', authLimiter);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/dashboard', express.static(path.join(__dirname, 'dashboard')));
 
-// sw.js et script.js servis sans cache pour que les mises à jour soient immédiates
-app.get('/sw.js', (req, res) => {
-  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-  res.sendFile(path.join(__dirname, 'sw.js'));
-});
-app.get('/script.js', (req, res) => {
-  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-  res.sendFile(path.join(__dirname, 'script.js'));
+// sw.js, script.js et les scripts injectés sur toutes les pages publiques (nav, traductions,
+// consentement cookies) sont servis sans cache — sinon le handler générique plus bas les met en
+// cache 24h côté navigateur, et un visiteur qui revient garde une vieille version de _lang.js/_nav.js
+// (ex. sans les dernières clés de traduction) même après un déploiement, pendant que index.html
+// (lui, en no-cache) charge déjà les nouveaux attributs data-i18n — d'où des clés affichées telles
+// quelles au lieu d'être traduites.
+const NO_CACHE_ROOT_SCRIPTS = ['sw.js', 'script.js', '_nav.js', '_lang.js', 'casl-consent.js', 'nav-auth.js', '_fix_lightbox.js', '_gal_replace.js'];
+NO_CACHE_ROOT_SCRIPTS.forEach(file => {
+  app.get('/' + file, (req, res) => {
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.sendFile(path.join(__dirname, file));
+  });
 });
 
 // Bloquer les fichiers RAW (CR2, NEF, ARW…) — ne jamais servir publiquement
