@@ -29,7 +29,7 @@
   <section class="page-hero">
     <div class="container page-hero-content">
       <div class="breadcrumb">
-        <a href="index.html">Accueil</a><span>›</span><span>Galerie</span>
+        <a href="index.html" data-i18n="Accueil">Accueil</a><span>›</span><span data-i18n="Galerie">Galerie</span>
       </div>
       <h1 data-i18n="gal.h1">Nos moments ensemble</h1>
       <p data-i18n="gal.p1">Des souvenirs précieux de nos rassemblements, célébrations et activités communautaires.</p>
@@ -59,9 +59,9 @@
   <section id="videos-section" style="padding:64px 0;background:var(--off);display:none">
     <div class="container">
       <div class="section-header" data-reveal>
-        <span class="section-badge">Vidéos</span>
-        <h2>Nos moments en vidéo</h2>
-        <p>Revivez nos événements et activités communautaires.</p>
+        <span class="section-badge" data-i18n="gal.videos.badge">Vidéos</span>
+        <h2 data-i18n="gal.videos.h2">Nos moments en vidéo</h2>
+        <p data-i18n="gal.videos.p">Revivez nos événements et activités communautaires.</p>
       </div>
       <div id="galVideosGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:24px;margin-top:32px"></div>
     </div>
@@ -139,12 +139,13 @@
   });
 
   // ── Galerie dynamique depuis le serveur ─────────────────────────────────
+  function dt(key, fallback) { return (window.AHH_t && window.AHH_t(key)) || fallback; }
   var CAT_INFO = {
-    general:   { label:'Général',               emoji:'📸' },
-    culturel:  { label:'Événements culturels',  emoji:'🌺' },
-    repas:     { label:'Repas & Rassemblements',emoji:'🍽️' },
-    benevolat: { label:'Bénévolat',             emoji:'🤝' },
-    reunion:   { label:'Réunions',              emoji:'📋' },
+    general:   { label:dt('gal.cat.general', 'Général'),               emoji:'📸' },
+    culturel:  { label:dt('gal.cat.culturel', 'Événements culturels'),  emoji:'🌺' },
+    repas:     { label:dt('gal.cat.repas', 'Repas & Rassemblements'),emoji:'🍽️' },
+    benevolat: { label:dt('gal.cat.benevolat', 'Bénévolat'),             emoji:'🤝' },
+    reunion:   { label:dt('gal.cat.reunion', 'Réunions'),              emoji:'📋' },
   };
 
   (async function loadGallery() {
@@ -206,7 +207,7 @@
               '<div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.7) 0%,transparent 55%);pointer-events:none">' +
                 '<div style="position:absolute;bottom:14px;left:14px;right:14px">' +
                   '<div style="color:#fff;font-weight:700;font-size:.9rem;margin-bottom:4px">' + albumName + '</div>' +
-                  '<div style="color:rgba(255,255,255,.7);font-size:.75rem">' + count + ' photo' + (count>1?'s':'') + ' · cliquer pour voir</div>' +
+                  '<div style="color:rgba(255,255,255,.7);font-size:.75rem">' + count + ' ' + (count>1?dt('gal.photos','photos'):dt('gal.photo','photo')) + ' · ' + dt('gal.clickToView','cliquer pour voir') + '</div>' +
                 '</div>' +
                 (count > 1 ? '<div style="position:absolute;top:12px;right:12px;background:rgba(0,0,0,.5);color:#fff;font-size:.72rem;padding:3px 9px;border-radius:50px">' + count + ' 📷</div>' : '') +
               '</div>' +
@@ -253,7 +254,7 @@
           '</a>' : '') +
           '<div style="padding:14px"><strong style="font-size:.95rem">' + v.titre + '</strong>' +
           (v.description ? '<p style="font-size:.82rem;color:#6a6a6a;margin-top:4px">' + v.description + '</p>' : '') +
-          (vid ? '<a href="' + watchUrl + '" target="_blank" rel="noopener" style="display:inline-block;margin-top:8px;font-size:.78rem;font-weight:700;color:#1b5e20;text-decoration:none">🔗 Voir sur YouTube →</a>' : '') +
+          (vid ? '<a href="' + watchUrl + '" target="_blank" rel="noopener" style="display:inline-block;margin-top:8px;font-size:.78rem;font-weight:700;color:#1b5e20;text-decoration:none">🔗 ' + dt('gal.watchYoutube', 'Voir sur YouTube →') + '</a>' : '') +
           '</div></div>';
       }).join('');
       section.style.display = 'block';

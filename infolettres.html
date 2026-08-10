@@ -46,9 +46,9 @@
 
   <section class="page-hero">
     <div class="container page-hero-content">
-      <div class="breadcrumb"><a href="index.html">Accueil</a><span>›</span><span>Infolettres</span></div>
-      <h1>Infolettres</h1>
-      <p>Les dernières nouvelles et annonces envoyées à notre communauté.</p>
+      <div class="breadcrumb"><a href="index.html" data-i18n="Accueil">Accueil</a><span>›</span><span data-i18n="Infolettres">Infolettres</span></div>
+      <h1 data-i18n="nlp.h1">Infolettres</h1>
+      <p data-i18n="nlp.p1">Les dernières nouvelles et annonces envoyées à notre communauté.</p>
     </div>
   </section>
 
@@ -56,10 +56,10 @@
     <section class="nl-section">
       <div class="container">
         <div id="nlList" class="nl-list">
-          <div class="nl-empty"><div class="ic">📰</div><p>Chargement…</p></div>
+          <div class="nl-empty"><div class="ic">📰</div><p data-i18n="nlp.loading">Chargement…</p></div>
         </div>
         <div class="nl-cta">
-          <a href="index.html#contact">📩 S'abonner pour recevoir les prochaines</a>
+          <a href="index.html#contact" data-i18n="nlp.subscribe">📩 S'abonner pour recevoir les prochaines</a>
         </div>
       </div>
     </section>
@@ -79,13 +79,14 @@
       } catch(e) { return iso; }
     }
 
+    function dt(key, fallback) { return (window.AHH_t && window.AHH_t(key)) || fallback; }
     (async function loadArchive() {
       const list = document.getElementById('nlList');
       try {
         const res = await fetch(API_URL + '/newsletter/public-archive');
         const items = await res.json();
         if (!items.length) {
-          list.innerHTML = '<div class="nl-empty"><div class="ic">📰</div><p>Aucune infolettre archivée pour le moment.</p></div>';
+          list.innerHTML = '<div class="nl-empty"><div class="ic">📰</div><p>' + dt('nlp.empty', 'Aucune infolettre archivée pour le moment.') + '</p></div>';
           return;
         }
         list.innerHTML = items.map(function(n, i) {
@@ -98,7 +99,7 @@
           '</div>';
         }).join('');
       } catch(e) {
-        list.innerHTML = '<div class="nl-empty"><div class="ic">⚠️</div><p>Impossible de charger les infolettres pour le moment.</p></div>';
+        list.innerHTML = '<div class="nl-empty"><div class="ic">⚠️</div><p>' + dt('nlp.error', 'Impossible de charger les infolettres pour le moment.') + '</p></div>';
       }
     })();
   </script>
