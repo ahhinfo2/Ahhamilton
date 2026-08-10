@@ -5577,6 +5577,7 @@ function _updateLivePagination(editorId, subtitle, _depth) {
   if (!ed) return;
   if (_depth === 0) ed.querySelectorAll('.page-break-spacer').forEach(s => s.remove());
   const CONTENT_H = 944;
+  const MIN_PAGE_CONTENT = 40; // px — une "page" plus courte que ça (~1 ligne) n'a rien à y faire
 
   const children = Array.from(ed.children).filter(c => !c.classList.contains('page-break-spacer'));
   if (!children.length) return;
@@ -5620,6 +5621,10 @@ function _updateLivePagination(editorId, subtitle, _depth) {
     // page suivante. S'il est seul sur sa page et ne peut pas être scindé, on le laisse tel
     // quel (dépassement accepté plutôt que boucle infinie).
     if (!isFirstOnPage) {
+      // Garde-fou : si la page qu'on s'apprête à fermer ne contient presque rien (le point de
+      // coupure tombe juste après pageStartTop), inserer un saut ici ne ferait qu'empiler des
+      // pages quasi vides à la suite — on arrête plutôt et on accepte le débordement restant.
+      if (child.offsetTop - pageStartTop < MIN_PAGE_CONTENT) return;
       child.parentNode.insertBefore(_makeSpacerEl(subtitle, pageNum + 1), child);
       _updateLivePagination(editorId, subtitle, _depth + 1);
       return;
