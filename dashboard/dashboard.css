@@ -1903,6 +1903,23 @@ html.dark .search-results { background: var(--white); }
 .fab-scanner:hover { transform: scale(1.08); box-shadow: 0 6px 28px rgba(27,94,32,.55); }
 @media (max-width: 900px) { .fab-scanner { display: flex; } }
 
+/* ── FAB masqués près du haut de page (mobile) ──────────────────────────────
+   Sur mobile, les FAB (recherche, scanner, chat) sont en position fixed et
+   finissent par recouvrir les boutons "Actions rapides" de l'accueil quand la
+   page est au repos en haut. On les efface (opacité + pointer-events) tant que
+   le défilement n'a pas dépassé la zone où ce chevauchement se produit. */
+@media(max-width:600px){
+  .mobile-fab.fab-near-top,
+  .fab-scanner.fab-near-top,
+  #chatBubbleBtn.fab-near-top {
+    opacity: 0; pointer-events: none; transform: scale(.7);
+  }
+  .mobile-fab, #chatBubbleBtn {
+    transition: opacity .2s, transform .2s, box-shadow .2s;
+  }
+  .fab-scanner { transition: opacity .2s, transform .2s, box-shadow .2s; }
+}
+
 /* ── Dark mode pour les nouveaux éléments ───────────────────────────────── */
 html.dark #searchWrap input { background: #243024; color: #e0f2e0; }
 html.dark #searchResults { background: #1e2e1e; }

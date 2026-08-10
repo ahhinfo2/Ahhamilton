@@ -956,13 +956,26 @@ async function _saveCountdown() {
 // ── FAB Scanner (mobile) ────────────────────────────────────────────────────
 function initFAB() {
   const canScan = ['admin','tresoriere','secretaire','delegue'].includes(USER.role);
-  if (!canScan) return;
-  const btn = document.createElement('button');
-  btn.className = 'fab-scanner';
-  btn.title = 'Numériser une carte';
-  btn.innerHTML = '📷';
-  btn.onclick = () => showView('carte-scanner');
-  document.body.appendChild(btn);
+  if (canScan) {
+    const btn = document.createElement('button');
+    btn.className = 'fab-scanner';
+    btn.title = 'Numériser une carte';
+    btn.innerHTML = '📷';
+    btn.onclick = () => showView('carte-scanner');
+    document.body.appendChild(btn);
+  }
+  // Sur mobile, ces FAB fixed finissent par recouvrir les boutons "Actions rapides"
+  // de l'accueil quand la page est au repos en haut (ex. juste après connexion) —
+  // on les efface tant qu'on n'a pas défilé au-delà de cette zone de chevauchement.
+  const FAB_HIDE_THRESHOLD = 140;
+  function updateFabVisibility() {
+    const nearTop = window.scrollY < FAB_HIDE_THRESHOLD;
+    document.querySelectorAll('.mobile-fab, .fab-scanner, #chatBubbleBtn').forEach(el => {
+      el.classList.toggle('fab-near-top', nearTop);
+    });
+  }
+  window.addEventListener('scroll', updateFabVisibility, { passive: true });
+  updateFabVisibility();
 }
 
 function setSidebarBadge(viewId, count) {
