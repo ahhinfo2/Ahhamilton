@@ -9402,7 +9402,10 @@ app.get('/api/forms/:id/export', authMiddleware, requireRole(...FORM_EXEC), (req
     const answerMap = {};
     answers.forEach(a => { answerMap[a.field_id] = a.valeur; });
     const row = [r.date_reponse, r.nom, r.email, r.telephone];
-    fields.forEach(f => row.push(answerMap[f.id] || ''));
+    fields.forEach(f => {
+      const raw = answerMap[f.id] || '';
+      row.push(f.type === 'signature' ? (raw ? 'Signé (voir dans le dashboard)' : '') : raw);
+    });
     return row.map(escCsv).join(',');
   });
 

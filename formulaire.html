@@ -126,6 +126,28 @@
       width: 18px;
       height: 18px;
     }
+    .sig-canvas {
+      width: 100%;
+      max-width: 100%;
+      height: 180px;
+      border: 1.5px dashed #bbb;
+      border-radius: 8px;
+      background: #fdfdfd;
+      touch-action: none;
+      cursor: crosshair;
+      display: block;
+    }
+    .sig-clear-btn {
+      margin-top: 8px;
+      background: #eee;
+      border: 1px solid #ccc;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-family: 'Poppins', sans-serif;
+      font-size: .8rem;
+      cursor: pointer;
+    }
+    .sig-clear-btn:hover { background: #e0e0e0; }
     .contact-section h3 {
       font-size: 1.05rem;
       font-weight: 600;
@@ -336,6 +358,10 @@
           });
           html += '</div>';
           break;
+        case 'signature':
+          html += '<canvas class="sig-canvas" data-fid="' + f.id + '" width="600" height="200"></canvas>';
+          html += '<button type="button" class="sig-clear-btn" data-fid="' + f.id + '">Effacer</button>';
+          break;
         default:
           html += '<input type="text" name="' + fieldName + '" data-fid="' + f.id + '"' + req + '/>';
       }
@@ -361,6 +387,44 @@
 
     html += '</form>';
     container.innerHTML = html;
+    initSignaturePads();
+  }
+
+  function initSignaturePads() {
+    document.querySelectorAll('.sig-canvas').forEach(function(canvas) {
+      var ctx = canvas.getContext('2d');
+      ctx.strokeStyle = '#1b1b1b';
+      ctx.lineWidth = 2.2;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      var drawing = false, last = null;
+      function pos(e) {
+        var r = canvas.getBoundingClientRect();
+        return { x: (e.clientX - r.left) * (canvas.width / r.width), y: (e.clientY - r.top) * (canvas.height / r.height) };
+      }
+      canvas.addEventListener('pointerdown', function(e) {
+        drawing = true; last = pos(e); canvas.setPointerCapture(e.pointerId);
+        canvas.dataset.hasDrawing = '1';
+        e.preventDefault();
+      });
+      canvas.addEventListener('pointermove', function(e) {
+        if (!drawing) return;
+        var p = pos(e);
+        ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+        last = p;
+      });
+      ['pointerup','pointercancel','pointerleave'].forEach(function(ev) {
+        canvas.addEventListener(ev, function() { drawing = false; });
+      });
+    });
+    document.querySelectorAll('.sig-clear-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var canvas = document.querySelector('.sig-canvas[data-fid="' + btn.getAttribute('data-fid') + '"]');
+        if (!canvas) return;
+        canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+        canvas.dataset.hasDrawing = '';
+      });
+    });
   }
 
   window._submitForm = async function() {
@@ -369,6 +433,15 @@
 
     // Validate required fields
     var formEl = document.getElementById('formReponse');
+    var missingSig = formData.fields.find(function(f) {
+      if (f.type !== 'signature' || !f.obligatoire) return false;
+      var c = document.querySelector('.sig-canvas[data-fid="' + f.id + '"]');
+      return !(c && c.dataset.hasDrawing === '1');
+    });
+    if (missingSig) {
+      alert('Veuillez signer dans le champ « ' + missingSig.label + ' ».');
+      return;
+    }
     if (!formEl.checkValidity()) {
       formEl.reportValidity();
       return;
@@ -391,6 +464,9 @@
       } else if (f.type === 'radio') {
         var sel = document.querySelector('input[name="' + fieldName + '"]:checked');
         val = sel ? sel.value : '';
+      } else if (f.type === 'signature') {
+        var canvas = document.querySelector('.sig-canvas[data-fid="' + f.id + '"]');
+        val = (canvas && canvas.dataset.hasDrawing === '1') ? canvas.toDataURL('image/png') : '';
       } else {
         var el = document.querySelector('[name="' + fieldName + '"]');
         val = el ? el.value : '';

@@ -18805,7 +18805,7 @@ function _renderFieldsList() {
   const fields = window._formBuilderFields || [];
   if (fields.length === 0) return '<p style="color:var(--muted);font-size:.85rem;padding:12px">Aucun champ ajouté</p>';
   return fields.map((f, idx) => {
-    const typeLabels = {text:'Texte',email:'Courriel',telephone:'Téléphone',textarea:'Zone de texte',select:'Liste déroulante',radio:'Choix unique',checkbox:'Cases à cocher',number:'Nombre',date:'Date'};
+    const typeLabels = {text:'Texte',email:'Courriel',telephone:'Téléphone',textarea:'Zone de texte',select:'Liste déroulante',radio:'Choix unique',checkbox:'Cases à cocher',number:'Nombre',date:'Date',signature:'Signature'};
     const typePill = '<span style="background:#e3f2fd;color:#1565c0;padding:2px 8px;border-radius:6px;font-size:.72rem;font-weight:600">' + (typeLabels[f.type] || f.type) + '</span>';
     const reqBadge = f.obligatoire ? ' <span style="color:#d32f2f;font-size:.72rem;font-weight:600">obligatoire</span>' : '';
     return `<div style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:#fff;border:1px solid var(--border);border-radius:8px;margin-bottom:6px" data-field-idx="${idx}">
@@ -18846,7 +18846,7 @@ function _fieldFormHtml(field, saveFn) {
   const types = [
     {v:'text',l:'Texte'},{v:'email',l:'Courriel'},{v:'telephone',l:'Téléphone'},{v:'textarea',l:'Zone de texte'},
     {v:'select',l:'Liste déroulante'},{v:'radio',l:'Choix unique'},{v:'checkbox',l:'Cases à cocher'},
-    {v:'number',l:'Nombre'},{v:'date',l:'Date'}
+    {v:'number',l:'Nombre'},{v:'date',l:'Date'},{v:'signature',l:'Signature (tracée)'}
   ];
   const typeOpts = types.map(t => `<option value="${t.v}" ${field && field.type === t.v ? 'selected' : ''}>${t.l}</option>`).join('');
   let existingOpts = '';
@@ -19056,7 +19056,11 @@ async function viewFormResults(formId) {
   const tbodyRows = responses.map(r => {
     const answerCells = fields.map(f => {
       const ans = (r.answers || []).find(a => a.field_id === f.id);
-      return `<td style="font-size:.82rem">${escHtml(ans ? ans.valeur : '')}</td>`;
+      const val = ans ? ans.valeur : '';
+      if (f.type === 'signature' && val) {
+        return `<td style="font-size:.82rem"><img src="${val}" alt="signature" style="height:32px;max-width:120px;object-fit:contain;border:1px solid var(--border);border-radius:4px;background:#fff;cursor:zoom-in" onclick="_showSignatureFull(this.src)"/></td>`;
+      }
+      return `<td style="font-size:.82rem">${escHtml(val)}</td>`;
     }).join('');
     return `<tr class="fr-row" data-date="${r.date_reponse || ''}" data-nom="${escHtml((r.nom||'').toLowerCase())}">
       <td style="font-size:.82rem;white-space:nowrap">${fmt(r.date_reponse)}</td>
@@ -19121,6 +19125,39 @@ async function viewFormResults(formId) {
   `);
 }
 
+// ── Pavé de signature (canvas dessinable, souris/tactile) ────────────────────
+function _wireSignaturePad(canvas) {
+  if (!canvas || canvas._sigWired) return;
+  canvas._sigWired = true;
+  const ctx = canvas.getContext('2d');
+  ctx.strokeStyle = '#1b1b1b'; ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  let drawing = false, last = null;
+  function pos(e) {
+    const r = canvas.getBoundingClientRect();
+    return { x: (e.clientX - r.left) * (canvas.width / r.width), y: (e.clientY - r.top) * (canvas.height / r.height) };
+  }
+  canvas.addEventListener('pointerdown', e => {
+    drawing = true; last = pos(e); canvas.setPointerCapture(e.pointerId);
+    canvas.dataset.hasDrawing = '1'; e.preventDefault();
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (!drawing) return;
+    const p = pos(e);
+    ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+    last = p;
+  });
+  ['pointerup','pointercancel','pointerleave'].forEach(ev => canvas.addEventListener(ev, () => { drawing = false; }));
+}
+function _clearSignaturePad(fid, selector) {
+  const canvas = document.querySelector((selector || '.sig-canvas') + '[data-fid="' + fid + '"]');
+  if (!canvas) return;
+  canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+  canvas.dataset.hasDrawing = '';
+}
+function _showSignatureFull(src) {
+  openModal('Signature', `<div style="text-align:center;padding:10px"><img src="${src}" style="max-width:100%;border:1px solid var(--border);border-radius:8px;background:#fff"/></div>`);
+}
+
 // ── Comité : soumettre une réponse au nom d'un membre (même après l'échéance) ──
 async function openRespondForMember(formId) {
   const form = (window._formResultsData && window._formResultsData.id === formId) ? window._formResultsData : await api('/forms/' + formId);
@@ -19149,6 +19186,12 @@ async function openRespondForMember(formId) {
       case 'checkbox':
         inputHtml = `<div>` + opts.map(o => `<label style="display:block;font-size:.85rem;margin-bottom:4px"><input type="checkbox" value="${escHtml(o)}" data-fid="${f.id}" class="rfm-field-check"/> ${escHtml(o)}</label>`).join('') + `</div>`;
         break;
+      case 'signature':
+        inputHtml = `<div>
+          <canvas class="rfm-sig-canvas" data-fid="${f.id}" width="500" height="150" style="width:100%;max-width:500px;height:150px;border:1.5px dashed #bbb;border-radius:8px;background:#fff;touch-action:none;cursor:crosshair;display:block"></canvas>
+          <button type="button" onclick="_clearSignaturePad(${f.id},'.rfm-sig-canvas')" style="margin-top:6px;background:var(--off);border:1px solid var(--border);padding:5px 12px;border-radius:6px;font-size:.78rem;cursor:pointer">Effacer</button>
+        </div>`;
+        break;
       default: inputHtml = `<input type="text" data-fid="${f.id}" class="rfm-field"${req}/>`;
     }
     return `<div class="form-group"><label>${escHtml(f.label)}${f.obligatoire ? ' *' : ''}</label>${f.description ? `<small style="color:var(--muted);display:block;margin-bottom:4px">${escHtml(f.description)}</small>` : ''}${inputHtml}</div>`;
@@ -19169,11 +19212,15 @@ async function openRespondForMember(formId) {
       </div>
     </form>
   `);
+  document.querySelectorAll('.rfm-sig-canvas').forEach(_wireSignaturePad);
 
   document.getElementById('rfmForm').onsubmit = async e => {
     e.preventDefault();
     const userId = parseInt(document.getElementById('rfm_user').value);
     if (!userId) { toast('Choisissez un membre', 'error'); return; }
+    const missingSig = fields.find(f => f.type === 'signature' && f.obligatoire &&
+      document.querySelector('.rfm-sig-canvas[data-fid="' + f.id + '"]')?.dataset.hasDrawing !== '1');
+    if (missingSig) { toast('Signature requise : ' + missingSig.label, 'error'); return; }
     const answers = [];
     fields.forEach(f => {
       let val = '';
@@ -19182,6 +19229,9 @@ async function openRespondForMember(formId) {
       } else if (f.type === 'radio') {
         const sel = document.querySelector('.rfm-field-radio[data-fid="' + f.id + '"]:checked');
         val = sel ? sel.value : '';
+      } else if (f.type === 'signature') {
+        const canvas = document.querySelector('.rfm-sig-canvas[data-fid="' + f.id + '"]');
+        val = (canvas && canvas.dataset.hasDrawing === '1') ? canvas.toDataURL('image/png') : '';
       } else {
         const el = document.querySelector('.rfm-field[data-fid="' + f.id + '"]');
         val = el ? el.value : '';
