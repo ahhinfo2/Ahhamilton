@@ -95,7 +95,7 @@
 
   <section class="page-hero">
     <div class="container page-hero-content">
-      <div class="breadcrumb"><a href="index.html">Accueil</a><span>›</span><span>Petites annonces</span></div>
+      <div class="breadcrumb"><a href="index.html" data-i18n="Accueil">Accueil</a><span>›</span><span data-i18n="Petites annonces">Petites annonces</span></div>
       <h1 data-i18n="ann.h1">Petites annonces</h1>
       <p data-i18n="ann.p1">Vendez, donnez et échangez entre membres de la communauté AHH.</p>
     </div>
@@ -115,13 +115,13 @@
       </div>
 
       <div id="annGrid" class="ann-grid">
-        <div style="text-align:center;padding:60px;color:var(--muted);grid-column:1/-1">⏳ Chargement…</div>
+        <div style="text-align:center;padding:60px;color:var(--muted);grid-column:1/-1">⏳ <span data-i18n="nlp.loading">Chargement…</span></div>
       </div>
 
       <div class="ann-cta">
         <h2 data-i18n="ann.cta.h2">Vous avez quelque chose à vendre ou à donner ?</h2>
         <p data-i18n="ann.cta.p">Les membres avec un plan bienfaiteur ($10/mois) peuvent publier des annonces. Contactez l'administration ou connectez-vous à votre espace membre.</p>
-        <a href="dashboard/login.html" class="btn btn-primary" style="margin-right:12px">Mon espace membre →</a>
+        <a href="dashboard/login.html" class="btn btn-primary" style="margin-right:12px" data-i18n="ann.myspace">Mon espace membre →</a>
         <a href="adhesion.html" class="btn btn-ghost" data-i18n="ann.cta.btn">Devenir bienfaiteur</a>
       </div>
     </div>
@@ -150,7 +150,8 @@
     let lbPhotos = [];
     let lbIdx = 0;
 
-    const TYPE_LABEL = { vente:'🏷️ Vente', don:'🎁 Don', echange:'🔄 Échange', recherche:'🔍 Recherche' };
+    function _annDt(key, fallback) { return (window.AHH_t && window.AHH_t(key)) || fallback; }
+    const TYPE_LABEL = { vente:_annDt('Vente','🏷️ Vente'), don:_annDt('Don','🎁 Don'), echange:_annDt('Échange','🔄 Échange'), recherche:_annDt('Recherche','🔍 Recherche') };
     const TYPE_CSS   = { vente:'type-vente', don:'type-don', echange:'type-echange', recherche:'type-recherche' };
 
     const CAT_EMOJI  = { electronique:'📱',meubles:'🛋️',vetements:'👗',maison:'🏡',sport:'⚽',vehicule:'🚗',cuisine:'🍽️',bebe:'🧸',services:'🤝',entraide:'🇭🇹',autre:'📦' };
@@ -176,7 +177,7 @@
 
       const prix = a.gratuit ? '<div class="ann-prix gratuit">🎁 Gratuit</div>'
         : (a.prix ? '<div class="ann-prix">$' + parseFloat(a.prix).toFixed(2) + '</div>'
-        : '<div class="ann-prix" style="color:var(--muted)">Prix à discuter</div>');
+        : '<div class="ann-prix" style="color:var(--muted)">' + _annDt('ann.priceTbd', 'Prix à discuter') + '</div>');
 
       const date = new Date(a.date_creation).toLocaleDateString('fr-CA', { year:'numeric', month:'short', day:'numeric' });
 
@@ -209,7 +210,7 @@
       }
       const grid = document.getElementById('annGrid');
       if (!filtered.length) {
-        grid.innerHTML = '<div class="ann-empty" style="grid-column:1/-1"><div class="ae-icon">📭</div><p>Aucune annonce pour l\'instant.</p></div>';
+        grid.innerHTML = '<div class="ann-empty" style="grid-column:1/-1"><div class="ae-icon">📭</div><p>' + _annDt('ann.empty', "Aucune annonce pour l'instant.") + '</p></div>';
         return;
       }
       grid.innerHTML = filtered.map(function(a, i) { return annCard(a, i); }).join('');
@@ -257,7 +258,7 @@
         render();
       } catch(e) {
         document.getElementById('annGrid').innerHTML =
-          '<div class="ann-empty" style="grid-column:1/-1"><div class="ae-icon">⚠️</div><p>Impossible de charger les annonces.</p></div>';
+          '<div class="ann-empty" style="grid-column:1/-1"><div class="ae-icon">⚠️</div><p>' + _annDt('ann.loadError', 'Impossible de charger les annonces.') + '</p></div>';
       }
     }
 
