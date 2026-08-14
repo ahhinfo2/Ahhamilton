@@ -9516,6 +9516,19 @@ function donCarteValide(member) {
   return !expired && member.carte_photo_approuvee === 1 && !!member.photo_url;
 }
 
+// Un foyer se réserve/retire librement dès qu'il a été validé au moins une fois par le comité,
+// dans les 365 derniers jours — pas besoin de re-valider chaque visite. Après un an (ou s'il n'a
+// jamais été validé, ou a été refusé), une nouvelle validation du comité est requise. Le champ
+// `statut` continue de refléter les changements de composition pour la visibilité du comité,
+// mais ne bloque plus, à lui seul, un foyer déjà validé dans l'année.
+function donsFoyerValidePourReservation(foyer) {
+  if (foyer.statut === 'refuse') return false;
+  if (!foyer.date_validation) return false;
+  const unAnAvant = new Date();
+  unAnAvant.setDate(unAnAvant.getDate() - 365);
+  return new Date(foyer.date_validation) > unAnAvant;
+}
+
 function donTrouverFoyer(programmeId, userId) {
   return db.prepare('SELECT * FROM dons_foyers WHERE programme_id=? AND responsable_id=?').get(programmeId, userId)
     || db.prepare(`SELECT f.* FROM dons_foyers f JOIN dons_foyer_membres m ON m.foyer_id=f.id WHERE f.programme_id=? AND m.user_id=?`).get(programmeId, userId);
@@ -9662,7 +9675,7 @@ app.get('/api/dons/mon-foyer', authMiddleware, (req, res) => {
     JOIN users u ON u.id = m.user_id WHERE m.foyer_id=?`).all(foyer.id);
   const dependants = db.prepare('SELECT * FROM dependents WHERE user_id=?').all(foyer.responsable_id);
   const personnes = db.prepare('SELECT * FROM dons_foyer_personnes WHERE foyer_id=? ORDER BY id').all(foyer.id);
-  res.json({ ...foyer, membres, dependants, personnes });
+  res.json({ ...foyer, membres, dependants, personnes, valide_pour_reservation: donsFoyerValidePourReservation(foyer) });
 });
 
 app.post('/api/dons/foyers', authMiddleware, (req, res) => {
@@ -9787,13 +9800,20 @@ app.put('/api/dons/foyers/:id', authMiddleware, (req, res) => {
 app.get('/api/dons/programmes/:id/foyers', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
   let sql = `SELECT f.*, u.prenom, u.nom, u.email, u.telephone FROM dons_foyers f JOIN users u ON u.id=f.responsable_id WHERE f.programme_id=?`;
   const params = [req.params.id];
-  if (req.query.statut) { sql += ' AND f.statut=?'; params.push(req.query.statut); }
+  if (req.query.statut === 'a_revalider') {
+    sql += " AND f.statut != 'refuse' AND f.date_validation IS NOT NULL AND f.date_validation < datetime('now','-365 days')";
+  } else if (req.query.statut) {
+    sql += ' AND f.statut=?'; params.push(req.query.statut);
+  }
   sql += ' ORDER BY f.date_creation DESC';
   const foyers = db.prepare(sql).all(...params);
   const membresStmt = db.prepare(`SELECT u.prenom, u.nom, u.email FROM dons_foyer_membres m JOIN users u ON u.id=m.user_id WHERE m.foyer_id=?`);
   const depStmt = db.prepare('SELECT prenom, nom, lien, date_naissance FROM dependents WHERE user_id=?');
   const persStmt = db.prepare('SELECT * FROM dons_foyer_personnes WHERE foyer_id=? ORDER BY id');
-  foyers.forEach(f => { f.membres = membresStmt.all(f.id); f.dependants = depStmt.all(f.responsable_id); f.personnes = persStmt.all(f.id); });
+  foyers.forEach(f => {
+    f.membres = membresStmt.all(f.id); f.dependants = depStmt.all(f.responsable_id); f.personnes = persStmt.all(f.id);
+    f.valide_pour_reservation = donsFoyerValidePourReservation(f);
+  });
   res.json(foyers);
 });
 
@@ -9842,7 +9862,7 @@ app.post('/api/dons/rdv', authMiddleware, (req, res) => {
 
   const foyer = donTrouverFoyer(programme_id, req.user.id);
   if (!foyer) return res.status(404).json({ error: "Vous n'avez pas encore déclaré de foyer pour ce programme." });
-  if (foyer.statut !== 'valide') return res.status(403).json({ error: 'Votre foyer doit être validé par le comité avant de réserver.' });
+  if (!donsFoyerValidePourReservation(foyer)) return res.status(403).json({ error: 'Votre foyer doit être validé (ou revalidé — une fois par an) par le comité avant de réserver.' });
   if (foyer.necessite_reconfirmation) return res.status(403).json({ error: 'Votre foyer doit être reconfirmé par le comité (absences répétées) avant de réserver.' });
 
   if (db.prepare("SELECT id FROM dons_rdv WHERE foyer_id=? AND statut='a_venir'").get(foyer.id)) {
@@ -9854,6 +9874,26 @@ app.post('/api/dons/rdv', authMiddleware, (req, res) => {
   const nbReserves = db.prepare("SELECT COUNT(*) AS c FROM dons_rdv WHERE creneau_id=? AND statut != 'annule'").get(creneau.id).c;
   if (nbReserves >= creneau.capacite_max) return res.status(409).json({ error: 'Ce créneau est complet.' });
 
+  const r = db.prepare('INSERT INTO dons_rdv (foyer_id, creneau_id) VALUES (?,?)').run(foyer.id, creneau.id);
+  res.json({ id: r.lastInsertRowid });
+});
+
+// Réservation prise par le comité au nom d'un foyer (ex. membre qui appelle) — mêmes
+// vérifications que la réservation en libre-service, juste sans passer par req.user.id.
+app.post('/api/dons/foyers/:id/rdv', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+  const { creneau_id } = req.body;
+  if (!creneau_id) return res.status(400).json({ error: 'Créneau requis' });
+  const foyer = db.prepare('SELECT * FROM dons_foyers WHERE id=?').get(req.params.id);
+  if (!foyer) return res.status(404).json({ error: 'Foyer introuvable' });
+  if (!donsFoyerValidePourReservation(foyer)) return res.status(403).json({ error: 'Ce foyer doit être validé (ou revalidé) avant de réserver.' });
+  if (foyer.necessite_reconfirmation) return res.status(403).json({ error: 'Ce foyer doit être reconfirmé (absences répétées) avant de réserver.' });
+  if (db.prepare("SELECT id FROM dons_rdv WHERE foyer_id=? AND statut='a_venir'").get(foyer.id)) {
+    return res.status(409).json({ error: 'Ce foyer a déjà un rendez-vous à venir.' });
+  }
+  const creneau = db.prepare('SELECT * FROM dons_creneaux WHERE id=? AND programme_id=?').get(creneau_id, foyer.programme_id);
+  if (!creneau) return res.status(404).json({ error: 'Créneau introuvable' });
+  const nbReserves = db.prepare("SELECT COUNT(*) AS c FROM dons_rdv WHERE creneau_id=? AND statut != 'annule'").get(creneau.id).c;
+  if (nbReserves >= creneau.capacite_max) return res.status(409).json({ error: 'Ce créneau est complet.' });
   const r = db.prepare('INSERT INTO dons_rdv (foyer_id, creneau_id) VALUES (?,?)').run(foyer.id, creneau.id);
   res.json({ id: r.lastInsertRowid });
 });
@@ -9935,9 +9975,9 @@ app.post('/api/dons/scan', authMiddleware, (req, res) => {
   }
 
   const foyer = donTrouverFoyer(programme_id, membre.id);
-  if (!foyer || foyer.statut !== 'valide') {
-    logScan('bloque_foyer_non_valide', foyer ? foyer.id : null, 'Foyer absent ou non validé');
-    return res.status(403).json({ error: `${membre.prenom} ${membre.nom} n'a pas de foyer validé pour ce programme.`, fiche, correspondances });
+  if (!foyer || !donsFoyerValidePourReservation(foyer)) {
+    logScan('bloque_foyer_non_valide', foyer ? foyer.id : null, 'Foyer absent ou non validé (ou validation expirée depuis plus d\'un an)');
+    return res.status(403).json({ error: `${membre.prenom} ${membre.nom} n'a pas de foyer validé (ou à jour) pour ce programme.`, fiche, correspondances });
   }
 
   const dernier = db.prepare('SELECT * FROM dons_retraits WHERE foyer_id=? ORDER BY date_retrait DESC LIMIT 1').get(foyer.id);

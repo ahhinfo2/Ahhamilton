@@ -15459,12 +15459,17 @@ async function _donsProgrammeTabHtml(prog) {
     </div>
 
     <div class="table-card">
-      <div class="table-card-header"><h3>Créneaux</h3><button class="btn btn-primary btn-sm" onclick="_donsNewCreneau(${prog.id})">+ Créneau</button></div>
+      <div class="table-card-header"><h3>Créneaux</h3>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost btn-sm" onclick="_donsGenererCreneaux(${prog.id})">Générer par lot (heures)</button>
+          <button class="btn btn-primary btn-sm" onclick="_donsNewCreneau(${prog.id})">+ Créneau</button>
+        </div>
+      </div>
       <div class="table-wrapper"><table>
         <thead><tr><th>Date</th><th>Capacité</th><th>Réservés</th><th>Actions</th></tr></thead>
         <tbody>
           ${creneaux.length ? creneaux.map(c => `<tr>
-            <td>${fmt(c.date_heure)}</td>
+            <td>${_donsFmtDT(c.date_heure)}</td>
             <td>${c.capacite_max}</td>
             <td>${c.nb_reserves}</td>
             <td><button class="btn btn-ghost btn-sm" style="color:#c62828" onclick="_donsDeleteCreneau(${c.id})">Supprimer</button></td>
@@ -15664,6 +15669,53 @@ async function _donsDeleteCreneau(id) {
   catch(e) { toast(e.message, true); }
 }
 
+function _donsGenererCreneaux(progId) {
+  openModal('Générer des créneaux par lot', `
+    <form id="donsGenCreneauxForm">
+      <div class="form-group"><label>Date *</label><input id="dg_date" type="date" required/></div>
+      <div class="form-row">
+        <div class="form-group"><label>Heure de début *</label><input id="dg_debut" type="time" value="09:00" required/></div>
+        <div class="form-group"><label>Heure de fin *</label><input id="dg_fin" type="time" value="17:00" required/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Intervalle (minutes)</label><input id="dg_intervalle" type="number" min="5" value="60"/></div>
+        <div class="form-group"><label>Capacité par créneau</label><input id="dg_cap" type="number" min="1" value="10"/></div>
+      </div>
+      <p style="font-size:.8rem;color:var(--muted)">Un créneau sera créé à chaque intervalle entre l'heure de début et l'heure de fin.</p>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Générer</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('donsGenCreneauxForm').onsubmit = async e => {
+    e.preventDefault();
+    const date = document.getElementById('dg_date').value;
+    const [hDebut, mDebut] = document.getElementById('dg_debut').value.split(':').map(Number);
+    const [hFin, mFin] = document.getElementById('dg_fin').value.split(':').map(Number);
+    const intervalle = parseInt(document.getElementById('dg_intervalle').value) || 60;
+    const cap = document.getElementById('dg_cap').value;
+    if (!date) { toast('Date requise', true); return; }
+    let cur = new Date(date + 'T00:00:00'); cur.setHours(hDebut, mDebut, 0, 0);
+    const fin = new Date(date + 'T00:00:00'); fin.setHours(hFin, mFin, 0, 0);
+    if (cur >= fin) { toast("L'heure de fin doit être après l'heure de début", true); return; }
+    const dates = [];
+    while (cur < fin) { dates.push(new Date(cur)); cur = new Date(cur.getTime() + intervalle * 60000); }
+    let ok = 0, echecs = 0;
+    for (const d of dates) {
+      const iso = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0')
+        + 'T' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+      try {
+        await api('/dons/creneaux', { method:'POST', body: JSON.stringify({ programme_id: progId, date_heure: iso, capacite_max: cap }) });
+        ok++;
+      } catch(e) { echecs++; }
+    }
+    closeModal();
+    toast(ok + ' créneau(x) créé(s)' + (echecs ? ` — ${echecs} échec(s)` : ''));
+    donsMgmtView();
+  };
+}
+
 async function _donsFoyersTabHtml(prog) {
   const statutFilter = window._donsFoyerFilter === undefined ? 'en_attente' : window._donsFoyerFilter;
   let foyers = [];
@@ -15673,7 +15725,7 @@ async function _donsFoyersTabHtml(prog) {
 
   return `
     <div style="margin-bottom:14px">
-      ${filterBtn('en_attente','En attente')}${filterBtn('valide','Validés')}${filterBtn('refuse','Refusés')}${filterBtn('','Tous')}
+      ${filterBtn('en_attente','En attente')}${filterBtn('valide','Validés')}${filterBtn('a_revalider','À revalider (>1 an)')}${filterBtn('refuse','Refusés')}${filterBtn('','Tous')}
     </div>
     <div class="table-wrapper"><table>
       <thead><tr><th>Responsable</th><th>Foyer</th><th>Taille</th><th>Statut</th><th>Absences</th><th>Actions</th></tr></thead>
@@ -15682,17 +15734,43 @@ async function _donsFoyersTabHtml(prog) {
           <td><strong>${escHtml(f.prenom)} ${escHtml(f.nom)}</strong><br><span style="font-size:.75rem;color:var(--muted)">${escHtml(f.email)}</span></td>
           <td style="font-size:.82rem">${(f.personnes||[]).length ? f.personnes.map(p => escHtml(p.prenom+' '+p.nom) + (p.date_naissance ? ' (' + _donsAge(p.date_naissance) + ' ans)' : ' (âge inconnu)')).join(', ') : (f.membres.map(m => escHtml(m.prenom+' '+m.nom)).join(', ') || '–')}</td>
           <td>${f.nb_personnes}</td>
-          <td>${pill(f.statut==='en_attente'?'En attente':f.statut==='valide'?'Validé':'Refusé', f.statut==='valide'?'bp-green':f.statut==='refuse'?'bp-red':'bp-orange')}${f.necessite_reconfirmation ? ' ' + pill('⚠️ à reconfirmer','bp-orange') : ''}</td>
+          <td>${f.valide_pour_reservation ? pill(f.statut==='en_attente'?'Actif (composition modifiée)':'Validé','bp-green') : pill(f.statut==='refuse'?'Refusé':'En attente','bp-'+(f.statut==='refuse'?'red':'orange'))}${f.necessite_reconfirmation ? ' ' + pill('⚠️ à reconfirmer','bp-orange') : ''}</td>
           <td>${f.nb_absences}</td>
           <td style="white-space:nowrap">
-            ${f.statut === 'en_attente' ? `<button class="btn btn-primary btn-sm" onclick="_donsValiderFoyer(${f.id},${f.nb_personnes})">Valider</button>
+            ${!f.valide_pour_reservation && f.statut !== 'refuse' ? `<button class="btn btn-primary btn-sm" onclick="_donsValiderFoyer(${f.id},${f.nb_personnes})">${f.date_validation ? 'Revalider' : 'Valider'}</button>
               <button class="btn btn-ghost btn-sm" style="color:#c62828" onclick="_donsRefuserFoyer(${f.id})">Refuser</button>` : ''}
+            ${f.valide_pour_reservation && !f.necessite_reconfirmation ? `<button class="btn btn-ghost btn-sm" onclick="_donsReserverPourFoyer(${f.id},${prog.id})">Réserver un RDV</button>` : ''}
             ${f.necessite_reconfirmation ? `<button class="btn btn-ghost btn-sm" onclick="_donsReconfirmerFoyer(${f.id})">Reconfirmer</button>` : ''}
           </td>
         </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">Aucun foyer</td></tr>'}
       </tbody>
     </table></div>
   `;
+}
+
+async function _donsReserverPourFoyer(foyerId, progId) {
+  const creneaux = await api('/dons/programmes/' + progId + '/creneaux-disponibles').catch(() => []);
+  if (!creneaux.length) { toast('Aucun créneau disponible pour le moment', true); return; }
+  openModal('Réserver un rendez-vous pour ce foyer', `
+    <form id="donsRdvComiteForm">
+      <div class="form-group"><label>Créneau</label>
+        <select id="drc_creneau" required style="width:100%">
+          ${creneaux.map(c => `<option value="${c.id}">${_donsFmtDT(c.date_heure)} — ${c.places_restantes} place(s)</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Réserver</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('donsRdvComiteForm').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      await api('/dons/foyers/' + foyerId + '/rdv', { method:'POST', body: JSON.stringify({ creneau_id: parseInt(document.getElementById('drc_creneau').value) }) });
+      closeModal(); toast('Rendez-vous réservé pour le foyer'); donsMgmtView();
+    } catch(e) { toast(e.message, true); }
+  };
 }
 
 function _donsValiderFoyer(id, nbPersonnes) {
@@ -15753,7 +15831,7 @@ async function _donsJournalTabHtml(prog) {
         <thead><tr><th>Date</th><th>Foyer (carte scannée)</th><th>Scanné par</th><th>Dérogation</th><th>Partiel</th></tr></thead>
         <tbody>
           ${data.retraits.length ? data.retraits.map(r => `<tr>
-            <td>${fmt(r.date_retrait)}</td>
+            <td>${_donsFmtDT(r.date_retrait)}</td>
             <td>${escHtml(r.carte_prenom)} ${escHtml(r.carte_nom)}</td>
             <td>${escHtml(r.scan_prenom)} ${escHtml(r.scan_nom)}</td>
             <td>${r.derogation ? '⚠️ ' + escHtml(r.motif_derogation||'') : '–'}</td>
@@ -15768,7 +15846,7 @@ async function _donsJournalTabHtml(prog) {
         <thead><tr><th>Date</th><th>Carte scannée</th><th>Résultat</th><th>Détails</th></tr></thead>
         <tbody>
           ${data.bloques.length ? data.bloques.map(b => `<tr>
-            <td>${fmt(b.date_scan)}</td>
+            <td>${_donsFmtDT(b.date_scan)}</td>
             <td>${escHtml(b.prenom||'')} ${escHtml(b.nom||'')}</td>
             <td>${escHtml(b.resultat)}</td>
             <td style="font-size:.82rem;color:var(--muted)">${escHtml(b.details||'')}</td>
@@ -15964,7 +16042,7 @@ async function donsScanSearch() {
         ${r.partiel ? `<div style="margin-top:8px">${pill('⚠️ Stock insuffisant — remise partielle','bp-orange')}</div>` : ''}
       </div>
       <div style="margin-top:16px;text-align:left">${detailRows}</div>
-      <div style="margin-top:14px;font-size:.82rem;color:var(--muted);text-align:center">Prochain retrait suggéré : <strong>${r.prochain_retrait_suggere}</strong>${r.prochain_creneau ? ` (créneau : ${fmt(r.prochain_creneau.date_heure)})` : " (aucun créneau ouvert pour l'instant)"}</div>
+      <div style="margin-top:14px;font-size:.82rem;color:var(--muted);text-align:center">Prochain retrait suggéré : <strong>${r.prochain_retrait_suggere}</strong>${r.prochain_creneau ? ` (créneau : ${_donsFmtDT(r.prochain_creneau.date_heure)})` : " (aucun créneau ouvert pour l'instant)"}</div>
       ${_donsRenderFiche(r.fiche, r.correspondances)}
       ${_donsRenderRoster(r.roster, r.foyer_id)}
     `;
@@ -16106,16 +16184,18 @@ async function donsMonFoyerView() {
         </div>
       </div>`;
   } else {
-    const statutLabel = { en_attente: 'En attente de validation', valide: 'Foyer validé', refuse: 'Refusé' }[foyer.statut];
-    const statutCls = { en_attente: 'bp-orange', valide: 'bp-green', refuse: 'bp-red' }[foyer.statut];
+    const statutLabel = foyer.statut === 'refuse' ? 'Refusé'
+      : foyer.valide_pour_reservation ? (foyer.statut === 'en_attente' ? 'Actif — composition modifiée (informatif)' : 'Foyer validé')
+      : 'En attente de validation';
+    const statutCls = foyer.statut === 'refuse' ? 'bp-red' : foyer.valide_pour_reservation ? 'bp-green' : 'bp-orange';
 
     let rdvSection = '';
-    if (foyer.statut === 'valide' && !foyer.necessite_reconfirmation) {
+    if (foyer.valide_pour_reservation && !foyer.necessite_reconfirmation) {
       const mesRdv = await api('/dons/mes-rdv?programme_id=' + prog.id).catch(() => ({ rdv: [], retraits: [] }));
       const prochainRdv = (mesRdv.rdv || []).find(r => r.statut === 'a_venir');
       if (prochainRdv) {
         rdvSection = `<div style="background:#e8f5e9;padding:14px 18px;border-radius:10px;margin-top:14px">
-          <strong>Votre prochain rendez-vous :</strong> ${fmt(prochainRdv.date_heure)}
+          <strong>Votre prochain rendez-vous :</strong> ${_donsFmtDT(prochainRdv.date_heure)}
           <button class="btn btn-ghost btn-sm" style="margin-left:10px;color:#c62828" onclick="_donsAnnulerRdv(${prochainRdv.id})">Annuler</button>
         </div>`;
       } else {
@@ -16125,7 +16205,7 @@ async function donsMonFoyerView() {
           <div style="padding:16px">
             ${creneaux.length ? `
               <select id="df_creneau" class="form-input" style="margin-bottom:10px;width:100%">
-                ${creneaux.map(c => `<option value="${c.id}">${fmt(c.date_heure)} — ${c.places_restantes} place(s)</option>`).join('')}
+                ${creneaux.map(c => `<option value="${c.id}">${_donsFmtDT(c.date_heure)} — ${c.places_restantes} place(s)</option>`).join('')}
               </select>
               <button class="btn btn-primary" onclick="_donsReserverRdv(${prog.id})">Réserver</button>
             ` : '<p style="color:var(--muted)">Aucun créneau disponible pour le moment — revenez plus tard.</p>'}
@@ -16136,7 +16216,7 @@ async function donsMonFoyerView() {
         rdvSection += `<div class="table-card" style="margin-top:14px">
           <div class="table-card-header"><h3>Historique des retraits</h3></div>
           <div class="table-wrapper"><table><thead><tr><th>Date</th></tr></thead><tbody>
-            ${mesRdv.retraits.map(r => `<tr><td>${fmt(r.date_retrait)}</td></tr>`).join('')}
+            ${mesRdv.retraits.map(r => `<tr><td>${_donsFmtDT(r.date_retrait)}</td></tr>`).join('')}
           </tbody></table></div>
         </div>`;
       }
@@ -16152,6 +16232,7 @@ async function donsMonFoyerView() {
         <div class="table-card-header"><h3>Mon foyer</h3>${pill(statutLabel, statutCls)}</div>
         <div style="padding:16px">
           <p><strong>Nombre de personnes :</strong> ${foyer.nb_personnes}</p>
+          ${foyer.date_validation ? `<p style="font-size:.82rem;color:var(--muted)">Validé le ${fmt(foyer.date_validation)} — revalidation requise vers le ${_donsDansUnAn(foyer.date_validation)}.</p>` : ''}
           ${personnesRows ? `<ul style="margin:6px 0 10px;padding-left:20px;font-size:.88rem">${personnesRows}</ul>` : ''}
           ${foyer.membres.length ? `<p><strong>Membres liés (carte propre) :</strong> ${foyer.membres.map(m => escHtml(m.prenom+' '+m.nom)).join(', ')}</p>` : ''}
           ${foyer.note_comite ? `<p style="font-size:.85rem;color:var(--muted)"><strong>Note du comité :</strong> ${escHtml(foyer.note_comite)}</p>` : ''}
@@ -16191,6 +16272,18 @@ async function donsMonFoyerView() {
       } catch(e) { toast(e.message, true); }
     };
   }
+}
+
+function _donsFmtDT(dateStr) {
+  if (!dateStr) return '–';
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('fr-CA', { year:'numeric', month:'short', day:'numeric' }) + ' ' + d.toLocaleTimeString('fr-CA', { hour:'2-digit', minute:'2-digit' });
+}
+
+function _donsDansUnAn(dateISO) {
+  const d = new Date(dateISO);
+  d.setDate(d.getDate() + 365);
+  return d.toLocaleDateString('fr-CA');
 }
 
 function _donsAge(dateNaissance) {
