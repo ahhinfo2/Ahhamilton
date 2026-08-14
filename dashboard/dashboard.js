@@ -15442,7 +15442,7 @@ async function _donsProgrammeTabHtml(prog) {
     <div class="table-card" style="margin-bottom:18px">
       <div class="table-card-header"><h3>Stock</h3><button class="btn btn-primary btn-sm" onclick="_donsNewStock(${prog.id})">+ Article</button></div>
       <div class="table-wrapper"><table>
-        <thead><tr><th>Article</th><th>Reçu</th><th>Restant</th><th>Fixe / foyer</th><th>Par personne</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Article</th><th>Reçu</th><th>Restant</th><th>Fixe / foyer</th><th>Par personne</th><th>Éligibilité</th><th>Actions</th></tr></thead>
         <tbody>
           ${stock.length ? stock.map(s => `<tr>
             <td><strong>${escHtml(s.nom)}</strong></td>
@@ -15450,9 +15450,10 @@ async function _donsProgrammeTabHtml(prog) {
             <td>${s.quantite_restante} ${escHtml(s.unite)}</td>
             <td>${s.qte_fixe_foyer}</td>
             <td>${s.qte_par_personne}</td>
+            <td style="font-size:.82rem">${s.age_min == null && s.age_max == null ? 'Tout le foyer' : (s.age_min ?? '0') + '–' + (s.age_max ?? '∞') + ' ans'}</td>
             <td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="_donsEditStock(${s.id})">Modifier</button>
                 <button class="btn btn-ghost btn-sm" style="color:#c62828" onclick="_donsDeleteStock(${s.id})">Supprimer</button></td>
-          </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted)">Aucun article</td></tr>'}
+          </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted)">Aucun article</td></tr>'}
         </tbody>
       </table></div>
     </div>
@@ -15550,9 +15551,14 @@ function _donsNewStock(progId) {
       </div>
       <div class="form-row">
         <div class="form-group"><label>Quantité fixe / foyer</label><input id="ds_fixe" type="number" step="0.01" value="0"/></div>
-        <div class="form-group"><label>Quantité additionnelle / personne</label><input id="ds_pp" type="number" step="0.01" value="0"/></div>
+        <div class="form-group"><label>Quantité additionnelle / personne éligible</label><input id="ds_pp" type="number" step="0.01" value="0"/></div>
       </div>
-      <p class="muted" style="font-size:.8rem;color:var(--muted)">Quantité remise à un foyer = fixe + (par personne × taille du foyer).</p>
+      <p class="muted" style="font-size:.8rem;color:var(--muted)">Quantité remise à un foyer = fixe + (par personne × nombre de personnes éligibles).</p>
+      <div class="form-row">
+        <div class="form-group"><label>Âge minimum (optionnel)</label><input id="ds_age_min" type="number" min="0" placeholder="ex. 0"/></div>
+        <div class="form-group"><label>Âge maximum (optionnel)</label><input id="ds_age_max" type="number" min="0" placeholder="ex. 5"/></div>
+      </div>
+      <p class="muted" style="font-size:.8rem;color:var(--muted)">Laisser vide = article pour tout le foyer. Remplir les deux = seulement les personnes dans cette tranche d'âge (ex. 0 à 5 pour « enfant -6 ans »). Un seul champ rempli = pas de limite de l'autre côté (ex. 18 et vide = « adultes seulement »).</p>
       <div class="form-actions">
         <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
         <button type="submit" class="btn btn-primary">Ajouter</button>
@@ -15568,7 +15574,9 @@ function _donsNewStock(progId) {
         unite: document.getElementById('ds_unite').value,
         quantite_recue: document.getElementById('ds_recue').value,
         qte_fixe_foyer: document.getElementById('ds_fixe').value,
-        qte_par_personne: document.getElementById('ds_pp').value
+        qte_par_personne: document.getElementById('ds_pp').value,
+        age_min: document.getElementById('ds_age_min').value,
+        age_max: document.getElementById('ds_age_max').value
       })});
       closeModal(); toast('Article ajouté'); donsMgmtView();
     } catch(e) { toast(e.message, true); }
@@ -15589,8 +15597,13 @@ async function _donsEditStock(id) {
       </div>
       <div class="form-row">
         <div class="form-group"><label>Quantité fixe / foyer</label><input id="ds_fixe" type="number" step="0.01" value="${s.qte_fixe_foyer}"/></div>
-        <div class="form-group"><label>Quantité additionnelle / personne</label><input id="ds_pp" type="number" step="0.01" value="${s.qte_par_personne}"/></div>
+        <div class="form-group"><label>Quantité additionnelle / personne éligible</label><input id="ds_pp" type="number" step="0.01" value="${s.qte_par_personne}"/></div>
       </div>
+      <div class="form-row">
+        <div class="form-group"><label>Âge minimum (optionnel)</label><input id="ds_age_min" type="number" min="0" value="${s.age_min ?? ''}" placeholder="ex. 0"/></div>
+        <div class="form-group"><label>Âge maximum (optionnel)</label><input id="ds_age_max" type="number" min="0" value="${s.age_max ?? ''}" placeholder="ex. 5"/></div>
+      </div>
+      <p class="muted" style="font-size:.8rem;color:var(--muted)">Laisser vide = pas de limite de ce côté. Les deux vides = article pour tout le foyer.</p>
       <div class="form-actions">
         <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
         <button type="submit" class="btn btn-primary">Enregistrer</button>
@@ -15606,7 +15619,9 @@ async function _donsEditStock(id) {
         quantite_recue: document.getElementById('ds_recue').value,
         quantite_restante: document.getElementById('ds_restante').value,
         qte_fixe_foyer: document.getElementById('ds_fixe').value,
-        qte_par_personne: document.getElementById('ds_pp').value
+        qte_par_personne: document.getElementById('ds_pp').value,
+        age_min: document.getElementById('ds_age_min').value,
+        age_max: document.getElementById('ds_age_max').value
       })});
       closeModal(); toast('Article mis à jour'); donsMgmtView();
     } catch(e) { toast(e.message, true); }
@@ -15665,7 +15680,7 @@ async function _donsFoyersTabHtml(prog) {
       <tbody>
         ${foyers.length ? foyers.map(f => `<tr>
           <td><strong>${escHtml(f.prenom)} ${escHtml(f.nom)}</strong><br><span style="font-size:.75rem;color:var(--muted)">${escHtml(f.email)}</span></td>
-          <td style="font-size:.82rem">${f.membres.map(m => escHtml(m.prenom+' '+m.nom)).join(', ') || '–'}${f.dependants.length ? ' + ' + f.dependants.length + ' pers. à charge' : ''}</td>
+          <td style="font-size:.82rem">${(f.personnes||[]).length ? f.personnes.map(p => escHtml(p.prenom+' '+p.nom) + (p.date_naissance ? ' (' + _donsAge(p.date_naissance) + ' ans)' : ' (âge inconnu)')).join(', ') : (f.membres.map(m => escHtml(m.prenom+' '+m.nom)).join(', ') || '–')}</td>
           <td>${f.nb_personnes}</td>
           <td>${pill(f.statut==='en_attente'?'En attente':f.statut==='valide'?'Validé':'Refusé', f.statut==='valide'?'bp-green':f.statut==='refuse'?'bp-red':'bp-orange')}${f.necessite_reconfirmation ? ' ' + pill('⚠️ à reconfirmer','bp-orange') : ''}</td>
           <td>${f.nb_absences}</td>
@@ -15950,6 +15965,8 @@ async function donsScanSearch() {
       </div>
       <div style="margin-top:16px;text-align:left">${detailRows}</div>
       <div style="margin-top:14px;font-size:.82rem;color:var(--muted);text-align:center">Prochain retrait suggéré : <strong>${r.prochain_retrait_suggere}</strong>${r.prochain_creneau ? ` (créneau : ${fmt(r.prochain_creneau.date_heure)})` : " (aucun créneau ouvert pour l'instant)"}</div>
+      ${_donsRenderFiche(r.fiche, r.correspondances)}
+      ${_donsRenderRoster(r.roster, r.foyer_id)}
     `;
     const dc = document.getElementById('donsDerogCheck'); if (dc) dc.checked = false;
     const dw = document.getElementById('donsDerogMotifWrap'); if (dw) dw.style.display = 'none';
@@ -15957,10 +15974,95 @@ async function donsScanSearch() {
     if (resultEl) resultEl.innerHTML = `
       <div class="empty-state"><div class="es-icon">⛔</div><p style="color:#c62828;font-weight:700">${escHtml(e.message)}</p>
       ${e.prochain_retrait ? `<p style="font-size:.85rem;color:var(--muted)">Prochain retrait possible : ${escHtml(e.prochain_retrait)}</p>` : ''}
-      </div>`;
+      </div>
+      ${e.fiche ? _donsRenderFiche(e.fiche, e.correspondances) : ''}
+    `;
   }
   const inp = document.getElementById('donsScanQrInput');
   if (inp) inp.value = '';
+}
+
+function _donsRenderFiche(fiche, correspondances) {
+  if (!fiche) return '';
+  window._donsLastFiche = fiche;
+  const correspHtml = (correspondances || []).length ? `
+    <div style="margin-top:10px;padding:10px 12px;background:#fff3e0;border-radius:8px;font-size:.82rem">
+      ⚠️ ${correspondances.map(c => `Même ${escHtml(c.champ)} que <strong>${escHtml(c.avec.prenom)} ${escHtml(c.avec.nom)}</strong>`).join(' · ')} — demander le lien de parenté.
+    </div>` : '';
+  return `
+    <div style="margin-top:16px;padding:14px 16px;background:var(--surface-2,var(--off));border:1px solid var(--border);border-radius:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong style="font-size:.9rem">${escHtml(fiche.prenom)} ${escHtml(fiche.nom)}</strong>
+        <button class="btn btn-ghost btn-sm" onclick="_donsModifierFiche(${fiche.id})">Modifier</button>
+      </div>
+      <div style="font-size:.82rem;color:var(--muted);margin-top:4px">
+        Date de naissance : ${fiche.date_naissance ? fmt(fiche.date_naissance) : '—'} · Adresse : ${escHtml(fiche.adresse || '—')}
+      </div>
+      ${correspHtml}
+    </div>`;
+}
+
+function _donsModifierFiche(userId) {
+  const f = window._donsLastFiche || {};
+  openModal('Modifier la fiche', `
+    <form id="donsFicheForm">
+      <div class="form-group"><label>Date de naissance</label><input id="dmf_dob" type="date" value="${f.date_naissance ? f.date_naissance.slice(0,10) : ''}"/></div>
+      <div class="form-group"><label>Adresse</label><input id="dmf_adresse" value="${escHtml(f.adresse || '')}"/></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Enregistrer</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('donsFicheForm').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      await api('/users/' + userId, { method:'PUT', body: JSON.stringify({
+        date_naissance: document.getElementById('dmf_dob').value || null,
+        adresse: document.getElementById('dmf_adresse').value
+      })});
+      closeModal(); toast('Fiche mise à jour');
+    } catch(e) { toast(e.message, true); }
+  };
+}
+
+function _donsRenderRoster(roster, foyerId) {
+  if (!roster || !roster.length) return '';
+  return `
+    <div style="margin-top:12px;padding:14px 16px;background:var(--surface-2,var(--off));border:1px solid var(--border);border-radius:10px">
+      <strong style="font-size:.85rem">Composition du foyer</strong>
+      ${roster.map(p => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid var(--border);font-size:.82rem">
+        <span>${escHtml(p.prenom)} ${escHtml(p.nom)}${p.date_naissance ? ' — ' + _donsAge(p.date_naissance) + ' ans' : ' — âge inconnu'}${p.date_naissance_verifiee ? ' ✅' : ''}</span>
+        <button class="btn btn-ghost btn-sm" onclick="_donsVerifierPersonne(${foyerId},${p.id},'${escHtml(p.prenom)}','${escHtml(p.nom)}','${p.date_naissance || ''}')">✓ Vérifier</button>
+      </div>`).join('')}
+    </div>`;
+}
+
+function _donsVerifierPersonne(foyerId, personneId, prenom, nom, dob) {
+  openModal('Vérifier la personne', `
+    <p style="font-size:.82rem;color:var(--muted);margin-bottom:10px">Confirmez la date de naissance après avoir vu une pièce d'identité (adulte) ou la déclaration du parent (enfant).</p>
+    <form id="donsVerifForm">
+      <div class="form-group"><label>Prénom</label><input id="dvf_prenom" value="${prenom}"/></div>
+      <div class="form-group"><label>Nom</label><input id="dvf_nom" value="${nom}"/></div>
+      <div class="form-group"><label>Date de naissance</label><input id="dvf_dob" type="date" value="${dob}"/></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">✓ Confirmer / vérifier</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('donsVerifForm').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      await api('/dons/foyers/' + foyerId + '/personnes/' + personneId, { method:'PUT', body: JSON.stringify({
+        prenom: document.getElementById('dvf_prenom').value,
+        nom: document.getElementById('dvf_nom').value,
+        date_naissance: document.getElementById('dvf_dob').value || null,
+        verifie: true
+      })});
+      closeModal(); toast('Personne vérifiée');
+    } catch(e) { toast(e.message, true); }
+  };
 }
 
 function _donsAppendLiveFeed(evt) {
@@ -15991,13 +16093,14 @@ async function donsMonFoyerView() {
   let bodyHtml = '';
   if (!foyer) {
     bodyHtml = `
-      <div class="table-card" style="max-width:600px">
+      <div class="table-card" style="max-width:640px">
         <div class="table-card-header"><h3>Déclarer mon foyer</h3></div>
         <div style="padding:16px">
-          <p style="font-size:.88rem;color:var(--muted);margin-bottom:14px">Déclarez votre foyer une seule fois. Si votre conjoint(e) est aussi membre AHH, ajoutez son courriel pour que sa carte soit reconnue aussi — peu importe qui se présente, le foyer ne reçoit qu'une fois par cycle.</p>
+          <p style="font-size:.88rem;color:var(--muted);margin-bottom:14px">Listez toutes les personnes de votre foyer, vous y compris. Certains articles remis dépendent de l'âge (ex. couches, vêtements enfant) — la date de naissance est donc importante. Si votre conjoint(e) est aussi membre AHH, ajoutez son courriel pour que sa carte soit reconnue aussi — peu importe qui se présente, le foyer ne reçoit qu'une fois par cycle.</p>
           <form id="donsFoyerForm">
-            <div class="form-group"><label>Nombre de personnes dans le foyer</label><input id="df_nb" type="number" min="1" value="1" required/></div>
-            <div class="form-group"><label>Courriel du conjoint / d'un autre membre du foyer (optionnel)</label><input id="df_conjoint" type="email" placeholder="conjoint@exemple.com"/></div>
+            <div id="df_personnes"></div>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="_donsAjouterLignePersonne()">+ Ajouter une personne</button>
+            <div class="form-group" style="margin-top:16px"><label>Courriel du conjoint / d'un autre membre du foyer (optionnel)</label><input id="df_conjoint" type="email" placeholder="conjoint@exemple.com"/></div>
             <div class="form-actions"><button type="submit" class="btn btn-primary">Déclarer mon foyer</button></div>
           </form>
         </div>
@@ -16043,14 +16146,16 @@ async function donsMonFoyerView() {
       </div>`;
     }
 
+    const personnesRows = (foyer.personnes || []).map(p => `<li>${escHtml(p.prenom)} ${escHtml(p.nom)}${p.date_naissance ? ' — ' + _donsAge(p.date_naissance) + ' ans' : ''}${p.date_naissance_verifiee ? ' ✅' : ''}</li>`).join('');
     bodyHtml = `
       <div class="table-card" style="max-width:700px">
         <div class="table-card-header"><h3>Mon foyer</h3>${pill(statutLabel, statutCls)}</div>
         <div style="padding:16px">
           <p><strong>Nombre de personnes :</strong> ${foyer.nb_personnes}</p>
-          ${foyer.membres.length ? `<p><strong>Membres liés :</strong> ${foyer.membres.map(m => escHtml(m.prenom+' '+m.nom)).join(', ')}</p>` : ''}
+          ${personnesRows ? `<ul style="margin:6px 0 10px;padding-left:20px;font-size:.88rem">${personnesRows}</ul>` : ''}
+          ${foyer.membres.length ? `<p><strong>Membres liés (carte propre) :</strong> ${foyer.membres.map(m => escHtml(m.prenom+' '+m.nom)).join(', ')}</p>` : ''}
           ${foyer.note_comite ? `<p style="font-size:.85rem;color:var(--muted)"><strong>Note du comité :</strong> ${escHtml(foyer.note_comite)}</p>` : ''}
-          ${foyer.statut !== 'refuse' ? `<button class="btn btn-ghost btn-sm" onclick="_donsModifierFoyer(${foyer.id},${foyer.nb_personnes})">Modifier la composition</button>` : ''}
+          ${foyer.statut !== 'refuse' ? `<button class="btn btn-ghost btn-sm" onclick="_donsModifierFoyer(${foyer.id},${prog.id})">Modifier la composition</button>` : ''}
         </div>
       </div>
       ${rdvSection}
@@ -16063,13 +16168,21 @@ async function donsMonFoyerView() {
   `);
 
   if (!foyer) {
+    _donsAjouterLignePersonne(USER.prenom, USER.nom, false);
     document.getElementById('donsFoyerForm').onsubmit = async e => {
       e.preventDefault();
+      const personnes = Array.from(document.querySelectorAll('#df_personnes .dons-personne-row')).map(row => ({
+        prenom: row.querySelector('.dpp-prenom').value.trim(),
+        nom: row.querySelector('.dpp-nom').value.trim(),
+        date_naissance: row.querySelector('.dpp-dob').value || null
+      })).filter(p => p.prenom && p.nom);
+      if (!personnes.length) { toast('Ajoutez au moins une personne', true); return; }
       try {
         const conjoint = document.getElementById('df_conjoint').value.trim();
         const r = await api('/dons/foyers', { method:'POST', body: JSON.stringify({
           programme_id: prog.id,
-          nb_personnes: document.getElementById('df_nb').value,
+          // Le responsable (première ligne) est déjà ajouté automatiquement côté serveur.
+          personnes: personnes.slice(1),
           membres_emails: conjoint ? [conjoint] : []
         })});
         if (r.membres_ignores?.length) toast('Attention : ' + r.membres_ignores.join(', ') + ' déjà rattaché(s) à un autre foyer', true);
@@ -16078,6 +16191,29 @@ async function donsMonFoyerView() {
       } catch(e) { toast(e.message, true); }
     };
   }
+}
+
+function _donsAge(dateNaissance) {
+  const d = new Date(dateNaissance), now = new Date();
+  let age = now.getFullYear() - d.getFullYear();
+  const m = now.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+  return age;
+}
+
+function _donsAjouterLignePersonne(prenom = '', nom = '', removable = true) {
+  const wrap = document.getElementById('df_personnes');
+  if (!wrap) return;
+  const row = document.createElement('div');
+  row.className = 'dons-personne-row';
+  row.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:flex-end;flex-wrap:wrap';
+  row.innerHTML = `
+    <div class="form-group" style="flex:1;min-width:120px;margin:0"><label>Prénom</label><input class="dpp-prenom" value="${escHtml(prenom)}"/></div>
+    <div class="form-group" style="flex:1;min-width:120px;margin:0"><label>Nom</label><input class="dpp-nom" value="${escHtml(nom)}"/></div>
+    <div class="form-group" style="flex:1;min-width:150px;margin:0"><label>Date de naissance</label><input class="dpp-dob" type="date"/></div>
+    ${removable ? `<button type="button" class="btn btn-ghost btn-sm" onclick="this.closest('.dons-personne-row').remove()">✕</button>` : ''}
+  `;
+  wrap.appendChild(row);
 }
 
 async function _donsReserverRdv(progId) {
@@ -16096,24 +16232,45 @@ async function _donsAnnulerRdv(id) {
   catch(e) { toast(e.message, true); }
 }
 
-function _donsModifierFoyer(id, nbActuel) {
+async function _donsModifierFoyer(id, programmeId) {
+  const foyer = await api('/dons/mon-foyer?programme_id=' + programmeId).catch(() => null);
+  const personnes = (foyer && foyer.id === id) ? (foyer.personnes || []) : [];
   openModal('Modifier mon foyer', `
-    <form id="donsFoyerEditForm">
-      <div class="form-group"><label>Nombre de personnes</label><input id="dfe_nb" type="number" min="1" value="${nbActuel}"/></div>
-      <p style="font-size:.8rem;color:var(--muted)">Modifier la composition renverra votre foyer en attente de validation.</p>
-      <div class="form-actions">
-        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
-        <button type="submit" class="btn btn-primary">Enregistrer</button>
-      </div>
+    <p style="font-size:.82rem;color:var(--muted);margin-bottom:10px">Ajouter, retirer ou corriger une personne renverra votre foyer en attente de validation.</p>
+    <div id="dfe_personnes">
+      ${personnes.map(p => `<div style="display:flex;gap:8px;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:.88rem">${escHtml(p.prenom)} ${escHtml(p.nom)}${p.date_naissance ? ' — ' + fmt(p.date_naissance) : ''}${p.date_naissance_verifiee ? ' ✅' : ''}</span>
+        <button type="button" class="btn btn-ghost btn-sm" style="color:#c62828" onclick="_donsSupprimerPersonne(${id},${p.id})">Retirer</button>
+      </div>`).join('') || '<p style="font-size:.85rem;color:var(--muted)">Aucune personne listée.</p>'}
+    </div>
+    <form id="donsAjoutPersonneForm" style="margin-top:14px;display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+      <div class="form-group" style="flex:1;min-width:110px;margin:0"><label>Prénom</label><input id="dap_prenom" required/></div>
+      <div class="form-group" style="flex:1;min-width:110px;margin:0"><label>Nom</label><input id="dap_nom" required/></div>
+      <div class="form-group" style="flex:1;min-width:140px;margin:0"><label>Date de naissance</label><input id="dap_dob" type="date"/></div>
+      <button type="submit" class="btn btn-primary btn-sm">+ Ajouter</button>
     </form>
+    <div class="form-actions" style="margin-top:16px"><button type="button" class="btn btn-ghost" onclick="closeModal()">Fermer</button></div>
   `);
-  document.getElementById('donsFoyerEditForm').onsubmit = async e => {
+  document.getElementById('donsAjoutPersonneForm').onsubmit = async e => {
     e.preventDefault();
     try {
-      await api('/dons/foyers/' + id, { method:'PUT', body: JSON.stringify({ nb_personnes: document.getElementById('dfe_nb').value }) });
-      closeModal(); toast('Foyer mis à jour'); donsMonFoyerView();
+      await api('/dons/foyers/' + id + '/personnes', { method:'POST', body: JSON.stringify({
+        prenom: document.getElementById('dap_prenom').value,
+        nom: document.getElementById('dap_nom').value,
+        date_naissance: document.getElementById('dap_dob').value || null
+      })});
+      closeModal(); toast('Personne ajoutée — foyer en attente de validation'); donsMonFoyerView();
     } catch(e) { toast(e.message, true); }
   };
+}
+
+async function _donsSupprimerPersonne(foyerId, personneId) {
+  if (!confirm('Retirer cette personne du foyer ?')) return;
+  try {
+    await api('/dons/foyers/' + foyerId + '/personnes/' + personneId, { method:'DELETE' });
+    toast('Personne retirée — foyer en attente de validation');
+    closeModal(); donsMonFoyerView();
+  } catch(e) { toast(e.message, true); }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

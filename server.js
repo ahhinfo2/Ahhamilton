@@ -9521,6 +9521,43 @@ function donTrouverFoyer(programmeId, userId) {
     || db.prepare(`SELECT f.* FROM dons_foyers f JOIN dons_foyer_membres m ON m.foyer_id=f.id WHERE f.programme_id=? AND m.user_id=?`).get(programmeId, userId);
 }
 
+// Recalcule le compteur mis en cache (dons_foyers.nb_personnes) à partir de la vraie
+// liste (dons_foyer_personnes). Ne fait rien si la liste est vide, pour ne pas écraser
+// le chiffre saisi manuellement sur les foyers créés avant l'ajout de la liste détaillée.
+function donsRecomputeNbPersonnes(foyerId) {
+  const n = db.prepare('SELECT COUNT(*) AS c FROM dons_foyer_personnes WHERE foyer_id=?').get(foyerId).c;
+  if (n > 0) db.prepare('UPDATE dons_foyers SET nb_personnes=? WHERE id=?').run(n, foyerId);
+}
+
+// Détecte si l'adresse/téléphone du membre scanné correspond à un AUTRE membre actif —
+// signal utile au comptoir pour demander le lien de parenté (ou repérer un foyer scindé
+// artificiellement en deux inscriptions pour doubler les dons).
+function donsCorrespondances(membre) {
+  const correspondances = [];
+  if (membre.adresse && membre.adresse.trim()) {
+    db.prepare(`SELECT id, prenom, nom FROM users WHERE id != ? AND actif=1 AND adresse IS NOT NULL AND TRIM(LOWER(adresse)) = TRIM(LOWER(?))`)
+      .all(membre.id, membre.adresse.trim())
+      .forEach(r => correspondances.push({ champ: 'adresse', valeur: membre.adresse, avec: r }));
+  }
+  if (membre.telephone && membre.telephone.trim()) {
+    const digits = membre.telephone.replace(/\D/g, '');
+    if (digits.length >= 7) {
+      db.prepare(`SELECT id, prenom, nom, telephone FROM users WHERE id != ? AND actif=1 AND telephone IS NOT NULL AND telephone != ''`)
+        .all(membre.id)
+        .filter(r => r.telephone.replace(/\D/g, '') === digits)
+        .forEach(r => correspondances.push({ champ: 'téléphone', valeur: membre.telephone, avec: { id: r.id, prenom: r.prenom, nom: r.nom } }));
+    }
+  }
+  return correspondances;
+}
+
+function donsAjouterPersonne(foyerId, { user_id, prenom, nom, date_naissance }) {
+  if (!prenom || !nom) return null;
+  const r = db.prepare('INSERT INTO dons_foyer_personnes (foyer_id, user_id, prenom, nom, date_naissance) VALUES (?,?,?,?,?)')
+    .run(foyerId, user_id || null, prenom.trim(), nom.trim(), date_naissance || null);
+  return r.lastInsertRowid;
+}
+
 // ── Programmes ───────────────────────────────────────────────────────────────
 app.get('/api/dons/programmes', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
   res.json(db.prepare('SELECT * FROM dons_programmes ORDER BY date_creation DESC').all());
@@ -9556,24 +9593,27 @@ app.get('/api/dons/programmes/:id/stock', authMiddleware, requireRole(...DON_EXE
 });
 
 app.post('/api/dons/stock', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
-  const { programme_id, nom, unite, quantite_recue, qte_fixe_foyer, qte_par_personne } = req.body;
+  const { programme_id, nom, unite, quantite_recue, qte_fixe_foyer, qte_par_personne, age_min, age_max } = req.body;
   if (!programme_id || !nom || !nom.trim()) return res.status(400).json({ error: 'Programme et nom requis' });
   const qte = parseFloat(quantite_recue) || 0;
-  const r = db.prepare(`INSERT INTO dons_stock (programme_id, nom, unite, quantite_recue, quantite_restante, qte_fixe_foyer, qte_par_personne)
-    VALUES (?,?,?,?,?,?,?)`).run(programme_id, nom.trim(), unite || 'unité', qte, qte, parseFloat(qte_fixe_foyer) || 0, parseFloat(qte_par_personne) || 0);
+  const r = db.prepare(`INSERT INTO dons_stock (programme_id, nom, unite, quantite_recue, quantite_restante, qte_fixe_foyer, qte_par_personne, age_min, age_max)
+    VALUES (?,?,?,?,?,?,?,?,?)`).run(programme_id, nom.trim(), unite || 'unité', qte, qte, parseFloat(qte_fixe_foyer) || 0, parseFloat(qte_par_personne) || 0,
+    age_min !== undefined && age_min !== '' ? parseInt(age_min) : null, age_max !== undefined && age_max !== '' ? parseInt(age_max) : null);
   res.json({ id: r.lastInsertRowid });
 });
 
 app.put('/api/dons/stock/:id', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
   const item = db.prepare('SELECT * FROM dons_stock WHERE id=?').get(req.params.id);
   if (!item) return res.status(404).json({ error: 'Article introuvable' });
-  const { nom, unite, quantite_recue, quantite_restante, qte_fixe_foyer, qte_par_personne } = req.body;
-  db.prepare(`UPDATE dons_stock SET nom=?, unite=?, quantite_recue=?, quantite_restante=?, qte_fixe_foyer=?, qte_par_personne=? WHERE id=?`).run(
+  const { nom, unite, quantite_recue, quantite_restante, qte_fixe_foyer, qte_par_personne, age_min, age_max } = req.body;
+  db.prepare(`UPDATE dons_stock SET nom=?, unite=?, quantite_recue=?, quantite_restante=?, qte_fixe_foyer=?, qte_par_personne=?, age_min=?, age_max=? WHERE id=?`).run(
     nom || item.nom, unite || item.unite,
     quantite_recue !== undefined ? parseFloat(quantite_recue) : item.quantite_recue,
     quantite_restante !== undefined ? parseFloat(quantite_restante) : item.quantite_restante,
     qte_fixe_foyer !== undefined ? parseFloat(qte_fixe_foyer) : item.qte_fixe_foyer,
     qte_par_personne !== undefined ? parseFloat(qte_par_personne) : item.qte_par_personne,
+    age_min !== undefined ? (age_min === '' ? null : parseInt(age_min)) : item.age_min,
+    age_max !== undefined ? (age_max === '' ? null : parseInt(age_max)) : item.age_max,
     item.id
   );
   res.json({ ok: true });
@@ -9621,11 +9661,12 @@ app.get('/api/dons/mon-foyer', authMiddleware, (req, res) => {
   const membres = db.prepare(`SELECT u.id, u.prenom, u.nom, u.email, m.lien FROM dons_foyer_membres m
     JOIN users u ON u.id = m.user_id WHERE m.foyer_id=?`).all(foyer.id);
   const dependants = db.prepare('SELECT * FROM dependents WHERE user_id=?').all(foyer.responsable_id);
-  res.json({ ...foyer, membres, dependants });
+  const personnes = db.prepare('SELECT * FROM dons_foyer_personnes WHERE foyer_id=? ORDER BY id').all(foyer.id);
+  res.json({ ...foyer, membres, dependants, personnes });
 });
 
 app.post('/api/dons/foyers', authMiddleware, (req, res) => {
-  const { programme_id, nb_personnes, membres_emails } = req.body;
+  const { programme_id, nb_personnes, membres_emails, personnes } = req.body;
   if (!programme_id) return res.status(400).json({ error: 'programme_id requis' });
   const prog = db.prepare('SELECT * FROM dons_programmes WHERE id=?').get(programme_id);
   if (!prog) return res.status(404).json({ error: 'Programme introuvable' });
@@ -9638,16 +9679,80 @@ app.post('/api/dons/foyers', authMiddleware, (req, res) => {
     .run(programme_id, req.user.id, parseInt(nb_personnes) || 1);
   const foyerId = r.lastInsertRowid;
 
+  const moi = db.prepare('SELECT prenom, nom, date_naissance FROM users WHERE id=?').get(req.user.id);
+  donsAjouterPersonne(foyerId, { user_id: req.user.id, prenom: moi.prenom, nom: moi.nom, date_naissance: moi.date_naissance });
+
   const membresIgnores = [];
   if (Array.isArray(membres_emails)) {
     membres_emails.forEach(email => {
-      const u = db.prepare('SELECT id FROM users WHERE email=? AND actif=1').get((email || '').trim());
+      const u = db.prepare('SELECT id, prenom, nom, date_naissance FROM users WHERE email=? AND actif=1').get((email || '').trim());
       if (!u || u.id === req.user.id) return;
       if (donTrouverFoyer(programme_id, u.id)) { membresIgnores.push(email); return; }
-      try { db.prepare('INSERT INTO dons_foyer_membres (foyer_id, user_id) VALUES (?,?)').run(foyerId, u.id); } catch {}
+      try {
+        db.prepare('INSERT INTO dons_foyer_membres (foyer_id, user_id) VALUES (?,?)').run(foyerId, u.id);
+        donsAjouterPersonne(foyerId, { user_id: u.id, prenom: u.prenom, nom: u.nom, date_naissance: u.date_naissance });
+      } catch {}
     });
   }
+
+  if (Array.isArray(personnes)) {
+    personnes.forEach(p => donsAjouterPersonne(foyerId, { prenom: p.prenom, nom: p.nom, date_naissance: p.date_naissance || null }));
+  }
+  donsRecomputeNbPersonnes(foyerId);
+
   res.json({ id: foyerId, membres_ignores: membresIgnores });
+});
+
+// ── Personnes du foyer (liste détaillée pour l'éligibilité par âge) ──────────
+app.post('/api/dons/foyers/:id/personnes', authMiddleware, (req, res) => {
+  const foyer = db.prepare('SELECT * FROM dons_foyers WHERE id=?').get(req.params.id);
+  if (!foyer) return res.status(404).json({ error: 'Foyer introuvable' });
+  const isExec = DON_EXEC_ROLES.includes(req.user.role);
+  if (!isExec && foyer.responsable_id !== req.user.id) return res.status(403).json({ error: 'Accès refusé' });
+
+  const { prenom, nom, date_naissance } = req.body;
+  if (!prenom || !nom) return res.status(400).json({ error: 'Prénom et nom requis' });
+  const id = donsAjouterPersonne(foyer.id, { prenom, nom, date_naissance });
+  donsRecomputeNbPersonnes(foyer.id);
+  if (foyer.statut === 'valide') db.prepare("UPDATE dons_foyers SET statut='en_attente', necessite_reconfirmation=0 WHERE id=?").run(foyer.id);
+  res.json({ id, repasse_en_attente: foyer.statut === 'valide' });
+});
+
+app.put('/api/dons/foyers/:id/personnes/:pid', authMiddleware, (req, res) => {
+  const foyer = db.prepare('SELECT * FROM dons_foyers WHERE id=?').get(req.params.id);
+  if (!foyer) return res.status(404).json({ error: 'Foyer introuvable' });
+  const isExec = DON_EXEC_ROLES.includes(req.user.role);
+  if (!isExec && foyer.responsable_id !== req.user.id) return res.status(403).json({ error: 'Accès refusé' });
+  const personne = db.prepare('SELECT * FROM dons_foyer_personnes WHERE id=? AND foyer_id=?').get(req.params.pid, foyer.id);
+  if (!personne) return res.status(404).json({ error: 'Personne introuvable' });
+
+  const { prenom, nom, date_naissance, verifie } = req.body;
+  const dateChangee = date_naissance !== undefined && date_naissance !== personne.date_naissance;
+  if (verifie && !isExec) return res.status(403).json({ error: 'Seul le comité peut vérifier une date de naissance' });
+
+  db.prepare(`UPDATE dons_foyer_personnes SET prenom=?, nom=?, date_naissance=?, date_naissance_verifiee=?, verifie_par=?, date_verification=? WHERE id=?`).run(
+    prenom || personne.prenom, nom || personne.nom,
+    date_naissance !== undefined ? date_naissance : personne.date_naissance,
+    verifie ? 1 : (dateChangee ? 0 : personne.date_naissance_verifiee),
+    verifie ? req.user.id : personne.verifie_par,
+    verifie ? new Date().toISOString() : personne.date_verification,
+    personne.id
+  );
+
+  const repasseEnAttente = !isExec && dateChangee && foyer.statut === 'valide';
+  if (repasseEnAttente) db.prepare("UPDATE dons_foyers SET statut='en_attente', necessite_reconfirmation=0 WHERE id=?").run(foyer.id);
+  res.json({ ok: true, repasse_en_attente: repasseEnAttente });
+});
+
+app.delete('/api/dons/foyers/:id/personnes/:pid', authMiddleware, (req, res) => {
+  const foyer = db.prepare('SELECT * FROM dons_foyers WHERE id=?').get(req.params.id);
+  if (!foyer) return res.status(404).json({ error: 'Foyer introuvable' });
+  const isExec = DON_EXEC_ROLES.includes(req.user.role);
+  if (!isExec && foyer.responsable_id !== req.user.id) return res.status(403).json({ error: 'Accès refusé' });
+  db.prepare('DELETE FROM dons_foyer_personnes WHERE id=? AND foyer_id=?').run(req.params.pid, foyer.id);
+  donsRecomputeNbPersonnes(foyer.id);
+  if (!isExec && foyer.statut === 'valide') db.prepare("UPDATE dons_foyers SET statut='en_attente', necessite_reconfirmation=0 WHERE id=?").run(foyer.id);
+  res.json({ ok: true });
 });
 
 app.put('/api/dons/foyers/:id', authMiddleware, (req, res) => {
@@ -9687,7 +9792,8 @@ app.get('/api/dons/programmes/:id/foyers', authMiddleware, requireRole(...DON_EX
   const foyers = db.prepare(sql).all(...params);
   const membresStmt = db.prepare(`SELECT u.prenom, u.nom, u.email FROM dons_foyer_membres m JOIN users u ON u.id=m.user_id WHERE m.foyer_id=?`);
   const depStmt = db.prepare('SELECT prenom, nom, lien, date_naissance FROM dependents WHERE user_id=?');
-  foyers.forEach(f => { f.membres = membresStmt.all(f.id); f.dependants = depStmt.all(f.responsable_id); });
+  const persStmt = db.prepare('SELECT * FROM dons_foyer_personnes WHERE foyer_id=? ORDER BY id');
+  foyers.forEach(f => { f.membres = membresStmt.all(f.id); f.dependants = depStmt.all(f.responsable_id); f.personnes = persStmt.all(f.id); });
   res.json(foyers);
 });
 
@@ -9815,15 +9921,23 @@ app.post('/api/dons/scan', authMiddleware, (req, res) => {
     logScan('bloque_carte_invalide', null, 'Membre introuvable ou inactif');
     return res.status(404).json({ error: 'Membre introuvable' });
   }
+
+  // Fiche + détection de correspondances (adresse/téléphone partagés avec un autre membre) —
+  // renvoyées dans TOUTES les réponses à partir d'ici, succès ou blocage, pour que le poste de
+  // scan puisse toujours afficher/corriger la fiche de la carte présentée.
+  const fiche = { id: membre.id, prenom: membre.prenom, nom: membre.nom, photo_url: membre.photo_url,
+    date_naissance: membre.date_naissance, adresse: membre.adresse, telephone: membre.telephone };
+  const correspondances = donsCorrespondances(membre);
+
   if (!donCarteValide(membre)) {
     logScan('bloque_carte_invalide', null, 'Carte expirée ou non approuvée');
-    return res.status(403).json({ error: `La carte de ${membre.prenom} ${membre.nom} n'est pas valide (expirée ou photo non approuvée).` });
+    return res.status(403).json({ error: `La carte de ${membre.prenom} ${membre.nom} n'est pas valide (expirée ou photo non approuvée).`, fiche, correspondances });
   }
 
   const foyer = donTrouverFoyer(programme_id, membre.id);
   if (!foyer || foyer.statut !== 'valide') {
     logScan('bloque_foyer_non_valide', foyer ? foyer.id : null, 'Foyer absent ou non validé');
-    return res.status(403).json({ error: `${membre.prenom} ${membre.nom} n'a pas de foyer validé pour ce programme.` });
+    return res.status(403).json({ error: `${membre.prenom} ${membre.nom} n'a pas de foyer validé pour ce programme.`, fiche, correspondances });
   }
 
   const dernier = db.prepare('SELECT * FROM dons_retraits WHERE foyer_id=? ORDER BY date_retrait DESC LIMIT 1').get(foyer.id);
@@ -9836,15 +9950,31 @@ app.post('/api/dons/scan', authMiddleware, (req, res) => {
         message: `Foyer déjà servi le ${dernier.date_retrait.slice(0,10)} — prochain retrait le ${prochain.toISOString().slice(0,10)}` });
       return res.status(409).json({
         error: `Ce foyer a déjà reçu sa distribution le ${dernier.date_retrait.slice(0,10)}.`,
-        prochain_retrait: prochain.toISOString().slice(0,10)
+        prochain_retrait: prochain.toISOString().slice(0,10),
+        fiche, correspondances
       });
     }
+  }
+
+  const roster = db.prepare('SELECT * FROM dons_foyer_personnes WHERE foyer_id=?').all(foyer.id);
+  const scanDate = new Date();
+  function ageDe(p) {
+    if (!p.date_naissance) return null;
+    const d = new Date(p.date_naissance);
+    let age = scanDate.getFullYear() - d.getFullYear();
+    const m = scanDate.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && scanDate.getDate() < d.getDate())) age--;
+    return age;
   }
 
   const items = db.prepare('SELECT * FROM dons_stock WHERE programme_id=?').all(programme_id);
   let partiel = false;
   const detail = items.map(it => {
-    const du = it.qte_fixe_foyer + (it.qte_par_personne * foyer.nb_personnes);
+    const sansRestriction = it.age_min == null && it.age_max == null;
+    const eligibles = sansRestriction
+      ? foyer.nb_personnes
+      : roster.filter(p => { const a = ageDe(p); return a != null && (it.age_min == null || a >= it.age_min) && (it.age_max == null || a <= it.age_max); }).length;
+    const du = it.qte_fixe_foyer + (it.qte_par_personne * eligibles);
     const donne = Math.max(0, Math.min(du, it.quantite_restante));
     if (donne < du) partiel = true;
     if (donne > 0) db.prepare('UPDATE dons_stock SET quantite_restante = quantite_restante - ? WHERE id=?').run(donne, it.id);
@@ -9873,7 +10003,8 @@ app.post('/api/dons/scan', authMiddleware, (req, res) => {
   const payload = {
     ok: true, foyer_nom: `${membre.prenom} ${membre.nom}`, partiel, detail,
     prochain_retrait_suggere: prochainDate.toISOString().slice(0,10),
-    prochain_creneau: prochainCreneau || null
+    prochain_creneau: prochainCreneau || null,
+    fiche, correspondances, roster, foyer_id: foyer.id
   };
   sseNotify('all', { type: 'don_scan', resultat: 'ok', foyer_nom: payload.foyer_nom, partiel, message: `Retrait enregistré pour ${payload.foyer_nom}` });
   res.json(payload);

@@ -1730,6 +1730,26 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS dons_scan_logs (
   date_scan TEXT DEFAULT CURRENT_TIMESTAMP
 )`); } catch {}
 
+// Liste réelle des personnes d'un foyer (adultes ET enfants), pour permettre aux
+// articles de stock de cibler une tranche d'âge (ex. couches 0-2 ans). Distincte de
+// dons_foyer_membres (qui sert uniquement à savoir quelles cartes peuvent scanner).
+try { db.exec(`CREATE TABLE IF NOT EXISTS dons_foyer_personnes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  foyer_id INTEGER NOT NULL REFERENCES dons_foyers(id) ON DELETE CASCADE,
+  user_id INTEGER REFERENCES users(id),
+  prenom TEXT NOT NULL,
+  nom TEXT NOT NULL,
+  date_naissance TEXT,
+  date_naissance_verifiee INTEGER NOT NULL DEFAULT 0,
+  verifie_par INTEGER REFERENCES users(id),
+  date_verification TEXT,
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
+// Éligibilité par âge pour un article de stock (NULL = pas de restriction sur ce bord).
+try { db.exec('ALTER TABLE dons_stock ADD COLUMN age_min INTEGER'); } catch {}
+try { db.exec('ALTER TABLE dons_stock ADD COLUMN age_max INTEGER'); } catch {}
+
 init();
 
 module.exports = db;
