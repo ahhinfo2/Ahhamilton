@@ -272,7 +272,10 @@ const cspMiddleware = (req, res, next) => {
   next();
 };
 app.use(cspMiddleware);
-app.use(compression());
+// /api/sse exclu : la compression bufferise les chunks en attendant d'atteindre son seuil,
+// ce qui retarde/bloque indéfiniment la livraison des événements temps réel (SSE a besoin
+// que chaque chunk soit flush immédiatement, pas accumulé).
+app.use(compression({ filter: (req, res) => req.path === '/api/sse' ? false : compression.filter(req, res) }));
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
@@ -7020,6 +7023,7 @@ app.get('/api/sidebar-counts', authMiddleware, (req, res) => {
       counts.forms = db.prepare("SELECT COUNT(*) AS c FROM form_responses WHERE date_reponse > COALESCE((SELECT derniere_connexion FROM users WHERE id=?), '2000-01-01')").get(req.user.id)?.c || 0;
       counts.alerts = db.prepare("SELECT COUNT(*) AS c FROM alerts WHERE lu=0 AND destinataire_id=?").get(req.user.id)?.c || 0;
       counts.paiements = db.prepare("SELECT COUNT(*) AS c FROM payments WHERE statut='en_attente'").get()?.c || 0;
+      counts.dons_a_valider = db.prepare("SELECT COUNT(*) AS c FROM dons_foyers WHERE statut='en_attente'").get()?.c || 0;
     }
     // Nouvelles factures à valider — visible seulement pour la trésorière, la présidente et le VP (role=admin)
     if (['admin','tresoriere'].includes(req.user.role)) {
@@ -7608,6 +7612,24 @@ cron.schedule('30 3 * * *', () => {
       });
     }
   } catch(e) { console.error('[CRON-CLEAN]', e.message); }
+}, { timezone: 'America/Toronto' });
+
+// Dons : marquer "manqué" les rendez-vous passés sans retrait, flaguer les foyers
+// avec absences répétées pour reconfirmation par le comité avant leur prochaine réservation.
+cron.schedule('15 3 * * *', () => {
+  try {
+    const manques = db.prepare(`SELECT r.id, r.foyer_id FROM dons_rdv r JOIN dons_creneaux c ON c.id=r.creneau_id
+      WHERE r.statut='a_venir' AND c.date_heure < datetime('now')`).all();
+    manques.forEach(m => {
+      db.prepare("UPDATE dons_rdv SET statut='manque' WHERE id=?").run(m.id);
+      const foyer = db.prepare('SELECT nb_absences FROM dons_foyers WHERE id=?').get(m.foyer_id);
+      if (!foyer) return;
+      const nbAbsences = foyer.nb_absences + 1;
+      const necessiteReconfirmation = nbAbsences >= 2 ? 1 : 0;
+      db.prepare('UPDATE dons_foyers SET nb_absences=?, necessite_reconfirmation=? WHERE id=?').run(nbAbsences, necessiteReconfirmation, m.foyer_id);
+    });
+    if (manques.length > 0) console.log('[CRON-DONS] ' + manques.length + ' rendez-vous marqués manqués');
+  } catch(e) { console.error('[CRON-DONS]', e.message); }
 }, { timezone: 'America/Toronto' });
 
 // Notification de nouvelle activité publiée (appelé depuis POST /api/activities)
@@ -9472,6 +9494,389 @@ app.post('/api/forms/:id/respond-for', authMiddleware, requireRole(...FORM_EXEC)
     });
   }
   res.json({ ok: true });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PROGRAMME DE DISTRIBUTION DE DONS
+// Unité d'éligibilité = le FOYER, pas la carte scannée. Peu importe quel membre
+// validé du foyer se présente, un seul retrait est permis par cycle
+// (dons_programmes.intervalle_jours). La vérification "déjà servi ce cycle" +
+// l'écriture du retrait doivent rester dans le même handler NON-async (aucun
+// await entre les deux) : node-sqlite3-wasm est synchrone et c'est uniquement
+// l'exécution ininterrompue du handler qui garantit l'atomicité face à
+// plusieurs postes de scan simultanés (même principe que /api/carte-scan).
+// ══════════════════════════════════════════════════════════════════════════════
+
+const DON_EXEC_ROLES = ['admin','tresoriere','secretaire','delegue'];
+
+function donCarteValide(member) {
+  if (DON_EXEC_ROLES.includes(member.role)) return true;
+  const expiration = carteExpiration(member.date_inscription);
+  const expired = expiration ? new Date() > new Date(expiration) : false;
+  return !expired && member.carte_photo_approuvee === 1 && !!member.photo_url;
+}
+
+function donTrouverFoyer(programmeId, userId) {
+  return db.prepare('SELECT * FROM dons_foyers WHERE programme_id=? AND responsable_id=?').get(programmeId, userId)
+    || db.prepare(`SELECT f.* FROM dons_foyers f JOIN dons_foyer_membres m ON m.foyer_id=f.id WHERE f.programme_id=? AND m.user_id=?`).get(programmeId, userId);
+}
+
+// ── Programmes ───────────────────────────────────────────────────────────────
+app.get('/api/dons/programmes', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+  res.json(db.prepare('SELECT * FROM dons_programmes ORDER BY date_creation DESC').all());
+});
+
+app.get('/api/dons/programme-actif', authMiddleware, (req, res) => {
+  const prog = db.prepare("SELECT id, nom, description, intervalle_jours, statut FROM dons_programmes WHERE statut != 'ferme' ORDER BY date_creation DESC LIMIT 1").get();
+  res.json(prog || null);
+});
+
+app.post('/api/dons/programmes', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+  const { nom, organisme_source, description, intervalle_jours } = req.body;
+  if (!nom || !nom.trim()) return res.status(400).json({ error: 'Nom requis' });
+  const r = db.prepare('INSERT INTO dons_programmes (nom, organisme_source, description, intervalle_jours, cree_par) VALUES (?,?,?,?,?)')
+    .run(nom.trim(), organisme_source || null, description || null, parseInt(intervalle_jours) || 30, req.user.id);
+  res.json({ id: r.lastInsertRowid });
+});
+
+app.put('/api/dons/programmes/:id', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+  const prog = db.prepare('SELECT * FROM dons_programmes WHERE id=?').get(req.params.id);
+  if (!prog) return res.status(404).json({ error: 'Programme introuvable' });
+  const { nom, organisme_source, description, intervalle_jours, statut } = req.body;
+  db.prepare('UPDATE dons_programmes SET nom=?, organisme_source=?, description=?, intervalle_jours=?, statut=? WHERE id=?').run(
+    nom || prog.nom, organisme_source ?? prog.organisme_source, description ?? prog.description,
+    parseInt(intervalle_jours) || prog.intervalle_jours, statut || prog.statut, prog.id
+  );
+  res.json({ ok: true });
+});
+
+// ── Stock ────────────────────────────────────────────────────────────────────
+app.get('/api/dons/programmes/:id/stock', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+  res.json(db.prepare('SELECT * FROM dons_stock WHERE programme_id=? ORDER BY nom').all(req.params.id));
+});
+
+app.post('/api/dons/stock', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+  const { programme_id, nom, unite, quantite_recue, qte_fixe_foyer, qte_par_personne } = req.body;
+  if (!programme_id || !nom || !nom.trim()) return res.status(400).json({ error: 'Programme et nom requis' });
+  const qte = parseFloat(quantite_recue) || 0;
+  const r = db.prepare(`INSERT INTO dons_stock (programme_id, nom, unite, quantite_recue, quantite_restante, qte_fixe_foyer, qte_par_personne)
+    VALUES (?,?,?,?,?,?,?)`).run(programme_id, nom.trim(), unite || 'unité', qte, qte, parseFloat(qte_fixe_foyer) || 0, parseFloat(qte_par_personne) || 0);
+  res.json({ id: r.lastInsertRowid });
+});
+
+app.put('/api/dons/stock/:id', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+  const item = db.prepare('SELECT * FROM dons_stock WHERE id=?').get(req.params.id);
+  if (!item) return res.status(404).json({ error: 'Article introuvable' });
+  const { nom, unite, quantite_recue, quantite_restante, qte_fixe_foyer, qte_par_personne } = req.body;
+  db.prepare(`UPDATE dons_stock SET nom=?, unite=?, quantite_recue=?, quantite_restante=?, qte_fixe_foyer=?, qte_par_personne=? WHERE id=?`).run(
+    nom || item.nom, unite || item.unite,
+    quantite_recue !== undefined ? parseFloat(quantite_recue) : item.quantite_recue,
+    quantite_restante !== undefined ? parseFloat(quantite_restante) : item.quantite_restante,
+    qte_fixe_foyer !== undefined ? parseFloat(qte_fixe_foyer) : item.qte_fixe_foyer,
+    qte_par_personne !== undefined ? parseFloat(qte_par_personne) : item.qte_par_personne,
+    item.id
+  );
+  res.json({ ok: true });
+});
+
+app.delete('/api/dons/stock/:id', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+  db.prepare('DELETE FROM dons_stock WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ── Créneaux ─────────────────────────────────────────────────────────────────
+app.get('/api/dons/programmes/:id/creneaux', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+  res.json(db.prepare(`SELECT c.*, (SELECT COUNT(*) FROM dons_rdv WHERE creneau_id=c.id AND statut != 'annule') AS nb_reserves
+    FROM dons_creneaux c WHERE c.programme_id=? ORDER BY c.date_heure`).all(req.params.id));
+});
+
+app.post('/api/dons/creneaux', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+  const { programme_id, date_heure, capacite_max } = req.body;
+  if (!programme_id || !date_heure) return res.status(400).json({ error: 'Programme et date requis' });
+  const r = db.prepare('INSERT INTO dons_creneaux (programme_id, date_heure, capacite_max, cree_par) VALUES (?,?,?,?)')
+    .run(programme_id, date_heure, parseInt(capacite_max) || 10, req.user.id);
+  res.json({ id: r.lastInsertRowid });
+});
+
+app.delete('/api/dons/creneaux/:id', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+  const nb = db.prepare("SELECT COUNT(*) AS c FROM dons_rdv WHERE creneau_id=? AND statut != 'annule'").get(req.params.id).c;
+  if (nb > 0) return res.status(400).json({ error: `${nb} rendez-vous sont liés à ce créneau — annulez-les d'abord.` });
+  db.prepare('DELETE FROM dons_creneaux WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+app.get('/api/dons/programmes/:id/creneaux-disponibles', authMiddleware, (req, res) => {
+  const rows = db.prepare(`SELECT c.id, c.date_heure, c.capacite_max,
+      (SELECT COUNT(*) FROM dons_rdv WHERE creneau_id=c.id AND statut != 'annule') AS nb_reserves
+    FROM dons_creneaux c WHERE c.programme_id=? AND c.date_heure > datetime('now') ORDER BY c.date_heure`).all(req.params.id);
+  res.json(rows.filter(r => r.nb_reserves < r.capacite_max).map(r => ({ id: r.id, date_heure: r.date_heure, places_restantes: r.capacite_max - r.nb_reserves })));
+});
+
+// ── Foyers ───────────────────────────────────────────────────────────────────
+app.get('/api/dons/mon-foyer', authMiddleware, (req, res) => {
+  const programmeId = req.query.programme_id;
+  if (!programmeId) return res.status(400).json({ error: 'programme_id requis' });
+  const foyer = donTrouverFoyer(programmeId, req.user.id);
+  if (!foyer) return res.json(null);
+  const membres = db.prepare(`SELECT u.id, u.prenom, u.nom, u.email, m.lien FROM dons_foyer_membres m
+    JOIN users u ON u.id = m.user_id WHERE m.foyer_id=?`).all(foyer.id);
+  const dependants = db.prepare('SELECT * FROM dependents WHERE user_id=?').all(foyer.responsable_id);
+  res.json({ ...foyer, membres, dependants });
+});
+
+app.post('/api/dons/foyers', authMiddleware, (req, res) => {
+  const { programme_id, nb_personnes, membres_emails } = req.body;
+  if (!programme_id) return res.status(400).json({ error: 'programme_id requis' });
+  const prog = db.prepare('SELECT * FROM dons_programmes WHERE id=?').get(programme_id);
+  if (!prog) return res.status(404).json({ error: 'Programme introuvable' });
+
+  if (donTrouverFoyer(programme_id, req.user.id)) {
+    return res.status(409).json({ error: 'Vous êtes déjà rattaché à un foyer pour ce programme.' });
+  }
+
+  const r = db.prepare('INSERT INTO dons_foyers (programme_id, responsable_id, nb_personnes) VALUES (?,?,?)')
+    .run(programme_id, req.user.id, parseInt(nb_personnes) || 1);
+  const foyerId = r.lastInsertRowid;
+
+  const membresIgnores = [];
+  if (Array.isArray(membres_emails)) {
+    membres_emails.forEach(email => {
+      const u = db.prepare('SELECT id FROM users WHERE email=? AND actif=1').get((email || '').trim());
+      if (!u || u.id === req.user.id) return;
+      if (donTrouverFoyer(programme_id, u.id)) { membresIgnores.push(email); return; }
+      try { db.prepare('INSERT INTO dons_foyer_membres (foyer_id, user_id) VALUES (?,?)').run(foyerId, u.id); } catch {}
+    });
+  }
+  res.json({ id: foyerId, membres_ignores: membresIgnores });
+});
+
+app.put('/api/dons/foyers/:id', authMiddleware, (req, res) => {
+  const foyer = db.prepare('SELECT * FROM dons_foyers WHERE id=?').get(req.params.id);
+  if (!foyer) return res.status(404).json({ error: 'Foyer introuvable' });
+  const isExec = DON_EXEC_ROLES.includes(req.user.role);
+  if (!isExec && foyer.responsable_id !== req.user.id) return res.status(403).json({ error: 'Accès refusé' });
+
+  const { nb_personnes, membres_emails } = req.body;
+  let compositionChange = nb_personnes !== undefined && parseInt(nb_personnes) !== foyer.nb_personnes;
+
+  if (nb_personnes !== undefined) db.prepare('UPDATE dons_foyers SET nb_personnes=? WHERE id=?').run(parseInt(nb_personnes) || 1, foyer.id);
+
+  const membresIgnores = [];
+  if (Array.isArray(membres_emails)) {
+    compositionChange = true;
+    db.prepare('DELETE FROM dons_foyer_membres WHERE foyer_id=?').run(foyer.id);
+    membres_emails.forEach(email => {
+      const u = db.prepare('SELECT id FROM users WHERE email=? AND actif=1').get((email || '').trim());
+      if (!u || u.id === foyer.responsable_id) return;
+      const existing = donTrouverFoyer(foyer.programme_id, u.id);
+      if (existing && existing.id !== foyer.id) { membresIgnores.push(email); return; }
+      try { db.prepare('INSERT INTO dons_foyer_membres (foyer_id, user_id) VALUES (?,?)').run(foyer.id, u.id); } catch {}
+    });
+  }
+
+  const repasseEnAttente = compositionChange && foyer.statut === 'valide';
+  if (repasseEnAttente) db.prepare("UPDATE dons_foyers SET statut='en_attente', necessite_reconfirmation=0 WHERE id=?").run(foyer.id);
+  res.json({ ok: true, repasse_en_attente: repasseEnAttente, membres_ignores: membresIgnores });
+});
+
+app.get('/api/dons/programmes/:id/foyers', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+  let sql = `SELECT f.*, u.prenom, u.nom, u.email, u.telephone FROM dons_foyers f JOIN users u ON u.id=f.responsable_id WHERE f.programme_id=?`;
+  const params = [req.params.id];
+  if (req.query.statut) { sql += ' AND f.statut=?'; params.push(req.query.statut); }
+  sql += ' ORDER BY f.date_creation DESC';
+  const foyers = db.prepare(sql).all(...params);
+  const membresStmt = db.prepare(`SELECT u.prenom, u.nom, u.email FROM dons_foyer_membres m JOIN users u ON u.id=m.user_id WHERE m.foyer_id=?`);
+  const depStmt = db.prepare('SELECT prenom, nom, lien, date_naissance FROM dependents WHERE user_id=?');
+  foyers.forEach(f => { f.membres = membresStmt.all(f.id); f.dependants = depStmt.all(f.responsable_id); });
+  res.json(foyers);
+});
+
+app.post('/api/dons/foyers/:id/valider', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+  const foyer = db.prepare('SELECT * FROM dons_foyers WHERE id=?').get(req.params.id);
+  if (!foyer) return res.status(404).json({ error: 'Foyer introuvable' });
+  const { nb_personnes, note } = req.body;
+  db.prepare(`UPDATE dons_foyers SET statut='valide', nb_personnes=?, note_comite=?, valide_par=?, date_validation=CURRENT_TIMESTAMP WHERE id=?`)
+    .run(nb_personnes !== undefined ? parseInt(nb_personnes) : foyer.nb_personnes, note ?? foyer.note_comite, req.user.id, foyer.id);
+  logAudit(req.user.id, 'don_foyer_valide', 'dons_foyers', foyer.id, note || '', req.ip);
+  res.json({ ok: true });
+});
+
+app.post('/api/dons/foyers/:id/refuser', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+  const foyer = db.prepare('SELECT * FROM dons_foyers WHERE id=?').get(req.params.id);
+  if (!foyer) return res.status(404).json({ error: 'Foyer introuvable' });
+  const { note } = req.body;
+  if (!note || !note.trim()) return res.status(400).json({ error: 'Raison du refus requise' });
+  db.prepare(`UPDATE dons_foyers SET statut='refuse', note_comite=?, valide_par=?, date_validation=CURRENT_TIMESTAMP WHERE id=?`)
+    .run(note.trim(), req.user.id, foyer.id);
+  logAudit(req.user.id, 'don_foyer_refuse', 'dons_foyers', foyer.id, note.trim(), req.ip);
+  res.json({ ok: true });
+});
+
+app.post('/api/dons/foyers/:id/reconfirmer', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+  const foyer = db.prepare('SELECT * FROM dons_foyers WHERE id=?').get(req.params.id);
+  if (!foyer) return res.status(404).json({ error: 'Foyer introuvable' });
+  db.prepare('UPDATE dons_foyers SET necessite_reconfirmation=0 WHERE id=?').run(foyer.id);
+  logAudit(req.user.id, 'don_foyer_reconfirme', 'dons_foyers', foyer.id, '', req.ip);
+  res.json({ ok: true });
+});
+
+// ── Rendez-vous ──────────────────────────────────────────────────────────────
+app.post('/api/dons/rdv', authMiddleware, (req, res) => {
+  const { programme_id, creneau_id } = req.body;
+  if (!programme_id || !creneau_id) return res.status(400).json({ error: 'Programme et créneau requis' });
+
+  const programme = db.prepare('SELECT * FROM dons_programmes WHERE id=?').get(programme_id);
+  if (!programme) return res.status(404).json({ error: 'Programme introuvable' });
+  if (programme.statut !== 'actif') return res.status(403).json({ error: 'Ce programme n\'accepte pas de nouvelles réservations pour le moment.' });
+
+  if (!DON_EXEC_ROLES.includes(req.user.role)) {
+    const me = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.id);
+    if (!donCarteValide(me)) return res.status(403).json({ error: 'Votre carte membre doit être valide pour réserver.' });
+  }
+
+  const foyer = donTrouverFoyer(programme_id, req.user.id);
+  if (!foyer) return res.status(404).json({ error: "Vous n'avez pas encore déclaré de foyer pour ce programme." });
+  if (foyer.statut !== 'valide') return res.status(403).json({ error: 'Votre foyer doit être validé par le comité avant de réserver.' });
+  if (foyer.necessite_reconfirmation) return res.status(403).json({ error: 'Votre foyer doit être reconfirmé par le comité (absences répétées) avant de réserver.' });
+
+  if (db.prepare("SELECT id FROM dons_rdv WHERE foyer_id=? AND statut='a_venir'").get(foyer.id)) {
+    return res.status(409).json({ error: 'Vous avez déjà un rendez-vous à venir.' });
+  }
+
+  const creneau = db.prepare('SELECT * FROM dons_creneaux WHERE id=? AND programme_id=?').get(creneau_id, programme_id);
+  if (!creneau) return res.status(404).json({ error: 'Créneau introuvable' });
+  const nbReserves = db.prepare("SELECT COUNT(*) AS c FROM dons_rdv WHERE creneau_id=? AND statut != 'annule'").get(creneau.id).c;
+  if (nbReserves >= creneau.capacite_max) return res.status(409).json({ error: 'Ce créneau est complet.' });
+
+  const r = db.prepare('INSERT INTO dons_rdv (foyer_id, creneau_id) VALUES (?,?)').run(foyer.id, creneau.id);
+  res.json({ id: r.lastInsertRowid });
+});
+
+app.delete('/api/dons/rdv/:id', authMiddleware, (req, res) => {
+  const rdv = db.prepare('SELECT * FROM dons_rdv WHERE id=?').get(req.params.id);
+  if (!rdv) return res.status(404).json({ error: 'Rendez-vous introuvable' });
+  const foyer = db.prepare('SELECT * FROM dons_foyers WHERE id=?').get(rdv.foyer_id);
+  const isOwner = foyer && (foyer.responsable_id === req.user.id ||
+    db.prepare('SELECT 1 FROM dons_foyer_membres WHERE foyer_id=? AND user_id=?').get(foyer.id, req.user.id));
+  if (!DON_EXEC_ROLES.includes(req.user.role) && !isOwner) return res.status(403).json({ error: 'Accès refusé' });
+  db.prepare("UPDATE dons_rdv SET statut='annule' WHERE id=?").run(rdv.id);
+  res.json({ ok: true });
+});
+
+app.get('/api/dons/mes-rdv', authMiddleware, (req, res) => {
+  const programmeId = req.query.programme_id;
+  const foyer = donTrouverFoyer(programmeId, req.user.id);
+  if (!foyer) return res.json({ foyer: null, rdv: [], retraits: [] });
+  const rdv = db.prepare(`SELECT r.*, c.date_heure FROM dons_rdv r JOIN dons_creneaux c ON c.id=r.creneau_id
+    WHERE r.foyer_id=? ORDER BY c.date_heure DESC`).all(foyer.id);
+  const retraits = db.prepare('SELECT * FROM dons_retraits WHERE foyer_id=? ORDER BY date_retrait DESC').all(foyer.id);
+  res.json({ foyer, rdv, retraits });
+});
+
+// ── Journal (comité) ─────────────────────────────────────────────────────────
+app.get('/api/dons/programmes/:id/journal', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+  const retraits = db.prepare(`SELECT r.*, u.prenom AS carte_prenom, u.nom AS carte_nom, s.prenom AS scan_prenom, s.nom AS scan_nom
+    FROM dons_retraits r JOIN users u ON u.id=r.carte_scannee_id JOIN users s ON s.id=r.scanne_par
+    WHERE r.programme_id=? ORDER BY r.date_retrait DESC LIMIT 300`).all(req.params.id);
+  const bloques = db.prepare(`SELECT l.*, u.prenom, u.nom FROM dons_scan_logs l LEFT JOIN users u ON u.id=l.carte_scannee_id
+    WHERE l.programme_id=? AND l.resultat != 'ok' ORDER BY l.date_scan DESC LIMIT 300`).all(req.params.id);
+  res.json({ retraits, bloques });
+});
+
+// ── Scan / retrait — le cœur anti-fraude (handler synchrone de bout en bout) ──
+app.post('/api/dons/scan', authMiddleware, (req, res) => {
+  const isExec = DON_EXEC_ROLES.includes(req.user.role);
+  if (!isExec) {
+    const deleg = db.prepare("SELECT id FROM scan_delegations WHERE user_id=? AND actif=1 AND type IN ('dons','tous') AND (date_expiration IS NULL OR date_expiration > datetime('now'))").get(req.user.id);
+    if (!deleg) return res.status(403).json({ error: 'Accès refusé — pas de délégation de scan dons' });
+  }
+
+  const { qr, programme_id, derogation, motif } = req.body;
+  if (!qr || !programme_id) return res.status(400).json({ error: 'QR et programme requis' });
+  if (derogation && (!motif || !motif.trim())) return res.status(400).json({ error: 'Motif obligatoire pour une dérogation' });
+
+  const programme = db.prepare('SELECT * FROM dons_programmes WHERE id=?').get(programme_id);
+  if (!programme) return res.status(404).json({ error: 'Programme introuvable' });
+
+  const raw = decodeURIComponent(qr);
+  let userId = null;
+  const parts = raw.split('-');
+  if (parts[0] === 'AHH' && parts[1]) userId = parseInt(parts[1]);
+  if (!userId) { const m = raw.match(/[?&]id=(\d+)/); if (m) userId = parseInt(m[1]); }
+  if (!userId || isNaN(userId)) return res.status(404).json({ error: 'QR invalide' });
+
+  const logScan = (resultat, foyerId, details) => {
+    db.prepare('INSERT INTO dons_scan_logs (programme_id, foyer_id, carte_scannee_id, scanne_par, resultat, details) VALUES (?,?,?,?,?,?)')
+      .run(programme_id, foyerId || null, userId, req.user.id, resultat, details || null);
+  };
+
+  const membre = db.prepare('SELECT * FROM users WHERE id=?').get(userId);
+  if (!membre || !membre.actif) {
+    logScan('bloque_carte_invalide', null, 'Membre introuvable ou inactif');
+    return res.status(404).json({ error: 'Membre introuvable' });
+  }
+  if (!donCarteValide(membre)) {
+    logScan('bloque_carte_invalide', null, 'Carte expirée ou non approuvée');
+    return res.status(403).json({ error: `La carte de ${membre.prenom} ${membre.nom} n'est pas valide (expirée ou photo non approuvée).` });
+  }
+
+  const foyer = donTrouverFoyer(programme_id, membre.id);
+  if (!foyer || foyer.statut !== 'valide') {
+    logScan('bloque_foyer_non_valide', foyer ? foyer.id : null, 'Foyer absent ou non validé');
+    return res.status(403).json({ error: `${membre.prenom} ${membre.nom} n'a pas de foyer validé pour ce programme.` });
+  }
+
+  const dernier = db.prepare('SELECT * FROM dons_retraits WHERE foyer_id=? ORDER BY date_retrait DESC LIMIT 1').get(foyer.id);
+  if (dernier) {
+    const prochain = new Date(dernier.date_retrait);
+    prochain.setDate(prochain.getDate() + programme.intervalle_jours);
+    if (new Date() < prochain && !derogation) {
+      logScan('bloque_deja_servi', foyer.id, `Dernier retrait le ${dernier.date_retrait}`);
+      sseNotify('all', { type: 'don_scan', resultat: 'bloque', foyer_nom: `${membre.prenom} ${membre.nom}`,
+        message: `Foyer déjà servi le ${dernier.date_retrait.slice(0,10)} — prochain retrait le ${prochain.toISOString().slice(0,10)}` });
+      return res.status(409).json({
+        error: `Ce foyer a déjà reçu sa distribution le ${dernier.date_retrait.slice(0,10)}.`,
+        prochain_retrait: prochain.toISOString().slice(0,10)
+      });
+    }
+  }
+
+  const items = db.prepare('SELECT * FROM dons_stock WHERE programme_id=?').all(programme_id);
+  let partiel = false;
+  const detail = items.map(it => {
+    const du = it.qte_fixe_foyer + (it.qte_par_personne * foyer.nb_personnes);
+    const donne = Math.max(0, Math.min(du, it.quantite_restante));
+    if (donne < du) partiel = true;
+    if (donne > 0) db.prepare('UPDATE dons_stock SET quantite_restante = quantite_restante - ? WHERE id=?').run(donne, it.id);
+    return { nom: it.nom, unite: it.unite, du, donne };
+  });
+
+  const rdv = db.prepare("SELECT * FROM dons_rdv WHERE foyer_id=? AND statut='a_venir' ORDER BY id DESC LIMIT 1").get(foyer.id);
+  if (rdv) db.prepare("UPDATE dons_rdv SET statut='honore' WHERE id=?").run(rdv.id);
+
+  db.prepare(`INSERT INTO dons_retraits (foyer_id, rdv_id, programme_id, scanne_par, carte_scannee_id, derogation, motif_derogation, stock_json, partiel)
+    VALUES (?,?,?,?,?,?,?,?,?)`).run(foyer.id, rdv ? rdv.id : null, programme_id, req.user.id, membre.id,
+    derogation ? 1 : 0, derogation ? motif.trim() : null, JSON.stringify(detail), partiel ? 1 : 0);
+
+  logScan('ok', foyer.id, derogation ? `Dérogation : ${motif.trim()}` : null);
+  if (derogation) {
+    logAdmin(req.user.id, 'don_retrait_derogation', motif.trim(), foyer.id, 'dons_foyers', req.ip);
+    logAudit(req.user.id, 'don_retrait_derogation', 'dons_foyers', foyer.id, motif.trim(), req.ip);
+  }
+
+  const prochainDate = new Date();
+  prochainDate.setDate(prochainDate.getDate() + programme.intervalle_jours);
+  const prochainCreneau = db.prepare(`SELECT id, date_heure FROM dons_creneaux WHERE programme_id=? AND date_heure >= ?
+    AND (SELECT COUNT(*) FROM dons_rdv WHERE creneau_id=dons_creneaux.id AND statut != 'annule') < capacite_max
+    ORDER BY date_heure LIMIT 1`).get(programme_id, prochainDate.toISOString());
+
+  const payload = {
+    ok: true, foyer_nom: `${membre.prenom} ${membre.nom}`, partiel, detail,
+    prochain_retrait_suggere: prochainDate.toISOString().slice(0,10),
+    prochain_creneau: prochainCreneau || null
+  };
+  sseNotify('all', { type: 'don_scan', resultat: 'ok', foyer_nom: payload.foyer_nom, partiel, message: `Retrait enregistré pour ${payload.foyer_nom}` });
+  res.json(payload);
 });
 
 // ══════════════════════════════════════════════════════════════════════════════

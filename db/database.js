@@ -1634,6 +1634,102 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS committee_election_votes (
   UNIQUE(election_id, telephone)
 )`); } catch {}
 
+// ══════════════════════════════════════════════════════════════════════════
+// ── Programme de distribution de dons ───────────────────────────────────────
+// Un "foyer" (pas une personne) est l'unité d'éligibilité : peu importe quelle
+// carte validée du foyer est scannée, un seul retrait est permis par cycle
+// (intervalle_jours). Voir server.js pour la logique anti-fraude/atomicité.
+// ══════════════════════════════════════════════════════════════════════════
+
+try { db.exec(`CREATE TABLE IF NOT EXISTS dons_programmes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nom TEXT NOT NULL,
+  organisme_source TEXT,
+  description TEXT,
+  intervalle_jours INTEGER NOT NULL DEFAULT 30,
+  statut TEXT NOT NULL DEFAULT 'actif',
+  cree_par INTEGER REFERENCES users(id),
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
+try { db.exec(`CREATE TABLE IF NOT EXISTS dons_foyers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  programme_id INTEGER NOT NULL REFERENCES dons_programmes(id) ON DELETE CASCADE,
+  responsable_id INTEGER NOT NULL REFERENCES users(id),
+  nb_personnes INTEGER NOT NULL DEFAULT 1,
+  statut TEXT NOT NULL DEFAULT 'en_attente',
+  nb_absences INTEGER NOT NULL DEFAULT 0,
+  necessite_reconfirmation INTEGER NOT NULL DEFAULT 0,
+  note_comite TEXT,
+  valide_par INTEGER REFERENCES users(id),
+  date_validation TEXT,
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(programme_id, responsable_id)
+)`); } catch {}
+
+try { db.exec(`CREATE TABLE IF NOT EXISTS dons_foyer_membres (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  foyer_id INTEGER NOT NULL REFERENCES dons_foyers(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  lien TEXT NOT NULL DEFAULT 'conjoint',
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(foyer_id, user_id)
+)`); } catch {}
+
+try { db.exec(`CREATE TABLE IF NOT EXISTS dons_creneaux (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  programme_id INTEGER NOT NULL REFERENCES dons_programmes(id) ON DELETE CASCADE,
+  date_heure TEXT NOT NULL,
+  capacite_max INTEGER NOT NULL DEFAULT 10,
+  cree_par INTEGER REFERENCES users(id),
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
+try { db.exec(`CREATE TABLE IF NOT EXISTS dons_rdv (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  foyer_id INTEGER NOT NULL REFERENCES dons_foyers(id) ON DELETE CASCADE,
+  creneau_id INTEGER NOT NULL REFERENCES dons_creneaux(id),
+  statut TEXT NOT NULL DEFAULT 'a_venir',
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
+try { db.exec(`CREATE TABLE IF NOT EXISTS dons_stock (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  programme_id INTEGER NOT NULL REFERENCES dons_programmes(id) ON DELETE CASCADE,
+  nom TEXT NOT NULL,
+  unite TEXT NOT NULL DEFAULT 'unité',
+  quantite_recue REAL NOT NULL DEFAULT 0,
+  quantite_restante REAL NOT NULL DEFAULT 0,
+  qte_fixe_foyer REAL NOT NULL DEFAULT 0,
+  qte_par_personne REAL NOT NULL DEFAULT 0,
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
+try { db.exec(`CREATE TABLE IF NOT EXISTS dons_retraits (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  foyer_id INTEGER NOT NULL REFERENCES dons_foyers(id),
+  rdv_id INTEGER REFERENCES dons_rdv(id),
+  programme_id INTEGER NOT NULL REFERENCES dons_programmes(id),
+  scanne_par INTEGER NOT NULL REFERENCES users(id),
+  carte_scannee_id INTEGER NOT NULL REFERENCES users(id),
+  derogation INTEGER NOT NULL DEFAULT 0,
+  motif_derogation TEXT,
+  stock_json TEXT,
+  partiel INTEGER NOT NULL DEFAULT 0,
+  date_retrait TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
+try { db.exec(`CREATE TABLE IF NOT EXISTS dons_scan_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  programme_id INTEGER REFERENCES dons_programmes(id),
+  foyer_id INTEGER REFERENCES dons_foyers(id),
+  carte_scannee_id INTEGER REFERENCES users(id),
+  scanne_par INTEGER REFERENCES users(id),
+  resultat TEXT NOT NULL,
+  details TEXT,
+  date_scan TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
 init();
 
 module.exports = db;

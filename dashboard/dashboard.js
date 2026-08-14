@@ -338,6 +338,7 @@ async function buildSidebar() {
       'tasks': sc.tasks,
       'alerts': sc.alerts,
       'forms-mgmt': sc.forms,
+      'dons-mgmt': sc.dons_a_valider,
       'billetterie': sc.pending_orders,
       'paiements': sc.paiements,
       'invoices': sc.invoices,
@@ -380,6 +381,13 @@ async function buildSidebar() {
       { id:'recus_archive',     icon:'🗂️', label:'Archive reçus',    roles:['admin','tresoriere','secretaire','delegue'] },
       { id:'recus',             icon:'◉', label:'Reçus fiscaux',    roles:['admin','tresoriere','secretaire','delegue'] },
       { id:'rapports_finance',  icon:'📊', label:'Rapports finance', roles:['admin','tresoriere','secretaire','delegue'] },
+    ]},
+
+    // ── Dons ──────────────────────────────────────────────────────
+    { label: '🎁 Dons', items: [
+      { id:'dons-mgmt',       icon:'📦', label:'Gestion des dons',    roles:EXEC },
+      { id:'dons-scan',       icon:'📷', label:'Dons — Scanner',      roles:EXEC },
+      { id:'dons-mon-foyer',  icon:'🎁', label:'Programme de dons',   roles: ALL },
     ]},
 
     // ── Communication ─────────────────────────────────────────────
@@ -464,6 +472,7 @@ async function buildSidebar() {
       { id:'annuaire',     icon:'✉️', label:'Courriel' },
       { id:'forum',        icon:'◫', label:'Forum' },
       { id:'alertes-urgentes', icon:'🚨', label:'Alertes urgentes' },
+      { id:'dons-mon-foyer',   icon:'🎁', label:'Programme de dons' },
       // ── Mon espace membres ───────────────────────────────────────
       { id:'carte-membre',  icon:'🪪', label:'Ma carte membre',   _section:'✨ Mon espace' },
       { id:'mon_paiement',  icon:'💳', label:'Mes cotisations' },
@@ -603,6 +612,9 @@ function setActiveNav(viewId) {
     'export-data':'Export données',
     'scan-delegations':'Déléguer un lecteur',
     'forms-mgmt':'Formulaires',
+    'dons-mgmt':'Gestion des dons',
+    'dons-scan':'Dons — Scanner',
+    'dons-mon-foyer':'Programme de dons',
     'shop-mgmt':'Boutique en ligne',
     'alertes-urgentes':'Alertes urgentes',
     'fierte-mgmt':'Mur de fierté'
@@ -796,6 +808,13 @@ function initSSE() {
 }
 
 function _handleLiveEvent(evt) {
+  // Dons : pas de carte de notification (trop fréquent pendant une distribution avec
+  // plusieurs postes actifs) — juste le flux en direct de l'écran de scan s'il est ouvert.
+  if (evt.type === 'don_scan') {
+    if (window._activeView === 'dons-scan') _donsAppendLiveFeed(evt);
+    return;
+  }
+
   // Carte de notification selon le type d'événement
   const notifMap = {
     inscription: { icon: '📋', color: '#003F87',
@@ -1256,6 +1275,9 @@ async function showView(viewId) {
     'export-data': exportDataView,
     'scan-delegations': scanDelegationsListView,
     'forms-mgmt': formsMgmtView,
+    'dons-mgmt': donsMgmtView,
+    'dons-scan': donsScanView,
+    'dons-mon-foyer': donsMonFoyerView,
     'shop-mgmt': shopMgmtView,
     'alertes-urgentes': alertesUrgentesView,
     'mise-en-valeur': miseEnValeurHubView,
@@ -15357,6 +15379,741 @@ async function notifierPhotoManquante() {
   } catch (e) {
     toast('⚠️ ' + (e.message || 'Erreur lors de l\'envoi'), 'error');
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PROGRAMME DE DONS — gestion comité (programme/stock/créneaux, foyers, journal)
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function donsMgmtView() {
+  const tab = window._donsTab || 'programmes';
+  let programmes = [];
+  try { programmes = await api('/dons/programmes'); } catch(e) { programmes = []; }
+  if (!window._donsProgId && programmes.length) {
+    const actif = programmes.find(p => p.statut === 'actif');
+    window._donsProgId = (actif || programmes[0]).id;
+  }
+  const progId = window._donsProgId;
+  const prog = programmes.find(p => p.id === progId);
+
+  const tabBtn = (id, label) => `<button class="btn ${tab===id?'btn-primary':'btn-ghost'}" onclick="window._donsTab='${id}';donsMgmtView()" style="margin-right:8px">${label}</button>`;
+
+  let body = '<div class="empty-state"><div class="es-icon">📦</div><p>Créez un premier programme pour commencer.</p></div>';
+  if (prog) {
+    if (tab === 'foyers') body = await _donsFoyersTabHtml(prog);
+    else if (tab === 'journal') body = await _donsJournalTabHtml(prog);
+    else body = await _donsProgrammeTabHtml(prog);
+  }
+
+  setContent(`
+    <div class="page-header">
+      <div><h2>📦 Programme de dons</h2><p>${programmes.length} programme(s)</p></div>
+      <div class="page-actions"><button class="btn btn-primary" onclick="_donsNewProgramme()">+ Nouveau programme</button></div>
+    </div>
+    ${programmes.length > 1 ? `
+      <div class="form-group" style="max-width:360px;margin-bottom:14px">
+        <label>Programme</label>
+        <select onchange="window._donsProgId=parseInt(this.value);donsMgmtView()">
+          ${programmes.map(p => `<option value="${p.id}" ${p.id===progId?'selected':''}>${escHtml(p.nom)} (${p.statut})</option>`).join('')}
+        </select>
+      </div>` : ''}
+    ${prog ? `<div style="margin-bottom:16px">${tabBtn('programme','Programme & stock & créneaux')}${tabBtn('foyers','Foyers')}${tabBtn('journal','Journal')}</div>` : ''}
+    ${body}
+  `);
+}
+
+async function _donsProgrammeTabHtml(prog) {
+  let stock = [], creneaux = [];
+  try { stock = await api('/dons/programmes/' + prog.id + '/stock'); } catch(e) {}
+  try { creneaux = await api('/dons/programmes/' + prog.id + '/creneaux'); } catch(e) {}
+
+  return `
+    <div class="table-card" style="margin-bottom:18px">
+      <div class="table-card-header"><h3>${escHtml(prog.nom)}</h3>
+        <button class="btn btn-ghost btn-sm" onclick="_donsEditProgramme(${prog.id})">Modifier</button>
+      </div>
+      <div style="padding:16px;font-size:.88rem;color:var(--muted)">
+        ${prog.organisme_source ? `<p><strong>Organisme :</strong> ${escHtml(prog.organisme_source)}</p>` : ''}
+        ${prog.description ? `<p>${escHtml(prog.description)}</p>` : ''}
+        <p><strong>Délai entre deux retraits :</strong> ${prog.intervalle_jours} jours &nbsp;·&nbsp; <strong>Statut :</strong> ${pill(prog.statut, prog.statut==='actif'?'bp-green':prog.statut==='en_pause'?'bp-orange':'bp-gray')}</p>
+      </div>
+    </div>
+
+    <div class="table-card" style="margin-bottom:18px">
+      <div class="table-card-header"><h3>Stock</h3><button class="btn btn-primary btn-sm" onclick="_donsNewStock(${prog.id})">+ Article</button></div>
+      <div class="table-wrapper"><table>
+        <thead><tr><th>Article</th><th>Reçu</th><th>Restant</th><th>Fixe / foyer</th><th>Par personne</th><th>Actions</th></tr></thead>
+        <tbody>
+          ${stock.length ? stock.map(s => `<tr>
+            <td><strong>${escHtml(s.nom)}</strong></td>
+            <td>${s.quantite_recue} ${escHtml(s.unite)}</td>
+            <td>${s.quantite_restante} ${escHtml(s.unite)}</td>
+            <td>${s.qte_fixe_foyer}</td>
+            <td>${s.qte_par_personne}</td>
+            <td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="_donsEditStock(${s.id})">Modifier</button>
+                <button class="btn btn-ghost btn-sm" style="color:#c62828" onclick="_donsDeleteStock(${s.id})">Supprimer</button></td>
+          </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted)">Aucun article</td></tr>'}
+        </tbody>
+      </table></div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-card-header"><h3>Créneaux</h3><button class="btn btn-primary btn-sm" onclick="_donsNewCreneau(${prog.id})">+ Créneau</button></div>
+      <div class="table-wrapper"><table>
+        <thead><tr><th>Date</th><th>Capacité</th><th>Réservés</th><th>Actions</th></tr></thead>
+        <tbody>
+          ${creneaux.length ? creneaux.map(c => `<tr>
+            <td>${fmt(c.date_heure)}</td>
+            <td>${c.capacite_max}</td>
+            <td>${c.nb_reserves}</td>
+            <td><button class="btn btn-ghost btn-sm" style="color:#c62828" onclick="_donsDeleteCreneau(${c.id})">Supprimer</button></td>
+          </tr>`).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--muted)">Aucun créneau</td></tr>'}
+        </tbody>
+      </table></div>
+    </div>
+  `;
+}
+
+function _donsNewProgramme() {
+  openModal('Nouveau programme de dons', `
+    <form id="donsProgForm">
+      <div class="form-group"><label>Nom *</label><input id="dp_nom" required/></div>
+      <div class="form-group"><label>Organisme donateur</label><input id="dp_org"/></div>
+      <div class="form-group"><label>Description</label><textarea id="dp_desc" rows="3"></textarea></div>
+      <div class="form-group"><label>Délai entre deux retraits (jours)</label><input id="dp_intervalle" type="number" value="30"/></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Créer</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('donsProgForm').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      const r = await api('/dons/programmes', { method:'POST', body: JSON.stringify({
+        nom: document.getElementById('dp_nom').value,
+        organisme_source: document.getElementById('dp_org').value,
+        description: document.getElementById('dp_desc').value,
+        intervalle_jours: document.getElementById('dp_intervalle').value
+      })});
+      window._donsProgId = r.id; window._donsTab = 'programme';
+      closeModal(); toast('Programme créé'); donsMgmtView();
+    } catch(e) { toast(e.message, true); }
+  };
+}
+
+async function _donsEditProgramme(id) {
+  const list = await api('/dons/programmes');
+  const p = list.find(x => x.id === id);
+  if (!p) return;
+  openModal('Modifier le programme', `
+    <form id="donsProgEditForm">
+      <div class="form-group"><label>Nom *</label><input id="dp_nom" value="${escHtml(p.nom)}" required/></div>
+      <div class="form-group"><label>Organisme donateur</label><input id="dp_org" value="${escHtml(p.organisme_source||'')}"/></div>
+      <div class="form-group"><label>Description</label><textarea id="dp_desc" rows="3">${escHtml(p.description||'')}</textarea></div>
+      <div class="form-group"><label>Délai entre deux retraits (jours)</label><input id="dp_intervalle" type="number" value="${p.intervalle_jours}"/></div>
+      <div class="form-group"><label>Statut</label>
+        <select id="dp_statut">
+          <option value="actif" ${p.statut==='actif'?'selected':''}>Actif</option>
+          <option value="en_pause" ${p.statut==='en_pause'?'selected':''}>En pause (nouvelles réservations bloquées)</option>
+          <option value="ferme" ${p.statut==='ferme'?'selected':''}>Fermé</option>
+        </select>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Enregistrer</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('donsProgEditForm').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      await api('/dons/programmes/' + id, { method:'PUT', body: JSON.stringify({
+        nom: document.getElementById('dp_nom').value,
+        organisme_source: document.getElementById('dp_org').value,
+        description: document.getElementById('dp_desc').value,
+        intervalle_jours: document.getElementById('dp_intervalle').value,
+        statut: document.getElementById('dp_statut').value
+      })});
+      closeModal(); toast('Programme mis à jour'); donsMgmtView();
+    } catch(e) { toast(e.message, true); }
+  };
+}
+
+function _donsNewStock(progId) {
+  openModal('Nouvel article de stock', `
+    <form id="donsStockForm">
+      <div class="form-group"><label>Nom *</label><input id="ds_nom" required/></div>
+      <div class="form-group"><label>Unité</label><input id="ds_unite" value="unité"/></div>
+      <div class="form-row">
+        <div class="form-group"><label>Quantité reçue</label><input id="ds_recue" type="number" step="0.01" value="0"/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Quantité fixe / foyer</label><input id="ds_fixe" type="number" step="0.01" value="0"/></div>
+        <div class="form-group"><label>Quantité additionnelle / personne</label><input id="ds_pp" type="number" step="0.01" value="0"/></div>
+      </div>
+      <p class="muted" style="font-size:.8rem;color:var(--muted)">Quantité remise à un foyer = fixe + (par personne × taille du foyer).</p>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Ajouter</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('donsStockForm').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      await api('/dons/stock', { method:'POST', body: JSON.stringify({
+        programme_id: progId,
+        nom: document.getElementById('ds_nom').value,
+        unite: document.getElementById('ds_unite').value,
+        quantite_recue: document.getElementById('ds_recue').value,
+        qte_fixe_foyer: document.getElementById('ds_fixe').value,
+        qte_par_personne: document.getElementById('ds_pp').value
+      })});
+      closeModal(); toast('Article ajouté'); donsMgmtView();
+    } catch(e) { toast(e.message, true); }
+  };
+}
+
+async function _donsEditStock(id) {
+  const stock = await api('/dons/programmes/' + window._donsProgId + '/stock');
+  const s = stock.find(x => x.id === id);
+  if (!s) return;
+  openModal("Modifier l'article", `
+    <form id="donsStockEditForm">
+      <div class="form-group"><label>Nom *</label><input id="ds_nom" value="${escHtml(s.nom)}" required/></div>
+      <div class="form-group"><label>Unité</label><input id="ds_unite" value="${escHtml(s.unite)}"/></div>
+      <div class="form-row">
+        <div class="form-group"><label>Quantité reçue</label><input id="ds_recue" type="number" step="0.01" value="${s.quantite_recue}"/></div>
+        <div class="form-group"><label>Quantité restante</label><input id="ds_restante" type="number" step="0.01" value="${s.quantite_restante}"/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Quantité fixe / foyer</label><input id="ds_fixe" type="number" step="0.01" value="${s.qte_fixe_foyer}"/></div>
+        <div class="form-group"><label>Quantité additionnelle / personne</label><input id="ds_pp" type="number" step="0.01" value="${s.qte_par_personne}"/></div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Enregistrer</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('donsStockEditForm').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      await api('/dons/stock/' + id, { method:'PUT', body: JSON.stringify({
+        nom: document.getElementById('ds_nom').value,
+        unite: document.getElementById('ds_unite').value,
+        quantite_recue: document.getElementById('ds_recue').value,
+        quantite_restante: document.getElementById('ds_restante').value,
+        qte_fixe_foyer: document.getElementById('ds_fixe').value,
+        qte_par_personne: document.getElementById('ds_pp').value
+      })});
+      closeModal(); toast('Article mis à jour'); donsMgmtView();
+    } catch(e) { toast(e.message, true); }
+  };
+}
+
+async function _donsDeleteStock(id) {
+  if (!confirm('Supprimer cet article de stock ?')) return;
+  try { await api('/dons/stock/' + id, { method:'DELETE' }); toast('Article supprimé'); donsMgmtView(); }
+  catch(e) { toast(e.message, true); }
+}
+
+function _donsNewCreneau(progId) {
+  openModal('Nouveau créneau', `
+    <form id="donsCreneauForm">
+      <div class="form-group"><label>Date et heure *</label><input id="dc_date" type="datetime-local" required/></div>
+      <div class="form-group"><label>Capacité (nb de foyers)</label><input id="dc_cap" type="number" value="10"/></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Créer</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('donsCreneauForm').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      await api('/dons/creneaux', { method:'POST', body: JSON.stringify({
+        programme_id: progId,
+        date_heure: document.getElementById('dc_date').value,
+        capacite_max: document.getElementById('dc_cap').value
+      })});
+      closeModal(); toast('Créneau créé'); donsMgmtView();
+    } catch(e) { toast(e.message, true); }
+  };
+}
+
+async function _donsDeleteCreneau(id) {
+  if (!confirm('Supprimer ce créneau ?')) return;
+  try { await api('/dons/creneaux/' + id, { method:'DELETE' }); toast('Créneau supprimé'); donsMgmtView(); }
+  catch(e) { toast(e.message, true); }
+}
+
+async function _donsFoyersTabHtml(prog) {
+  const statutFilter = window._donsFoyerFilter === undefined ? 'en_attente' : window._donsFoyerFilter;
+  let foyers = [];
+  try { foyers = await api('/dons/programmes/' + prog.id + '/foyers' + (statutFilter ? '?statut=' + statutFilter : '')); } catch(e) {}
+
+  const filterBtn = (v, label) => `<button class="btn btn-sm ${statutFilter===v?'btn-primary':'btn-ghost'}" onclick="window._donsFoyerFilter='${v}';donsMgmtView()" style="margin-right:6px">${label}</button>`;
+
+  return `
+    <div style="margin-bottom:14px">
+      ${filterBtn('en_attente','En attente')}${filterBtn('valide','Validés')}${filterBtn('refuse','Refusés')}${filterBtn('','Tous')}
+    </div>
+    <div class="table-wrapper"><table>
+      <thead><tr><th>Responsable</th><th>Foyer</th><th>Taille</th><th>Statut</th><th>Absences</th><th>Actions</th></tr></thead>
+      <tbody>
+        ${foyers.length ? foyers.map(f => `<tr>
+          <td><strong>${escHtml(f.prenom)} ${escHtml(f.nom)}</strong><br><span style="font-size:.75rem;color:var(--muted)">${escHtml(f.email)}</span></td>
+          <td style="font-size:.82rem">${f.membres.map(m => escHtml(m.prenom+' '+m.nom)).join(', ') || '–'}${f.dependants.length ? ' + ' + f.dependants.length + ' pers. à charge' : ''}</td>
+          <td>${f.nb_personnes}</td>
+          <td>${pill(f.statut==='en_attente'?'En attente':f.statut==='valide'?'Validé':'Refusé', f.statut==='valide'?'bp-green':f.statut==='refuse'?'bp-red':'bp-orange')}${f.necessite_reconfirmation ? ' ' + pill('⚠️ à reconfirmer','bp-orange') : ''}</td>
+          <td>${f.nb_absences}</td>
+          <td style="white-space:nowrap">
+            ${f.statut === 'en_attente' ? `<button class="btn btn-primary btn-sm" onclick="_donsValiderFoyer(${f.id},${f.nb_personnes})">Valider</button>
+              <button class="btn btn-ghost btn-sm" style="color:#c62828" onclick="_donsRefuserFoyer(${f.id})">Refuser</button>` : ''}
+            ${f.necessite_reconfirmation ? `<button class="btn btn-ghost btn-sm" onclick="_donsReconfirmerFoyer(${f.id})">Reconfirmer</button>` : ''}
+          </td>
+        </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">Aucun foyer</td></tr>'}
+      </tbody>
+    </table></div>
+  `;
+}
+
+function _donsValiderFoyer(id, nbPersonnes) {
+  openModal('Valider le foyer', `
+    <form id="donsValidForm">
+      <div class="form-group"><label>Taille du foyer confirmée</label><input id="dv_nb" type="number" value="${nbPersonnes}" min="1"/></div>
+      <div class="form-group"><label>Note (optionnel)</label><textarea id="dv_note" rows="2"></textarea></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Valider le foyer</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('donsValidForm').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      await api('/dons/foyers/' + id + '/valider', { method:'POST', body: JSON.stringify({
+        nb_personnes: document.getElementById('dv_nb').value,
+        note: document.getElementById('dv_note').value
+      })});
+      closeModal(); toast('Foyer validé'); donsMgmtView();
+    } catch(e) { toast(e.message, true); }
+  };
+}
+
+function _donsRefuserFoyer(id) {
+  openModal('Refuser le foyer', `
+    <form id="donsRefuseForm">
+      <div class="form-group"><label>Raison du refus *</label><textarea id="dr_note" rows="3" required></textarea></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary" style="background:#c62828">Refuser</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('donsRefuseForm').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      await api('/dons/foyers/' + id + '/refuser', { method:'POST', body: JSON.stringify({ note: document.getElementById('dr_note').value })});
+      closeModal(); toast('Foyer refusé'); donsMgmtView();
+    } catch(e) { toast(e.message, true); }
+  };
+}
+
+async function _donsReconfirmerFoyer(id) {
+  if (!confirm('Reconfirmer ce foyer malgré ses absences ?')) return;
+  try { await api('/dons/foyers/' + id + '/reconfirmer', { method:'POST' }); toast('Foyer reconfirmé'); donsMgmtView(); }
+  catch(e) { toast(e.message, true); }
+}
+
+async function _donsJournalTabHtml(prog) {
+  let data = { retraits: [], bloques: [] };
+  try { data = await api('/dons/programmes/' + prog.id + '/journal'); } catch(e) {}
+  return `
+    <div class="table-card" style="margin-bottom:18px">
+      <div class="table-card-header"><h3>Retraits effectués (${data.retraits.length})</h3></div>
+      <div class="table-wrapper"><table>
+        <thead><tr><th>Date</th><th>Foyer (carte scannée)</th><th>Scanné par</th><th>Dérogation</th><th>Partiel</th></tr></thead>
+        <tbody>
+          ${data.retraits.length ? data.retraits.map(r => `<tr>
+            <td>${fmt(r.date_retrait)}</td>
+            <td>${escHtml(r.carte_prenom)} ${escHtml(r.carte_nom)}</td>
+            <td>${escHtml(r.scan_prenom)} ${escHtml(r.scan_nom)}</td>
+            <td>${r.derogation ? '⚠️ ' + escHtml(r.motif_derogation||'') : '–'}</td>
+            <td>${r.partiel ? '⚠️ Partiel' : '–'}</td>
+          </tr>`).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--muted)">Aucun retrait</td></tr>'}
+        </tbody>
+      </table></div>
+    </div>
+    <div class="table-card">
+      <div class="table-card-header"><h3>Tentatives bloquées (${data.bloques.length})</h3></div>
+      <div class="table-wrapper"><table>
+        <thead><tr><th>Date</th><th>Carte scannée</th><th>Résultat</th><th>Détails</th></tr></thead>
+        <tbody>
+          ${data.bloques.length ? data.bloques.map(b => `<tr>
+            <td>${fmt(b.date_scan)}</td>
+            <td>${escHtml(b.prenom||'')} ${escHtml(b.nom||'')}</td>
+            <td>${escHtml(b.resultat)}</td>
+            <td style="font-size:.82rem;color:var(--muted)">${escHtml(b.details||'')}</td>
+          </tr>`).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--muted)">Aucune tentative bloquée</td></tr>'}
+        </tbody>
+      </table></div>
+    </div>
+  `;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PROGRAMME DE DONS — écran de scan / retrait (temps réel multi-postes)
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function donsScanView() {
+  if (window._donsScanner) { try { await window._donsScanner.stop(); } catch {} window._donsScanner = null; }
+  if (window._donsStream)  { window._donsStream.getTracks().forEach(t => t.stop()); window._donsStream = null; }
+  if (window._donsAnimFrame) { cancelAnimationFrame(window._donsAnimFrame); window._donsAnimFrame = null; }
+
+  let programmes = [];
+  try { programmes = await api('/dons/programmes'); } catch(e) {}
+  if (!programmes.length) {
+    const actif = await api('/dons/programme-actif').catch(() => null);
+    programmes = actif ? [actif] : [];
+  }
+  if (!window._donsProgId && programmes.length) window._donsProgId = programmes[0].id;
+
+  if (!programmes.length) {
+    setContent(`<div class="page-header"><div><h2>📷 Scanner — Retrait de dons</h2></div></div>
+      <div class="empty-state"><div class="es-icon">🎁</div><p>Aucun programme de dons actif.</p></div>`);
+    return;
+  }
+
+  setContent(`
+    <div class="page-header"><div><h2>📷 Scanner — Retrait de dons</h2><p>Scannez la carte de n'importe quel membre validé du foyer</p></div></div>
+
+    ${programmes.length > 1 ? `
+    <div class="form-group" style="max-width:340px;margin-bottom:14px">
+      <label>Programme</label>
+      <select onchange="window._donsProgId=parseInt(this.value)">
+        ${programmes.map(p => `<option value="${p.id}" ${p.id===window._donsProgId?'selected':''}>${escHtml(p.nom)}</option>`).join('')}
+      </select>
+    </div>` : ''}
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;max-width:1100px">
+      <div class="table-card" style="padding:14px">
+        <h4 style="margin-bottom:8px;color:var(--g2);font-size:.9rem">📷 Caméra</h4>
+        <div id="donsReaderWrap" style="border-radius:12px;overflow:hidden;background:#111;min-height:160px;max-height:40vh;position:relative">
+          <video id="donsScanVideo" autoplay muted playsinline style="width:100%;display:none;border-radius:12px;max-height:40vh;object-fit:cover"></video>
+          <div id="donsScanViewfinder" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;pointer-events:none">
+            <div style="position:relative;width:190px;height:190px;border:2.5px solid rgba(255,255,255,.75);border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,.45)"></div>
+          </div>
+          <div id="donsReader"></div>
+        </div>
+        <div id="donsReaderMsg" style="display:none;padding:10px;text-align:center;font-size:.8rem;color:var(--muted)"></div>
+        <div style="margin-top:14px">
+          <label class="form-label">Saisie manuelle / lecteur USB</label>
+          <div style="display:flex;gap:6px">
+            <input id="donsScanQrInput" class="form-input" placeholder="AHH-00007-..."
+              onkeydown="if(event.key==='Enter'){event.preventDefault();donsScanSearch();}"/>
+            <button class="btn btn-primary" onclick="donsScanSearch()" title="Rechercher">🔍</button>
+          </div>
+        </div>
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+          <label style="display:flex;align-items:center;gap:6px;font-size:.82rem;cursor:pointer">
+            <input type="checkbox" id="donsDerogCheck" onchange="document.getElementById('donsDerogMotifWrap').style.display=this.checked?'block':'none'"/>
+            Dérogation (retrait exceptionnel hors cycle)
+          </label>
+          <div id="donsDerogMotifWrap" style="display:none;margin-top:6px">
+            <input id="donsDerogMotif" class="form-input" placeholder="Motif obligatoire..."/>
+          </div>
+        </div>
+      </div>
+
+      <div id="donsScanResult" class="table-card" style="padding:20px">
+        <div class="empty-state"><div class="es-icon">🎁</div><p>Scannez une carte pour enregistrer un retrait</p></div>
+      </div>
+
+      <div class="table-card" style="padding:14px">
+        <h4 style="margin-bottom:8px;color:var(--g2);font-size:.9rem">🔴 En direct — tous les postes</h4>
+        <div id="donsLiveFeed" style="max-height:400px;overflow-y:auto;font-size:.82rem">
+          <p style="padding:8px;color:var(--muted)">Les scans des autres postes du comité apparaîtront ici en temps réel.</p>
+        </div>
+      </div>
+    </div>
+  `);
+
+  if ('BarcodeDetector' in window) await _donsStartNativeScanner();
+  else await _donsStartHtml5Scanner();
+}
+
+async function _donsStartNativeScanner() {
+  const video = document.getElementById('donsScanVideo');
+  if (!video) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+    video.srcObject = stream;
+    window._donsStream = stream;
+    video.style.display = 'block';
+    const vf = document.getElementById('donsScanViewfinder');
+    if (vf) vf.style.display = 'flex';
+
+    const detector = new BarcodeDetector({ formats: ['qr_code'] });
+    let lastValue = '', lastTime = 0;
+    const loop = async () => {
+      if (!document.getElementById('donsScanVideo')) return;
+      try {
+        if (video.readyState >= 2) {
+          const codes = await detector.detect(video);
+          const now = Date.now();
+          if (codes.length > 0 && (codes[0].rawValue !== lastValue || now - lastTime > 3000)) {
+            lastValue = codes[0].rawValue; lastTime = now;
+            const inp = document.getElementById('donsScanQrInput');
+            if (inp) { inp.value = lastValue; donsScanSearch(); }
+          }
+        }
+      } catch {}
+      window._donsAnimFrame = requestAnimationFrame(loop);
+    };
+    video.addEventListener('loadedmetadata', () => { window._donsAnimFrame = requestAnimationFrame(loop); }, { once: true });
+  } catch(e) {
+    console.warn('[Scanner dons natif]', e.message, '→ fallback html5-qrcode');
+    await _donsStartHtml5Scanner();
+  }
+}
+
+async function _donsStartHtml5Scanner() {
+  if (!window.Html5Qrcode) {
+    try {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = '/Public/html5-qrcode.min.js';
+        s.onload = resolve; s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    } catch {
+      const msg = document.getElementById('donsReaderMsg');
+      if (msg) { msg.style.display='block'; msg.textContent='Caméra non disponible — utilisez la saisie manuelle.'; }
+      return;
+    }
+  }
+  const scanner = new Html5Qrcode('donsReader');
+  window._donsScanner = scanner;
+  try {
+    await scanner.start(
+      { facingMode: 'environment' },
+      { fps: 30, qrbox: { width: 220, height: 220 }, disableFlip: false },
+      (decoded) => {
+        const inp = document.getElementById('donsScanQrInput');
+        if (inp && inp.value !== decoded) { inp.value = decoded; donsScanSearch(); }
+      },
+      () => {}
+    );
+  } catch(e) {
+    console.warn('[Scanner dons html5-qrcode]', e && e.message || e);
+    const msg = document.getElementById('donsReaderMsg');
+    const permissionDenied = /NotAllowedError|Permission denied/i.test(String(e && e.message || e));
+    if (msg) {
+      msg.style.display = 'block';
+      msg.textContent = permissionDenied
+        ? 'Accès à la caméra refusé — autorisez la caméra pour ce site, ou utilisez la saisie manuelle.'
+        : 'Caméra non disponible — utilisez la saisie manuelle.';
+    }
+  }
+}
+
+let _donsScanLock = false;
+async function donsScanSearch() {
+  const qr = document.getElementById('donsScanQrInput')?.value?.trim();
+  if (!qr || _donsScanLock) return;
+  if (!window._donsProgId) { toast('Aucun programme sélectionné', true); return; }
+  _donsScanLock = true;
+  setTimeout(() => { _donsScanLock = false; }, 2000);
+
+  const resultEl = document.getElementById('donsScanResult');
+  if (resultEl) resultEl.innerHTML = '<div style="text-align:center;padding:32px"><div class="spinner"></div></div>';
+
+  const derogation = document.getElementById('donsDerogCheck')?.checked;
+  const motif = document.getElementById('donsDerogMotif')?.value?.trim();
+
+  try {
+    const r = await api('/dons/scan', { method:'POST', body: JSON.stringify({ qr, programme_id: window._donsProgId, derogation, motif }) });
+    const detailRows = (r.detail || []).map(d => `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:.85rem">
+      <span>${escHtml(d.nom)}</span><span>${d.donne} / ${d.du} ${escHtml(d.unite)}</span>
+    </div>`).join('');
+    if (resultEl) resultEl.innerHTML = `
+      <div style="text-align:center">
+        <div style="font-size:2.2rem">✅</div>
+        <div style="font-size:1.1rem;font-weight:800;margin-top:6px">${escHtml(r.foyer_nom)}</div>
+        <div style="margin-top:6px">${pill('Retrait enregistré','bp-green')}</div>
+        ${r.partiel ? `<div style="margin-top:8px">${pill('⚠️ Stock insuffisant — remise partielle','bp-orange')}</div>` : ''}
+      </div>
+      <div style="margin-top:16px;text-align:left">${detailRows}</div>
+      <div style="margin-top:14px;font-size:.82rem;color:var(--muted);text-align:center">Prochain retrait suggéré : <strong>${r.prochain_retrait_suggere}</strong>${r.prochain_creneau ? ` (créneau : ${fmt(r.prochain_creneau.date_heure)})` : " (aucun créneau ouvert pour l'instant)"}</div>
+    `;
+    const dc = document.getElementById('donsDerogCheck'); if (dc) dc.checked = false;
+    const dw = document.getElementById('donsDerogMotifWrap'); if (dw) dw.style.display = 'none';
+  } catch(e) {
+    if (resultEl) resultEl.innerHTML = `
+      <div class="empty-state"><div class="es-icon">⛔</div><p style="color:#c62828;font-weight:700">${escHtml(e.message)}</p>
+      ${e.prochain_retrait ? `<p style="font-size:.85rem;color:var(--muted)">Prochain retrait possible : ${escHtml(e.prochain_retrait)}</p>` : ''}
+      </div>`;
+  }
+  const inp = document.getElementById('donsScanQrInput');
+  if (inp) inp.value = '';
+}
+
+function _donsAppendLiveFeed(evt) {
+  const feed = document.getElementById('donsLiveFeed');
+  if (!feed) return;
+  if (feed.querySelector('.muted, p')) feed.innerHTML = '';
+  const ok = evt.resultat === 'ok';
+  const row = document.createElement('div');
+  row.style.cssText = 'padding:8px 10px;border-bottom:1px solid var(--border)';
+  row.innerHTML = `<span style="color:${ok?'#2e7d32':'#c62828'};font-weight:700">${ok ? '✅' : '⛔'} ${escHtml(evt.foyer_nom || '')}</span>
+    <div style="color:var(--muted);font-size:.76rem">${escHtml(evt.message || '')} · ${new Date().toLocaleTimeString('fr-CA')}</div>`;
+  feed.prepend(row);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PROGRAMME DE DONS — vue membre (mon foyer, réservation, historique)
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function donsMonFoyerView() {
+  const prog = await api('/dons/programme-actif').catch(() => null);
+  if (!prog) {
+    setContent(`<div class="page-header"><div><h2>🎁 Programme de dons</h2></div></div>
+      <div class="empty-state"><div class="es-icon">🎁</div><p>Aucun programme de dons actif pour le moment.</p></div>`);
+    return;
+  }
+  const foyer = await api('/dons/mon-foyer?programme_id=' + prog.id).catch(() => null);
+
+  let bodyHtml = '';
+  if (!foyer) {
+    bodyHtml = `
+      <div class="table-card" style="max-width:600px">
+        <div class="table-card-header"><h3>Déclarer mon foyer</h3></div>
+        <div style="padding:16px">
+          <p style="font-size:.88rem;color:var(--muted);margin-bottom:14px">Déclarez votre foyer une seule fois. Si votre conjoint(e) est aussi membre AHH, ajoutez son courriel pour que sa carte soit reconnue aussi — peu importe qui se présente, le foyer ne reçoit qu'une fois par cycle.</p>
+          <form id="donsFoyerForm">
+            <div class="form-group"><label>Nombre de personnes dans le foyer</label><input id="df_nb" type="number" min="1" value="1" required/></div>
+            <div class="form-group"><label>Courriel du conjoint / d'un autre membre du foyer (optionnel)</label><input id="df_conjoint" type="email" placeholder="conjoint@exemple.com"/></div>
+            <div class="form-actions"><button type="submit" class="btn btn-primary">Déclarer mon foyer</button></div>
+          </form>
+        </div>
+      </div>`;
+  } else {
+    const statutLabel = { en_attente: 'En attente de validation', valide: 'Foyer validé', refuse: 'Refusé' }[foyer.statut];
+    const statutCls = { en_attente: 'bp-orange', valide: 'bp-green', refuse: 'bp-red' }[foyer.statut];
+
+    let rdvSection = '';
+    if (foyer.statut === 'valide' && !foyer.necessite_reconfirmation) {
+      const mesRdv = await api('/dons/mes-rdv?programme_id=' + prog.id).catch(() => ({ rdv: [], retraits: [] }));
+      const prochainRdv = (mesRdv.rdv || []).find(r => r.statut === 'a_venir');
+      if (prochainRdv) {
+        rdvSection = `<div style="background:#e8f5e9;padding:14px 18px;border-radius:10px;margin-top:14px">
+          <strong>Votre prochain rendez-vous :</strong> ${fmt(prochainRdv.date_heure)}
+          <button class="btn btn-ghost btn-sm" style="margin-left:10px;color:#c62828" onclick="_donsAnnulerRdv(${prochainRdv.id})">Annuler</button>
+        </div>`;
+      } else {
+        const creneaux = await api('/dons/programmes/' + prog.id + '/creneaux-disponibles').catch(() => []);
+        rdvSection = `<div class="table-card" style="margin-top:14px">
+          <div class="table-card-header"><h3>Réserver un rendez-vous</h3></div>
+          <div style="padding:16px">
+            ${creneaux.length ? `
+              <select id="df_creneau" class="form-input" style="margin-bottom:10px;width:100%">
+                ${creneaux.map(c => `<option value="${c.id}">${fmt(c.date_heure)} — ${c.places_restantes} place(s)</option>`).join('')}
+              </select>
+              <button class="btn btn-primary" onclick="_donsReserverRdv(${prog.id})">Réserver</button>
+            ` : '<p style="color:var(--muted)">Aucun créneau disponible pour le moment — revenez plus tard.</p>'}
+          </div>
+        </div>`;
+      }
+      if ((mesRdv.retraits || []).length) {
+        rdvSection += `<div class="table-card" style="margin-top:14px">
+          <div class="table-card-header"><h3>Historique des retraits</h3></div>
+          <div class="table-wrapper"><table><thead><tr><th>Date</th></tr></thead><tbody>
+            ${mesRdv.retraits.map(r => `<tr><td>${fmt(r.date_retrait)}</td></tr>`).join('')}
+          </tbody></table></div>
+        </div>`;
+      }
+    } else if (foyer.necessite_reconfirmation) {
+      rdvSection = `<div style="background:#fff3e0;padding:14px 18px;border-radius:10px;margin-top:14px">
+        ⚠️ Votre foyer doit être reconfirmé par le comité (rendez-vous manqués) avant de pouvoir réserver à nouveau. Contactez le comité si nécessaire.
+      </div>`;
+    }
+
+    bodyHtml = `
+      <div class="table-card" style="max-width:700px">
+        <div class="table-card-header"><h3>Mon foyer</h3>${pill(statutLabel, statutCls)}</div>
+        <div style="padding:16px">
+          <p><strong>Nombre de personnes :</strong> ${foyer.nb_personnes}</p>
+          ${foyer.membres.length ? `<p><strong>Membres liés :</strong> ${foyer.membres.map(m => escHtml(m.prenom+' '+m.nom)).join(', ')}</p>` : ''}
+          ${foyer.note_comite ? `<p style="font-size:.85rem;color:var(--muted)"><strong>Note du comité :</strong> ${escHtml(foyer.note_comite)}</p>` : ''}
+          ${foyer.statut !== 'refuse' ? `<button class="btn btn-ghost btn-sm" onclick="_donsModifierFoyer(${foyer.id},${foyer.nb_personnes})">Modifier la composition</button>` : ''}
+        </div>
+      </div>
+      ${rdvSection}
+    `;
+  }
+
+  setContent(`
+    <div class="page-header"><div><h2>🎁 ${escHtml(prog.nom)}</h2>${prog.description ? `<p>${escHtml(prog.description)}</p>` : ''}</div></div>
+    ${bodyHtml}
+  `);
+
+  if (!foyer) {
+    document.getElementById('donsFoyerForm').onsubmit = async e => {
+      e.preventDefault();
+      try {
+        const conjoint = document.getElementById('df_conjoint').value.trim();
+        const r = await api('/dons/foyers', { method:'POST', body: JSON.stringify({
+          programme_id: prog.id,
+          nb_personnes: document.getElementById('df_nb').value,
+          membres_emails: conjoint ? [conjoint] : []
+        })});
+        if (r.membres_ignores?.length) toast('Attention : ' + r.membres_ignores.join(', ') + ' déjà rattaché(s) à un autre foyer', true);
+        toast('Foyer déclaré — en attente de validation par le comité');
+        donsMonFoyerView();
+      } catch(e) { toast(e.message, true); }
+    };
+  }
+}
+
+async function _donsReserverRdv(progId) {
+  const creneauId = document.getElementById('df_creneau')?.value;
+  if (!creneauId) return;
+  try {
+    await api('/dons/rdv', { method:'POST', body: JSON.stringify({ programme_id: progId, creneau_id: parseInt(creneauId) }) });
+    toast('Rendez-vous réservé !');
+    donsMonFoyerView();
+  } catch(e) { toast(e.message, true); }
+}
+
+async function _donsAnnulerRdv(id) {
+  if (!confirm('Annuler ce rendez-vous ?')) return;
+  try { await api('/dons/rdv/' + id, { method:'DELETE' }); toast('Rendez-vous annulé'); donsMonFoyerView(); }
+  catch(e) { toast(e.message, true); }
+}
+
+function _donsModifierFoyer(id, nbActuel) {
+  openModal('Modifier mon foyer', `
+    <form id="donsFoyerEditForm">
+      <div class="form-group"><label>Nombre de personnes</label><input id="dfe_nb" type="number" min="1" value="${nbActuel}"/></div>
+      <p style="font-size:.8rem;color:var(--muted)">Modifier la composition renverra votre foyer en attente de validation.</p>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Enregistrer</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('donsFoyerEditForm').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      await api('/dons/foyers/' + id, { method:'PUT', body: JSON.stringify({ nb_personnes: document.getElementById('dfe_nb').value }) });
+      closeModal(); toast('Foyer mis à jour'); donsMonFoyerView();
+    } catch(e) { toast(e.message, true); }
+  };
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
