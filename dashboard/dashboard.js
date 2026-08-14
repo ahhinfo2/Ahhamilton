@@ -14853,38 +14853,64 @@ async function photosMembresView() {
   if (!document.getElementById('membresHubBody')) { return membresHubView('photos'); }
   const members = (await api('/users').catch(() => [])).filter(m => m.actif);
   window._photosMembresData = members;
+  window._pmOnlyPending = false;
   const roleLabel = { admin:'Admin', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Délégué', member:'Membre' };
+  const nbPending = members.filter(m => m.photo_url && !m.carte_photo_approuvee).length;
 
   document.getElementById('membresHubBody').innerHTML = `
     <div class="page-actions" style="margin-bottom:10px"><p style="flex:1;margin:0;color:var(--muted);font-size:.85rem">${members.filter(m=>m.photo_url).length} photo(s) sur ${members.length} membres actifs</p><button class="btn btn-outline" onclick="photosMembresView()">↻ Actualiser</button></div>
+    ${nbPending ? `<button id="pmPendingToggle" onclick="_pmTogglePending()" style="display:flex;align-items:center;gap:8px;width:100%;text-align:left;margin-bottom:14px;padding:10px 14px;border-radius:10px;border:1.5px solid #e65100;background:#fff3e0;color:#e65100;font-weight:700;font-size:.85rem;cursor:pointer">
+        🕐 ${nbPending} photo${nbPending>1?'s':''} en attente d'approbation <span style="margin-left:auto;font-weight:600;text-decoration:underline">Afficher seulement celles-ci →</span>
+      </button>` : ''}
     <input type="text" id="pmSearch" placeholder="🔍 Rechercher par nom..." oninput="_pmFilter()" style="width:100%;padding:9px 14px;border:1px solid var(--border);border-radius:8px;font-size:.85rem;margin-bottom:16px"/>
     <div id="pmGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:16px"></div>
   `;
   _pmRender(members);
 }
 
+function _pmTogglePending() {
+  window._pmOnlyPending = !window._pmOnlyPending;
+  const btn = document.getElementById('pmPendingToggle');
+  if (btn) {
+    const span = btn.querySelector('span');
+    if (span) span.textContent = window._pmOnlyPending ? '← Afficher tout le monde' : 'Afficher seulement celles-ci →';
+  }
+  _pmFilter();
+}
+
+function _pmSortKey(m) {
+  // En attente d'approbation en premier (action requise), puis sans photo, puis déjà approuvées.
+  if (m.photo_url && !m.carte_photo_approuvee) return 0;
+  if (!m.photo_url) return 1;
+  return 2;
+}
+
 function _pmRender(list) {
   const grid = document.getElementById('pmGrid');
   if (!grid) return;
   if (!list.length) { grid.innerHTML = '<p style="color:var(--muted);grid-column:1/-1;text-align:center;padding:30px">Aucun membre trouvé</p>'; return; }
-  grid.innerHTML = list.map(m => {
+  const sorted = [...list].sort((a, b) => _pmSortKey(a) - _pmSortKey(b));
+  grid.innerHTML = sorted.map(m => {
     const titre = ['admin','tresoriere','secretaire','delegue'].includes(m.role) ? comiteCardTitle(m) : 'Membre';
-    const borderColor = !m.photo_url ? 'var(--border)' : m.carte_photo_approuvee ? '#2e7d32' : '#e65100';
+    const pending = m.photo_url && !m.carte_photo_approuvee;
+    const borderColor = !m.photo_url ? 'var(--border)' : pending ? '#e65100' : '#2e7d32';
     return `
-    <div onclick="_pmAdjustPhoto(${m.id})" style="cursor:pointer;text-align:center;background:var(--card,#fff);border:1px solid var(--border);border-radius:12px;padding:14px 10px;transition:transform .15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
+    <div onclick="_pmAdjustPhoto(${m.id})" style="cursor:pointer;text-align:center;background:${pending ? '#fff8f0' : 'var(--card,#fff)'};border:1px solid ${pending ? '#e65100' : 'var(--border)'};border-radius:12px;padding:14px 10px;transition:transform .15s;position:relative" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
+      ${pending ? '<div style="position:absolute;top:8px;right:8px;width:10px;height:10px;border-radius:50%;background:#e65100"></div>' : ''}
       ${m.photo_url
         ? `<img src="${BASE}${m.photo_url}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid ${borderColor};margin-bottom:8px"/>`
         : `<div style="width:80px;height:80px;border-radius:50%;background:var(--g3);color:#fff;font-size:1.5rem;font-weight:700;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;border:3px solid ${borderColor}">${(m.prenom||'?')[0]}${(m.nom||'')[0]||''}</div>`}
       <div style="font-size:.84rem;font-weight:700;line-height:1.2">${escHtml(m.prenom)} ${escHtml(m.nom)}</div>
       <div style="font-size:.7rem;color:var(--muted);margin-top:2px">${escHtml(titre)}</div>
-      ${!m.photo_url ? '<div style="font-size:.65rem;color:#e65100;margin-top:4px">❌ Aucune photo</div>' : !m.carte_photo_approuvee ? '<div style="font-size:.65rem;color:#1565c0;margin-top:4px">🕐 En attente</div>' : ''}
+      ${!m.photo_url ? '<div style="font-size:.65rem;color:#e65100;margin-top:4px">❌ Aucune photo</div>' : pending ? '<div style="margin-top:5px"><span style="background:#e65100;color:#fff;font-size:.62rem;font-weight:800;padding:2px 8px;border-radius:20px">🕐 À approuver</span></div>' : ''}
     </div>`;
   }).join('');
 }
 
 function _pmFilter() {
   const q = (document.getElementById('pmSearch')?.value || '').toLowerCase();
-  const list = (window._photosMembresData || []).filter(m => !q || `${m.prenom} ${m.nom}`.toLowerCase().includes(q));
+  let list = (window._photosMembresData || []).filter(m => !q || `${m.prenom} ${m.nom}`.toLowerCase().includes(q));
+  if (window._pmOnlyPending) list = list.filter(m => m.photo_url && !m.carte_photo_approuvee);
   _pmRender(list);
 }
 
