@@ -15758,7 +15758,7 @@ async function _donsFoyersTabHtml(prog) {
       <tbody>
         ${foyers.length ? foyers.map(f => `<tr>
           <td><strong>${escHtml(f.prenom)} ${escHtml(f.nom)}</strong><br><span style="font-size:.75rem;color:var(--muted)">${escHtml(f.email)}</span></td>
-          <td style="font-size:.82rem">${(f.personnes||[]).length ? f.personnes.map(p => escHtml(p.prenom+' '+p.nom) + (p.date_naissance ? ' (' + _donsAge(p.date_naissance) + ' ans)' : ' (âge inconnu)')).join(', ') : (f.membres.map(m => escHtml(m.prenom+' '+m.nom)).join(', ') || '–')}</td>
+          <td style="font-size:.82rem">${(f.personnes||[]).length ? f.personnes.map(p => { const a = p.date_naissance ? _donsAge(p.date_naissance) : null; return escHtml(p.prenom+' '+p.nom) + (a !== null ? ' (' + a + ' ans)' : ' (âge inconnu)'); }).join(', ') : (f.membres.map(m => escHtml(m.prenom+' '+m.nom)).join(', ') || '–')}</td>
           <td>${f.nb_personnes}</td>
           <td>${f.valide_pour_reservation ? pill(f.statut==='en_attente'?'Actif (composition modifiée)':'Validé','bp-green') : pill(f.statut==='refuse'?'Refusé':'En attente','bp-'+(f.statut==='refuse'?'red':'orange'))}${f.necessite_reconfirmation ? ' ' + pill('⚠️ à reconfirmer','bp-orange') : ''}</td>
           <td>${f.nb_absences}</td>
@@ -16135,10 +16135,10 @@ function _donsRenderRoster(roster, foyerId) {
   return `
     <div style="margin-top:12px;padding:14px 16px;background:var(--surface-2,var(--off));border:1px solid var(--border);border-radius:10px">
       <strong style="font-size:.85rem">Composition du foyer</strong>
-      ${roster.map(p => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid var(--border);font-size:.82rem">
-        <span>${escHtml(p.prenom)} ${escHtml(p.nom)}${p.date_naissance ? ' — ' + _donsAge(p.date_naissance) + ' ans' : ' — âge inconnu'}${p.date_naissance_verifiee ? ' ✅' : ''}</span>
+      ${roster.map(p => { const a = p.date_naissance ? _donsAge(p.date_naissance) : null; return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid var(--border);font-size:.82rem">
+        <span>${escHtml(p.prenom)} ${escHtml(p.nom)}${a !== null ? ' — ' + a + ' ans' : ' — âge inconnu'}${p.date_naissance_verifiee ? ' ✅' : ''}</span>
         <button class="btn btn-ghost btn-sm" onclick="_donsVerifierPersonne(${foyerId},${p.id},'${escHtml(p.prenom)}','${escHtml(p.nom)}','${p.date_naissance || ''}')">✓ Vérifier</button>
-      </div>`).join('')}
+      </div>`; }).join('')}
     </div>`;
 }
 
@@ -16185,6 +16185,23 @@ function _donsAppendLiveFeed(evt) {
 // PROGRAMME DE DONS — vue membre (mon foyer, réservation, historique)
 // ══════════════════════════════════════════════════════════════════════════════
 
+function _donsStepPath(steps) {
+  // steps: [{icon,label,state}] state = 'done' | 'active' | 'warn' | ''
+  const bubbleStyle = s =>
+    s === 'done' ? 'background:var(--g2);border-color:var(--g2);color:#fff'
+    : s === 'active' ? 'background:#fff3e0;border-color:#e65100'
+    : s === 'warn' ? 'background:#fdecea;border-color:#c62828'
+    : 'background:var(--off);border-color:var(--border)';
+  return `<div style="display:flex;align-items:center;justify-content:center;gap:4px;margin:26px 0 4px;flex-wrap:wrap">
+    ${steps.map((s, i) => `
+      ${i > 0 ? `<div style="width:26px;height:2px;background:${steps[i-1].state==='done'?'var(--g2)':'var(--border)'};margin-bottom:24px;flex-shrink:0"></div>` : ''}
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;width:88px;text-align:center">
+        <div style="width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.25rem;border:2px solid;${bubbleStyle(s.state)}">${s.icon}</div>
+        <span style="font-size:.72rem;font-weight:700;color:${s.state?'var(--text)':'var(--muted)'}">${s.label}</span>
+      </div>`).join('')}
+  </div>`;
+}
+
 async function donsMonFoyerView() {
   const prog = await api('/dons/programme-actif').catch(() => null);
   if (!prog) {
@@ -16193,10 +16210,16 @@ async function donsMonFoyerView() {
     return;
   }
   const foyer = await api('/dons/mon-foyer?programme_id=' + prog.id).catch(() => null);
+  const prenom = (USER.prenom || '').trim();
 
   let bodyHtml = '';
   if (!foyer) {
     bodyHtml = `
+      <div style="background:linear-gradient(160deg,#e8f5e9,var(--card,#fff) 65%);border:1px solid var(--border);border-radius:18px;padding:28px 26px;text-align:center;margin-bottom:22px">
+        <div style="font-size:2rem">👋</div>
+        <h2 style="font-size:1.3rem;font-weight:800;margin:6px 0 4px">Bonjour${prenom ? ', ' + escHtml(prenom) : ''}</h2>
+        <p style="color:var(--muted);font-size:.9rem;max-width:44ch;margin:0 auto">Déclarez votre foyer pour rejoindre le programme — vous-même et chaque personne à charge. Ça ne prend qu'une minute.</p>
+      </div>
       <div class="table-card" style="max-width:640px">
         <div class="table-card-header"><h3>Déclarer mon foyer</h3></div>
         <div style="padding:16px">
@@ -16215,57 +16238,95 @@ async function donsMonFoyerView() {
       : 'En attente de validation';
     const statutCls = foyer.statut === 'refuse' ? 'bp-red' : foyer.valide_pour_reservation ? 'bp-green' : 'bp-orange';
 
-    let rdvSection = '';
+    let prochainRdv = null, mesRdv = { rdv: [], retraits: [] }, creneaux = [];
     if (foyer.valide_pour_reservation && !foyer.necessite_reconfirmation) {
-      const mesRdv = await api('/dons/mes-rdv?programme_id=' + prog.id).catch(() => ({ rdv: [], retraits: [] }));
-      const prochainRdv = (mesRdv.rdv || []).find(r => r.statut === 'a_venir');
-      if (prochainRdv) {
-        rdvSection = `<div style="background:#e8f5e9;padding:14px 18px;border-radius:10px;margin-top:14px">
-          <strong>Votre prochain rendez-vous :</strong> ${_donsFmtDT(prochainRdv.date_heure)}
-          <button class="btn btn-ghost btn-sm" style="margin-left:10px;color:#c62828" onclick="_donsAnnulerRdv(${prochainRdv.id})">Annuler</button>
-        </div>`;
-      } else {
-        const creneaux = await api('/dons/programmes/' + prog.id + '/creneaux-disponibles').catch(() => []);
-        rdvSection = `<div class="table-card" style="margin-top:14px">
-          <div class="table-card-header"><h3>Réserver un rendez-vous</h3></div>
-          <div style="padding:16px">
-            ${creneaux.length ? `
-              <select id="df_creneau" class="form-input" style="margin-bottom:10px;width:100%">
-                ${creneaux.map(c => `<option value="${c.id}">${_donsFmtDT(c.date_heure)} — ${c.places_restantes} place(s)</option>`).join('')}
-              </select>
-              <button class="btn btn-primary" onclick="_donsReserverRdv(${prog.id})">Réserver</button>
-            ` : '<p style="color:var(--muted)">Aucun créneau disponible pour le moment — revenez plus tard.</p>'}
-          </div>
-        </div>`;
-      }
-      if ((mesRdv.retraits || []).length) {
-        rdvSection += `<div class="table-card" style="margin-top:14px">
-          <div class="table-card-header"><h3>Historique des retraits</h3></div>
-          <div class="table-wrapper"><table><thead><tr><th>Date</th></tr></thead><tbody>
-            ${mesRdv.retraits.map(r => `<tr><td>${_donsFmtDT(r.date_retrait)}</td></tr>`).join('')}
-          </tbody></table></div>
-        </div>`;
-      }
+      mesRdv = await api('/dons/mes-rdv?programme_id=' + prog.id).catch(() => ({ rdv: [], retraits: [] }));
+      prochainRdv = (mesRdv.rdv || []).find(r => r.statut === 'a_venir');
+      if (!prochainRdv) creneaux = await api('/dons/programmes/' + prog.id + '/creneaux-disponibles').catch(() => []);
+    }
+
+    // ── Chemin d'étapes : reflète l'état réel du foyer ──────────────────
+    const step2State = foyer.statut === 'refuse' ? 'warn' : foyer.valide_pour_reservation ? 'done' : 'active';
+    const step3State = foyer.necessite_reconfirmation ? 'warn' : !foyer.valide_pour_reservation ? '' : (prochainRdv ? 'done' : 'active');
+    const step4State = foyer.necessite_reconfirmation ? '' : prochainRdv ? 'active' : '';
+    const stepPath = foyer.statut === 'refuse' ? '' : _donsStepPath([
+      { icon:'🏠', label:'Déclaré', state:'done' },
+      { icon:'✅', label:'Validé', state: step2State },
+      { icon:'📅', label:'Rendez-vous', state: step3State },
+      { icon:'🎁', label:'Retrait', state: step4State },
+    ]);
+
+    let cardHtml = '';
+    if (foyer.statut === 'refuse') {
+      cardHtml = `<div style="background:#fdecea;padding:14px 18px;border-radius:10px">⛔ Votre foyer n'a pas été validé pour ce programme.${foyer.note_comite ? ' Raison : ' + escHtml(foyer.note_comite) : ''} Contactez le comité pour plus de détails.</div>`;
     } else if (foyer.necessite_reconfirmation) {
-      rdvSection = `<div style="background:#fff3e0;padding:14px 18px;border-radius:10px;margin-top:14px">
-        ⚠️ Votre foyer doit être reconfirmé par le comité (rendez-vous manqués) avant de pouvoir réserver à nouveau. Contactez le comité si nécessaire.
+      cardHtml = `<div style="background:#fff3e0;padding:14px 18px;border-radius:10px">⚠️ Votre foyer doit être reconfirmé par le comité (rendez-vous manqués) avant de pouvoir réserver à nouveau. Contactez le comité si nécessaire.</div>`;
+    } else if (!foyer.valide_pour_reservation) {
+      cardHtml = `<div style="background:#fff3e0;padding:14px 18px;border-radius:10px">🕐 Votre foyer est en attente de validation par le comité. Vous pourrez réserver un rendez-vous dès qu'il sera validé.</div>`;
+    } else if (prochainRdv) {
+      const chips = (foyer.personnes || []).map(p => { const a = p.date_naissance ? _donsAge(p.date_naissance) : null; return `<div style="display:flex;align-items:center;gap:6px;background:var(--card,#fff);border:1px solid var(--border);padding:5px 10px 5px 5px;border-radius:999px;font-size:.78rem;font-weight:600">
+        <span style="width:22px;height:22px;border-radius:50%;background:var(--g2);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:800">${(p.prenom[0]||'?')}${(p.nom[0]||'')}</span>
+        ${escHtml(p.prenom)}${a !== null ? ' · ' + a + ' ans' : ''}
+      </div>`; }).join('');
+      cardHtml = `<div class="table-card" style="padding:20px 22px">
+        <h3 style="margin:0 0 4px;font-size:1.02rem">Votre prochain rendez-vous</h3>
+        <div style="font-size:1.15rem;font-weight:800;color:var(--g2)">${_donsFmtDT(prochainRdv.date_heure)}</div>
+        ${chips ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">${chips}</div>` : ''}
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;flex-wrap:wrap;gap:10px">
+          <span style="font-size:.82rem;color:var(--muted)">Présentez la carte de n'importe quel adulte du foyer.</span>
+          <button class="btn btn-ghost btn-sm" style="color:#c62828" onclick="_donsAnnulerRdv(${prochainRdv.id})">Annuler</button>
+        </div>
+      </div>`;
+    } else {
+      cardHtml = `<div class="table-card">
+        <div class="table-card-header"><h3>Réserver un rendez-vous</h3></div>
+        <div style="padding:16px">
+          ${creneaux.length ? `
+            <select id="df_creneau" class="form-input" style="margin-bottom:10px;width:100%">
+              ${creneaux.map(c => `<option value="${c.id}">${_donsFmtDT(c.date_heure)} — ${c.places_restantes} place(s)</option>`).join('')}
+            </select>
+            <button class="btn btn-primary" onclick="_donsReserverRdv(${prog.id})">Réserver</button>
+          ` : '<p style="color:var(--muted)">Aucun créneau disponible pour le moment — revenez plus tard.</p>'}
+        </div>
       </div>`;
     }
 
-    const personnesRows = (foyer.personnes || []).map(p => `<li>${escHtml(p.prenom)} ${escHtml(p.nom)}${p.date_naissance ? ' — ' + _donsAge(p.date_naissance) + ' ans' : ''}${p.date_naissance_verifiee ? ' ✅' : ''}</li>`).join('');
+    let histHtml = '';
+    if ((mesRdv.retraits || []).length) {
+      histHtml = `<div class="table-card" style="margin-top:14px">
+        <div class="table-card-header"><h3>Historique des retraits</h3></div>
+        <div class="table-wrapper"><table><thead><tr><th>Date</th></tr></thead><tbody>
+          ${mesRdv.retraits.map(r => `<tr><td>${_donsFmtDT(r.date_retrait)}</td></tr>`).join('')}
+        </tbody></table></div>
+      </div>`;
+    }
+
+    const personnesRows = (foyer.personnes || []).map(p => { const a = p.date_naissance ? _donsAge(p.date_naissance) : null; return `<li>${escHtml(p.prenom)} ${escHtml(p.nom)}${a !== null ? ' — ' + a + ' ans' : ''}${p.date_naissance_verifiee ? ' ✅' : ''}</li>`; }).join('');
+
     bodyHtml = `
-      <div class="table-card" style="max-width:700px">
-        <div class="table-card-header"><h3>Mon foyer</h3>${pill(statutLabel, statutCls)}</div>
-        <div style="padding:16px">
-          <p><strong>Nombre de personnes :</strong> ${foyer.nb_personnes}</p>
-          ${foyer.date_validation ? `<p style="font-size:.82rem;color:var(--muted)">Validé le ${fmt(foyer.date_validation)} — revalidation requise vers le ${_donsDansUnAn(foyer.date_validation)}.</p>` : ''}
-          ${personnesRows ? `<ul style="margin:6px 0 10px;padding-left:20px;font-size:.88rem">${personnesRows}</ul>` : ''}
-          ${foyer.membres.length ? `<p><strong>Membres liés (carte propre) :</strong> ${foyer.membres.map(m => escHtml(m.prenom+' '+m.nom)).join(', ')}</p>` : ''}
-          ${foyer.note_comite ? `<p style="font-size:.85rem;color:var(--muted)"><strong>Note du comité :</strong> ${escHtml(foyer.note_comite)}</p>` : ''}
-          ${foyer.statut !== 'refuse' ? `<button class="btn btn-ghost btn-sm" onclick="_donsModifierFoyer(${foyer.id},${prog.id})">Modifier la composition</button>` : ''}
+      <div style="background:linear-gradient(160deg,#e8f5e9,var(--card,#fff) 65%);border:1px solid var(--border);border-radius:18px;padding:28px 26px;text-align:center;margin-bottom:22px">
+        <div style="font-size:2rem">👋</div>
+        <h2 style="font-size:1.3rem;font-weight:800;margin:6px 0 4px">Bonjour${prenom ? ', ' + escHtml(prenom) : ''}</h2>
+        <p style="color:var(--muted);font-size:.9rem;max-width:46ch;margin:0 auto">Votre foyer fait partie du programme de dons — voici où vous en êtes et ce qui vous attend.</p>
+        ${stepPath}
+      </div>
+
+      <div style="max-width:640px;margin:0 auto">
+        ${cardHtml}
+        ${histHtml}
+
+        <div class="table-card" style="margin-top:14px">
+          <div class="table-card-header"><h3>Mon foyer</h3>${pill(statutLabel, statutCls)}</div>
+          <div style="padding:16px">
+            <p><strong>Nombre de personnes :</strong> ${foyer.nb_personnes}</p>
+            ${foyer.date_validation ? `<p style="font-size:.82rem;color:var(--muted)">Validé le ${fmt(foyer.date_validation)} — revalidation requise vers le ${_donsDansUnAn(foyer.date_validation)}.</p>` : ''}
+            ${personnesRows ? `<ul style="margin:6px 0 10px;padding-left:20px;font-size:.88rem">${personnesRows}</ul>` : ''}
+            ${foyer.membres.length ? `<p><strong>Membres liés (carte propre) :</strong> ${foyer.membres.map(m => escHtml(m.prenom+' '+m.nom)).join(', ')}</p>` : ''}
+            ${foyer.note_comite ? `<p style="font-size:.85rem;color:var(--muted)"><strong>Note du comité :</strong> ${escHtml(foyer.note_comite)}</p>` : ''}
+            ${foyer.statut !== 'refuse' ? `<button class="btn btn-ghost btn-sm" onclick="_donsModifierFoyer(${foyer.id},${prog.id})">Modifier la composition</button>` : ''}
+          </div>
         </div>
       </div>
-      ${rdvSection}
     `;
   }
 
@@ -16309,7 +16370,7 @@ function _donsFmtDT(dateStr) {
 function _donsDansUnAn(dateISO) {
   const d = new Date(dateISO);
   d.setDate(d.getDate() + 365);
-  return d.toLocaleDateString('fr-CA');
+  return d.toLocaleDateString('fr-CA', { year:'numeric', month:'short', day:'numeric' });
 }
 
 function _donsAge(dateNaissance) {
@@ -16317,6 +16378,7 @@ function _donsAge(dateNaissance) {
   let age = now.getFullYear() - d.getFullYear();
   const m = now.getMonth() - d.getMonth();
   if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+  if (isNaN(age) || age < 0 || age > 120) return null; // date de naissance visiblement erronée — mieux vaut ne rien afficher
   return age;
 }
 
