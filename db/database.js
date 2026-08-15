@@ -1750,6 +1750,19 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS dons_foyer_personnes (
 try { db.exec('ALTER TABLE dons_stock ADD COLUMN age_min INTEGER'); } catch {}
 try { db.exec('ALTER TABLE dons_stock ADD COLUMN age_max INTEGER'); } catch {}
 
+// Coordinateur des dons : accès complet à la gestion opérationnelle du module Dons
+// (foyers, stock, créneaux, journal) pour un membre qui n'a pas de rôle comité —
+// sans lui donner accès au reste du site. La création/modification du programme
+// lui-même reste réservée aux rôles comité (voir requireDonsAccess côté serveur).
+try { db.exec(`CREATE TABLE IF NOT EXISTS dons_delegations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  delegue_par INTEGER NOT NULL REFERENCES users(id),
+  actif INTEGER DEFAULT 1,
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+  date_expiration TEXT
+)`); } catch {}
+
 init();
 
 module.exports = db;

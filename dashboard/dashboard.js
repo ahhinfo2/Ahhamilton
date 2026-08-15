@@ -492,18 +492,25 @@ async function buildSidebar() {
 
     // Charger les délégations de scan et ajouter les scanners correspondants
     try {
-      const delegations = await api('/scan-delegations/my').catch(() => []);
-      if (delegations.length) {
-        const types = new Set(delegations.map(d => d.type));
-        const showBillets = types.has('billets') || types.has('tous');
-        const showCartes  = types.has('cartes')  || types.has('tous');
-        const scanItems = [];
-        if (showBillets || showCartes) scanItems.push({ id:'scanner-unified', icon:'📷', label:'Lecteur QR', _section: '📱 Lecteurs QR' });
+      const [delegations, donsCoord] = await Promise.all([
+        api('/scan-delegations/my').catch(() => []),
+        api('/dons/suis-je-coordinateur').catch(() => ({ coordinateur: false })),
+      ]);
+      const types = new Set(delegations.map(d => d.type));
+      const showBillets = types.has('billets') || types.has('tous');
+      const showCartes  = types.has('cartes')  || types.has('tous');
+      const showDonsScan = types.has('dons') || types.has('tous') || donsCoord.coordinateur;
+      const scanItems = [];
+      if (showBillets || showCartes) scanItems.push({ id:'scanner-unified', icon:'📷', label:'Lecteur QR', _section: '📱 Lecteurs QR' });
+      if (showDonsScan) scanItems.push({ id:'dons-scan', icon:'📷', label:'Dons — Scanner', _section: showBillets||showCartes ? undefined : '📱 Lecteurs QR' });
+      if (donsCoord.coordinateur) scanItems.push({ id:'dons-mgmt', icon:'📦', label:'Gestion des dons', _section: '🎁 Dons' });
+      if (scanItems.length) {
         // Insert before mes-badges
         const badgeIdx = memberItems.findIndex(i => i.id === 'mes-badges');
         memberItems.splice(badgeIdx >= 0 ? badgeIdx : memberItems.length, 0, ...scanItems);
       }
       window._memberDelegations = delegations;
+      window._donsCoordinateur = donsCoord.coordinateur;
     } catch(e) {}
 
     nav.innerHTML = memberItems.map((i, idx) => {
@@ -915,14 +922,19 @@ async function pollBadges() {
       setSidebarBadge('notif-prefs',        newAlerts);
     }
 
-    // Rafraîchir les délégations de scan pour les membres
+    // Rafraîchir les délégations de scan (+ coordination des dons) pour les membres
     if (USER.role === 'member') {
       try {
-        const delegations = await api('/scan-delegations/my').catch(() => []);
+        const [delegations, donsCoord] = await Promise.all([
+          api('/scan-delegations/my').catch(() => []),
+          api('/dons/suis-je-coordinateur').catch(() => ({ coordinateur: false })),
+        ]);
         const prev = window._memberDelegations || [];
-        const changed = JSON.stringify(delegations.map(d=>d.id).sort()) !== JSON.stringify(prev.map(d=>d.id).sort());
+        const changed = JSON.stringify(delegations.map(d=>d.id).sort()) !== JSON.stringify(prev.map(d=>d.id).sort())
+          || !!window._donsCoordinateur !== !!donsCoord.coordinateur;
         if (changed) {
           window._memberDelegations = delegations;
+          window._donsCoordinateur = donsCoord.coordinateur;
           buildSidebar();
           setActiveNav(window._currentViewId);
         }
@@ -15425,7 +15437,8 @@ async function donsMgmtView() {
   const tabBtn = (id, label) => `<button class="btn ${tab===id?'btn-primary':'btn-ghost'}" onclick="window._donsTab='${id}';donsMgmtView()" style="margin-right:8px">${label}</button>`;
 
   let body = '<div class="empty-state"><div class="es-icon">📦</div><p>Créez un premier programme pour commencer.</p></div>';
-  if (prog) {
+  if (tab === 'coordinateurs' && can.executive()) body = await _donsCoordinateursTabHtml();
+  else if (prog) {
     if (tab === 'foyers') body = await _donsFoyersTabHtml(prog);
     else if (tab === 'journal') body = await _donsJournalTabHtml(prog);
     else body = await _donsProgrammeTabHtml(prog);
@@ -15434,7 +15447,7 @@ async function donsMgmtView() {
   setContent(`
     <div class="page-header">
       <div><h2>📦 Programme de dons</h2><p>${programmes.length} programme(s)</p></div>
-      <div class="page-actions"><button class="btn btn-primary" onclick="_donsNewProgramme()">+ Nouveau programme</button></div>
+      <div class="page-actions">${can.executive() ? `<button class="btn btn-primary" onclick="_donsNewProgramme()">+ Nouveau programme</button>` : ''}</div>
     </div>
     ${programmes.length > 1 ? `
       <div class="form-group" style="max-width:360px;margin-bottom:14px">
@@ -15443,9 +15456,10 @@ async function donsMgmtView() {
           ${programmes.map(p => `<option value="${p.id}" ${p.id===progId?'selected':''}>${escHtml(p.nom)} (${p.statut})</option>`).join('')}
         </select>
       </div>` : ''}
-    ${prog ? `<div style="margin-bottom:16px">${tabBtn('programme','Programme & stock & créneaux')}${tabBtn('foyers','Foyers')}${tabBtn('journal','Journal')}</div>` : ''}
+    ${prog || can.executive() ? `<div style="margin-bottom:16px">${prog ? tabBtn('programme','Programme & stock & créneaux') + tabBtn('foyers','Foyers') + tabBtn('journal','Journal') : ''}${can.executive() ? tabBtn('coordinateurs','Coordinateurs') : ''}</div>` : ''}
     ${body}
   `);
+  if (tab === 'coordinateurs' && can.executive()) _dcInitDropdown();
 }
 
 async function _donsProgrammeTabHtml(prog) {
@@ -15456,7 +15470,7 @@ async function _donsProgrammeTabHtml(prog) {
   return `
     <div class="table-card" style="margin-bottom:18px">
       <div class="table-card-header"><h3>${escHtml(prog.nom)}</h3>
-        <button class="btn btn-ghost btn-sm" onclick="_donsEditProgramme(${prog.id})">Modifier</button>
+        ${can.executive() ? `<button class="btn btn-ghost btn-sm" onclick="_donsEditProgramme(${prog.id})">Modifier</button>` : ''}
       </div>
       <div style="padding:16px;font-size:.88rem;color:var(--muted)">
         ${prog.organisme_source ? `<p><strong>Organisme :</strong> ${escHtml(prog.organisme_source)}</p>` : ''}
@@ -15920,6 +15934,83 @@ async function _donsJournalTabHtml(prog) {
       </table></div>
     </div>
   `;
+}
+
+// ── Coordinateurs des dons — délégation d'accès au module sans rôle comité ───
+async function _donsCoordinateursTabHtml() {
+  let delegations = [];
+  try { delegations = await api('/dons/delegations'); } catch(e) {}
+
+  return `
+    <div class="table-card" style="margin-bottom:18px">
+      <div class="table-card-header"><h3>Nouveau coordinateur</h3></div>
+      <div style="padding:16px">
+        <p style="font-size:.85rem;color:var(--muted);margin-bottom:12px">Un coordinateur peut valider les foyers, gérer le stock et les créneaux, scanner au comptoir et consulter le journal — sans avoir de rôle comité et sans accès au reste du site (finances, autres membres, etc.). La création ou la mise en pause du programme reste réservée au comité.</p>
+        <div class="form-row">
+          <div class="form-group" style="position:relative">
+            <label>Membre</label>
+            <input id="dcSearch" autocomplete="off" placeholder="Tapez un nom..." oninput="_taskSearchMember(this.value);document.getElementById('dcDropdown').id='taskAssigneDropdown'">
+            <input id="dcUserId" type="hidden">
+            <div id="dcDropdown" style="position:absolute;top:100%;left:0;right:0;z-index:50;background:#fff;border:1px solid #ddd;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.15);max-height:180px;overflow-y:auto;display:none"></div>
+          </div>
+          <div class="form-group">
+            <label>Expiration (optionnel)</label>
+            <input type="datetime-local" id="dcExpiration">
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="_dcCreate()">Désigner comme coordinateur</button>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-card-header"><h3>Coordinateurs actifs (${delegations.length})</h3></div>
+      <div class="table-wrapper"><table>
+        <thead><tr><th>Membre</th><th>Désigné par</th><th>Expiration</th><th>Actions</th></tr></thead>
+        <tbody>
+          ${delegations.length ? delegations.map(d => `<tr>
+            <td><strong>${escHtml(d.prenom)} ${escHtml(d.nom)}</strong><br><span style="font-size:.75rem;color:var(--muted)">${escHtml(d.email||'')}</span></td>
+            <td>${_donsFmtDT(d.date_creation)}</td>
+            <td>${d.date_expiration ? _donsFmtDT(d.date_expiration) : 'Illimitée'}</td>
+            <td><button class="btn btn-ghost btn-sm" style="color:#c62828" onclick="_dcRevoke(${d.id})">Révoquer</button></td>
+          </tr>`).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">Aucun coordinateur actif</td></tr>'}
+        </tbody>
+      </table></div>
+    </div>
+  `;
+}
+
+function _dcInitDropdown() {
+  setTimeout(() => {
+    const dd = document.getElementById('dcDropdown');
+    if (dd) {
+      dd.id = 'taskAssigneDropdown';
+      window._taskSelectMember = function(id, nom) {
+        document.getElementById('dcUserId').value = id;
+        document.getElementById('dcSearch').value = nom;
+        document.getElementById('taskAssigneDropdown').style.display = 'none';
+      };
+    }
+  }, 100);
+}
+
+async function _dcCreate() {
+  const userId = document.getElementById('dcUserId')?.value;
+  const expiration = document.getElementById('dcExpiration')?.value || null;
+  if (!userId) { toast('Sélectionnez un membre', true); return; }
+  try {
+    await api('/dons/delegations', { method:'POST', body: JSON.stringify({ user_id: parseInt(userId), date_expiration: expiration }) });
+    toast('✅ Coordinateur désigné');
+    donsMgmtView();
+  } catch(e) { toast(e.message, true); }
+}
+
+async function _dcRevoke(id) {
+  if (!confirm('Révoquer ce coordinateur ?')) return;
+  try {
+    await api('/dons/delegations/' + id, { method:'DELETE' });
+    toast('Coordinateur révoqué');
+    donsMgmtView();
+  } catch(e) { toast(e.message, true); }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

@@ -9509,6 +9509,17 @@ app.post('/api/forms/:id/respond-for', authMiddleware, requireRole(...FORM_EXEC)
 
 const DON_EXEC_ROLES = ['admin','tresoriere','secretaire','delegue'];
 
+// Un rôle comité a toujours accès. Un membre sans rôle comité y accède aussi s'il a été
+// désigné "coordinateur des dons" (dons_delegations) — gère foyers/stock/créneaux/journal,
+// mais pas la création/modification du programme lui-même (voir routes POST/PUT programmes,
+// qui gardent requireRole(...DON_EXEC_ROLES) directement).
+function requireDonsAccess(req, res, next) {
+  if (DON_EXEC_ROLES.includes(req.user.role)) return next();
+  const deleg = db.prepare("SELECT id FROM dons_delegations WHERE user_id=? AND actif=1 AND (date_expiration IS NULL OR date_expiration > datetime('now'))").get(req.user.id);
+  if (deleg) return next();
+  return res.status(403).json({ error: 'Accès refusé — coordination des dons requise' });
+}
+
 function donCarteValide(member) {
   if (DON_EXEC_ROLES.includes(member.role)) return true;
   const expiration = carteExpiration(member.date_inscription);
@@ -9571,8 +9582,42 @@ function donsAjouterPersonne(foyerId, { user_id, prenom, nom, date_naissance }) 
   return r.lastInsertRowid;
 }
 
+// ── Coordinateurs des dons (délégation d'accès au module, hors rôle comité) ───
+// Seuls les vrais rôles comité peuvent accorder/révoquer — pas les coordinateurs
+// eux-mêmes, pour éviter une chaîne d'auto-délégation.
+app.get('/api/dons/delegations', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+  const rows = db.prepare(`SELECT d.*, u.prenom, u.nom, u.email FROM dons_delegations d
+    JOIN users u ON u.id = d.user_id WHERE d.actif=1 ORDER BY d.date_creation DESC`).all();
+  res.json(rows);
+});
+
+app.post('/api/dons/delegations', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+  const { user_id, date_expiration } = req.body;
+  if (!user_id) return res.status(400).json({ error: 'user_id requis' });
+  const existing = db.prepare('SELECT id FROM dons_delegations WHERE user_id=? AND actif=1').get(user_id);
+  if (existing) return res.status(409).json({ error: 'Ce membre est déjà coordinateur des dons' });
+  const r = db.prepare('INSERT INTO dons_delegations (user_id, delegue_par, date_expiration) VALUES (?,?,?)')
+    .run(user_id, req.user.id, date_expiration || null);
+  logAudit(req.user.id, 'don_delegation_creee', 'dons_delegations', r.lastInsertRowid, '', req.ip);
+  res.json({ id: r.lastInsertRowid });
+});
+
+app.delete('/api/dons/delegations/:id', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+  db.prepare('UPDATE dons_delegations SET actif=0 WHERE id=?').run(req.params.id);
+  logAudit(req.user.id, 'don_delegation_revoquee', 'dons_delegations', req.params.id, '', req.ip);
+  res.json({ ok: true });
+});
+
+// Auto-diagnostic léger pour n'importe quel membre connecté : lui permet de savoir s'il doit
+// voir les entrées "Gestion des dons" / "Dons — Scanner" dans son propre menu (sidebar membre).
+app.get('/api/dons/suis-je-coordinateur', authMiddleware, (req, res) => {
+  if (DON_EXEC_ROLES.includes(req.user.role)) return res.json({ coordinateur: true });
+  const deleg = db.prepare("SELECT id FROM dons_delegations WHERE user_id=? AND actif=1 AND (date_expiration IS NULL OR date_expiration > datetime('now'))").get(req.user.id);
+  res.json({ coordinateur: !!deleg });
+});
+
 // ── Programmes ───────────────────────────────────────────────────────────────
-app.get('/api/dons/programmes', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+app.get('/api/dons/programmes', authMiddleware, requireDonsAccess, (req, res) => {
   res.json(db.prepare('SELECT * FROM dons_programmes ORDER BY date_creation DESC').all());
 });
 
@@ -9601,11 +9646,11 @@ app.put('/api/dons/programmes/:id', authMiddleware, requireRole(...DON_EXEC_ROLE
 });
 
 // ── Stock ────────────────────────────────────────────────────────────────────
-app.get('/api/dons/programmes/:id/stock', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+app.get('/api/dons/programmes/:id/stock', authMiddleware, requireDonsAccess, (req, res) => {
   res.json(db.prepare('SELECT * FROM dons_stock WHERE programme_id=? ORDER BY nom').all(req.params.id));
 });
 
-app.post('/api/dons/stock', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+app.post('/api/dons/stock', authMiddleware, requireDonsAccess, (req, res) => {
   const { programme_id, nom, unite, quantite_recue, qte_fixe_foyer, qte_par_personne, age_min, age_max } = req.body;
   if (!programme_id || !nom || !nom.trim()) return res.status(400).json({ error: 'Programme et nom requis' });
   const qte = parseFloat(quantite_recue) || 0;
@@ -9615,7 +9660,7 @@ app.post('/api/dons/stock', authMiddleware, requireRole(...DON_EXEC_ROLES), (req
   res.json({ id: r.lastInsertRowid });
 });
 
-app.put('/api/dons/stock/:id', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+app.put('/api/dons/stock/:id', authMiddleware, requireDonsAccess, (req, res) => {
   const item = db.prepare('SELECT * FROM dons_stock WHERE id=?').get(req.params.id);
   if (!item) return res.status(404).json({ error: 'Article introuvable' });
   const { nom, unite, quantite_recue, quantite_restante, qte_fixe_foyer, qte_par_personne, age_min, age_max } = req.body;
@@ -9632,18 +9677,18 @@ app.put('/api/dons/stock/:id', authMiddleware, requireRole(...DON_EXEC_ROLES), (
   res.json({ ok: true });
 });
 
-app.delete('/api/dons/stock/:id', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+app.delete('/api/dons/stock/:id', authMiddleware, requireDonsAccess, (req, res) => {
   db.prepare('DELETE FROM dons_stock WHERE id=?').run(req.params.id);
   res.json({ ok: true });
 });
 
 // ── Créneaux ─────────────────────────────────────────────────────────────────
-app.get('/api/dons/programmes/:id/creneaux', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+app.get('/api/dons/programmes/:id/creneaux', authMiddleware, requireDonsAccess, (req, res) => {
   res.json(db.prepare(`SELECT c.*, (SELECT COUNT(*) FROM dons_rdv WHERE creneau_id=c.id AND statut != 'annule') AS nb_reserves
     FROM dons_creneaux c WHERE c.programme_id=? ORDER BY c.date_heure`).all(req.params.id));
 });
 
-app.post('/api/dons/creneaux', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+app.post('/api/dons/creneaux', authMiddleware, requireDonsAccess, (req, res) => {
   const { programme_id, date_heure, capacite_max } = req.body;
   if (!programme_id || !date_heure) return res.status(400).json({ error: 'Programme et date requis' });
   const r = db.prepare('INSERT INTO dons_creneaux (programme_id, date_heure, capacite_max, cree_par) VALUES (?,?,?,?)')
@@ -9651,7 +9696,7 @@ app.post('/api/dons/creneaux', authMiddleware, requireRole(...DON_EXEC_ROLES), (
   res.json({ id: r.lastInsertRowid });
 });
 
-app.delete('/api/dons/creneaux/:id', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+app.delete('/api/dons/creneaux/:id', authMiddleware, requireDonsAccess, (req, res) => {
   const nb = db.prepare("SELECT COUNT(*) AS c FROM dons_rdv WHERE creneau_id=? AND statut != 'annule'").get(req.params.id).c;
   if (nb > 0) return res.status(400).json({ error: `${nb} rendez-vous sont liés à ce créneau — annulez-les d'abord.` });
   db.prepare('DELETE FROM dons_creneaux WHERE id=?').run(req.params.id);
@@ -9797,7 +9842,7 @@ app.put('/api/dons/foyers/:id', authMiddleware, (req, res) => {
   res.json({ ok: true, repasse_en_attente: repasseEnAttente, membres_ignores: membresIgnores });
 });
 
-app.get('/api/dons/programmes/:id/foyers', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+app.get('/api/dons/programmes/:id/foyers', authMiddleware, requireDonsAccess, (req, res) => {
   let sql = `SELECT f.*, u.prenom, u.nom, u.email, u.telephone FROM dons_foyers f JOIN users u ON u.id=f.responsable_id WHERE f.programme_id=?`;
   const params = [req.params.id];
   if (req.query.statut === 'a_revalider') {
@@ -9817,7 +9862,7 @@ app.get('/api/dons/programmes/:id/foyers', authMiddleware, requireRole(...DON_EX
   res.json(foyers);
 });
 
-app.post('/api/dons/foyers/:id/valider', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+app.post('/api/dons/foyers/:id/valider', authMiddleware, requireDonsAccess, (req, res) => {
   const foyer = db.prepare('SELECT * FROM dons_foyers WHERE id=?').get(req.params.id);
   if (!foyer) return res.status(404).json({ error: 'Foyer introuvable' });
   const { nb_personnes, note } = req.body;
@@ -9827,7 +9872,7 @@ app.post('/api/dons/foyers/:id/valider', authMiddleware, requireRole(...DON_EXEC
   res.json({ ok: true });
 });
 
-app.post('/api/dons/foyers/:id/refuser', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+app.post('/api/dons/foyers/:id/refuser', authMiddleware, requireDonsAccess, (req, res) => {
   const foyer = db.prepare('SELECT * FROM dons_foyers WHERE id=?').get(req.params.id);
   if (!foyer) return res.status(404).json({ error: 'Foyer introuvable' });
   const { note } = req.body;
@@ -9838,7 +9883,7 @@ app.post('/api/dons/foyers/:id/refuser', authMiddleware, requireRole(...DON_EXEC
   res.json({ ok: true });
 });
 
-app.post('/api/dons/foyers/:id/reconfirmer', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+app.post('/api/dons/foyers/:id/reconfirmer', authMiddleware, requireDonsAccess, (req, res) => {
   const foyer = db.prepare('SELECT * FROM dons_foyers WHERE id=?').get(req.params.id);
   if (!foyer) return res.status(404).json({ error: 'Foyer introuvable' });
   db.prepare('UPDATE dons_foyers SET necessite_reconfirmation=0 WHERE id=?').run(foyer.id);
@@ -9880,7 +9925,7 @@ app.post('/api/dons/rdv', authMiddleware, (req, res) => {
 
 // Réservation prise par le comité au nom d'un foyer (ex. membre qui appelle) — mêmes
 // vérifications que la réservation en libre-service, juste sans passer par req.user.id.
-app.post('/api/dons/foyers/:id/rdv', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+app.post('/api/dons/foyers/:id/rdv', authMiddleware, requireDonsAccess, (req, res) => {
   const { creneau_id } = req.body;
   if (!creneau_id) return res.status(400).json({ error: 'Créneau requis' });
   const foyer = db.prepare('SELECT * FROM dons_foyers WHERE id=?').get(req.params.id);
@@ -9920,7 +9965,7 @@ app.get('/api/dons/mes-rdv', authMiddleware, (req, res) => {
 });
 
 // ── Journal (comité) ─────────────────────────────────────────────────────────
-app.get('/api/dons/programmes/:id/journal', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+app.get('/api/dons/programmes/:id/journal', authMiddleware, requireDonsAccess, (req, res) => {
   const retraits = db.prepare(`SELECT r.*, u.prenom AS carte_prenom, u.nom AS carte_nom, s.prenom AS scan_prenom, s.nom AS scan_nom
     FROM dons_retraits r JOIN users u ON u.id=r.carte_scannee_id JOIN users s ON s.id=r.scanne_par
     WHERE r.programme_id=? ORDER BY r.date_retrait DESC LIMIT 300`).all(req.params.id);
@@ -9933,8 +9978,11 @@ app.get('/api/dons/programmes/:id/journal', authMiddleware, requireRole(...DON_E
 app.post('/api/dons/scan', authMiddleware, (req, res) => {
   const isExec = DON_EXEC_ROLES.includes(req.user.role);
   if (!isExec) {
-    const deleg = db.prepare("SELECT id FROM scan_delegations WHERE user_id=? AND actif=1 AND type IN ('dons','tous') AND (date_expiration IS NULL OR date_expiration > datetime('now'))").get(req.user.id);
-    if (!deleg) return res.status(403).json({ error: 'Accès refusé — pas de délégation de scan dons' });
+    // Autorisé soit par une délégation de scan (type 'dons'/'tous'), soit par une
+    // délégation de coordination complète (dons_delegations) — un coordinateur scanne aussi.
+    const scanDeleg = db.prepare("SELECT id FROM scan_delegations WHERE user_id=? AND actif=1 AND type IN ('dons','tous') AND (date_expiration IS NULL OR date_expiration > datetime('now'))").get(req.user.id);
+    const coordDeleg = scanDeleg ? null : db.prepare("SELECT id FROM dons_delegations WHERE user_id=? AND actif=1 AND (date_expiration IS NULL OR date_expiration > datetime('now'))").get(req.user.id);
+    if (!scanDeleg && !coordDeleg) return res.status(403).json({ error: 'Accès refusé — pas de délégation de scan dons' });
   }
 
   const { qr, programme_id, derogation, motif } = req.body;
