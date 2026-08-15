@@ -15744,12 +15744,51 @@ function _donsGenererCreneaux(progId) {
 
 async function _donsFoyersTabHtml(prog) {
   const statutFilter = window._donsFoyerFilter === undefined ? 'en_attente' : window._donsFoyerFilter;
-  let foyers = [];
-  try { foyers = await api('/dons/programmes/' + prog.id + '/foyers' + (statutFilter ? '?statut=' + statutFilter : '')); } catch(e) {}
+
+  const [foyers, tousFoyers, stock, journal] = await Promise.all([
+    api('/dons/programmes/' + prog.id + '/foyers' + (statutFilter ? '?statut=' + statutFilter : '')).catch(() => []),
+    api('/dons/programmes/' + prog.id + '/foyers').catch(() => []),
+    api('/dons/programmes/' + prog.id + '/stock').catch(() => []),
+    api('/dons/programmes/' + prog.id + '/journal').catch(() => ({ retraits: [] })),
+  ]);
+
+  // ── Tableau de bord — toujours calculé sur l'ensemble des foyers, pas juste l'onglet affiché ──
+  const nbEnAttente = tousFoyers.filter(f => !f.date_validation && f.statut !== 'refuse').length;
+  const foyersActifs = tousFoyers.filter(f => f.valide_pour_reservation);
+  const nbPersonnesCouvertes = foyersActifs.reduce((s, f) => s + (f.nb_personnes || 0), 0);
+  const nbAReconfirmer = tousFoyers.filter(f => f.necessite_reconfirmation).length;
+  const now = new Date();
+  const nbRetraitsMois = (journal.retraits || []).filter(r => {
+    const d = new Date(r.date_retrait);
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  }).length;
+
+  const kpi = (n, label, hl) => `<div style="background:${hl ? '#fff3e0' : 'var(--off)'};border-radius:12px;padding:16px;text-align:center">
+    <div style="font-size:1.5rem;font-weight:800;font-variant-numeric:tabular-nums">${n}</div>
+    <div style="font-size:.7rem;color:var(--muted);font-weight:700;margin-top:2px">${label}</div>
+  </div>`;
+
+  const stockBars = stock.length ? `<div style="margin-bottom:20px">
+    ${stock.map(s => {
+      const pct = s.quantite_recue > 0 ? Math.round((s.quantite_restante / s.quantite_recue) * 100) : 0;
+      return `<div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;font-size:.78rem;color:var(--muted);margin-bottom:2px"><span>${escHtml(s.nom)}</span><span>${s.quantite_restante} / ${s.quantite_recue} ${escHtml(s.unite)}</span></div>
+        <div style="height:6px;border-radius:3px;background:var(--off);overflow:hidden"><div style="width:${pct}%;height:100%;background:var(--g2)"></div></div>
+      </div>`;
+    }).join('')}
+  </div>` : '';
 
   const filterBtn = (v, label) => `<button class="btn btn-sm ${statutFilter===v?'btn-primary':'btn-ghost'}" onclick="window._donsFoyerFilter='${v}';donsMgmtView()" style="margin-right:6px">${label}</button>`;
 
   return `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;margin-bottom:20px">
+      ${kpi(nbEnAttente, 'En attente', nbEnAttente > 0)}
+      ${kpi(foyersActifs.length, 'Foyers actifs')}
+      ${kpi(nbPersonnesCouvertes, 'Personnes couvertes')}
+      ${kpi(nbAReconfirmer, 'À reconfirmer', nbAReconfirmer > 0)}
+      ${kpi(nbRetraitsMois, 'Retraits ce mois-ci')}
+    </div>
+    ${stockBars}
     <div style="margin-bottom:14px">
       ${filterBtn('en_attente','En attente')}${filterBtn('valide','Validés')}${filterBtn('a_revalider','À revalider (>1 an)')}${filterBtn('refuse','Refusés')}${filterBtn('','Tous')}
     </div>
