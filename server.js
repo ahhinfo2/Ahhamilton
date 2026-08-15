@@ -10028,6 +10028,18 @@ app.post('/api/dons/scan', authMiddleware, (req, res) => {
     return res.status(403).json({ error: `${membre.prenom} ${membre.nom} n'a pas de foyer validé (ou à jour) pour ce programme.`, fiche, correspondances });
   }
 
+  // Personne ne traite le retrait de son propre foyer — comité et coordinateurs inclus.
+  // Séparation des tâches : évite qu'un scanneur (soi-même ou un membre de son foyer)
+  // approuve son propre retrait sans témoin indépendant.
+  const foyerDuScanneur = donTrouverFoyer(programme_id, req.user.id);
+  if (foyerDuScanneur && foyerDuScanneur.id === foyer.id) {
+    logScan('bloque_conflit_interet', foyer.id, 'Le scanneur fait partie de ce foyer');
+    return res.status(403).json({
+      error: `Vous ne pouvez pas traiter le retrait de votre propre foyer — demandez à un autre membre du comité ou coordinateur de s'en charger.`,
+      fiche, correspondances
+    });
+  }
+
   const dernier = db.prepare('SELECT * FROM dons_retraits WHERE foyer_id=? ORDER BY date_retrait DESC LIMIT 1').get(foyer.id);
   if (dernier) {
     const prochain = new Date(dernier.date_retrait);
