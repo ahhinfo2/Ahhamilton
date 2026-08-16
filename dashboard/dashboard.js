@@ -16361,10 +16361,7 @@ async function _donsCreneauxRegleSupprimer(progId, id) {
 }
 
 async function _donsFoyersTabHtml(prog) {
-  const statutFilter = window._donsFoyerFilter === undefined ? 'en_attente' : window._donsFoyerFilter;
-
-  const [foyers, tousFoyers, stock, journal] = await Promise.all([
-    api('/dons/programmes/' + prog.id + '/foyers' + (statutFilter ? '?statut=' + statutFilter : '')).catch(() => []),
+  const [tousFoyers, stock, journal] = await Promise.all([
     api('/dons/programmes/' + prog.id + '/foyers').catch(() => []),
     api('/dons/programmes/' + prog.id + '/stock').catch(() => []),
     api('/dons/programmes/' + prog.id + '/journal').catch(() => ({ retraits: [] })),
@@ -16395,6 +16392,16 @@ async function _donsFoyersTabHtml(prog) {
   const nbFoyersARevalider = tousFoyers.filter(f => f.statut !== 'refuse' && f.date_validation && (Date.now() - new Date(f.date_validation).getTime()) > unAnMs).length;
   const nbFoyersRefuses = tousFoyers.filter(f => f.statut === 'refuse').length;
   const nbFoyersTutelle = tousFoyers.filter(f => (f.personnes || []).some(p => p.tutelle_statut === 'demandee')).length;
+
+  // Filtre par défaut à la première visite de l'onglet : privilégier ce qui explique
+  // réellement le badge de notification (foyers en attente, sinon tutelles) — un foyer déjà
+  // validé avec une tutelle en attente n'apparaît pas sous « En attente », ce qui donnait
+  // l'impression que le badge « 1 » ne menait à rien.
+  if (window._donsFoyerFilter === undefined) {
+    window._donsFoyerFilter = nbFoyersEnAttente > 0 ? 'en_attente' : (nbFoyersTutelle > 0 ? 'tutelle' : 'en_attente');
+  }
+  const statutFilter = window._donsFoyerFilter;
+  const foyers = await api('/dons/programmes/' + prog.id + '/foyers' + (statutFilter ? '?statut=' + statutFilter : '')).catch(() => []);
 
   const kpi = (n, label, hl) => `<div style="flex:1 1 110px;background:${hl ? '#fff3e0' : 'var(--off)'};border-radius:12px;padding:16px;text-align:center">
     <div style="font-size:1.5rem;font-weight:800;font-variant-numeric:tabular-nums">${n}</div>
