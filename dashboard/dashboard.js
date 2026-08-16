@@ -15434,7 +15434,7 @@ async function donsMgmtView() {
   const progId = window._donsProgId;
   const prog = programmes.find(p => p.id === progId);
 
-  const tabBtn = (id, label) => `<button class="btn ${tab===id?'btn-primary':'btn-ghost'}" onclick="window._donsTab='${id}';donsMgmtView()" style="margin-right:8px">${label}</button>`;
+  const tabBtn = (id, label) => `<button class="ptab ${tab===id?'active':''}" id="ptab-dons-${id}" onclick="window._donsTab='${id}';donsMgmtView()">${label}</button>`;
 
   let body = '<div class="empty-state"><div class="es-icon">📦</div><p>Créez un premier programme pour commencer.</p></div>';
   if (tab === 'coordinateurs' && can.executive()) body = await _donsCoordinateursTabHtml();
@@ -15456,10 +15456,23 @@ async function donsMgmtView() {
           ${programmes.map(p => `<option value="${p.id}" ${p.id===progId?'selected':''}>${escHtml(p.nom)} (${p.statut})</option>`).join('')}
         </select>
       </div>` : ''}
-    ${prog || can.executive() ? `<div style="margin-bottom:16px">${prog ? tabBtn('programme','Programme & stock & créneaux') + tabBtn('foyers','Foyers') + tabBtn('journal','Journal') : ''}${can.executive() ? tabBtn('coordinateurs','Coordinateurs') : ''}</div>` : ''}
+    ${prog || can.executive() ? `<div class="page-tabs-inline">${prog ? tabBtn('programme','Programme & stock & créneaux') + tabBtn('foyers','Foyers') + tabBtn('journal','Journal') : ''}${can.executive() ? tabBtn('coordinateurs','Coordinateurs') : ''}</div>` : ''}
     ${body}
   `);
   if (tab === 'coordinateurs' && can.executive()) _dcInitDropdown();
+  _donsLoadBadges();
+}
+
+// Compte, pour l'onglet Foyers, tout ce qui attend une décision du comité (foyers en attente
+// + demandes de tutelle) — même principe que _membresLoadBadges, pour que le total affiché
+// dans le menu (🎁 Dons → Gestion des dons) corresponde exactement à ce que montre l'onglet.
+async function _donsLoadBadges() {
+  try {
+    const sc = await api('/sidebar-counts').catch(() => null);
+    if (!sc) return;
+    window._sidebarCounts = sc;
+    _setPtabBadge('ptab-dons-foyers', sc.dons_a_valider);
+  } catch(e) {}
 }
 
 async function _donsProgrammeTabHtml(prog) {

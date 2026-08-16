@@ -7023,7 +7023,9 @@ app.get('/api/sidebar-counts', authMiddleware, (req, res) => {
       counts.forms = db.prepare("SELECT COUNT(*) AS c FROM form_responses WHERE date_reponse > COALESCE((SELECT derniere_connexion FROM users WHERE id=?), '2000-01-01')").get(req.user.id)?.c || 0;
       counts.alerts = db.prepare("SELECT COUNT(*) AS c FROM alerts WHERE lu=0 AND destinataire_id=?").get(req.user.id)?.c || 0;
       counts.paiements = db.prepare("SELECT COUNT(*) AS c FROM payments WHERE statut='en_attente'").get()?.c || 0;
-      counts.dons_a_valider = db.prepare("SELECT COUNT(*) AS c FROM dons_foyers WHERE statut='en_attente'").get()?.c || 0;
+      counts.dons_foyers_attente = db.prepare("SELECT COUNT(*) AS c FROM dons_foyers WHERE statut='en_attente'").get()?.c || 0;
+      counts.dons_tutelle_demandee = db.prepare("SELECT COUNT(*) AS c FROM dons_foyer_personnes WHERE tutelle_statut='demandee'").get()?.c || 0;
+      counts.dons_a_valider = counts.dons_foyers_attente + counts.dons_tutelle_demandee;
     }
     // Nouvelles factures à valider — visible seulement pour la trésorière, la présidente et le VP (role=admin)
     if (['admin','tresoriere'].includes(req.user.role)) {
