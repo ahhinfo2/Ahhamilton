@@ -9574,6 +9574,13 @@ function donTrouverFoyer(programmeId, userId) {
     || db.prepare(`SELECT f.* FROM dons_foyers f JOIN dons_foyer_membres m ON m.foyer_id=f.id WHERE f.programme_id=? AND m.user_id=?`).get(programmeId, userId);
 }
 
+// Diffuse un changement dons en temps réel : le membre concerné voit sa fiche « Mon foyer »
+// se rafraîchir sans F5, et tout poste comité avec « Gestion des dons » ouvert (badge du menu
+// inclus) se met à jour aussitôt — même principe que le flux en direct de l'écran de scan.
+function donsNotifierChange(foyerId, programmeId) {
+  sseNotify('all', { type: 'don_foyer_change', foyer_id: foyerId, programme_id: programmeId });
+}
+
 // Recalcule le compteur mis en cache (dons_foyers.nb_personnes) à partir de la vraie
 // liste (dons_foyer_personnes). Ne fait rien si la liste est vide, pour ne pas écraser
 // le chiffre saisi manuellement sur les foyers créés avant l'ajout de la liste détaillée.
@@ -9803,6 +9810,7 @@ app.post('/api/dons/foyers', authMiddleware, (req, res) => {
     });
   }
   donsRecomputeNbPersonnes(foyerId);
+  donsNotifierChange(foyerId, programme_id);
 
   res.json({ id: foyerId, comptes_non_lies: comptesNonLies });
 });
@@ -9820,6 +9828,7 @@ app.post('/api/dons/foyers/:id/personnes', authMiddleware, (req, res) => {
   const { id, lien_echoue } = donsResoudrePersonne(foyer.id, foyer.programme_id, { prenom, nom, date_naissance, relation, email });
   donsRecomputeNbPersonnes(foyer.id);
   if (foyer.statut === 'valide') db.prepare("UPDATE dons_foyers SET statut='en_attente', necessite_reconfirmation=0 WHERE id=?").run(foyer.id);
+  donsNotifierChange(foyer.id, foyer.programme_id);
   res.json({ id, repasse_en_attente: foyer.statut === 'valide', lien_echoue });
 });
 
@@ -9862,6 +9871,7 @@ app.put('/api/dons/foyers/:id/personnes/:pid', authMiddleware, (req, res) => {
 
   const repasseEnAttente = !isExec && dateChangee && foyer.statut === 'valide';
   if (repasseEnAttente) db.prepare("UPDATE dons_foyers SET statut='en_attente', necessite_reconfirmation=0 WHERE id=?").run(foyer.id);
+  donsNotifierChange(foyer.id, foyer.programme_id);
   res.json({ ok: true, repasse_en_attente: repasseEnAttente, lien_echoue: lienEchoue });
 });
 
@@ -9873,6 +9883,7 @@ app.delete('/api/dons/foyers/:id/personnes/:pid', authMiddleware, (req, res) => 
   db.prepare('DELETE FROM dons_foyer_personnes WHERE id=? AND foyer_id=?').run(req.params.pid, foyer.id);
   donsRecomputeNbPersonnes(foyer.id);
   if (!isExec && foyer.statut === 'valide') db.prepare("UPDATE dons_foyers SET statut='en_attente', necessite_reconfirmation=0 WHERE id=?").run(foyer.id);
+  donsNotifierChange(foyer.id, foyer.programme_id);
   res.json({ ok: true });
 });
 
@@ -9891,6 +9902,7 @@ app.post('/api/dons/foyers/:id/personnes/:pid/tutelle', authMiddleware, (req, re
   if (!motif || !motif.trim()) return res.status(400).json({ error: 'Motif requis' });
   db.prepare(`UPDATE dons_foyer_personnes SET tutelle_statut='demandee', tutelle_motif=?, tutelle_date_demande=CURRENT_TIMESTAMP WHERE id=?`)
     .run(motif.trim(), personne.id);
+  donsNotifierChange(foyer.id, foyer.programme_id);
   res.json({ ok: true });
 });
 
@@ -9904,6 +9916,7 @@ app.post('/api/dons/foyers/:id/personnes/:pid/tutelle-decision', authMiddleware,
   db.prepare(`UPDATE dons_foyer_personnes SET tutelle_statut=?, tutelle_motif=?, tutelle_decidee_par=?, tutelle_date_decision=CURRENT_TIMESTAMP WHERE id=?`)
     .run(approuve ? 'approuvee' : 'refusee', motif, req.user.id, personne.id);
   logAudit(req.user.id, approuve ? 'don_tutelle_approuvee' : 'don_tutelle_refusee', 'dons_foyer_personnes', personne.id, note || '', req.ip);
+  donsNotifierChange(foyer.id, foyer.programme_id);
   res.json({ ok: true });
 });
 
@@ -9965,6 +9978,7 @@ app.post('/api/dons/foyers/:id/valider', authMiddleware, requireDonsAccess, (req
   db.prepare(`UPDATE dons_foyers SET statut='valide', nb_personnes=?, note_comite=?, valide_par=?, date_validation=CURRENT_TIMESTAMP WHERE id=?`)
     .run(nb_personnes !== undefined ? parseInt(nb_personnes) : foyer.nb_personnes, note ?? foyer.note_comite, req.user.id, foyer.id);
   logAudit(req.user.id, 'don_foyer_valide', 'dons_foyers', foyer.id, note || '', req.ip);
+  donsNotifierChange(foyer.id, foyer.programme_id);
   res.json({ ok: true });
 });
 
@@ -9976,6 +9990,7 @@ app.post('/api/dons/foyers/:id/refuser', authMiddleware, requireDonsAccess, (req
   db.prepare(`UPDATE dons_foyers SET statut='refuse', note_comite=?, valide_par=?, date_validation=CURRENT_TIMESTAMP WHERE id=?`)
     .run(note.trim(), req.user.id, foyer.id);
   logAudit(req.user.id, 'don_foyer_refuse', 'dons_foyers', foyer.id, note.trim(), req.ip);
+  donsNotifierChange(foyer.id, foyer.programme_id);
   res.json({ ok: true });
 });
 
@@ -9984,6 +9999,7 @@ app.post('/api/dons/foyers/:id/reconfirmer', authMiddleware, requireDonsAccess, 
   if (!foyer) return res.status(404).json({ error: 'Foyer introuvable' });
   db.prepare('UPDATE dons_foyers SET necessite_reconfirmation=0 WHERE id=?').run(foyer.id);
   logAudit(req.user.id, 'don_foyer_reconfirme', 'dons_foyers', foyer.id, '', req.ip);
+  donsNotifierChange(foyer.id, foyer.programme_id);
   res.json({ ok: true });
 });
 
@@ -10016,6 +10032,7 @@ app.post('/api/dons/rdv', authMiddleware, (req, res) => {
   if (nbReserves >= creneau.capacite_max) return res.status(409).json({ error: 'Ce créneau est complet.' });
 
   const r = db.prepare('INSERT INTO dons_rdv (foyer_id, creneau_id) VALUES (?,?)').run(foyer.id, creneau.id);
+  donsNotifierChange(foyer.id, foyer.programme_id);
   res.json({ id: r.lastInsertRowid });
 });
 
@@ -10036,6 +10053,7 @@ app.post('/api/dons/foyers/:id/rdv', authMiddleware, requireDonsAccess, (req, re
   const nbReserves = db.prepare("SELECT COUNT(*) AS c FROM dons_rdv WHERE creneau_id=? AND statut != 'annule'").get(creneau.id).c;
   if (nbReserves >= creneau.capacite_max) return res.status(409).json({ error: 'Ce créneau est complet.' });
   const r = db.prepare('INSERT INTO dons_rdv (foyer_id, creneau_id) VALUES (?,?)').run(foyer.id, creneau.id);
+  donsNotifierChange(foyer.id, foyer.programme_id);
   res.json({ id: r.lastInsertRowid });
 });
 
@@ -10047,6 +10065,7 @@ app.delete('/api/dons/rdv/:id', authMiddleware, (req, res) => {
     db.prepare('SELECT 1 FROM dons_foyer_membres WHERE foyer_id=? AND user_id=?').get(foyer.id, req.user.id));
   if (!DON_EXEC_ROLES.includes(req.user.role) && !isOwner) return res.status(403).json({ error: 'Accès refusé' });
   db.prepare("UPDATE dons_rdv SET statut='annule' WHERE id=?").run(rdv.id);
+  if (foyer) donsNotifierChange(foyer.id, foyer.programme_id);
   res.json({ ok: true });
 });
 
@@ -10195,6 +10214,7 @@ app.post('/api/dons/scan', authMiddleware, (req, res) => {
     fiche, correspondances, roster: roster.map(p => ({ ...p, compte: donsPersonneCompte(p) })), foyer_id: foyer.id
   };
   sseNotify('all', { type: 'don_scan', resultat: 'ok', foyer_nom: payload.foyer_nom, partiel, message: `Retrait enregistré pour ${payload.foyer_nom}` });
+  donsNotifierChange(foyer.id, programme_id);
   res.json(payload);
 });
 

@@ -822,6 +822,21 @@ function _handleLiveEvent(evt) {
     return;
   }
 
+  // Dons : validation/refus/tutelle/rendez-vous — rafraîchit la fiche du membre concerné
+  // (sans F5) et tout poste comité avec « Gestion des dons » ouvert, plus le badge du menu
+  // partout ailleurs dans l'app. Ne touche pas à un modal ouvert (openModal remplace le
+  // contenu de la page — un refresh en plein milieu effacerait un formulaire en cours).
+  if (evt.type === 'don_foyer_change') {
+    if (window._activeView === 'dons-mon-foyer' && window._donsMyFoyerId && window._donsMyFoyerId === evt.foyer_id) {
+      setTimeout(donsMonFoyerView, 400);
+    }
+    if (window._activeView === 'dons-mgmt' && !window._modalReturnViewId) {
+      setTimeout(donsMgmtView, 400);
+    }
+    _donsRefreshMenuBadge();
+    return;
+  }
+
   // Carte de notification selon le type d'événement
   const notifMap = {
     inscription: { icon: '📋', color: '#003F87',
@@ -881,6 +896,17 @@ function _handleLiveEvent(evt) {
     const h2 = document.querySelector('#mainContent h2');
     if (h2 && h2.textContent.includes('Fiche membre')) setTimeout(() => _cgOpenProfile(window._cgProfileOpenFor), 600);
   }
+}
+
+// Remet à jour le badge « Gestion des dons » du menu, même si l'utilisateur n'est pas sur
+// cette vue — pour que le chiffre reste toujours exact, en temps réel.
+async function _donsRefreshMenuBadge() {
+  try {
+    const sc = await api('/sidebar-counts').catch(() => null);
+    if (!sc) return;
+    window._sidebarCounts = sc;
+    setSidebarBadge('dons-mgmt', sc.dons_a_valider);
+  } catch(e) {}
 }
 
 async function pollBadges() {
@@ -16383,6 +16409,7 @@ async function donsMonFoyerView() {
     return;
   }
   const foyer = await api('/dons/mon-foyer?programme_id=' + prog.id).catch(() => null);
+  window._donsMyFoyerId = foyer ? foyer.id : null;
   const prenom = (USER.prenom || '').trim();
 
   let bodyHtml = '';
