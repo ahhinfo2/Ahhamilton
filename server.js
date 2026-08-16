@@ -9527,6 +9527,33 @@ function donCarteValide(member) {
   return !expired && member.carte_photo_approuvee === 1 && !!member.photo_url;
 }
 
+function donsAgeDe(dateNaissance) {
+  if (!dateNaissance) return null;
+  const d = new Date(dateNaissance), now = new Date();
+  let age = now.getFullYear() - d.getFullYear();
+  const m = now.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+  return age;
+}
+
+// Une personne du foyer "compte" pour l'éligibilité au stock / peut recevoir le don si :
+// - responsable : toujours ;
+// - conjoint(e) : doit avoir un compte AHH lié avec une carte membre active (sinon listé
+//   mais non compté — le foyer n'est pas bloqué pour autant) ;
+// - enfant : compte automatiquement, SAUF 25 ans ou plus sans tutelle approuvée par le comité
+//   (âge inconnu = bénéfice du doute, comme pour les articles de stock à âge restreint).
+function donsPersonneCompte(p) {
+  if (p.relation === 'responsable') return true;
+  if (p.relation === 'conjoint') {
+    if (!p.user_id) return false;
+    const u = db.prepare('SELECT * FROM users WHERE id=?').get(p.user_id);
+    return !!u && u.actif === 1 && donCarteValide(u);
+  }
+  const age = donsAgeDe(p.date_naissance);
+  if (age != null && age >= 25 && p.tutelle_statut !== 'approuvee') return false;
+  return true;
+}
+
 // Un foyer se réserve/retire librement dès qu'il a été validé au moins une fois par le comité,
 // dans les 365 derniers jours — pas besoin de re-valider chaque visite. Après un an (ou s'il n'a
 // jamais été validé, ou a été refusé), une nouvelle validation du comité est requise. Le champ
@@ -9575,11 +9602,35 @@ function donsCorrespondances(membre) {
   return correspondances;
 }
 
-function donsAjouterPersonne(foyerId, { user_id, prenom, nom, date_naissance }) {
+function donsAjouterPersonne(foyerId, { user_id, prenom, nom, date_naissance, relation }) {
   if (!prenom || !nom) return null;
-  const r = db.prepare('INSERT INTO dons_foyer_personnes (foyer_id, user_id, prenom, nom, date_naissance) VALUES (?,?,?,?,?)')
-    .run(foyerId, user_id || null, prenom.trim(), nom.trim(), date_naissance || null);
+  const r = db.prepare('INSERT INTO dons_foyer_personnes (foyer_id, user_id, prenom, nom, date_naissance, relation) VALUES (?,?,?,?,?,?)')
+    .run(foyerId, user_id || null, prenom.trim(), nom.trim(), date_naissance || null, relation || 'enfant');
   return r.lastInsertRowid;
+}
+
+// Résout une ligne du formulaire de déclaration : si relation=conjoint et qu'un courriel est
+// fourni, tente de lier un compte AHH actif (ajouté à dons_foyer_membres pour autoriser une
+// tentative de scan — la validité réelle de la carte est vérifiée en direct à chaque calcul
+// via donsPersonneCompte / au moment du scan, pas ici). Courriel introuvable = personne quand
+// même ajoutée (listée), juste non liée — signalé au client via lien_echoue.
+function donsResoudrePersonne(foyerId, programmeId, { prenom, nom, date_naissance, relation, email }) {
+  let userId = null, lienEchoue = false;
+  if (relation === 'conjoint' && email && email.trim()) {
+    const u = db.prepare('SELECT * FROM users WHERE email=? AND actif=1').get(email.trim());
+    const dejaAilleurs = u && donTrouverFoyer(programmeId, u.id);
+    if (u && dejaAilleurs && dejaAilleurs.id !== foyerId) {
+      lienEchoue = true;
+    } else if (u) {
+      try { db.prepare('INSERT INTO dons_foyer_membres (foyer_id, user_id, lien) VALUES (?,?,?)').run(foyerId, u.id, 'conjoint'); } catch {}
+      userId = u.id;
+      prenom = u.prenom; nom = u.nom; date_naissance = u.date_naissance || date_naissance;
+    } else {
+      lienEchoue = true;
+    }
+  }
+  const id = donsAjouterPersonne(foyerId, { user_id: userId, prenom, nom, date_naissance, relation });
+  return { id, lien_echoue: lienEchoue };
 }
 
 // ── Coordinateurs des dons (délégation d'accès au module, hors rôle comité) ───
@@ -9719,12 +9770,13 @@ app.get('/api/dons/mon-foyer', authMiddleware, (req, res) => {
   const membres = db.prepare(`SELECT u.id, u.prenom, u.nom, u.email, m.lien FROM dons_foyer_membres m
     JOIN users u ON u.id = m.user_id WHERE m.foyer_id=?`).all(foyer.id);
   const dependants = db.prepare('SELECT * FROM dependents WHERE user_id=?').all(foyer.responsable_id);
-  const personnes = db.prepare('SELECT * FROM dons_foyer_personnes WHERE foyer_id=? ORDER BY id').all(foyer.id);
+  const personnes = db.prepare('SELECT * FROM dons_foyer_personnes WHERE foyer_id=? ORDER BY id').all(foyer.id)
+    .map(p => ({ ...p, compte: donsPersonneCompte(p) }));
   res.json({ ...foyer, membres, dependants, personnes, valide_pour_reservation: donsFoyerValidePourReservation(foyer) });
 });
 
 app.post('/api/dons/foyers', authMiddleware, (req, res) => {
-  const { programme_id, nb_personnes, membres_emails, personnes } = req.body;
+  const { programme_id, personnes } = req.body;
   if (!programme_id) return res.status(400).json({ error: 'programme_id requis' });
   const prog = db.prepare('SELECT * FROM dons_programmes WHERE id=?').get(programme_id);
   if (!prog) return res.status(404).json({ error: 'Programme introuvable' });
@@ -9734,31 +9786,23 @@ app.post('/api/dons/foyers', authMiddleware, (req, res) => {
   }
 
   const r = db.prepare('INSERT INTO dons_foyers (programme_id, responsable_id, nb_personnes) VALUES (?,?,?)')
-    .run(programme_id, req.user.id, parseInt(nb_personnes) || 1);
+    .run(programme_id, req.user.id, 1);
   const foyerId = r.lastInsertRowid;
 
   const moi = db.prepare('SELECT prenom, nom, date_naissance FROM users WHERE id=?').get(req.user.id);
-  donsAjouterPersonne(foyerId, { user_id: req.user.id, prenom: moi.prenom, nom: moi.nom, date_naissance: moi.date_naissance });
+  donsAjouterPersonne(foyerId, { user_id: req.user.id, prenom: moi.prenom, nom: moi.nom, date_naissance: moi.date_naissance, relation: 'responsable' });
 
-  const membresIgnores = [];
-  if (Array.isArray(membres_emails)) {
-    membres_emails.forEach(email => {
-      const u = db.prepare('SELECT id, prenom, nom, date_naissance FROM users WHERE email=? AND actif=1').get((email || '').trim());
-      if (!u || u.id === req.user.id) return;
-      if (donTrouverFoyer(programme_id, u.id)) { membresIgnores.push(email); return; }
-      try {
-        db.prepare('INSERT INTO dons_foyer_membres (foyer_id, user_id) VALUES (?,?)').run(foyerId, u.id);
-        donsAjouterPersonne(foyerId, { user_id: u.id, prenom: u.prenom, nom: u.nom, date_naissance: u.date_naissance });
-      } catch {}
-    });
-  }
-
+  const comptesNonLies = [];
   if (Array.isArray(personnes)) {
-    personnes.forEach(p => donsAjouterPersonne(foyerId, { prenom: p.prenom, nom: p.nom, date_naissance: p.date_naissance || null }));
+    personnes.forEach(p => {
+      const relation = p.relation === 'conjoint' ? 'conjoint' : 'enfant';
+      const { lien_echoue } = donsResoudrePersonne(foyerId, programme_id, { prenom: p.prenom, nom: p.nom, date_naissance: p.date_naissance || null, relation, email: p.email });
+      if (lien_echoue) comptesNonLies.push(p.email);
+    });
   }
   donsRecomputeNbPersonnes(foyerId);
 
-  res.json({ id: foyerId, membres_ignores: membresIgnores });
+  res.json({ id: foyerId, comptes_non_lies: comptesNonLies });
 });
 
 // ── Personnes du foyer (liste détaillée pour l'éligibilité par âge) ──────────
@@ -9768,12 +9812,13 @@ app.post('/api/dons/foyers/:id/personnes', authMiddleware, (req, res) => {
   const isExec = DON_EXEC_ROLES.includes(req.user.role);
   if (!isExec && foyer.responsable_id !== req.user.id) return res.status(403).json({ error: 'Accès refusé' });
 
-  const { prenom, nom, date_naissance } = req.body;
+  const { prenom, nom, date_naissance, email } = req.body;
+  const relation = req.body.relation === 'conjoint' ? 'conjoint' : 'enfant';
   if (!prenom || !nom) return res.status(400).json({ error: 'Prénom et nom requis' });
-  const id = donsAjouterPersonne(foyer.id, { prenom, nom, date_naissance });
+  const { id, lien_echoue } = donsResoudrePersonne(foyer.id, foyer.programme_id, { prenom, nom, date_naissance, relation, email });
   donsRecomputeNbPersonnes(foyer.id);
   if (foyer.statut === 'valide') db.prepare("UPDATE dons_foyers SET statut='en_attente', necessite_reconfirmation=0 WHERE id=?").run(foyer.id);
-  res.json({ id, repasse_en_attente: foyer.statut === 'valide' });
+  res.json({ id, repasse_en_attente: foyer.statut === 'valide', lien_echoue });
 });
 
 app.put('/api/dons/foyers/:id/personnes/:pid', authMiddleware, (req, res) => {
@@ -9784,13 +9829,29 @@ app.put('/api/dons/foyers/:id/personnes/:pid', authMiddleware, (req, res) => {
   const personne = db.prepare('SELECT * FROM dons_foyer_personnes WHERE id=? AND foyer_id=?').get(req.params.pid, foyer.id);
   if (!personne) return res.status(404).json({ error: 'Personne introuvable' });
 
-  const { prenom, nom, date_naissance, verifie } = req.body;
+  const { prenom, nom, date_naissance, verifie, email } = req.body;
+  const relation = req.body.relation === 'conjoint' || req.body.relation === 'enfant' ? req.body.relation : personne.relation;
   const dateChangee = date_naissance !== undefined && date_naissance !== personne.date_naissance;
   if (verifie && !isExec) return res.status(403).json({ error: 'Seul le comité peut vérifier une date de naissance' });
 
-  db.prepare(`UPDATE dons_foyer_personnes SET prenom=?, nom=?, date_naissance=?, date_naissance_verifiee=?, verifie_par=?, date_verification=? WHERE id=?`).run(
-    prenom || personne.prenom, nom || personne.nom,
-    date_naissance !== undefined ? date_naissance : personne.date_naissance,
+  // Passage à conjoint(e) sans compte encore lié + courriel fourni : tente la liaison maintenant
+  // (même vérification qu'à la déclaration — pas déjà rattaché à un autre foyer du programme).
+  let userId = personne.user_id, lienEchoue = false;
+  let finalPrenom = prenom || personne.prenom, finalNom = nom || personne.nom;
+  let finalDob = date_naissance !== undefined ? date_naissance : personne.date_naissance;
+  if (relation === 'conjoint' && !userId && email && email.trim()) {
+    const u = db.prepare('SELECT * FROM users WHERE email=? AND actif=1').get(email.trim());
+    const dejaAilleurs = u && donTrouverFoyer(foyer.programme_id, u.id);
+    if (u && (!dejaAilleurs || dejaAilleurs.id === foyer.id)) {
+      try { db.prepare('INSERT INTO dons_foyer_membres (foyer_id, user_id, lien) VALUES (?,?,?)').run(foyer.id, u.id, 'conjoint'); } catch {}
+      userId = u.id; finalPrenom = u.prenom; finalNom = u.nom; finalDob = u.date_naissance || finalDob;
+    } else {
+      lienEchoue = true;
+    }
+  }
+
+  db.prepare(`UPDATE dons_foyer_personnes SET prenom=?, nom=?, date_naissance=?, relation=?, user_id=?, date_naissance_verifiee=?, verifie_par=?, date_verification=? WHERE id=?`).run(
+    finalPrenom, finalNom, finalDob, relation, userId,
     verifie ? 1 : (dateChangee ? 0 : personne.date_naissance_verifiee),
     verifie ? req.user.id : personne.verifie_par,
     verifie ? new Date().toISOString() : personne.date_verification,
@@ -9799,7 +9860,7 @@ app.put('/api/dons/foyers/:id/personnes/:pid', authMiddleware, (req, res) => {
 
   const repasseEnAttente = !isExec && dateChangee && foyer.statut === 'valide';
   if (repasseEnAttente) db.prepare("UPDATE dons_foyers SET statut='en_attente', necessite_reconfirmation=0 WHERE id=?").run(foyer.id);
-  res.json({ ok: true, repasse_en_attente: repasseEnAttente });
+  res.json({ ok: true, repasse_en_attente: repasseEnAttente, lien_echoue: lienEchoue });
 });
 
 app.delete('/api/dons/foyers/:id/personnes/:pid', authMiddleware, (req, res) => {
@@ -9810,6 +9871,37 @@ app.delete('/api/dons/foyers/:id/personnes/:pid', authMiddleware, (req, res) => 
   db.prepare('DELETE FROM dons_foyer_personnes WHERE id=? AND foyer_id=?').run(req.params.pid, foyer.id);
   donsRecomputeNbPersonnes(foyer.id);
   if (!isExec && foyer.statut === 'valide') db.prepare("UPDATE dons_foyers SET statut='en_attente', necessite_reconfirmation=0 WHERE id=?").run(foyer.id);
+  res.json({ ok: true });
+});
+
+// ── Tutelle (enfant de 25 ans+ sans carte propre) ─────────────────────────────
+app.post('/api/dons/foyers/:id/personnes/:pid/tutelle', authMiddleware, (req, res) => {
+  const foyer = db.prepare('SELECT * FROM dons_foyers WHERE id=?').get(req.params.id);
+  if (!foyer) return res.status(404).json({ error: 'Foyer introuvable' });
+  const isExec = DON_EXEC_ROLES.includes(req.user.role);
+  if (!isExec && foyer.responsable_id !== req.user.id) return res.status(403).json({ error: 'Accès refusé' });
+  const personne = db.prepare('SELECT * FROM dons_foyer_personnes WHERE id=? AND foyer_id=?').get(req.params.pid, foyer.id);
+  if (!personne) return res.status(404).json({ error: 'Personne introuvable' });
+  if (personne.relation !== 'enfant') return res.status(400).json({ error: 'La tutelle ne concerne que les enfants du foyer.' });
+  const age = donsAgeDe(personne.date_naissance);
+  if (age == null || age < 25) return res.status(400).json({ error: 'Cette personne a moins de 25 ans — aucune tutelle requise.' });
+  const { motif } = req.body;
+  if (!motif || !motif.trim()) return res.status(400).json({ error: 'Motif requis' });
+  db.prepare(`UPDATE dons_foyer_personnes SET tutelle_statut='demandee', tutelle_motif=?, tutelle_date_demande=CURRENT_TIMESTAMP WHERE id=?`)
+    .run(motif.trim(), personne.id);
+  res.json({ ok: true });
+});
+
+app.post('/api/dons/foyers/:id/personnes/:pid/tutelle-decision', authMiddleware, requireDonsAccess, (req, res) => {
+  const foyer = db.prepare('SELECT * FROM dons_foyers WHERE id=?').get(req.params.id);
+  if (!foyer) return res.status(404).json({ error: 'Foyer introuvable' });
+  const personne = db.prepare('SELECT * FROM dons_foyer_personnes WHERE id=? AND foyer_id=?').get(req.params.pid, foyer.id);
+  if (!personne) return res.status(404).json({ error: 'Personne introuvable' });
+  const { approuve, note } = req.body;
+  const motif = note && note.trim() ? `${personne.tutelle_motif || ''} — ${note.trim()}` : personne.tutelle_motif;
+  db.prepare(`UPDATE dons_foyer_personnes SET tutelle_statut=?, tutelle_motif=?, tutelle_decidee_par=?, tutelle_date_decision=CURRENT_TIMESTAMP WHERE id=?`)
+    .run(approuve ? 'approuvee' : 'refusee', motif, req.user.id, personne.id);
+  logAudit(req.user.id, approuve ? 'don_tutelle_approuvee' : 'don_tutelle_refusee', 'dons_foyer_personnes', personne.id, note || '', req.ip);
   res.json({ ok: true });
 });
 
@@ -9856,7 +9948,9 @@ app.get('/api/dons/programmes/:id/foyers', authMiddleware, requireDonsAccess, (r
   const depStmt = db.prepare('SELECT prenom, nom, lien, date_naissance FROM dependents WHERE user_id=?');
   const persStmt = db.prepare('SELECT * FROM dons_foyer_personnes WHERE foyer_id=? ORDER BY id');
   foyers.forEach(f => {
-    f.membres = membresStmt.all(f.id); f.dependants = depStmt.all(f.responsable_id); f.personnes = persStmt.all(f.id);
+    f.membres = membresStmt.all(f.id); f.dependants = depStmt.all(f.responsable_id);
+    f.personnes = persStmt.all(f.id).map(p => ({ ...p, compte: donsPersonneCompte(p) }));
+    f.nb_comptees = f.personnes.filter(p => p.compte).length;
     f.valide_pour_reservation = donsFoyerValidePourReservation(f);
   });
   res.json(foyers);
@@ -10057,23 +10151,15 @@ app.post('/api/dons/scan', authMiddleware, (req, res) => {
   }
 
   const roster = db.prepare('SELECT * FROM dons_foyer_personnes WHERE foyer_id=?').all(foyer.id);
-  const scanDate = new Date();
-  function ageDe(p) {
-    if (!p.date_naissance) return null;
-    const d = new Date(p.date_naissance);
-    let age = scanDate.getFullYear() - d.getFullYear();
-    const m = scanDate.getMonth() - d.getMonth();
-    if (m < 0 || (m === 0 && scanDate.getDate() < d.getDate())) age--;
-    return age;
-  }
+  const comptent = roster.filter(donsPersonneCompte);
 
   const items = db.prepare('SELECT * FROM dons_stock WHERE programme_id=?').all(programme_id);
   let partiel = false;
   const detail = items.map(it => {
     const sansRestriction = it.age_min == null && it.age_max == null;
     const eligibles = sansRestriction
-      ? foyer.nb_personnes
-      : roster.filter(p => { const a = ageDe(p); return a != null && (it.age_min == null || a >= it.age_min) && (it.age_max == null || a <= it.age_max); }).length;
+      ? comptent.length
+      : comptent.filter(p => { const a = donsAgeDe(p.date_naissance); return a != null && (it.age_min == null || a >= it.age_min) && (it.age_max == null || a <= it.age_max); }).length;
     const du = it.qte_fixe_foyer + (it.qte_par_personne * eligibles);
     const donne = Math.max(0, Math.min(du, it.quantite_restante));
     if (donne < du) partiel = true;
@@ -10104,7 +10190,7 @@ app.post('/api/dons/scan', authMiddleware, (req, res) => {
     ok: true, foyer_nom: `${membre.prenom} ${membre.nom}`, partiel, detail,
     prochain_retrait_suggere: prochainDate.toISOString().slice(0,10),
     prochain_creneau: prochainCreneau || null,
-    fiche, correspondances, roster, foyer_id: foyer.id
+    fiche, correspondances, roster: roster.map(p => ({ ...p, compte: donsPersonneCompte(p) })), foyer_id: foyer.id
   };
   sseNotify('all', { type: 'don_scan', resultat: 'ok', foyer_nom: payload.foyer_nom, partiel, message: `Retrait enregistré pour ${payload.foyer_nom}` });
   res.json(payload);

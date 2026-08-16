@@ -1746,6 +1746,27 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS dons_foyer_personnes (
   date_creation TEXT DEFAULT CURRENT_TIMESTAMP
 )`); } catch {}
 
+// Relation au responsable ('responsable'|'conjoint'|'enfant') + déclaration de tutelle pour
+// un enfant de 25 ans+ sans carte propre (motif texte, approuvé/refusé par le comité).
+try { db.exec("ALTER TABLE dons_foyer_personnes ADD COLUMN relation TEXT NOT NULL DEFAULT 'enfant'"); } catch {}
+try { db.exec("ALTER TABLE dons_foyer_personnes ADD COLUMN tutelle_statut TEXT NOT NULL DEFAULT 'aucune'"); } catch {}
+try { db.exec('ALTER TABLE dons_foyer_personnes ADD COLUMN tutelle_motif TEXT'); } catch {}
+try { db.exec('ALTER TABLE dons_foyer_personnes ADD COLUMN tutelle_date_demande TEXT'); } catch {}
+try { db.exec('ALTER TABLE dons_foyer_personnes ADD COLUMN tutelle_decidee_par INTEGER REFERENCES users(id)'); } catch {}
+try { db.exec('ALTER TABLE dons_foyer_personnes ADD COLUMN tutelle_date_decision TEXT'); } catch {}
+
+// Rétro-remplissage une fois : les lignes déjà en base n'ont pas de relation connue.
+try {
+  db.exec(`UPDATE dons_foyer_personnes SET relation='responsable'
+    WHERE user_id = (SELECT responsable_id FROM dons_foyers WHERE dons_foyers.id = dons_foyer_personnes.foyer_id)`);
+} catch {}
+try {
+  db.exec(`UPDATE dons_foyer_personnes SET relation='conjoint'
+    WHERE relation='enfant' AND user_id IS NOT NULL AND EXISTS (
+      SELECT 1 FROM dons_foyer_membres m WHERE m.foyer_id = dons_foyer_personnes.foyer_id AND m.user_id = dons_foyer_personnes.user_id
+    )`);
+} catch {}
+
 // Éligibilité par âge pour un article de stock (NULL = pas de restriction sur ce bord).
 try { db.exec('ALTER TABLE dons_stock ADD COLUMN age_min INTEGER'); } catch {}
 try { db.exec('ALTER TABLE dons_stock ADD COLUMN age_max INTEGER'); } catch {}

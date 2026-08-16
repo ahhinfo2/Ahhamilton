@@ -15769,7 +15769,7 @@ async function _donsFoyersTabHtml(prog) {
   // ── Tableau de bord — toujours calculé sur l'ensemble des foyers, pas juste l'onglet affiché ──
   const nbEnAttente = tousFoyers.filter(f => !f.date_validation && f.statut !== 'refuse').length;
   const foyersActifs = tousFoyers.filter(f => f.valide_pour_reservation);
-  const nbPersonnesCouvertes = foyersActifs.reduce((s, f) => s + (f.nb_personnes || 0), 0);
+  const nbPersonnesCouvertes = foyersActifs.reduce((s, f) => s + (f.nb_comptees ?? f.nb_personnes ?? 0), 0);
   const nbAReconfirmer = tousFoyers.filter(f => f.necessite_reconfirmation).length;
   const now = new Date();
   const nbRetraitsMois = (journal.retraits || []).filter(r => {
@@ -15811,7 +15811,7 @@ async function _donsFoyersTabHtml(prog) {
       <tbody>
         ${foyers.length ? foyers.map(f => `<tr>
           <td><strong>${escHtml(f.prenom)} ${escHtml(f.nom)}</strong><br><span style="font-size:.75rem;color:var(--muted)">${escHtml(f.email)}</span></td>
-          <td style="font-size:.82rem">${(f.personnes||[]).length ? f.personnes.map(p => { const a = p.date_naissance ? _donsAge(p.date_naissance) : null; return escHtml(p.prenom+' '+p.nom) + (a !== null ? ' (' + a + ' ans)' : ' (âge inconnu)'); }).join(', ') : (f.membres.map(m => escHtml(m.prenom+' '+m.nom)).join(', ') || '–')}</td>
+          <td style="font-size:.82rem">${(f.personnes||[]).length ? f.personnes.map(p => { const a = p.date_naissance ? _donsAge(p.date_naissance) : null; const rel = DONS_RELATION_LABEL[p.relation] || 'Enfant'; const nonCompte = p.compte === false ? ' ⚠️' : ''; const tutelleActions = p.tutelle_statut === 'demandee' ? `<br><span style="font-size:.74rem">🛡️ Tutelle demandée — <a href="#" onclick="event.preventDefault();_donsApprouverTutelle(${f.id},${p.id})">Approuver</a> · <a href="#" onclick="event.preventDefault();_donsRefuserTutelle(${f.id},${p.id})">Refuser</a></span>` : ''; return `<div>${escHtml(p.prenom+' '+p.nom)} (${a !== null ? a + ' ans' : 'âge inconnu'} · ${rel})${nonCompte}${tutelleActions}</div>`; }).join('') : (f.membres.map(m => escHtml(m.prenom+' '+m.nom)).join(', ') || '–')}</td>
           <td>${f.nb_personnes}</td>
           <td>${f.valide_pour_reservation ? pill(f.statut==='en_attente'?'Actif (composition modifiée)':'Validé','bp-green') : pill(f.statut==='refuse'?'Refusé':'En attente','bp-'+(f.statut==='refuse'?'red':'orange'))}${f.necessite_reconfirmation ? ' ' + pill('⚠️ à reconfirmer','bp-orange') : ''}</td>
           <td>${f.nb_absences}</td>
@@ -15898,6 +15898,33 @@ async function _donsReconfirmerFoyer(id) {
   if (!confirm('Reconfirmer ce foyer malgré ses absences ?')) return;
   try { await api('/dons/foyers/' + id + '/reconfirmer', { method:'POST' }); toast('Foyer reconfirmé'); donsMgmtView(); }
   catch(e) { toast(e.message, true); }
+}
+
+async function _donsApprouverTutelle(foyerId, personneId) {
+  if (!confirm('Approuver cette demande de tutelle ?')) return;
+  try {
+    await api('/dons/foyers/' + foyerId + '/personnes/' + personneId + '/tutelle-decision', { method:'POST', body: JSON.stringify({ approuve: true }) });
+    toast('Tutelle approuvée'); donsMgmtView();
+  } catch(e) { toast(e.message, true); }
+}
+
+function _donsRefuserTutelle(foyerId, personneId) {
+  openModal('Refuser la tutelle', `
+    <form id="donsTutelleRefusForm">
+      <div class="form-group"><label>Note (optionnel)</label><textarea id="dtr_note" rows="2"></textarea></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary" style="background:#c62828">Refuser</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('donsTutelleRefusForm').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      await api('/dons/foyers/' + foyerId + '/personnes/' + personneId + '/tutelle-decision', { method:'POST', body: JSON.stringify({ approuve: false, note: document.getElementById('dtr_note').value }) });
+      closeModal(); toast('Tutelle refusée'); donsMgmtView();
+    } catch(e) { toast(e.message, true); }
+  };
 }
 
 async function _donsJournalTabHtml(prog) {
@@ -16265,9 +16292,12 @@ function _donsRenderRoster(roster, foyerId) {
   return `
     <div style="margin-top:12px;padding:14px 16px;background:var(--surface-2,var(--off));border:1px solid var(--border);border-radius:10px">
       <strong style="font-size:.85rem">Composition du foyer</strong>
-      ${roster.map(p => { const a = p.date_naissance ? _donsAge(p.date_naissance) : null; return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid var(--border);font-size:.82rem">
-        <span>${escHtml(p.prenom)} ${escHtml(p.nom)}${a !== null ? ' — ' + a + ' ans' : ' — âge inconnu'}${p.date_naissance_verifiee ? ' ✅' : ''}</span>
-        <button class="btn btn-ghost btn-sm" onclick="_donsVerifierPersonne(${foyerId},${p.id},'${escHtml(p.prenom)}','${escHtml(p.nom)}','${p.date_naissance || ''}')">✓ Vérifier</button>
+      ${roster.map(p => { const a = p.date_naissance ? _donsAge(p.date_naissance) : null; const rel = DONS_RELATION_LABEL[p.relation] || 'Enfant'; const badges = _donsPersonneBadges(p, foyerId); return `<div style="padding:6px 0;border-top:1px solid var(--border);font-size:.82rem">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span>${escHtml(p.prenom)} ${escHtml(p.nom)}${a !== null ? ' — ' + a + ' ans' : ' — âge inconnu'} <span style="color:var(--muted);font-size:.76rem">(${rel})</span>${p.date_naissance_verifiee ? ' ✅' : ''}${p.compte === false ? ' ⚠️ non compté' : ''}</span>
+          <button class="btn btn-ghost btn-sm" onclick="_donsVerifierPersonne(${foyerId},${p.id},'${escHtml(p.prenom)}','${escHtml(p.nom)}','${p.date_naissance || ''}')">✓ Vérifier</button>
+        </div>
+        ${badges ? `<div style="margin-top:2px">${badges}</div>` : ''}
       </div>`; }).join('')}
     </div>`;
 }
@@ -16353,12 +16383,11 @@ async function donsMonFoyerView() {
       <div class="table-card" style="max-width:640px">
         <div class="table-card-header"><h3>Déclarer mon foyer</h3></div>
         <div style="padding:16px">
-          <p style="font-size:.88rem;color:var(--muted);margin-bottom:14px">Listez toutes les personnes de votre foyer, vous y compris. Certains articles remis dépendent de l'âge (ex. couches, vêtements enfant) — la date de naissance est donc importante. Si votre conjoint(e) est aussi membre AHH, ajoutez son courriel pour que sa carte soit reconnue aussi — peu importe qui se présente, le foyer ne reçoit qu'une fois par cycle.</p>
+          <p style="font-size:.88rem;color:var(--muted);margin-bottom:14px">Listez toutes les personnes de votre foyer, vous y compris. Certains articles remis dépendent de l'âge (ex. couches, vêtements enfant) — la date de naissance est donc importante. Pour un(e) <strong>conjoint(e)</strong>, ajoutez son courriel AHH : il/elle doit avoir une carte membre active pour participer (sinon listé(e) mais non compté(e), en attendant). Les <strong>enfants</strong> n'ont pas besoin de carte — sauf à partir de 25 ans, où une déclaration de tutelle approuvée par le comité devient nécessaire.</p>
           <form id="donsFoyerForm">
             <div id="df_personnes"></div>
             <button type="button" class="btn btn-ghost btn-sm" onclick="_donsAjouterLignePersonne()">+ Ajouter une personne</button>
-            <div class="form-group" style="margin-top:16px"><label>Courriel du conjoint / d'un autre membre du foyer (optionnel)</label><input id="df_conjoint" type="email" placeholder="conjoint@exemple.com"/></div>
-            <div class="form-actions"><button type="submit" class="btn btn-primary">Déclarer mon foyer</button></div>
+            <div class="form-actions" style="margin-top:16px"><button type="submit" class="btn btn-primary">Déclarer mon foyer</button></div>
           </form>
         </div>
       </div>`;
@@ -16431,7 +16460,7 @@ async function donsMonFoyerView() {
       </div>`;
     }
 
-    const personnesRows = (foyer.personnes || []).map(p => { const a = p.date_naissance ? _donsAge(p.date_naissance) : null; return `<li>${escHtml(p.prenom)} ${escHtml(p.nom)}${a !== null ? ' — ' + a + ' ans' : ''}${p.date_naissance_verifiee ? ' ✅' : ''}</li>`; }).join('');
+    const personnesRows = (foyer.personnes || []).map(p => { const a = p.date_naissance ? _donsAge(p.date_naissance) : null; const badges = _donsPersonneBadges(p, foyer.id, { canRequestTutelle: true }); return `<li>${escHtml(p.prenom)} ${escHtml(p.nom)}${a !== null ? ' — ' + a + ' ans' : ''} <span style="color:var(--muted);font-size:.78rem">(${DONS_RELATION_LABEL[p.relation] || 'Enfant'})</span>${p.date_naissance_verifiee ? ' ✅' : ''}${badges ? '<br>' + badges : ''}</li>`; }).join('');
 
     bodyHtml = `
       <div style="background:linear-gradient(160deg,#e8f5e9,var(--card,#fff) 65%);border:1px solid var(--border);border-radius:18px;padding:28px 26px;text-align:center;margin-bottom:22px">
@@ -16472,18 +16501,18 @@ async function donsMonFoyerView() {
       const personnes = Array.from(document.querySelectorAll('#df_personnes .dons-personne-row')).map(row => ({
         prenom: row.querySelector('.dpp-prenom').value.trim(),
         nom: row.querySelector('.dpp-nom').value.trim(),
-        date_naissance: row.querySelector('.dpp-dob').value || null
+        date_naissance: row.querySelector('.dpp-dob').value || null,
+        relation: row.querySelector('.dpp-relation')?.value || 'enfant',
+        email: row.querySelector('.dpp-email')?.value?.trim() || null
       })).filter(p => p.prenom && p.nom);
       if (!personnes.length) { toast('Ajoutez au moins une personne', true); return; }
       try {
-        const conjoint = document.getElementById('df_conjoint').value.trim();
         const r = await api('/dons/foyers', { method:'POST', body: JSON.stringify({
           programme_id: prog.id,
           // Le responsable (première ligne) est déjà ajouté automatiquement côté serveur.
-          personnes: personnes.slice(1),
-          membres_emails: conjoint ? [conjoint] : []
+          personnes: personnes.slice(1)
         })});
-        if (r.membres_ignores?.length) toast('Attention : ' + r.membres_ignores.join(', ') + ' déjà rattaché(s) à un autre foyer', true);
+        if (r.comptes_non_lies?.length) toast('Attention : ' + r.comptes_non_lies.join(', ') + ' introuvable(s) ou déjà rattaché(s) à un autre foyer — personne listée mais non comptée pour l\'instant', true);
         toast('Foyer déclaré — en attente de validation par le comité');
         donsMonFoyerView();
       } catch(e) { toast(e.message, true); }
@@ -16512,6 +16541,50 @@ function _donsAge(dateNaissance) {
   return age;
 }
 
+const DONS_RELATION_LABEL = { responsable:'Responsable', conjoint:'Conjoint(e)', enfant:'Enfant' };
+
+// Badges d'état (carte requise / tutelle) réutilisés dans la vue membre, le tableau comité
+// et le panneau de scan — reflète p.compte / p.tutelle_statut renvoyés par le serveur.
+function _donsPersonneBadges(p, foyerId, { canRequestTutelle = false } = {}) {
+  const bits = [];
+  if (p.relation === 'conjoint' && p.compte === false) {
+    bits.push(pill('⚠️ Carte active requise', 'bp-orange'));
+  }
+  if (p.relation === 'enfant') {
+    const age = p.date_naissance ? _donsAge(p.date_naissance) : null;
+    if (age !== null && age >= 25) {
+      if (p.tutelle_statut === 'approuvee') bits.push(pill('✅ Tutelle approuvée', 'bp-green'));
+      else if (p.tutelle_statut === 'demandee') bits.push(pill('⏳ Tutelle en attente', 'bp-orange'));
+      else if (p.tutelle_statut === 'refusee') bits.push(pill('❌ Tutelle refusée', 'bp-red'));
+      else {
+        bits.push(pill('⚠️ 25 ans+ — carte requise', 'bp-orange'));
+        if (canRequestTutelle) bits.push(`<button class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:.72rem" onclick="_donsDemanderTutelle(${foyerId},${p.id})">Demander une tutelle</button>`);
+      }
+    }
+  }
+  return bits.join(' ');
+}
+
+function _donsDemanderTutelle(foyerId, personneId) {
+  openModal('Demander une tutelle', `
+    <p style="font-size:.82rem;color:var(--muted);margin-bottom:10px">Cette personne a 25 ans ou plus et n'a pas de carte membre propre. Expliquez brièvement pourquoi elle reste sous votre tutelle (ex. situation de handicap, aux études, etc.) — le comité approuvera ou refusera la demande.</p>
+    <form id="donsTutelleForm">
+      <div class="form-group"><label>Motif *</label><textarea id="dt_motif" rows="3" required></textarea></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Envoyer la demande</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('donsTutelleForm').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      await api('/dons/foyers/' + foyerId + '/personnes/' + personneId + '/tutelle', { method:'POST', body: JSON.stringify({ motif: document.getElementById('dt_motif').value }) });
+      closeModal(); toast('Demande de tutelle envoyée au comité'); donsMonFoyerView();
+    } catch(e) { toast(e.message, true); }
+  };
+}
+
 function _donsAjouterLignePersonne(prenom = '', nom = '', removable = true) {
   const wrap = document.getElementById('df_personnes');
   if (!wrap) return;
@@ -16522,7 +16595,16 @@ function _donsAjouterLignePersonne(prenom = '', nom = '', removable = true) {
     <div class="form-group" style="flex:1;min-width:120px;margin:0"><label>Prénom</label><input class="dpp-prenom" value="${escHtml(prenom)}"/></div>
     <div class="form-group" style="flex:1;min-width:120px;margin:0"><label>Nom</label><input class="dpp-nom" value="${escHtml(nom)}"/></div>
     <div class="form-group" style="flex:1;min-width:150px;margin:0"><label>Date de naissance</label><input class="dpp-dob" type="date"/></div>
-    ${removable ? `<button type="button" class="btn btn-ghost btn-sm" onclick="this.closest('.dons-personne-row').remove()">✕</button>` : ''}
+    ${removable ? `
+    <div class="form-group" style="flex:1;min-width:130px;margin:0"><label>Relation</label>
+      <select class="dpp-relation" onchange="const w=this.closest('.dons-personne-row').querySelector('.dpp-email-wrap');w.style.display=this.value==='conjoint'?'block':'none'">
+        <option value="enfant" selected>Enfant</option>
+        <option value="conjoint">Conjoint(e)</option>
+      </select>
+    </div>
+    <div class="form-group dpp-email-wrap" style="flex:1;min-width:170px;margin:0;display:none"><label>Courriel du conjoint (AHH)</label><input class="dpp-email" type="email" placeholder="conjoint@exemple.com"/></div>
+    <button type="button" class="btn btn-ghost btn-sm" onclick="this.closest('.dons-personne-row').remove()">✕</button>
+    ` : ''}
   `;
   wrap.appendChild(row);
 }
@@ -16549,15 +16631,25 @@ async function _donsModifierFoyer(id, programmeId) {
   openModal('Modifier mon foyer', `
     <p style="font-size:.82rem;color:var(--muted);margin-bottom:10px">Ajouter, retirer ou corriger une personne renverra votre foyer en attente de validation.</p>
     <div id="dfe_personnes">
-      ${personnes.map(p => `<div style="display:flex;gap:8px;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
-        <span style="font-size:.88rem">${escHtml(p.prenom)} ${escHtml(p.nom)}${p.date_naissance ? ' — ' + fmt(p.date_naissance) : ''}${p.date_naissance_verifiee ? ' ✅' : ''}</span>
-        <button type="button" class="btn btn-ghost btn-sm" style="color:#c62828" onclick="_donsSupprimerPersonne(${id},${p.id})">Retirer</button>
-      </div>`).join('') || '<p style="font-size:.85rem;color:var(--muted)">Aucune personne listée.</p>'}
+      ${personnes.map(p => { const badges = _donsPersonneBadges(p, id, { canRequestTutelle: true }); return `<div style="padding:8px 0;border-bottom:1px solid var(--border)">
+        <div style="display:flex;gap:8px;align-items:center;justify-content:space-between">
+          <span style="font-size:.88rem">${escHtml(p.prenom)} ${escHtml(p.nom)}${p.date_naissance ? ' — ' + fmt(p.date_naissance) : ''} <span style="color:var(--muted);font-size:.78rem">(${DONS_RELATION_LABEL[p.relation] || 'Enfant'})</span>${p.date_naissance_verifiee ? ' ✅' : ''}</span>
+          <button type="button" class="btn btn-ghost btn-sm" style="color:#c62828" onclick="_donsSupprimerPersonne(${id},${p.id})">Retirer</button>
+        </div>
+        ${badges ? `<div style="margin-top:4px">${badges}</div>` : ''}
+      </div>`; }).join('') || '<p style="font-size:.85rem;color:var(--muted)">Aucune personne listée.</p>'}
     </div>
     <form id="donsAjoutPersonneForm" style="margin-top:14px;display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
       <div class="form-group" style="flex:1;min-width:110px;margin:0"><label>Prénom</label><input id="dap_prenom" required/></div>
       <div class="form-group" style="flex:1;min-width:110px;margin:0"><label>Nom</label><input id="dap_nom" required/></div>
       <div class="form-group" style="flex:1;min-width:140px;margin:0"><label>Date de naissance</label><input id="dap_dob" type="date"/></div>
+      <div class="form-group" style="flex:1;min-width:130px;margin:0"><label>Relation</label>
+        <select id="dap_relation" onchange="document.getElementById('dap_email_wrap').style.display=this.value==='conjoint'?'block':'none'">
+          <option value="enfant" selected>Enfant</option>
+          <option value="conjoint">Conjoint(e)</option>
+        </select>
+      </div>
+      <div class="form-group" id="dap_email_wrap" style="flex:1;min-width:170px;margin:0;display:none"><label>Courriel du conjoint (AHH)</label><input id="dap_email" type="email" placeholder="conjoint@exemple.com"/></div>
       <button type="submit" class="btn btn-primary btn-sm">+ Ajouter</button>
     </form>
     <div class="form-actions" style="margin-top:16px"><button type="button" class="btn btn-ghost" onclick="closeModal()">Fermer</button></div>
@@ -16565,11 +16657,14 @@ async function _donsModifierFoyer(id, programmeId) {
   document.getElementById('donsAjoutPersonneForm').onsubmit = async e => {
     e.preventDefault();
     try {
-      await api('/dons/foyers/' + id + '/personnes', { method:'POST', body: JSON.stringify({
+      const r = await api('/dons/foyers/' + id + '/personnes', { method:'POST', body: JSON.stringify({
         prenom: document.getElementById('dap_prenom').value,
         nom: document.getElementById('dap_nom').value,
-        date_naissance: document.getElementById('dap_dob').value || null
+        date_naissance: document.getElementById('dap_dob').value || null,
+        relation: document.getElementById('dap_relation').value,
+        email: document.getElementById('dap_email')?.value?.trim() || null
       })});
+      if (r.lien_echoue) toast('Courriel introuvable ou déjà rattaché ailleurs — personne ajoutée mais non comptée pour l\'instant', true);
       closeModal(); toast('Personne ajoutée — foyer en attente de validation'); donsMonFoyerView();
     } catch(e) { toast(e.message, true); }
   };
