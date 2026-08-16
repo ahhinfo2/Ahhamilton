@@ -9632,14 +9632,27 @@ function donsNotifierChange(foyerId, programmeId) {
   sseNotify('all', { type: 'don_foyer_change', foyer_id: foyerId, programme_id: programmeId });
 }
 
-// Alerte stock bas : comité (DON_EXEC_ROLES) + coordinateurs délégués actifs — mêmes
-// destinataires que requireDonsAccess, notifiés via l'alerte temps réel existante.
-function donsAlerterStockBas(item, restant) {
-  const destinataires = db.prepare(`SELECT id FROM users WHERE role IN (${DON_EXEC_ROLES.map(() => '?').join(',')})
+// Destinataires des alertes dons temps réel : comité (DON_EXEC_ROLES) + coordinateurs
+// délégués actifs — mêmes destinataires que requireDonsAccess.
+function donsDestinatairesComite() {
+  return db.prepare(`SELECT id FROM users WHERE role IN (${DON_EXEC_ROLES.map(() => '?').join(',')})
     UNION SELECT user_id FROM dons_delegations WHERE actif=1 AND (date_expiration IS NULL OR date_expiration > datetime('now'))`).all(...DON_EXEC_ROLES);
+}
+
+// Alerte stock bas
+function donsAlerterStockBas(item, restant) {
   const titre = `Stock bas — ${item.nom}`;
   const contenu = `Il reste ${restant} ${item.unite} de « ${item.nom} » (seuil d'alerte : ${item.seuil_alerte}).`;
-  destinataires.forEach(d => createAlert(d.id, 'don_stock_bas', titre, contenu, item.id));
+  donsDestinatairesComite().forEach(d => createAlert(d.id, 'don_stock_bas', titre, contenu, item.id));
+}
+
+// Alerte dérogation — signale en temps réel (pas seulement dans le journal, consulté après
+// coup) qu'un membre du comité a outrepassé le blocage "déjà servi" : le point exact où une
+// collusion scanneur/bénéficiaire passerait inaperçue sans ce contre-poids.
+function donsAlerterDerogation(foyerId, membre, scanneur, motif) {
+  const titre = `⚠️ Dérogation utilisée — carte de ${membre.prenom} ${membre.nom}`;
+  const contenu = `${scanneur.prenom} ${scanneur.nom} a outrepassé le blocage "déjà servi" pour ce foyer.\nMotif : ${motif}`;
+  donsDestinatairesComite().filter(d => d.id !== scanneur.id).forEach(d => createAlert(d.id, 'don_derogation', titre, contenu, foyerId));
 }
 
 // Recalcule le compteur mis en cache (dons_foyers.nb_personnes) à partir de la vraie
@@ -9650,15 +9663,32 @@ function donsRecomputeNbPersonnes(foyerId) {
   if (n > 0) db.prepare('UPDATE dons_foyers SET nb_personnes=? WHERE id=?').run(n, foyerId);
 }
 
+// Normalise une adresse pour la comparaison : retire accents/ponctuation et les mots
+// génériques (app./unité/rue/etc.) qui font échapper deux variantes de la même adresse à une
+// simple égalité de chaînes (ex. "123 Rue Main app. 4" vs "123 Main St #4").
+function donsNormaliserAdresse(adr) {
+  return String(adr || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/#\s*\d+/g, ' ')
+    .replace(/\b(app|appt|apt|appartement|unite|unit|suite|ste|bureau|bur)\.?\s*#?\s*\d*/g, ' ')
+    .replace(/\b(rue|st|street|ave|avenue|av|road|rd|drive|dr|boulevard|blvd|court|ct|crescent|cres|lane|ln|place|pl|way|circle|cir)\b\.?/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
 // Détecte si l'adresse/téléphone du membre scanné correspond à un AUTRE membre actif —
 // signal utile au comptoir pour demander le lien de parenté (ou repérer un foyer scindé
 // artificiellement en deux inscriptions pour doubler les dons).
 function donsCorrespondances(membre) {
   const correspondances = [];
-  if (membre.adresse && membre.adresse.trim()) {
-    db.prepare(`SELECT id, prenom, nom FROM users WHERE id != ? AND actif=1 AND adresse IS NOT NULL AND TRIM(LOWER(adresse)) = TRIM(LOWER(?))`)
-      .all(membre.id, membre.adresse.trim())
-      .forEach(r => correspondances.push({ champ: 'adresse', valeur: membre.adresse, avec: r }));
+  const normMembre = donsNormaliserAdresse(membre.adresse);
+  if (normMembre.length > 4) {
+    db.prepare(`SELECT id, prenom, nom, adresse FROM users WHERE id != ? AND actif=1 AND adresse IS NOT NULL AND adresse != ''`)
+      .all(membre.id)
+      .filter(r => donsNormaliserAdresse(r.adresse) === normMembre)
+      .forEach(r => correspondances.push({ champ: 'adresse', valeur: membre.adresse, avec: { id: r.id, prenom: r.prenom, nom: r.nom } }));
   }
   if (membre.telephone && membre.telephone.trim()) {
     const digits = membre.telephone.replace(/\D/g, '');
@@ -10260,6 +10290,11 @@ app.get('/api/dons/programmes/:id/foyers', authMiddleware, requireDonsAccess, (r
     f.prochain_rdv = rdvStmt.get(f.id) || null;
     const respUser = respStmt.get(f.responsable_id);
     f.correspondances = respUser ? donsCorrespondances(respUser) : [];
+    // Écart entre la taille déclarée dans le foyer dons et la taille de famille déjà connue du
+    // profil membre (responsable + personnes à charge existantes). Un conjoint ajoute 1 sans
+    // être dans "dependents", donc un petit écart (0-2) est normal — seul un grand écart est
+    // signalé, comme signal de vérification, pas de blocage.
+    f.ecart_personnes = Math.max(0, f.personnes.length - (f.dependants.length + 1));
   });
   res.json(foyers);
 });
@@ -10691,6 +10726,7 @@ app.post('/api/dons/scan', authMiddleware, (req, res) => {
   if (derogation) {
     logAdmin(req.user.id, 'don_retrait_derogation', motif.trim(), foyer.id, 'dons_foyers', req.ip);
     logAudit(req.user.id, 'don_retrait_derogation', 'dons_foyers', foyer.id, motif.trim(), req.ip);
+    donsAlerterDerogation(foyer.id, membre, req.user, motif.trim());
   }
 
   const prochainDate = new Date();
