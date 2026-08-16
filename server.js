@@ -7634,6 +7634,24 @@ cron.schedule('15 3 * * *', () => {
   } catch(e) { console.error('[CRON-DONS]', e.message); }
 }, { timezone: 'America/Toronto' });
 
+// Dons : rappel de rendez-vous la veille. Fenêtre de 20 à 44h pour garantir, avec un
+// déclenchement quotidien, qu'aucun rendez-vous ne passe entre les mailles ; rappel_envoye
+// évite les doublons d'un jour à l'autre.
+cron.schedule('0 9 * * *', () => {
+  try {
+    const rdvs = db.prepare(`SELECT r.id, r.foyer_id, c.date_heure, c.id AS creneau_id, f.responsable_id
+      FROM dons_rdv r JOIN dons_creneaux c ON c.id=r.creneau_id JOIN dons_foyers f ON f.id=r.foyer_id
+      WHERE r.statut='a_venir' AND r.rappel_envoye=0
+      AND c.date_heure BETWEEN datetime('now','+20 hours') AND datetime('now','+44 hours')`).all();
+    rdvs.forEach(r => {
+      const user = db.prepare('SELECT * FROM users WHERE id=?').get(r.responsable_id);
+      db.prepare('UPDATE dons_rdv SET rappel_envoye=1 WHERE id=?').run(r.id);
+      if (user) mailer.sendDonRappelRdv(user, { date_heure: r.date_heure }).catch(e => console.error('[mail dons rappel]', e.message));
+    });
+    if (rdvs.length > 0) console.log('[CRON-DONS] ' + rdvs.length + ' rappels de rendez-vous envoyés');
+  } catch(e) { console.error('[CRON-DONS-RAPPEL]', e.message); }
+}, { timezone: 'America/Toronto' });
+
 // Notification de nouvelle activité publiée (appelé depuis POST /api/activities)
 async function notifyNewActivity(act) {
   try {
@@ -9581,6 +9599,16 @@ function donsNotifierChange(foyerId, programmeId) {
   sseNotify('all', { type: 'don_foyer_change', foyer_id: foyerId, programme_id: programmeId });
 }
 
+// Alerte stock bas : comité (DON_EXEC_ROLES) + coordinateurs délégués actifs — mêmes
+// destinataires que requireDonsAccess, notifiés via l'alerte temps réel existante.
+function donsAlerterStockBas(item, restant) {
+  const destinataires = db.prepare(`SELECT id FROM users WHERE role IN (${DON_EXEC_ROLES.map(() => '?').join(',')})
+    UNION SELECT user_id FROM dons_delegations WHERE actif=1 AND (date_expiration IS NULL OR date_expiration > datetime('now'))`).all(...DON_EXEC_ROLES);
+  const titre = `Stock bas — ${item.nom}`;
+  const contenu = `Il reste ${restant} ${item.unite} de « ${item.nom} » (seuil d'alerte : ${item.seuil_alerte}).`;
+  destinataires.forEach(d => createAlert(d.id, 'don_stock_bas', titre, contenu, item.id));
+}
+
 // Recalcule le compteur mis en cache (dons_foyers.nb_personnes) à partir de la vraie
 // liste (dons_foyer_personnes). Ne fait rien si la liste est vide, pour ne pas écraser
 // le chiffre saisi manuellement sur les foyers créés avant l'ajout de la liste détaillée.
@@ -9711,20 +9739,21 @@ app.get('/api/dons/programmes/:id/stock', authMiddleware, requireDonsAccess, (re
 });
 
 app.post('/api/dons/stock', authMiddleware, requireDonsAccess, (req, res) => {
-  const { programme_id, nom, unite, quantite_recue, qte_fixe_foyer, qte_par_personne, age_min, age_max } = req.body;
+  const { programme_id, nom, unite, quantite_recue, qte_fixe_foyer, qte_par_personne, age_min, age_max, seuil_alerte } = req.body;
   if (!programme_id || !nom || !nom.trim()) return res.status(400).json({ error: 'Programme et nom requis' });
   const qte = parseFloat(quantite_recue) || 0;
-  const r = db.prepare(`INSERT INTO dons_stock (programme_id, nom, unite, quantite_recue, quantite_restante, qte_fixe_foyer, qte_par_personne, age_min, age_max)
-    VALUES (?,?,?,?,?,?,?,?,?)`).run(programme_id, nom.trim(), unite || 'unité', qte, qte, parseFloat(qte_fixe_foyer) || 0, parseFloat(qte_par_personne) || 0,
-    age_min !== undefined && age_min !== '' ? parseInt(age_min) : null, age_max !== undefined && age_max !== '' ? parseInt(age_max) : null);
+  const r = db.prepare(`INSERT INTO dons_stock (programme_id, nom, unite, quantite_recue, quantite_restante, qte_fixe_foyer, qte_par_personne, age_min, age_max, seuil_alerte)
+    VALUES (?,?,?,?,?,?,?,?,?,?)`).run(programme_id, nom.trim(), unite || 'unité', qte, qte, parseFloat(qte_fixe_foyer) || 0, parseFloat(qte_par_personne) || 0,
+    age_min !== undefined && age_min !== '' ? parseInt(age_min) : null, age_max !== undefined && age_max !== '' ? parseInt(age_max) : null,
+    seuil_alerte !== undefined && seuil_alerte !== '' ? parseFloat(seuil_alerte) : null);
   res.json({ id: r.lastInsertRowid });
 });
 
 app.put('/api/dons/stock/:id', authMiddleware, requireDonsAccess, (req, res) => {
   const item = db.prepare('SELECT * FROM dons_stock WHERE id=?').get(req.params.id);
   if (!item) return res.status(404).json({ error: 'Article introuvable' });
-  const { nom, unite, quantite_recue, quantite_restante, qte_fixe_foyer, qte_par_personne, age_min, age_max } = req.body;
-  db.prepare(`UPDATE dons_stock SET nom=?, unite=?, quantite_recue=?, quantite_restante=?, qte_fixe_foyer=?, qte_par_personne=?, age_min=?, age_max=? WHERE id=?`).run(
+  const { nom, unite, quantite_recue, quantite_restante, qte_fixe_foyer, qte_par_personne, age_min, age_max, seuil_alerte } = req.body;
+  db.prepare(`UPDATE dons_stock SET nom=?, unite=?, quantite_recue=?, quantite_restante=?, qte_fixe_foyer=?, qte_par_personne=?, age_min=?, age_max=?, seuil_alerte=? WHERE id=?`).run(
     nom || item.nom, unite || item.unite,
     quantite_recue !== undefined ? parseFloat(quantite_recue) : item.quantite_recue,
     quantite_restante !== undefined ? parseFloat(quantite_restante) : item.quantite_restante,
@@ -9732,6 +9761,7 @@ app.put('/api/dons/stock/:id', authMiddleware, requireDonsAccess, (req, res) => 
     qte_par_personne !== undefined ? parseFloat(qte_par_personne) : item.qte_par_personne,
     age_min !== undefined ? (age_min === '' ? null : parseInt(age_min)) : item.age_min,
     age_max !== undefined ? (age_max === '' ? null : parseInt(age_max)) : item.age_max,
+    seuil_alerte !== undefined ? (seuil_alerte === '' ? null : parseFloat(seuil_alerte)) : item.seuil_alerte,
     item.id
   );
   res.json({ ok: true });
@@ -9912,11 +9942,78 @@ app.get('/api/dons/programmes/:id/jour', authMiddleware, requireDonsAccess, (req
   res.json({ date, creneaux, attendus, servis });
 });
 
+// Feuille de route imprimable pour une journée de distribution — un tableau Heure /
+// Responsable / Taille du foyer / Statut, pensé pour être imprimé et coché sur le terrain.
+app.get('/api/dons/programmes/:id/feuille-de-route', authMiddleware, requireDonsAccess, (req, res) => {
+  const date = req.query.date;
+  if (!date) return res.status(400).send('date requise');
+  const programme = db.prepare('SELECT * FROM dons_programmes WHERE id=?').get(req.params.id);
+  if (!programme) return res.status(404).send('Programme introuvable');
+  const rows = db.prepare(`SELECT c.date_heure, u.prenom, u.nom, f.nb_personnes, r.statut
+    FROM dons_creneaux c
+    LEFT JOIN dons_rdv r ON r.creneau_id=c.id AND r.statut != 'annule'
+    LEFT JOIN dons_foyers f ON f.id=r.foyer_id
+    LEFT JOIN users u ON u.id=f.responsable_id
+    WHERE c.programme_id=? AND c.date_heure LIKE ?
+    ORDER BY c.date_heure, u.nom`).all(req.params.id, date + '%');
+  const statutLabel = { a_venir:'À venir', honore:'Servi', manque:'Manqué' };
+
+  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/>
+<title>Feuille de route — ${date}</title>
+<style>
+  @page { size: letter; margin: 1.5cm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #1a1a1a; background: #fff; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 20px; }
+  h1 { font-size: 1.3rem; font-weight: 800; color: #1b5e20; margin-bottom: 4px; }
+  .sub { font-size: .85rem; color: #666; margin-bottom: 20px; text-transform: capitalize; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e0e0e0; font-size: .88rem; }
+  th { background: #f0f7f0; color: #1b5e20; text-transform: uppercase; font-size: .72rem; letter-spacing: .5px; }
+  .check { width: 24px; height: 24px; border: 2px solid #999; border-radius: 4px; display: inline-block; }
+  .noprint { text-align: center; margin: 20px 0; }
+  .noprint button { background: #1b5e20; color: #fff; border: none; padding: 12px 28px; border-radius: 8px; font-size: 1rem; cursor: pointer; }
+  @media print { .noprint { display: none; } }
+</style>
+</head><body>
+<div class="wrap">
+  <div class="noprint"><button onclick="window.print()">🖨️ Imprimer / Sauvegarder en PDF</button></div>
+  <h1>Feuille de route — ${programme.nom}</h1>
+  <div class="sub">${new Date(date + 'T00:00:00').toLocaleDateString('fr-CA', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}</div>
+  <table>
+    <thead><tr><th></th><th>Heure</th><th>Responsable</th><th>Taille du foyer</th><th>Statut</th></tr></thead>
+    <tbody>${rows.length ? rows.map(r => `<tr>
+      <td><span class="check"></span></td>
+      <td>${r.date_heure.slice(11,16)}</td>
+      <td>${r.prenom ? r.prenom + ' ' + r.nom : '—'}</td>
+      <td>${r.nb_personnes ?? '—'}</td>
+      <td>${r.statut ? (statutLabel[r.statut] || r.statut) : '—'}</td>
+    </tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:#999;padding:20px">Aucun créneau ce jour-là</td></tr>`}</tbody>
+  </table>
+</div>
+</body></html>`;
+  res.send(html);
+});
+
 app.get('/api/dons/programmes/:id/creneaux-disponibles', authMiddleware, (req, res) => {
   const rows = db.prepare(`SELECT c.id, c.date_heure, c.capacite_max,
       (SELECT COUNT(*) FROM dons_rdv WHERE creneau_id=c.id AND statut != 'annule') AS nb_reserves
     FROM dons_creneaux c WHERE c.programme_id=? AND c.date_heure > datetime('now') ORDER BY c.date_heure`).all(req.params.id);
   res.json(rows.filter(r => r.nb_reserves < r.capacite_max).map(r => ({ id: r.id, date_heure: r.date_heure, places_restantes: r.capacite_max - r.nb_reserves })));
+});
+
+// Créneaux complets à venir — distinct de creneaux-disponibles (qui les exclut, pour ne
+// pas polluer le menu de réservation directe) : sert uniquement à proposer la liste d'attente.
+app.get('/api/dons/programmes/:id/creneaux-complets', authMiddleware, (req, res) => {
+  const foyer = donTrouverFoyer(req.params.id, req.user.id);
+  const rows = db.prepare(`SELECT c.id, c.date_heure,
+      (SELECT COUNT(*) FROM dons_rdv WHERE creneau_id=c.id AND statut != 'annule') AS nb_reserves, c.capacite_max
+    FROM dons_creneaux c WHERE c.programme_id=? AND c.date_heure > datetime('now') ORDER BY c.date_heure`).all(req.params.id);
+  const complets = rows.filter(r => r.nb_reserves >= r.capacite_max);
+  res.json(complets.map(r => ({
+    id: r.id, date_heure: r.date_heure,
+    sur_liste_attente: foyer ? !!db.prepare('SELECT 1 FROM dons_creneaux_attente WHERE creneau_id=? AND foyer_id=?').get(r.id, foyer.id) : false
+  })));
 });
 
 // ── Foyers ───────────────────────────────────────────────────────────────────
@@ -9930,7 +10027,8 @@ app.get('/api/dons/mon-foyer', authMiddleware, (req, res) => {
   const dependants = db.prepare('SELECT * FROM dependents WHERE user_id=?').all(foyer.responsable_id);
   const personnes = db.prepare('SELECT * FROM dons_foyer_personnes WHERE foyer_id=? ORDER BY id').all(foyer.id)
     .map(p => ({ ...p, compte: donsPersonneCompte(p) }));
-  res.json({ ...foyer, membres, dependants, personnes, valide_pour_reservation: donsFoyerValidePourReservation(foyer) });
+  const { notes_internes, ...foyerPublic } = foyer; // jamais renvoyé au membre
+  res.json({ ...foyerPublic, membres, dependants, personnes, valide_pour_reservation: donsFoyerValidePourReservation(foyer) });
 });
 
 app.post('/api/dons/foyers', authMiddleware, (req, res) => {
@@ -10066,6 +10164,8 @@ app.post('/api/dons/foyers/:id/personnes/:pid/tutelle-decision', authMiddleware,
     .run(approuve ? 'approuvee' : 'refusee', motif, req.user.id, personne.id);
   logAudit(req.user.id, approuve ? 'don_tutelle_approuvee' : 'don_tutelle_refusee', 'dons_foyer_personnes', personne.id, note || '', req.ip);
   donsNotifierChange(foyer.id, foyer.programme_id);
+  const responsableTutelle = db.prepare('SELECT * FROM users WHERE id=?').get(foyer.responsable_id);
+  if (responsableTutelle?.email) mailer.sendDonTutelleDecision(responsableTutelle, `${personne.prenom} ${personne.nom}`, !!approuve, note).catch(e => console.error('[mail dons]', e.message));
   res.json({ ok: true });
 });
 
@@ -10118,14 +10218,25 @@ app.get('/api/dons/programmes/:id/foyers', authMiddleware, requireDonsAccess, (r
   const persStmt = db.prepare('SELECT * FROM dons_foyer_personnes WHERE foyer_id=? ORDER BY id');
   const rdvStmt = db.prepare(`SELECT r.id, c.date_heure FROM dons_rdv r JOIN dons_creneaux c ON c.id=r.creneau_id
     WHERE r.foyer_id=? AND r.statut='a_venir' ORDER BY c.date_heure LIMIT 1`);
+  const respStmt = db.prepare('SELECT id, adresse, telephone FROM users WHERE id=?');
   foyers.forEach(f => {
     f.membres = membresStmt.all(f.id); f.dependants = depStmt.all(f.responsable_id);
     f.personnes = persStmt.all(f.id).map(p => ({ ...p, compte: donsPersonneCompte(p) }));
     f.nb_comptees = f.personnes.filter(p => p.compte).length;
     f.valide_pour_reservation = donsFoyerValidePourReservation(f);
     f.prochain_rdv = rdvStmt.get(f.id) || null;
+    const respUser = respStmt.get(f.responsable_id);
+    f.correspondances = respUser ? donsCorrespondances(respUser) : [];
   });
   res.json(foyers);
+});
+
+// Notes internes comité — jamais renvoyées ni visibles côté membre (distinct de note_comite).
+app.put('/api/dons/foyers/:id/notes-internes', authMiddleware, requireDonsAccess, (req, res) => {
+  const foyer = db.prepare('SELECT * FROM dons_foyers WHERE id=?').get(req.params.id);
+  if (!foyer) return res.status(404).json({ error: 'Foyer introuvable' });
+  db.prepare('UPDATE dons_foyers SET notes_internes=? WHERE id=?').run(req.body.notes_internes || null, foyer.id);
+  res.json({ ok: true });
 });
 
 // Suppression définitive d'un foyer — bloquée si un retrait a déjà été enregistré (préserve
@@ -10146,15 +10257,36 @@ app.delete('/api/dons/foyers/:id', authMiddleware, requireDonsAccess, (req, res)
   res.json({ ok: true });
 });
 
+// Réutilisée par la validation individuelle ET la validation en lot — un seul endroit qui
+// écrit en base, journalise et notifie, pour ne jamais désynchroniser les deux chemins.
+function donsValiderFoyerInterne(foyer, userId, ip, { nbPersonnes, note } = {}) {
+  db.prepare(`UPDATE dons_foyers SET statut='valide', nb_personnes=?, note_comite=?, valide_par=?, date_validation=CURRENT_TIMESTAMP WHERE id=?`)
+    .run(nbPersonnes !== undefined ? parseInt(nbPersonnes) : foyer.nb_personnes, note ?? foyer.note_comite, userId, foyer.id);
+  logAudit(userId, 'don_foyer_valide', 'dons_foyers', foyer.id, note || '', ip);
+  donsNotifierChange(foyer.id, foyer.programme_id);
+  const responsable = db.prepare('SELECT * FROM users WHERE id=?').get(foyer.responsable_id);
+  const programme = db.prepare('SELECT * FROM dons_programmes WHERE id=?').get(foyer.programme_id);
+  if (responsable?.email && programme) mailer.sendDonFoyerValide(responsable, programme).catch(e => console.error('[mail dons]', e.message));
+}
+
 app.post('/api/dons/foyers/:id/valider', authMiddleware, requireDonsAccess, (req, res) => {
   const foyer = db.prepare('SELECT * FROM dons_foyers WHERE id=?').get(req.params.id);
   if (!foyer) return res.status(404).json({ error: 'Foyer introuvable' });
-  const { nb_personnes, note } = req.body;
-  db.prepare(`UPDATE dons_foyers SET statut='valide', nb_personnes=?, note_comite=?, valide_par=?, date_validation=CURRENT_TIMESTAMP WHERE id=?`)
-    .run(nb_personnes !== undefined ? parseInt(nb_personnes) : foyer.nb_personnes, note ?? foyer.note_comite, req.user.id, foyer.id);
-  logAudit(req.user.id, 'don_foyer_valide', 'dons_foyers', foyer.id, note || '', req.ip);
-  donsNotifierChange(foyer.id, foyer.programme_id);
+  donsValiderFoyerInterne(foyer, req.user.id, req.ip, { nbPersonnes: req.body.nb_personnes, note: req.body.note });
   res.json({ ok: true });
+});
+
+app.post('/api/dons/foyers/bulk-valider', authMiddleware, requireDonsAccess, (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: 'Aucun foyer sélectionné' });
+  let traites = 0;
+  ids.forEach(id => {
+    const foyer = db.prepare('SELECT * FROM dons_foyers WHERE id=?').get(id);
+    if (!foyer) return;
+    donsValiderFoyerInterne(foyer, req.user.id, req.ip, {});
+    traites++;
+  });
+  res.json({ traites });
 });
 
 app.post('/api/dons/foyers/:id/refuser', authMiddleware, requireDonsAccess, (req, res) => {
@@ -10166,6 +10298,9 @@ app.post('/api/dons/foyers/:id/refuser', authMiddleware, requireDonsAccess, (req
     .run(note.trim(), req.user.id, foyer.id);
   logAudit(req.user.id, 'don_foyer_refuse', 'dons_foyers', foyer.id, note.trim(), req.ip);
   donsNotifierChange(foyer.id, foyer.programme_id);
+  const responsableRefus = db.prepare('SELECT * FROM users WHERE id=?').get(foyer.responsable_id);
+  const programmeRefus = db.prepare('SELECT * FROM dons_programmes WHERE id=?').get(foyer.programme_id);
+  if (responsableRefus?.email && programmeRefus) mailer.sendDonFoyerRefuse(responsableRefus, programmeRefus, note.trim()).catch(e => console.error('[mail dons]', e.message));
   res.json({ ok: true });
 });
 
@@ -10241,6 +10376,37 @@ app.delete('/api/dons/rdv/:id', authMiddleware, (req, res) => {
   if (!DON_EXEC_ROLES.includes(req.user.role) && !isOwner) return res.status(403).json({ error: 'Accès refusé' });
   db.prepare("UPDATE dons_rdv SET statut='annule' WHERE id=?").run(rdv.id);
   if (foyer) donsNotifierChange(foyer.id, foyer.programme_id);
+
+  // Une place se libère : on avise le premier de la liste d'attente (pas de réservation
+  // automatique, pour éviter une course entre deux foyers) puis on le retire de la liste.
+  const suivant = db.prepare(`SELECT a.*, f.responsable_id FROM dons_creneaux_attente a JOIN dons_foyers f ON f.id=a.foyer_id
+    WHERE a.creneau_id=? ORDER BY a.date_creation LIMIT 1`).get(rdv.creneau_id);
+  if (suivant) {
+    db.prepare('DELETE FROM dons_creneaux_attente WHERE id=?').run(suivant.id);
+    const creneau = db.prepare('SELECT * FROM dons_creneaux WHERE id=?').get(rdv.creneau_id);
+    const user = db.prepare('SELECT * FROM users WHERE id=?').get(suivant.responsable_id);
+    if (user && creneau) mailer.sendDonPlaceLiberee(user, creneau).catch(e => console.error('[mail dons attente]', e.message));
+  }
+
+  res.json({ ok: true });
+});
+
+// Rejoindre la liste d'attente d'un créneau complet — un seul foyer par créneau
+// (contrainte UNIQUE), même vérifications d'admissibilité que la réservation directe.
+app.post('/api/dons/creneaux/:id/attente', authMiddleware, (req, res) => {
+  const creneau = db.prepare('SELECT * FROM dons_creneaux WHERE id=?').get(req.params.id);
+  if (!creneau) return res.status(404).json({ error: 'Créneau introuvable' });
+  const foyer = donTrouverFoyer(creneau.programme_id, req.user.id);
+  if (!foyer) return res.status(404).json({ error: "Vous n'avez pas encore déclaré de foyer pour ce programme." });
+  if (!donsFoyerValidePourReservation(foyer)) return res.status(403).json({ error: 'Votre foyer doit être validé avant de rejoindre une liste d\'attente.' });
+  if (db.prepare("SELECT id FROM dons_rdv WHERE foyer_id=? AND statut='a_venir'").get(foyer.id)) {
+    return res.status(409).json({ error: 'Vous avez déjà un rendez-vous à venir.' });
+  }
+  try {
+    db.prepare('INSERT INTO dons_creneaux_attente (creneau_id, foyer_id) VALUES (?,?)').run(creneau.id, foyer.id);
+  } catch (e) {
+    return res.status(409).json({ error: "Vous êtes déjà sur la liste d'attente de ce créneau." });
+  }
   res.json({ ok: true });
 });
 
@@ -10254,6 +10420,59 @@ app.get('/api/dons/mes-rdv', authMiddleware, (req, res) => {
   res.json({ foyer, rdv, retraits });
 });
 
+// Reçu de retrait téléchargeable/imprimable — le membre ne voit que les retraits de son
+// propre foyer, le comité peut voir n'importe lequel. Détail des articles tiré de
+// stock_json, déjà figé au moment du scan (reflète ce qui a réellement été remis).
+app.get('/api/dons/retraits/:id/recu', authMiddleware, (req, res) => {
+  const retrait = db.prepare('SELECT * FROM dons_retraits WHERE id=?').get(req.params.id);
+  if (!retrait) return res.status(404).send('Retrait introuvable');
+  const foyer = db.prepare('SELECT * FROM dons_foyers WHERE id=?').get(retrait.foyer_id);
+  const isOwner = foyer && (foyer.responsable_id === req.user.id ||
+    db.prepare('SELECT 1 FROM dons_foyer_membres WHERE foyer_id=? AND user_id=?').get(foyer.id, req.user.id));
+  if (!DON_EXEC_ROLES.includes(req.user.role) && !isOwner) return res.status(403).send('Accès refusé');
+  const programme = db.prepare('SELECT * FROM dons_programmes WHERE id=?').get(retrait.programme_id);
+  const responsable = db.prepare('SELECT prenom, nom FROM users WHERE id=?').get(foyer.responsable_id);
+  const articles = JSON.parse(retrait.stock_json || '[]');
+
+  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/>
+<title>Reçu — ${programme ? programme.nom : 'Don'}</title>
+<style>
+  @page { size: letter; margin: 2cm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #1a1a1a; background: #fff; }
+  .receipt { max-width: 640px; margin: 0 auto; padding: 36px; border: 2px solid #1b5e20; border-radius: 12px; }
+  .header { display: flex; align-items: center; gap: 16px; border-bottom: 3px solid #1b5e20; padding-bottom: 20px; margin-bottom: 24px; }
+  .header img { width: 60px; height: 60px; border-radius: 8px; object-fit: cover; }
+  .org-name { font-size: 1.2rem; font-weight: 800; color: #1b5e20; }
+  h1 { font-size: 1.3rem; font-weight: 800; color: #1b5e20; text-align: center; margin-bottom: 4px; }
+  .sub { text-align: center; font-size: .85rem; color: #666; margin-bottom: 24px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e0e0e0; font-size: .88rem; }
+  th { background: #f0f7f0; color: #1b5e20; text-transform: uppercase; font-size: .72rem; letter-spacing: .5px; }
+  .noprint { text-align: center; margin: 20px 0; }
+  .noprint button { background: #1b5e20; color: #fff; border: none; padding: 12px 28px; border-radius: 8px; font-size: 1rem; cursor: pointer; }
+  @media print { .noprint { display: none; } }
+</style>
+</head><body>
+<div class="noprint"><button onclick="window.print()">🖨️ Imprimer / Sauvegarder en PDF</button></div>
+<div class="receipt">
+  <div class="header">
+    <img src="/Public/logo1.png" alt="AHH"/>
+    <div class="org-name">Association Haïtienne de Hamilton</div>
+  </div>
+  <h1>Reçu de distribution</h1>
+  <div class="sub">${programme ? programme.nom : ''} — ${new Date(retrait.date_retrait).toLocaleDateString('fr-CA', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}</div>
+  <p style="margin-bottom:14px;font-size:.9rem"><strong>Foyer :</strong> ${responsable ? responsable.prenom + ' ' + responsable.nom : '—'}</p>
+  <table>
+    <thead><tr><th>Article</th><th>Quantité remise</th></tr></thead>
+    <tbody>${articles.length ? articles.map(a => `<tr><td>${a.nom}</td><td>${a.donne} ${a.unite}</td></tr>`).join('') : '<tr><td colspan="2" style="text-align:center;color:#999">Aucun détail</td></tr>'}</tbody>
+  </table>
+  ${retrait.partiel ? '<p style="font-size:.82rem;color:#e65100">⚠️ Distribution partielle — stock insuffisant pour combler entièrement ce retrait.</p>' : ''}
+</div>
+</body></html>`;
+  res.send(html);
+});
+
 // ── Journal (comité) ─────────────────────────────────────────────────────────
 app.get('/api/dons/programmes/:id/journal', authMiddleware, requireDonsAccess, (req, res) => {
   const retraits = db.prepare(`SELECT r.*, u.prenom AS carte_prenom, u.nom AS carte_nom, s.prenom AS scan_prenom, s.nom AS scan_nom
@@ -10262,6 +10481,65 @@ app.get('/api/dons/programmes/:id/journal', authMiddleware, requireDonsAccess, (
   const bloques = db.prepare(`SELECT l.*, u.prenom, u.nom FROM dons_scan_logs l LEFT JOIN users u ON u.id=l.carte_scannee_id
     WHERE l.programme_id=? AND l.resultat != 'ok' ORDER BY l.date_scan DESC LIMIT 300`).all(req.params.id);
   res.json({ retraits, bloques });
+});
+
+// Rapport pour le bailleur de fonds — vue d'ensemble du programme (foyers, personnes,
+// retraits, quantités distribuées par article). CSV pour tableur, HTML imprimable pour PDF.
+app.get('/api/dons/programmes/:id/rapport-bailleur', authMiddleware, requireDonsAccess, (req, res) => {
+  const programme = db.prepare('SELECT * FROM dons_programmes WHERE id=?').get(req.params.id);
+  if (!programme) return res.status(404).send('Programme introuvable');
+
+  const foyers = db.prepare("SELECT COUNT(*) AS c, COALESCE(SUM(nb_personnes),0) AS personnes FROM dons_foyers WHERE programme_id=? AND statut='valide'").get(programme.id);
+  const totalRetraits = db.prepare('SELECT COUNT(*) AS c FROM dons_retraits WHERE programme_id=?').get(programme.id).c;
+  const stock = db.prepare('SELECT nom, unite, quantite_recue, quantite_restante FROM dons_stock WHERE programme_id=? ORDER BY nom').all(programme.id);
+  const articles = stock.map(s => ({ nom: s.nom, unite: s.unite, distribue: s.quantite_recue - s.quantite_restante }));
+
+  if (req.query.format === 'csv') {
+    const csv = 'Article,Unité,Quantité distribuée\n' +
+      articles.map(a => `"${a.nom.replace(/"/g,'""')}","${a.unite.replace(/"/g,'""')}",${a.distribue}`).join('\n') +
+      `\n\n"Foyers validés",,${foyers.c}\n"Personnes couvertes",,${foyers.personnes}\n"Retraits effectués",,${totalRetraits}`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="rapport-bailleur-${programme.id}.csv"`);
+    return res.send('﻿' + csv);
+  }
+
+  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/>
+<title>Rapport bailleur de fonds — ${programme.nom}</title>
+<style>
+  @page { size: letter; margin: 2cm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #1a1a1a; background: #fff; }
+  .wrap { max-width: 800px; margin: 0 auto; padding: 20px; }
+  h1 { font-size: 1.4rem; font-weight: 800; color: #1b5e20; margin-bottom: 4px; }
+  .sub { font-size: .85rem; color: #666; margin-bottom: 24px; }
+  .kpis { display: flex; gap: 14px; margin-bottom: 24px; }
+  .kpi { flex: 1; background: #f0f7f0; border-radius: 10px; padding: 14px 16px; }
+  .kpi .v { font-size: 1.5rem; font-weight: 800; color: #1b5e20; }
+  .kpi .l { font-size: .78rem; color: #666; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e0e0e0; font-size: .88rem; }
+  th { background: #f0f7f0; color: #1b5e20; text-transform: uppercase; font-size: .72rem; letter-spacing: .5px; }
+  .noprint { text-align: center; margin: 20px 0; }
+  .noprint button { background: #1b5e20; color: #fff; border: none; padding: 12px 28px; border-radius: 8px; font-size: 1rem; cursor: pointer; }
+  @media print { .noprint { display: none; } }
+</style>
+</head><body>
+<div class="wrap">
+  <div class="noprint"><button onclick="window.print()">🖨️ Imprimer / Sauvegarder en PDF</button></div>
+  <h1>Rapport bailleur de fonds</h1>
+  <div class="sub">${programme.nom} — généré le ${new Date().toLocaleDateString('fr-CA')}</div>
+  <div class="kpis">
+    <div class="kpi"><div class="v">${foyers.c}</div><div class="l">Foyers validés</div></div>
+    <div class="kpi"><div class="v">${foyers.personnes}</div><div class="l">Personnes couvertes</div></div>
+    <div class="kpi"><div class="v">${totalRetraits}</div><div class="l">Retraits effectués</div></div>
+  </div>
+  <table>
+    <thead><tr><th>Article</th><th>Unité</th><th>Quantité distribuée</th></tr></thead>
+    <tbody>${articles.map(a => `<tr><td>${a.nom}</td><td>${a.unite}</td><td>${a.distribue}</td></tr>`).join('')}</tbody>
+  </table>
+</div>
+</body></html>`;
+  res.send(html);
 });
 
 // ── Scan / retrait — le cœur anti-fraude (handler synchrone de bout en bout) ──
@@ -10359,7 +10637,13 @@ app.post('/api/dons/scan', authMiddleware, (req, res) => {
     const du = it.qte_fixe_foyer + (it.qte_par_personne * eligibles);
     const donne = Math.max(0, Math.min(du, it.quantite_restante));
     if (donne < du) partiel = true;
-    if (donne > 0) db.prepare('UPDATE dons_stock SET quantite_restante = quantite_restante - ? WHERE id=?').run(donne, it.id);
+    if (donne > 0) {
+      const restant = it.quantite_restante - donne;
+      db.prepare('UPDATE dons_stock SET quantite_restante = quantite_restante - ? WHERE id=?').run(donne, it.id);
+      if (it.seuil_alerte != null && restant <= it.seuil_alerte && it.quantite_restante > it.seuil_alerte) {
+        donsAlerterStockBas(it, restant);
+      }
+    }
     return { nom: it.nom, unite: it.unite, du, donne };
   });
 

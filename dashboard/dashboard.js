@@ -15511,7 +15511,11 @@ async function _donsProgrammeTabHtml(prog) {
   return `
     <div class="table-card" style="margin-bottom:18px">
       <div class="table-card-header"><h3>${escHtml(prog.nom)}</h3>
-        ${can.executive() ? `<button class="btn btn-ghost btn-sm" onclick="_donsEditProgramme(${prog.id})">Modifier</button>` : ''}
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="window.open('${API}/dons/programmes/${prog.id}/rapport-bailleur?format=html&token='+encodeURIComponent(TOKEN))">📊 Rapport bailleur de fonds</button>
+          <button class="btn btn-ghost btn-sm" onclick="window.open('${API}/dons/programmes/${prog.id}/rapport-bailleur?format=csv&token='+encodeURIComponent(TOKEN))">⬇️ CSV</button>
+          ${can.executive() ? `<button class="btn btn-ghost btn-sm" onclick="_donsEditProgramme(${prog.id})">Modifier</button>` : ''}
+        </div>
       </div>
       <div style="padding:16px;font-size:.88rem;color:var(--muted)">
         ${prog.organisme_source ? `<p><strong>Organisme :</strong> ${escHtml(prog.organisme_source)}</p>` : ''}
@@ -15582,7 +15586,8 @@ async function _donsVueCalendrier(prog) {
       <button class="btn btn-ghost btn-sm" onclick="_donsCalNavJour(-1)">‹ Jour précédent</button>
       <strong style="text-transform:capitalize">${dateLabel}</strong>
       <button class="btn btn-ghost btn-sm" onclick="_donsCalNavJour(1)">Jour suivant ›</button>
-      <input type="date" value="${jour}" onchange="window._donsCalJour=this.value;donsMgmtView()" style="margin-left:auto;padding:6px 8px;border:1px solid var(--border);border-radius:6px"/>
+      <button class="btn btn-outline btn-sm" style="margin-left:auto" onclick="window.open('${API}/dons/programmes/'+window._donsProgId+'/feuille-de-route?date='+window._donsCalJour+'&token='+encodeURIComponent(TOKEN))">🖨️ Feuille de route</button>
+      <input type="date" value="${jour}" onchange="window._donsCalJour=this.value;donsMgmtView()" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px"/>
     </div>
     <div class="page-tabs-inline">${cTab('dashboard','Tableau de bord')}${cTab('mois','Calendrier + détail')}${cTab('chrono','Chronologie')}${cTab('widgets','Salle de contrôle')}</div>
     ${panneau}
@@ -15870,6 +15875,8 @@ function _donsNewStock(progId) {
         <div class="form-group"><label>Âge maximum (optionnel)</label><input id="ds_age_max" type="number" min="0" placeholder="ex. 5"/></div>
       </div>
       <p class="muted" style="font-size:.8rem;color:var(--muted)">Laisser vide = article pour tout le foyer. Remplir les deux = seulement les personnes dans cette tranche d'âge (ex. 0 à 5 pour « enfant -6 ans »). Un seul champ rempli = pas de limite de l'autre côté (ex. 18 et vide = « adultes seulement »).</p>
+      <div class="form-group"><label>Seuil d'alerte stock bas (optionnel)</label><input id="ds_seuil" type="number" step="0.01" placeholder="ex. 10"/></div>
+      <p class="muted" style="font-size:.8rem;color:var(--muted)">Le comité et les coordinateurs sont alertés dès qu'un retrait fait passer la quantité restante à ce seuil ou en dessous.</p>
       <div class="form-actions">
         <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
         <button type="submit" class="btn btn-primary">Ajouter</button>
@@ -15887,7 +15894,8 @@ function _donsNewStock(progId) {
         qte_fixe_foyer: document.getElementById('ds_fixe').value,
         qte_par_personne: document.getElementById('ds_pp').value,
         age_min: document.getElementById('ds_age_min').value,
-        age_max: document.getElementById('ds_age_max').value
+        age_max: document.getElementById('ds_age_max').value,
+        seuil_alerte: document.getElementById('ds_seuil').value
       })});
       closeModal(); toast('Article ajouté'); donsMgmtView();
     } catch(e) { toast(e.message, true); }
@@ -15915,6 +15923,8 @@ async function _donsEditStock(id) {
         <div class="form-group"><label>Âge maximum (optionnel)</label><input id="ds_age_max" type="number" min="0" value="${s.age_max ?? ''}" placeholder="ex. 5"/></div>
       </div>
       <p class="muted" style="font-size:.8rem;color:var(--muted)">Laisser vide = pas de limite de ce côté. Les deux vides = article pour tout le foyer.</p>
+      <div class="form-group"><label>Seuil d'alerte stock bas (optionnel)</label><input id="ds_seuil" type="number" step="0.01" value="${s.seuil_alerte ?? ''}" placeholder="ex. 10"/></div>
+      <p class="muted" style="font-size:.8rem;color:var(--muted)">Le comité et les coordinateurs sont alertés dès qu'un retrait fait passer la quantité restante à ce seuil ou en dessous.</p>
       <div class="form-actions">
         <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
         <button type="submit" class="btn btn-primary">Enregistrer</button>
@@ -15932,7 +15942,8 @@ async function _donsEditStock(id) {
         qte_fixe_foyer: document.getElementById('ds_fixe').value,
         qte_par_personne: document.getElementById('ds_pp').value,
         age_min: document.getElementById('ds_age_min').value,
-        age_max: document.getElementById('ds_age_max').value
+        age_max: document.getElementById('ds_age_max').value,
+        seuil_alerte: document.getElementById('ds_seuil').value
       })});
       closeModal(); toast('Article mis à jour'); donsMgmtView();
     } catch(e) { toast(e.message, true); }
@@ -16402,6 +16413,19 @@ async function _donsFoyersTabHtml(prog) {
 
   const filterBtn = (v, label, count) => `<button class="btn btn-sm ${statutFilter===v?'btn-primary':'btn-ghost'}" onclick="window._donsFoyerFilter='${v}';donsMgmtView()">${label}${count !== undefined ? ` (${count})` : ''}</button>`;
 
+  // Sélection groupée (validation en lot) — un foyer n'est sélectionnable que s'il peut
+  // être validé (même condition que le bouton Valider individuel). Réinitialisée à chaque
+  // rendu de l'onglet (changement de filtre/recherche = nouvelle liste de toute façon).
+  window._donsFoyersSelected = new Set();
+  window._donsFoyersSelectableIds = foyers.filter(f => !f.valide_pour_reservation && f.statut !== 'refuse').map(f => f.id);
+  const bulkBar = window._donsFoyersSelectableIds.length ? `
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+      <button class="btn btn-sm btn-ghost" onclick="_donsFoyerSelectAll(true)">☑ Tout sélectionner</button>
+      <button class="btn btn-sm btn-ghost" onclick="_donsFoyerSelectAll(false)">☐ Tout désélectionner</button>
+      <span id="donsFoyersSelCount" style="font-size:.85rem;color:var(--muted)">0 sélectionné(s)</span>
+      <button class="btn btn-primary btn-sm" onclick="_donsBulkValiderFoyers()">✓ Valider la sélection</button>
+    </div>` : '';
+
   return `
     <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:20px">
       ${kpi(nbEnAttente, 'En attente', nbEnAttente > 0)}
@@ -16418,11 +16442,13 @@ async function _donsFoyersTabHtml(prog) {
     <div style="margin-bottom:14px">
       <input id="donsFoyersSearch" type="text" class="form-input" placeholder="🔍 Rechercher un responsable (nom ou courriel)…" style="max-width:340px" oninput="_donsFoyersFiltrerRecherche(this.value)"/>
     </div>
+    ${bulkBar}
     <div class="table-wrapper"><table id="donsFoyersTable">
-      <thead><tr><th>Responsable</th><th>Foyer</th><th>Taille</th><th>Statut</th><th>Rendez-vous</th><th>Absences</th><th>Actions</th></tr></thead>
+      <thead><tr>${window._donsFoyersSelectableIds.length ? '<th></th>' : ''}<th>Responsable</th><th>Foyer</th><th>Taille</th><th>Statut</th><th>Rendez-vous</th><th>Absences</th><th>Actions</th></tr></thead>
       <tbody>
-        ${foyers.length ? foyers.map(f => { const hasTutelle = (f.personnes||[]).some(p => p.tutelle_statut === 'demandee'); return `<tr data-search="${escHtml((f.prenom+' '+f.nom+' '+f.email).toLowerCase())}">
-          <td><strong>${escHtml(f.prenom)} ${escHtml(f.nom)}</strong><br><span style="font-size:.75rem;color:var(--muted)">${escHtml(f.email)}</span></td>
+        ${foyers.length ? foyers.map(f => { const hasTutelle = (f.personnes||[]).some(p => p.tutelle_statut === 'demandee'); const selectable = !f.valide_pour_reservation && f.statut !== 'refuse'; const dupBadge = (f.correspondances||[]).length ? ` <span title="${escHtml(f.correspondances.map(c => `Même ${c.champ} que ${c.avec.prenom} ${c.avec.nom}`).join(' · '))}">${pill('⚠️ Doublon possible','bp-orange')}</span>` : ''; return `<tr data-search="${escHtml((f.prenom+' '+f.nom+' '+f.email).toLowerCase())}">
+          ${window._donsFoyersSelectableIds.length ? `<td>${selectable ? `<input type="checkbox" onchange="_donsFoyerToggleSelect(${f.id},this.checked)" style="width:16px;height:16px;cursor:pointer"/>` : ''}</td>` : ''}
+          <td><strong>${escHtml(f.prenom)} ${escHtml(f.nom)}</strong>${dupBadge}<br><span style="font-size:.75rem;color:var(--muted)">${escHtml(f.email)}</span></td>
           <td style="font-size:.82rem">${(f.personnes||[]).length ? f.personnes.map(p => { const a = p.date_naissance ? _donsAge(p.date_naissance) : null; const rel = DONS_RELATION_LABEL[p.relation] || 'Enfant'; const nonCompte = p.compte === false ? ' ⚠️' : ''; const tutelleActions = p.tutelle_statut === 'demandee' ? `<br><span style="font-size:.74rem">🛡️ Tutelle demandée — <a href="#" onclick="event.preventDefault();_donsApprouverTutelle(${f.id},${p.id})">Approuver</a> · <a href="#" onclick="event.preventDefault();_donsRefuserTutelle(${f.id},${p.id})">Refuser</a></span>` : ''; return `<div>${escHtml(p.prenom+' '+p.nom)} (${a !== null ? a + ' ans' : 'âge inconnu'} · ${rel})${nonCompte}${tutelleActions}</div>`; }).join('') : (f.membres.map(m => escHtml(m.prenom+' '+m.nom)).join(', ') || '–')}</td>
           <td>${f.nb_personnes}</td>
           <td>${f.valide_pour_reservation ? pill(f.statut==='en_attente'?'Actif (composition modifiée)':'Validé','bp-green') : pill(f.statut==='refuse'?'Refusé':'En attente','bp-'+(f.statut==='refuse'?'red':'orange'))}${f.necessite_reconfirmation ? ' ' + pill('⚠️ à reconfirmer','bp-orange') : ''}</td>
@@ -16439,10 +16465,38 @@ async function _donsFoyersTabHtml(prog) {
             <button class="btn btn-ghost btn-sm" style="color:#c62828" onclick="_donsFoyerSupprimer(${f.id})">Supprimer</button>
             </div>
           </td>
-        </tr>`; }).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">Aucun foyer</td></tr>'}
+        </tr>`; }).join('') : `<tr><td colspan="${window._donsFoyersSelectableIds.length ? 8 : 7}" style="text-align:center;color:var(--muted);padding:20px">Aucun foyer</td></tr>`}
       </tbody>
     </table></div>
   `;
+}
+
+function _donsFoyerToggleSelect(id, checked) {
+  if (checked) window._donsFoyersSelected.add(id);
+  else window._donsFoyersSelected.delete(id);
+  const el = document.getElementById('donsFoyersSelCount');
+  if (el) el.textContent = window._donsFoyersSelected.size + ' sélectionné(s)';
+}
+
+function _donsFoyerSelectAll(select) {
+  (window._donsFoyersSelectableIds || []).forEach(id => {
+    if (select) window._donsFoyersSelected.add(id);
+    else window._donsFoyersSelected.delete(id);
+  });
+  document.querySelectorAll('#donsFoyersTable tbody input[type=checkbox]').forEach(cb => cb.checked = select);
+  const el = document.getElementById('donsFoyersSelCount');
+  if (el) el.textContent = window._donsFoyersSelected.size + ' sélectionné(s)';
+}
+
+async function _donsBulkValiderFoyers() {
+  const ids = [...(window._donsFoyersSelected || [])];
+  if (!ids.length) { toast('Sélectionnez au moins un foyer', true); return; }
+  if (!confirm(`Valider ${ids.length} foyer(s) sélectionné(s) ?`)) return;
+  try {
+    const r = await api('/dons/foyers/bulk-valider', { method:'POST', body: JSON.stringify({ ids }) });
+    toast(`${r.traites} foyer(s) validé(s)`);
+    donsMgmtView();
+  } catch(e) { toast(e.message, true); }
 }
 
 function _donsFoyersFiltrerRecherche(q) {
@@ -16495,6 +16549,11 @@ function _donsFoyerModifierComite(foyerId, progId) {
       <div class="form-group dfc-email-wrap" id="dfc_email_wrap" style="flex:1;min-width:170px;margin:0;display:none"><label>Courriel du conjoint (AHH)</label><input id="dfc_email" type="email"/></div>
       <button type="submit" class="btn btn-primary btn-sm">+ Ajouter</button>
     </form>
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
+      <label style="font-size:.85rem;font-weight:600">Notes internes (comité seulement — jamais visibles du membre)</label>
+      <textarea id="dfc_notes_internes" rows="3" class="form-input" style="width:100%;margin-top:6px">${escHtml(f.notes_internes || '')}</textarea>
+      <button type="button" class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="_donsEnregistrerNotesInternes(${foyerId})">Enregistrer les notes</button>
+    </div>
     <div class="form-actions" style="margin-top:16px"><button type="button" class="btn btn-ghost" onclick="closeModal()">Fermer</button></div>
   `);
   document.getElementById('dfcAjoutForm').onsubmit = async e => {
@@ -16511,6 +16570,16 @@ function _donsFoyerModifierComite(foyerId, progId) {
       toast('Personne ajoutée'); closeModal(); donsMgmtView();
     } catch(e) { toast(e.message, true); }
   };
+}
+
+async function _donsEnregistrerNotesInternes(foyerId) {
+  try {
+    await api('/dons/foyers/' + foyerId + '/notes-internes', { method:'PUT', body: JSON.stringify({
+      notes_internes: document.getElementById('dfc_notes_internes').value
+    })});
+    toast('Notes internes enregistrées');
+    if (window._donsFoyersCache?.[foyerId]) window._donsFoyersCache[foyerId].notes_internes = document.getElementById('dfc_notes_internes').value;
+  } catch(e) { toast(e.message, true); }
 }
 
 async function _donsSupprimerPersonneComite(foyerId, personneId) {
@@ -17108,11 +17177,14 @@ async function donsMonFoyerView() {
       : 'En attente de validation';
     const statutCls = foyer.statut === 'refuse' ? 'bp-red' : foyer.valide_pour_reservation ? 'bp-green' : 'bp-orange';
 
-    let prochainRdv = null, mesRdv = { rdv: [], retraits: [] }, creneaux = [];
+    let prochainRdv = null, mesRdv = { rdv: [], retraits: [] }, creneaux = [], creneauxComplets = [];
     if (foyer.valide_pour_reservation && !foyer.necessite_reconfirmation) {
       mesRdv = await api('/dons/mes-rdv?programme_id=' + prog.id).catch(() => ({ rdv: [], retraits: [] }));
       prochainRdv = (mesRdv.rdv || []).find(r => r.statut === 'a_venir');
-      if (!prochainRdv) creneaux = await api('/dons/programmes/' + prog.id + '/creneaux-disponibles').catch(() => []);
+      if (!prochainRdv) {
+        creneaux = await api('/dons/programmes/' + prog.id + '/creneaux-disponibles').catch(() => []);
+        creneauxComplets = await api('/dons/programmes/' + prog.id + '/creneaux-complets').catch(() => []);
+      }
     }
 
     // ── Chemin d'étapes : reflète l'état réel du foyer ──────────────────
@@ -17148,6 +17220,14 @@ async function donsMonFoyerView() {
         </div>
       </div>`;
     } else {
+      const attenteHtml = creneauxComplets.length ? `
+        <div style="margin-top:${creneaux.length ? '16px' : '0'};padding-top:${creneaux.length ? '14px' : '0'};${creneaux.length ? 'border-top:1px solid var(--border)' : ''}">
+          <p style="font-size:.82rem;color:var(--muted);margin-bottom:8px">Créneaux complets — rejoignez la liste d'attente pour être avisé(e) si une place se libère :</p>
+          ${creneauxComplets.map(c => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;font-size:.88rem">
+            <span>${_donsFmtDT(c.date_heure)}</span>
+            ${c.sur_liste_attente ? pill("✓ Sur liste d'attente", 'bp-green') : `<button class="btn btn-ghost btn-sm" onclick="_donsRejoindreAttente(${c.id})">Rejoindre la liste d'attente</button>`}
+          </div>`).join('')}
+        </div>` : '';
       cardHtml = `<div class="table-card">
         <div class="table-card-header"><h3>Réserver un rendez-vous</h3></div>
         <div style="padding:16px">
@@ -17156,7 +17236,8 @@ async function donsMonFoyerView() {
               ${creneaux.map(c => `<option value="${c.id}">${_donsFmtDT(c.date_heure)} — ${c.places_restantes} place(s)</option>`).join('')}
             </select>
             <button class="btn btn-primary" onclick="_donsReserverRdv(${prog.id})">Réserver</button>
-          ` : '<p style="color:var(--muted)">Aucun créneau disponible pour le moment — revenez plus tard.</p>'}
+          ` : (creneauxComplets.length ? '' : '<p style="color:var(--muted)">Aucun créneau disponible pour le moment — revenez plus tard.</p>')}
+          ${attenteHtml}
         </div>
       </div>`;
     }
@@ -17165,8 +17246,8 @@ async function donsMonFoyerView() {
     if ((mesRdv.retraits || []).length) {
       histHtml = `<div class="table-card" style="margin-top:14px">
         <div class="table-card-header"><h3>Historique des retraits</h3></div>
-        <div class="table-wrapper"><table><thead><tr><th>Date</th></tr></thead><tbody>
-          ${mesRdv.retraits.map(r => `<tr><td>${_donsFmtDT(r.date_retrait)}</td></tr>`).join('')}
+        <div class="table-wrapper"><table><thead><tr><th>Date</th><th></th></tr></thead><tbody>
+          ${mesRdv.retraits.map(r => `<tr><td>${_donsFmtDT(r.date_retrait)}</td><td><a href="${API}/dons/retraits/${r.id}/recu?token=${encodeURIComponent(TOKEN)}" target="_blank" class="btn btn-ghost btn-sm">🖨️ Reçu</a></td></tr>`).join('')}
         </tbody></table></div>
       </div>`;
     }
@@ -17334,6 +17415,14 @@ async function _donsAnnulerRdv(id) {
   if (!confirm('Annuler ce rendez-vous ?')) return;
   try { await api('/dons/rdv/' + id, { method:'DELETE' }); toast('Rendez-vous annulé'); donsMonFoyerView(); }
   catch(e) { toast(e.message, true); }
+}
+
+async function _donsRejoindreAttente(creneauId) {
+  try {
+    await api('/dons/creneaux/' + creneauId + '/attente', { method:'POST' });
+    toast('Vous êtes sur la liste d\'attente — vous serez avisé(e) par courriel si une place se libère');
+    donsMonFoyerView();
+  } catch(e) { toast(e.message, true); }
 }
 
 async function _donsModifierFoyer(id, programmeId) {

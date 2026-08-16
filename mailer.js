@@ -634,6 +634,78 @@ async function sendAnniversaire(user) {
   await sendMail({ to: user.email, subject: `🎂 Joyeux anniversaire, ${prenom} ! — AHH`, html });
 }
 
+// ── Programme de dons ─────────────────────────────────────────────────────
+
+function _donsFmtDT(dateStr) {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('fr-CA', { weekday:'long', year:'numeric', month:'long', day:'numeric' }) + ' à ' + d.toLocaleTimeString('fr-CA', { hour:'2-digit', minute:'2-digit' });
+}
+
+async function sendDonFoyerValide(user, programme) {
+  await sendMail({
+    to: user.email,
+    subject: `Votre foyer est validé — ${programme.nom}`,
+    html: wrap('Foyer validé ✅', `
+      <p>Bonjour <strong>${esc(user.prenom)}</strong>,</p>
+      <p>Votre foyer a été <strong>validé</strong> par le comité pour le programme <strong>${esc(programme.nom)}</strong>. Vous pouvez maintenant réserver un rendez-vous de retrait.</p>
+      <a class="btn" href="${siteUrl}/dashboard/app.html">Réserver mon rendez-vous</a>
+      <p style="font-size:.82rem;color:#888;margin-top:16px">Cette validation reste active un an — vous n'aurez pas besoin d'être revalidé avant chaque visite.</p>
+    `)
+  });
+}
+
+async function sendDonFoyerRefuse(user, programme, raison) {
+  await sendMail({
+    to: user.email,
+    subject: `Votre foyer n'a pas été validé — ${programme.nom}`,
+    html: wrap('Foyer non validé', `
+      <p>Bonjour <strong>${esc(user.prenom)}</strong>,</p>
+      <p>Votre foyer n'a pas été validé par le comité pour le programme <strong>${esc(programme.nom)}</strong>.</p>
+      <p style="font-size:.88rem;background:#fdecea;padding:12px 16px;border-radius:8px"><strong>Raison :</strong> ${esc(raison)}</p>
+      <p style="font-size:.84rem;color:#555">Pour toute question, contactez le comité via votre espace membre.</p>
+    `)
+  });
+}
+
+async function sendDonTutelleDecision(user, personneNom, approuve, note) {
+  await sendMail({
+    to: user.email,
+    subject: approuve ? `Demande de tutelle approuvée — ${esc(personneNom)}` : `Demande de tutelle refusée — ${esc(personneNom)}`,
+    html: wrap(approuve ? 'Tutelle approuvée ✅' : 'Tutelle refusée', `
+      <p>Bonjour <strong>${esc(user.prenom)}</strong>,</p>
+      <p>La demande de tutelle pour <strong>${esc(personneNom)}</strong> a été <strong>${approuve ? 'approuvée' : 'refusée'}</strong> par le comité.</p>
+      ${note ? `<p style="font-size:.88rem;background:#f0f7f0;padding:12px 16px;border-radius:8px"><strong>Note du comité :</strong> ${esc(note)}</p>` : ''}
+      ${approuve ? `<p style="font-size:.84rem;color:#555">Cette personne compte de nouveau pour le calcul du stock lors de vos prochains retraits.</p>` : ''}
+    `)
+  });
+}
+
+async function sendDonRappelRdv(user, creneau) {
+  await sendMail({
+    to: user.email,
+    subject: `Rappel — votre rendez-vous de dons approche`,
+    html: wrap('Rappel de rendez-vous 📅', `
+      <p>Bonjour <strong>${esc(user.prenom)}</strong>,</p>
+      <p>Un petit rappel : votre rendez-vous pour le programme de dons est prévu le <strong>${_donsFmtDT(creneau.date_heure)}</strong>.</p>
+      <p style="font-size:.84rem;color:#555">Présentez la carte de n'importe quel adulte validé de votre foyer sur place.</p>
+      <a class="btn" href="${siteUrl}/dashboard/app.html">Voir mon rendez-vous</a>
+    `)
+  });
+}
+
+async function sendDonPlaceLiberee(user, creneau) {
+  await sendMail({
+    to: user.email,
+    subject: `Une place s'est libérée pour votre liste d'attente`,
+    html: wrap('Une place est disponible 🎁', `
+      <p>Bonjour <strong>${esc(user.prenom)}</strong>,</p>
+      <p>Une place s'est libérée sur le créneau du <strong>${_donsFmtDT(creneau.date_heure)}</strong>, pour lequel vous étiez sur liste d'attente.</p>
+      <p style="font-size:.84rem;color:#555">Réservez rapidement — la place n'est pas garantie et pourrait être prise par un autre foyer en attente.</p>
+      <a class="btn" href="${siteUrl}/dashboard/app.html">Réserver maintenant</a>
+    `)
+  });
+}
+
 module.exports = {
   sendMail, sendSMS, sendBienvenue, sendInscriptionRefusee, sendResetPassword, sendVerificationEmail,
   sendContact, sendRappelPaiement, sendPaiementApprouve, sendRappelAdhesion,
@@ -641,5 +713,6 @@ module.exports = {
   sendInscriptionActivite, sendNouvelleAdhesion, sendInvitation, sendHeuresBenevolat,
   sendBilletInterac, sendBilletQR, sendNouvelleCommandeBillet, sendExternalEmail,
   sendCarteRenewal, sendAnniversaire, sendCartePhotoManquante, sendActivityBulkEmail, SMS_GATEWAYS,
-  sendVolunteerLetterSigned
+  sendVolunteerLetterSigned,
+  sendDonFoyerValide, sendDonFoyerRefuse, sendDonTutelleDecision, sendDonRappelRdv, sendDonPlaceLiberee
 };

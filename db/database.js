@@ -1801,6 +1801,26 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS dons_creneaux_regles (
   date_creation TEXT DEFAULT CURRENT_TIMESTAMP
 )`); } catch {}
 
+// Rappel de rendez-vous (courriel la veille) — évite les envois en double.
+try { db.exec('ALTER TABLE dons_rdv ADD COLUMN rappel_envoye INTEGER DEFAULT 0'); } catch {}
+
+// Liste d'attente sur un créneau complet — un foyer par créneau, notifié (pas réservé
+// automatiquement, pour éviter une course entre deux foyers) dès qu'une place se libère.
+try { db.exec(`CREATE TABLE IF NOT EXISTS dons_creneaux_attente (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  creneau_id INTEGER NOT NULL REFERENCES dons_creneaux(id) ON DELETE CASCADE,
+  foyer_id INTEGER NOT NULL REFERENCES dons_foyers(id) ON DELETE CASCADE,
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(creneau_id, foyer_id)
+)`); } catch {}
+
+// Seuil d'alerte stock bas (NULL = aucune alerte configurée pour cet article).
+try { db.exec('ALTER TABLE dons_stock ADD COLUMN seuil_alerte REAL'); } catch {}
+
+// Notes internes comité — distinct de note_comite qui est visible du membre (raison de
+// validation/refus) ; celui-ci ne l'est jamais.
+try { db.exec('ALTER TABLE dons_foyers ADD COLUMN notes_internes TEXT'); } catch {}
+
 // Coordinateur des dons : accès complet à la gestion opérationnelle du module Dons
 // (foyers, stock, créneaux, journal) pour un membre qui n'a pas de rôle comité —
 // sans lui donner accès au reste du site. La création/modification du programme
