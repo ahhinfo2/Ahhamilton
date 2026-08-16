@@ -15450,7 +15450,7 @@ async function notifierPhotoManquante() {
 // ══════════════════════════════════════════════════════════════════════════════
 
 async function donsMgmtView() {
-  const tab = window._donsTab || 'programmes';
+  const tab = window._donsTab || 'programme';
   let programmes = [];
   try { programmes = await api('/dons/programmes'); } catch(e) { programmes = []; }
   if (!window._donsProgId && programmes.length) {
@@ -15487,6 +15487,7 @@ async function donsMgmtView() {
     ${body}
   `);
   if (tab === 'coordinateurs' && can.executive()) _dcInitDropdown();
+  if (tab === 'programme' && prog) _donsCalInit(prog.id);
   _donsLoadBadges();
 }
 
@@ -15538,25 +15539,7 @@ async function _donsProgrammeTabHtml(prog) {
       </table></div>
     </div>
 
-    <div class="table-card">
-      <div class="table-card-header" style="flex-wrap:wrap;gap:8px;row-gap:8px"><h3>Créneaux</h3>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-ghost btn-sm" onclick="_donsGenererCreneaux(${prog.id})">Générer par lot (heures)</button>
-          <button class="btn btn-primary btn-sm" onclick="_donsNewCreneau(${prog.id})">+ Créneau</button>
-        </div>
-      </div>
-      <div class="table-wrapper"><table>
-        <thead><tr><th>Date</th><th>Capacité</th><th>Réservés</th><th>Actions</th></tr></thead>
-        <tbody>
-          ${creneaux.length ? creneaux.map(c => `<tr>
-            <td>${_donsFmtDT(c.date_heure)}</td>
-            <td>${c.capacite_max}</td>
-            <td>${c.nb_reserves}</td>
-            <td><button class="btn btn-ghost btn-sm" style="color:#c62828" onclick="_donsDeleteCreneau(${c.id})">Supprimer</button></td>
-          </tr>`).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--muted)">Aucun créneau</td></tr>'}
-        </tbody>
-      </table></div>
-    </div>
+    ${_donsCreneauxCalendrierHtml(prog, creneaux)}
   `;
 }
 
@@ -15962,10 +15945,10 @@ async function _donsDeleteStock(id) {
   catch(e) { toast(e.message, true); }
 }
 
-function _donsNewCreneau(progId) {
+function _donsNewCreneau(progId, prefillDateTime) {
   openModal('Nouveau créneau', `
     <form id="donsCreneauForm">
-      <div class="form-group"><label>Date et heure *</label><input id="dc_date" type="datetime-local" required/></div>
+      <div class="form-group"><label>Date et heure *</label><input id="dc_date" type="datetime-local" value="${prefillDateTime || ''}" required/></div>
       <div class="form-group"><label>Capacité (nb de foyers)</label><input id="dc_cap" type="number" value="10"/></div>
       <div class="form-actions">
         <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
@@ -15992,51 +15975,378 @@ async function _donsDeleteCreneau(id) {
   catch(e) { toast(e.message, true); }
 }
 
-function _donsGenererCreneaux(progId) {
-  openModal('Générer des créneaux par lot', `
-    <form id="donsGenCreneauxForm">
-      <div class="form-group"><label>Date *</label><input id="dg_date" type="date" required/></div>
-      <div class="form-row">
-        <div class="form-group"><label>Heure de début *</label><input id="dg_debut" type="time" value="09:00" required/></div>
-        <div class="form-group"><label>Heure de fin *</label><input id="dg_fin" type="time" value="17:00" required/></div>
+// ══════════════════════════════════════════════════════════════════════════════
+// PROGRAMME DE DONS — calendrier des créneaux (édition : ajout/suppression/
+// modification à l'unité ou en groupe, glisser pour sélectionner plusieurs cases)
+// ══════════════════════════════════════════════════════════════════════════════
+
+function _donsCreneauxCalendrierHtml(prog, creneaux) {
+  if (!window._donsCreneauxWeek) {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const monday = new Date(today); monday.setDate(today.getDate() - ((today.getDay()+6)%7));
+    window._donsCreneauxWeek = monday;
+  }
+  const weekStart = window._donsCreneauxWeek;
+  const pad = n => String(n).padStart(2, '0');
+  const dateStr = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+
+  const days = [];
+  for (let i = 0; i < 7; i++) { const d = new Date(weekStart); d.setDate(d.getDate() + i); days.push(d); }
+  const weekDates = new Set(days.map(dateStr));
+  const weekCreneaux = creneaux.filter(c => weekDates.has(c.date_heure.slice(0,10)));
+
+  const times = weekCreneaux.length
+    ? [...new Set(weekCreneaux.map(c => c.date_heure.slice(11,16)))].sort()
+    : ['09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00'];
+
+  const byDateTime = {};
+  creneaux.forEach(c => { byDateTime[c.date_heure] = c; });
+
+  const rangeLabel = `${days[0].toLocaleDateString('fr-CA', { day:'numeric', month:'short' })} — ${days[6].toLocaleDateString('fr-CA', { day:'numeric', month:'short', year:'numeric' })}`;
+  const DOW = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+
+  let headerRow = '<div style="padding:8px 4px;border-right:1px solid var(--border);border-bottom:1px solid var(--border)"></div>';
+  days.forEach((d, i) => {
+    const ds = dateStr(d);
+    const idsJour = creneaux.filter(c => c.date_heure.slice(0,10) === ds).map(c => c.id);
+    headerRow += `<div style="padding:8px 4px;text-align:center;border-right:1px solid var(--border);border-bottom:1px solid var(--border)">
+      <div style="font-size:.62rem;color:var(--muted);font-weight:800;text-transform:uppercase">${DOW[i]}</div>
+      <div style="font-weight:800;font-size:.82rem">${d.getDate()}</div>
+      ${idsJour.length ? `<div style="display:flex;gap:3px;justify-content:center;margin-top:3px">
+        <button class="btn btn-ghost btn-sm" style="padding:2px 5px;font-size:.62rem" title="Dupliquer cette journée" onclick="_donsCalDupliquerJour(${prog.id},'${ds}')">📋</button>
+        <button class="btn btn-ghost btn-sm" style="padding:2px 5px;font-size:.62rem;color:#c62828" title="Supprimer cette journée" onclick="_donsCalSupprimerJour('${ds}',[${idsJour.join(',')}])">🗑️</button>
+      </div>` : ''}
+    </div>`;
+  });
+
+  let rows = '';
+  times.forEach(t => {
+    rows += `<div style="padding:6px 8px;text-align:right;font-size:.68rem;color:var(--muted);border-right:1px solid var(--border);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:flex-end">${t}</div>`;
+    days.forEach((d, col) => {
+      const ds = dateStr(d);
+      const c = byDateTime[ds + 'T' + t];
+      if (c) {
+        const pct = c.capacite_max > 0 ? Math.min(100, Math.round(c.nb_reserves / c.capacite_max * 100)) : 0;
+        const color = pct >= 100 ? '#c62828' : pct >= 70 ? '#e65100' : 'var(--g2)';
+        rows += `<div class="cal-cell" data-id="${c.id}" data-row="${times.indexOf(t)}" data-col="${col}" data-datetime="${c.date_heure}" data-cap="${c.capacite_max}" data-res="${c.nb_reserves}"
+          style="padding:6px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);cursor:pointer;min-height:46px;display:flex;flex-direction:column;justify-content:center;gap:3px;user-select:none">
+          <div style="font-size:.7rem;font-weight:700;text-align:center">${c.nb_reserves}/${c.capacite_max}</div>
+          <div style="height:5px;border-radius:99px;background:var(--off);overflow:hidden"><div style="width:${pct}%;height:100%;background:${color}"></div></div>
+        </div>`;
+      } else {
+        rows += `<div class="cal-cell empty" data-datetime="${ds}T${t}" style="border-right:1px solid var(--border);border-bottom:1px solid var(--border);cursor:pointer;min-height:46px;display:flex;align-items:center;justify-content:center;color:var(--border);font-weight:800;user-select:none">+</div>`;
+      }
+    });
+  });
+
+  return `
+    <div class="table-card">
+      <div class="table-card-header" style="flex-wrap:wrap;gap:8px">
+        <h3>Créneaux</h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="_donsCreneauxModeles(${prog.id})">Modèles récurrents</button>
+          <button class="btn btn-ghost btn-sm" onclick="_donsCreneauxAssistant(${prog.id})">Générer par lot</button>
+          <button class="btn btn-primary btn-sm" onclick="_donsNewCreneau(${prog.id})">+ Créneau</button>
+        </div>
       </div>
-      <div class="form-row">
-        <div class="form-group"><label>Intervalle (minutes)</label><input id="dg_intervalle" type="number" min="5" value="60"/></div>
-        <div class="form-group"><label>Capacité par créneau</label><input id="dg_cap" type="number" min="1" value="10"/></div>
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="_donsCreneauxNavSemaine(-7)">‹ Semaine précédente</button>
+        <strong style="font-size:.85rem">${rangeLabel}</strong>
+        <button class="btn btn-ghost btn-sm" onclick="_donsCreneauxNavSemaine(7)">Semaine suivante ›</button>
+        <button class="btn btn-ghost btn-sm" onclick="window._donsCreneauxWeek=null;donsMgmtView()" style="margin-left:auto">Aujourd'hui</button>
       </div>
-      <p style="font-size:.8rem;color:var(--muted)">Un créneau sera créé à chaque intervalle entre l'heure de début et l'heure de fin.</p>
+      <div style="overflow-x:auto">
+        <div id="donsCalGrid" style="display:grid;grid-template-columns:64px repeat(7,minmax(84px,1fr));min-width:700px">
+          ${headerRow}
+          ${rows}
+        </div>
+      </div>
+      <div style="padding:10px 16px;font-size:.78rem;color:var(--muted)">Cliquez une case vide pour créer un créneau, une case existante pour la modifier. Glissez sur plusieurs cases pour les modifier ou les supprimer en groupe.</div>
+    </div>
+  `;
+}
+
+function _donsCreneauxNavSemaine(deltaDays) {
+  const d = window._donsCreneauxWeek ? new Date(window._donsCreneauxWeek) : new Date();
+  d.setDate(d.getDate() + deltaDays);
+  window._donsCreneauxWeek = d;
+  donsMgmtView();
+}
+
+// Sélection par cliquer-glisser sur la grille — appelée après chaque rendu (setContent
+// remplace le DOM, donc les écouteurs doivent être ré-attachés à chaque fois ; le handler
+// mouseup précédent est explicitement retiré pour ne jamais s'empiler d'un rendu à l'autre).
+function _donsCalInit(progId) {
+  const grid = document.getElementById('donsCalGrid');
+  if (!grid) return;
+  if (window._donsCalMouseupHandler) document.removeEventListener('mouseup', window._donsCalMouseupHandler);
+  window._donsCalSelected = new Set();
+  let dragging = false, startCell = null, moved = false;
+  const occupied = Array.from(grid.querySelectorAll('.cal-cell[data-id]'));
+
+  function cellsInRect(a, b) {
+    const r1 = Math.min(+a.dataset.row, +b.dataset.row), r2 = Math.max(+a.dataset.row, +b.dataset.row);
+    const c1 = Math.min(+a.dataset.col, +b.dataset.col), c2 = Math.max(+a.dataset.col, +b.dataset.col);
+    return occupied.filter(c => +c.dataset.row >= r1 && +c.dataset.row <= r2 && +c.dataset.col >= c1 && +c.dataset.col <= c2);
+  }
+  function paintSelection(list) {
+    occupied.forEach(c => c.style.outline = '');
+    window._donsCalSelected = new Set(list.map(c => +c.dataset.id));
+    list.forEach(c => c.style.outline = '2px solid var(--g2)');
+    _donsCalBar(progId);
+  }
+
+  occupied.forEach(cell => {
+    cell.onmousedown = e => { e.preventDefault(); dragging = true; moved = false; startCell = cell; paintSelection([cell]); };
+    cell.onmouseenter = () => { if (!dragging) return; if (cell !== startCell) moved = true; paintSelection(cellsInRect(startCell, cell)); };
+  });
+
+  window._donsCalMouseupHandler = () => {
+    if (!dragging) return;
+    dragging = false;
+    if (!moved && startCell) {
+      paintSelection([]);
+      _donsCreneauEditer(+startCell.dataset.id, startCell.dataset.datetime, +startCell.dataset.cap, +startCell.dataset.res);
+    }
+    startCell = null;
+  };
+  document.addEventListener('mouseup', window._donsCalMouseupHandler);
+
+  grid.querySelectorAll('.cal-cell.empty').forEach(cell => {
+    cell.onclick = () => _donsNewCreneau(progId, cell.dataset.datetime);
+  });
+}
+
+function _donsCalBar(progId) {
+  let bar = document.getElementById('donsCalBar');
+  const n = window._donsCalSelected ? window._donsCalSelected.size : 0;
+  if (n < 2) { if (bar) bar.remove(); return; }
+  if (!bar) { bar = document.createElement('div'); bar.id = 'donsCalBar'; document.body.appendChild(bar); }
+  bar.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#fff;border:1px solid var(--border);box-shadow:0 4px 20px rgba(0,0,0,.18);border-radius:12px;padding:10px 16px;display:flex;gap:10px;align-items:center;z-index:500;font-size:.85rem;flex-wrap:wrap;max-width:92vw;justify-content:center';
+  bar.innerHTML = `
+    <span><strong>${n}</strong> créneaux sélectionnés</span>
+    <input id="donsCalBarCap" type="number" placeholder="Nouvelle capacité" style="width:130px;padding:6px 8px;border:1px solid var(--border);border-radius:6px"/>
+    <button class="btn btn-primary btn-sm" onclick="_donsCalBulkCapacite()">Appliquer</button>
+    <button class="btn btn-ghost btn-sm" style="color:#c62828" onclick="_donsCalBulkSupprimer()">Supprimer</button>
+    <button class="btn btn-ghost btn-sm" onclick="_donsCalClearSel()">Annuler</button>
+  `;
+}
+
+function _donsCalClearSel() {
+  document.querySelectorAll('.cal-cell').forEach(c => c.style.outline = '');
+  window._donsCalSelected = new Set();
+  const bar = document.getElementById('donsCalBar');
+  if (bar) bar.remove();
+}
+
+async function _donsCalBulkCapacite() {
+  const cap = document.getElementById('donsCalBarCap')?.value;
+  if (!cap) { toast('Entrez une capacité', true); return; }
+  try {
+    const r = await api('/dons/creneaux/bulk', { method:'POST', body: JSON.stringify({ ids: [...window._donsCalSelected], action:'capacite', capacite_max: cap }) });
+    toast(`${r.traites} créneau(x) modifié(s)`);
+    _donsCalClearSel(); donsMgmtView();
+  } catch(e) { toast(e.message, true); }
+}
+
+async function _donsCalBulkSupprimer() {
+  const n = window._donsCalSelected.size;
+  if (!confirm(`Supprimer ${n} créneaux sélectionnés ? Ceux avec des réservations seront conservés.`)) return;
+  try {
+    const r = await api('/dons/creneaux/bulk', { method:'POST', body: JSON.stringify({ ids: [...window._donsCalSelected], action:'supprimer' }) });
+    toast(`${r.traites} supprimé(s)${r.proteges ? ', ' + r.proteges + ' conservé(s) (réservations)' : ''}`);
+    _donsCalClearSel(); donsMgmtView();
+  } catch(e) { toast(e.message, true); }
+}
+
+function _donsCreneauEditer(id, dateHeure, cap, res) {
+  openModal('Modifier le créneau', `
+    <p style="font-size:.85rem;color:var(--muted);margin-bottom:10px">${_donsFmtDT(dateHeure)} — ${res} réservation(s)</p>
+    <form id="donsCreneauEditForm">
+      <div class="form-group"><label>Capacité (nb de foyers)</label><input id="dce_cap" type="number" min="${res}" value="${cap}"/></div>
       <div class="form-actions">
+        <button type="button" class="btn btn-ghost" style="color:#c62828" onclick="_donsDeleteCreneau(${id})">Supprimer</button>
         <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
-        <button type="submit" class="btn btn-primary">Générer</button>
+        <button type="submit" class="btn btn-primary">Enregistrer</button>
       </div>
     </form>
   `);
-  document.getElementById('donsGenCreneauxForm').onsubmit = async e => {
+  document.getElementById('donsCreneauEditForm').onsubmit = async e => {
     e.preventDefault();
-    const date = document.getElementById('dg_date').value;
-    const [hDebut, mDebut] = document.getElementById('dg_debut').value.split(':').map(Number);
-    const [hFin, mFin] = document.getElementById('dg_fin').value.split(':').map(Number);
-    const intervalle = parseInt(document.getElementById('dg_intervalle').value) || 60;
-    const cap = document.getElementById('dg_cap').value;
-    if (!date) { toast('Date requise', true); return; }
-    let cur = new Date(date + 'T00:00:00'); cur.setHours(hDebut, mDebut, 0, 0);
-    const fin = new Date(date + 'T00:00:00'); fin.setHours(hFin, mFin, 0, 0);
-    if (cur >= fin) { toast("L'heure de fin doit être après l'heure de début", true); return; }
-    const dates = [];
-    while (cur < fin) { dates.push(new Date(cur)); cur = new Date(cur.getTime() + intervalle * 60000); }
-    let ok = 0, echecs = 0;
-    for (const d of dates) {
-      const iso = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0')
-        + 'T' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
-      try {
-        await api('/dons/creneaux', { method:'POST', body: JSON.stringify({ programme_id: progId, date_heure: iso, capacite_max: cap }) });
-        ok++;
-      } catch(e) { echecs++; }
-    }
-    closeModal();
-    toast(ok + ' créneau(x) créé(s)' + (echecs ? ` — ${echecs} échec(s)` : ''));
-    donsMgmtView();
+    try {
+      await api('/dons/creneaux/' + id, { method:'PUT', body: JSON.stringify({ capacite_max: document.getElementById('dce_cap').value }) });
+      closeModal(); toast('Créneau modifié'); donsMgmtView();
+    } catch(e) { toast(e.message, true); }
   };
+}
+
+function _donsCalDupliquerJour(progId, dateSource) {
+  openModal('Dupliquer cette journée', `
+    <p style="font-size:.85rem;color:var(--muted);margin-bottom:10px">Copie tous les créneaux du ${fmt(dateSource)} vers une autre date (mêmes heures, mêmes capacités). Les créneaux déjà existants à la date cible seront ignorés.</p>
+    <form id="donsDupJourForm">
+      <div class="form-group"><label>Copier vers le</label><input id="ddj_date" type="date" required/></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Dupliquer</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('donsDupJourForm').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      const r = await api('/dons/creneaux/dupliquer-jour', { method:'POST', body: JSON.stringify({ programme_id: progId, date_source: dateSource, date_cible: document.getElementById('ddj_date').value }) });
+      closeModal(); toast(`${r.crees} créneau(x) créé(s)${r.ignores ? ', ' + r.ignores + ' déjà existant(s) ignoré(s)' : ''}`); donsMgmtView();
+    } catch(e) { toast(e.message, true); }
+  };
+}
+
+async function _donsCalSupprimerJour(dateStr, ids) {
+  if (!confirm(`Supprimer les ${ids.length} créneaux du ${fmt(dateStr)} ? Ceux avec des réservations seront conservés.`)) return;
+  try {
+    const r = await api('/dons/creneaux/bulk', { method:'POST', body: JSON.stringify({ ids, action:'supprimer' }) });
+    toast(`${r.traites} créneau(x) supprimé(s)${r.proteges ? ', ' + r.proteges + ' conservé(s) (réservations)' : ''}`);
+    donsMgmtView();
+  } catch(e) { toast(e.message, true); }
+}
+
+function _donsCreneauxAssistant(progId, prefill) {
+  prefill = prefill || {};
+  const DOW = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+  openModal('Générer des créneaux', `
+    <form id="donsAssistForm">
+      <div class="form-group"><label>Date de début *</label><input id="da_date" type="date" required/></div>
+      <div class="form-group"><label>Jours de la semaine</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${DOW.map((l,i) => `<label style="display:flex;flex-direction:column;align-items:center;gap:2px;font-size:.7rem"><input type="checkbox" class="da-dow" value="${i}" ${(prefill.jours_semaine||[]).includes(i)?'checked':''}/>${l}</label>`).join('')}
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Heure de début *</label><input id="da_debut" type="time" value="${prefill.heure_debut||'09:00'}" required/></div>
+        <div class="form-group"><label>Heure de fin *</label><input id="da_fin" type="time" value="${prefill.heure_fin||'17:00'}" required/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Intervalle (minutes)</label><input id="da_intervalle" type="number" min="5" value="${prefill.intervalle_minutes||60}"/></div>
+        <div class="form-group"><label>Capacité par créneau</label><input id="da_cap" type="number" min="1" value="${prefill.capacite||10}"/></div>
+      </div>
+      <div class="form-group"><label>Nombre de semaines</label><input id="da_semaines" type="number" min="1" value="1"/>
+        <p style="font-size:.78rem;color:var(--muted);margin-top:4px">1 semaine = un seul jour si un seul jour de semaine est coché.</p>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Voir l'aperçu</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('donsAssistForm').onsubmit = async e => {
+    e.preventDefault();
+    const jours = Array.from(document.querySelectorAll('.da-dow:checked')).map(c => parseInt(c.value));
+    if (!jours.length) { toast('Cochez au moins un jour', true); return; }
+    const params = {
+      programme_id: progId, jours_semaine: jours,
+      date_debut: document.getElementById('da_date').value,
+      nb_semaines: document.getElementById('da_semaines').value,
+      heure_debut: document.getElementById('da_debut').value,
+      heure_fin: document.getElementById('da_fin').value,
+      intervalle_minutes: document.getElementById('da_intervalle').value,
+      capacite: document.getElementById('da_cap').value
+    };
+    if (!params.date_debut) { toast('Date de début requise', true); return; }
+    try {
+      const r = await api('/dons/creneaux/lot', { method:'POST', body: JSON.stringify({ ...params, apercu: true }) });
+      _donsCreneauxApercu(params, r);
+    } catch(e) { toast(e.message, true); }
+  };
+}
+
+function _donsCreneauxApercu(params, r) {
+  const row = (s, statut) => `<div style="display:flex;justify-content:space-between;padding:7px 12px;border-bottom:1px solid var(--border);font-size:.82rem">
+    <span>${_donsFmtDT(s)}</span>${statut}
+  </div>`;
+  const rows = [
+    ...r.a_creer.map(s => row(s, pill('Nouveau','bp-green'))),
+    ...r.deja_existants.map(s => row(s, pill('Existe déjà — ignoré','bp-orange')))
+  ].join('');
+  openModal('Aperçu de la génération', `
+    <p style="font-size:.85rem;color:var(--muted);margin-bottom:10px">${r.a_creer.length} créneau(x) seront créés${r.deja_existants.length ? `, ${r.deja_existants.length} existent déjà et seront ignorés` : ''}.</p>
+    <div style="max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:8px">${rows || '<p style="padding:12px;text-align:center;color:var(--muted)">Aucun créneau à créer.</p>'}</div>
+    <div class="form-actions" style="margin-top:14px">
+      <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+      <button type="button" class="btn btn-primary" onclick="_donsCreneauxConfirmer()" ${!r.a_creer.length ? 'disabled' : ''}>Confirmer la création</button>
+    </div>
+  `);
+  window._donsCreneauxPendingParams = params;
+}
+
+async function _donsCreneauxConfirmer() {
+  const params = window._donsCreneauxPendingParams;
+  if (!params) return;
+  try {
+    const r = await api('/dons/creneaux/lot', { method:'POST', body: JSON.stringify(params) });
+    closeModal(); toast(`${r.crees} créneau(x) créé(s)${r.ignores ? ', ' + r.ignores + ' déjà existant(s) ignoré(s)' : ''}`); donsMgmtView();
+  } catch(e) { toast(e.message, true); }
+}
+
+async function _donsCreneauxModeles(progId) {
+  let regles = [];
+  try { regles = await api('/dons/programmes/' + progId + '/regles'); } catch(e) {}
+  const DOW = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+  openModal('Modèles de créneaux récurrents', `
+    <div class="table-card" style="margin-bottom:16px">
+      <div class="table-card-header"><h3>Modèles enregistrés</h3></div>
+      <div style="padding:12px 16px">
+        ${regles.length ? regles.map(r => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);gap:10px;flex-wrap:wrap">
+          <div><strong>${escHtml(r.nom)}</strong><br><span style="font-size:.78rem;color:var(--muted)">${r.jours_semaine.split(',').map(j=>DOW[+j]).join(', ')} · ${r.heure_debut}–${r.heure_fin} · aux ${r.intervalle_minutes} min · ${r.capacite} places</span></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn btn-primary btn-sm" onclick="closeModal();_donsCreneauxAssistant(${progId},{jours_semaine:[${r.jours_semaine}],heure_debut:'${r.heure_debut}',heure_fin:'${r.heure_fin}',intervalle_minutes:${r.intervalle_minutes},capacite:${r.capacite}})">Générer…</button>
+            <button class="btn btn-ghost btn-sm" style="color:#c62828" onclick="_donsCreneauxRegleSupprimer(${progId},${r.id})">Supprimer</button>
+          </div>
+        </div>`).join('') : '<p style="color:var(--muted);font-size:.85rem">Aucun modèle enregistré.</p>'}
+      </div>
+    </div>
+    <div class="table-card">
+      <div class="table-card-header"><h3>Nouveau modèle</h3></div>
+      <div style="padding:16px">
+        <form id="donsRegleForm">
+          <div class="form-group"><label>Nom *</label><input id="dr_nom" placeholder="ex. Samedi matin" required/></div>
+          <div class="form-group"><label>Jours de la semaine</label>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              ${DOW.map((l,i) => `<label style="display:flex;flex-direction:column;align-items:center;gap:2px;font-size:.7rem"><input type="checkbox" class="dr-dow" value="${i}"/>${l}</label>`).join('')}
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Heure de début *</label><input id="dr_debut" type="time" value="09:00" required/></div>
+            <div class="form-group"><label>Heure de fin *</label><input id="dr_fin" type="time" value="17:00" required/></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Intervalle (minutes)</label><input id="dr_intervalle" type="number" min="5" value="60"/></div>
+            <div class="form-group"><label>Capacité</label><input id="dr_cap" type="number" min="1" value="10"/></div>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-ghost" onclick="closeModal()">Fermer</button>
+            <button type="submit" class="btn btn-primary">Enregistrer le modèle</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `);
+  document.getElementById('donsRegleForm').onsubmit = async e => {
+    e.preventDefault();
+    const jours = Array.from(document.querySelectorAll('.dr-dow:checked')).map(c => parseInt(c.value));
+    if (!jours.length) { toast('Cochez au moins un jour', true); return; }
+    try {
+      await api('/dons/creneaux/regles', { method:'POST', body: JSON.stringify({
+        programme_id: progId, nom: document.getElementById('dr_nom').value, jours_semaine: jours,
+        heure_debut: document.getElementById('dr_debut').value, heure_fin: document.getElementById('dr_fin').value,
+        intervalle_minutes: document.getElementById('dr_intervalle').value, capacite: document.getElementById('dr_cap').value
+      })});
+      toast('Modèle enregistré'); _donsCreneauxModeles(progId);
+    } catch(e) { toast(e.message, true); }
+  };
+}
+async function _donsCreneauxRegleSupprimer(progId, id) {
+  if (!confirm('Supprimer ce modèle ?')) return;
+  try { await api('/dons/creneaux/regles/' + id, { method:'DELETE' }); toast('Modèle supprimé'); _donsCreneauxModeles(progId); }
+  catch(e) { toast(e.message, true); }
 }
 
 async function _donsFoyersTabHtml(prog) {
