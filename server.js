@@ -10116,13 +10116,34 @@ app.get('/api/dons/programmes/:id/foyers', authMiddleware, requireDonsAccess, (r
   const membresStmt = db.prepare(`SELECT u.prenom, u.nom, u.email FROM dons_foyer_membres m JOIN users u ON u.id=m.user_id WHERE m.foyer_id=?`);
   const depStmt = db.prepare('SELECT prenom, nom, lien, date_naissance FROM dependents WHERE user_id=?');
   const persStmt = db.prepare('SELECT * FROM dons_foyer_personnes WHERE foyer_id=? ORDER BY id');
+  const rdvStmt = db.prepare(`SELECT r.id, c.date_heure FROM dons_rdv r JOIN dons_creneaux c ON c.id=r.creneau_id
+    WHERE r.foyer_id=? AND r.statut='a_venir' ORDER BY c.date_heure LIMIT 1`);
   foyers.forEach(f => {
     f.membres = membresStmt.all(f.id); f.dependants = depStmt.all(f.responsable_id);
     f.personnes = persStmt.all(f.id).map(p => ({ ...p, compte: donsPersonneCompte(p) }));
     f.nb_comptees = f.personnes.filter(p => p.compte).length;
     f.valide_pour_reservation = donsFoyerValidePourReservation(f);
+    f.prochain_rdv = rdvStmt.get(f.id) || null;
   });
   res.json(foyers);
+});
+
+// Suppression définitive d'un foyer — bloquée si un retrait a déjà été enregistré (préserve
+// l'historique/audit des dons distribués) ; utiliser « Refuser » dans ce cas pour désactiver
+// le foyer sans perdre cet historique. Les tables liées (personnes, membres, rdv, scan_logs)
+// sont retirées en même temps (cascade DB pour les trois premières, purge manuelle pour les logs).
+app.delete('/api/dons/foyers/:id', authMiddleware, requireDonsAccess, (req, res) => {
+  const foyer = db.prepare('SELECT * FROM dons_foyers WHERE id=?').get(req.params.id);
+  if (!foyer) return res.status(404).json({ error: 'Foyer introuvable' });
+  const nbRetraits = db.prepare('SELECT COUNT(*) AS c FROM dons_retraits WHERE foyer_id=?').get(foyer.id).c;
+  if (nbRetraits > 0) {
+    return res.status(400).json({ error: `Ce foyer a ${nbRetraits} retrait(s) déjà enregistré(s) — impossible à supprimer sans perdre l'historique. Utilisez « Refuser » pour le désactiver.` });
+  }
+  db.prepare('DELETE FROM dons_scan_logs WHERE foyer_id=?').run(foyer.id);
+  db.prepare('DELETE FROM dons_foyers WHERE id=?').run(foyer.id);
+  logAudit(req.user.id, 'don_foyer_supprime', 'dons_foyers', foyer.id, `Responsable #${foyer.responsable_id}`, req.ip);
+  donsNotifierChange(null, foyer.programme_id);
+  res.json({ ok: true });
 });
 
 app.post('/api/dons/foyers/:id/valider', authMiddleware, requireDonsAccess, (req, res) => {

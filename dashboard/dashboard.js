@@ -16359,6 +16359,10 @@ async function _donsFoyersTabHtml(prog) {
     api('/dons/programmes/' + prog.id + '/journal').catch(() => ({ retraits: [] })),
   ]);
 
+  // Cache global : les modals (modifier/tutelle) lisent la fiche complète sans re-fetcher.
+  window._donsFoyersCache = {};
+  tousFoyers.forEach(f => { window._donsFoyersCache[f.id] = f; });
+
   // ── Tableau de bord — toujours calculé sur l'ensemble des foyers, pas juste l'onglet affiché ──
   const nbEnAttente = tousFoyers.filter(f => !f.date_validation && f.statut !== 'refuse').length;
   const foyersActifs = tousFoyers.filter(f => f.valide_pour_reservation);
@@ -16370,6 +16374,16 @@ async function _donsFoyersTabHtml(prog) {
     const d = new Date(r.date_retrait);
     return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
   }).length;
+
+  // Compteurs des vignettes de filtre — comptent exactement ce que montrera chaque filtre au
+  // clic (foyers, pas personnes), pour ne jamais afficher un chiffre qui ne correspond pas à
+  // la liste obtenue en cliquant dessus.
+  const unAnMs = 365 * 24 * 60 * 60 * 1000;
+  const nbFoyersEnAttente = tousFoyers.filter(f => f.statut === 'en_attente').length;
+  const nbFoyersValides = tousFoyers.filter(f => f.statut === 'valide').length;
+  const nbFoyersARevalider = tousFoyers.filter(f => f.statut !== 'refuse' && f.date_validation && (Date.now() - new Date(f.date_validation).getTime()) > unAnMs).length;
+  const nbFoyersRefuses = tousFoyers.filter(f => f.statut === 'refuse').length;
+  const nbFoyersTutelle = tousFoyers.filter(f => (f.personnes || []).some(p => p.tutelle_statut === 'demandee')).length;
 
   const kpi = (n, label, hl) => `<div style="flex:1 1 110px;background:${hl ? '#fff3e0' : 'var(--off)'};border-radius:12px;padding:16px;text-align:center">
     <div style="font-size:1.5rem;font-weight:800;font-variant-numeric:tabular-nums">${n}</div>
@@ -16386,7 +16400,7 @@ async function _donsFoyersTabHtml(prog) {
     }).join('')}
   </div>` : '';
 
-  const filterBtn = (v, label) => `<button class="btn btn-sm ${statutFilter===v?'btn-primary':'btn-ghost'}" onclick="window._donsFoyerFilter='${v}';donsMgmtView()">${label}</button>`;
+  const filterBtn = (v, label, count) => `<button class="btn btn-sm ${statutFilter===v?'btn-primary':'btn-ghost'}" onclick="window._donsFoyerFilter='${v}';donsMgmtView()">${label}${count !== undefined ? ` (${count})` : ''}</button>`;
 
   return `
     <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:20px">
@@ -16399,27 +16413,116 @@ async function _donsFoyersTabHtml(prog) {
     </div>
     ${stockBars}
     <div style="margin-bottom:14px;display:flex;flex-wrap:wrap;gap:6px">
-      ${filterBtn('en_attente','En attente')}${filterBtn('valide','Validés')}${filterBtn('a_revalider','À revalider (>1 an)')}${filterBtn('refuse','Refusés')}${nbTutelleEnAttente > 0 ? filterBtn('tutelle', `🛡️ Tutelles (${nbTutelleEnAttente})`) : ''}${filterBtn('','Tous')}
+      ${filterBtn('en_attente','En attente', nbFoyersEnAttente)}${filterBtn('valide','Validés', nbFoyersValides)}${filterBtn('a_revalider','À revalider (>1 an)', nbFoyersARevalider)}${filterBtn('refuse','Refusés', nbFoyersRefuses)}${filterBtn('tutelle', '🛡️ Tutelles', nbFoyersTutelle)}${filterBtn('','Tous')}
     </div>
-    <div class="table-wrapper"><table>
-      <thead><tr><th>Responsable</th><th>Foyer</th><th>Taille</th><th>Statut</th><th>Absences</th><th>Actions</th></tr></thead>
+    <div style="margin-bottom:14px">
+      <input id="donsFoyersSearch" type="text" class="form-input" placeholder="🔍 Rechercher un responsable (nom ou courriel)…" style="max-width:340px" oninput="_donsFoyersFiltrerRecherche(this.value)"/>
+    </div>
+    <div class="table-wrapper"><table id="donsFoyersTable">
+      <thead><tr><th>Responsable</th><th>Foyer</th><th>Taille</th><th>Statut</th><th>Rendez-vous</th><th>Absences</th><th>Actions</th></tr></thead>
       <tbody>
-        ${foyers.length ? foyers.map(f => `<tr>
+        ${foyers.length ? foyers.map(f => { const hasTutelle = (f.personnes||[]).some(p => p.tutelle_statut === 'demandee'); return `<tr data-search="${escHtml((f.prenom+' '+f.nom+' '+f.email).toLowerCase())}">
           <td><strong>${escHtml(f.prenom)} ${escHtml(f.nom)}</strong><br><span style="font-size:.75rem;color:var(--muted)">${escHtml(f.email)}</span></td>
           <td style="font-size:.82rem">${(f.personnes||[]).length ? f.personnes.map(p => { const a = p.date_naissance ? _donsAge(p.date_naissance) : null; const rel = DONS_RELATION_LABEL[p.relation] || 'Enfant'; const nonCompte = p.compte === false ? ' ⚠️' : ''; const tutelleActions = p.tutelle_statut === 'demandee' ? `<br><span style="font-size:.74rem">🛡️ Tutelle demandée — <a href="#" onclick="event.preventDefault();_donsApprouverTutelle(${f.id},${p.id})">Approuver</a> · <a href="#" onclick="event.preventDefault();_donsRefuserTutelle(${f.id},${p.id})">Refuser</a></span>` : ''; return `<div>${escHtml(p.prenom+' '+p.nom)} (${a !== null ? a + ' ans' : 'âge inconnu'} · ${rel})${nonCompte}${tutelleActions}</div>`; }).join('') : (f.membres.map(m => escHtml(m.prenom+' '+m.nom)).join(', ') || '–')}</td>
           <td>${f.nb_personnes}</td>
           <td>${f.valide_pour_reservation ? pill(f.statut==='en_attente'?'Actif (composition modifiée)':'Validé','bp-green') : pill(f.statut==='refuse'?'Refusé':'En attente','bp-'+(f.statut==='refuse'?'red':'orange'))}${f.necessite_reconfirmation ? ' ' + pill('⚠️ à reconfirmer','bp-orange') : ''}</td>
+          <td style="font-size:.82rem">${f.prochain_rdv ? _donsFmtDT(f.prochain_rdv.date_heure) : '–'}</td>
           <td>${f.nb_absences}</td>
-          <td style="white-space:nowrap">
+          <td style="min-width:200px">
+            <div style="display:flex;flex-wrap:wrap;gap:4px">
             ${!f.valide_pour_reservation && f.statut !== 'refuse' ? `<button class="btn btn-primary btn-sm" onclick="_donsValiderFoyer(${f.id},${f.nb_personnes})">${f.date_validation ? 'Revalider' : 'Valider'}</button>
               <button class="btn btn-ghost btn-sm" style="color:#c62828" onclick="_donsRefuserFoyer(${f.id})">Refuser</button>` : ''}
-            ${f.valide_pour_reservation && !f.necessite_reconfirmation ? `<button class="btn btn-ghost btn-sm" onclick="_donsReserverPourFoyer(${f.id},${prog.id})">Réserver un RDV</button>` : ''}
+            ${f.valide_pour_reservation && !f.necessite_reconfirmation && !f.prochain_rdv ? `<button class="btn btn-ghost btn-sm" onclick="_donsReserverPourFoyer(${f.id},${prog.id})">Réserver un RDV</button>` : ''}
             ${f.necessite_reconfirmation ? `<button class="btn btn-ghost btn-sm" onclick="_donsReconfirmerFoyer(${f.id})">Reconfirmer</button>` : ''}
+            ${hasTutelle ? `<button class="btn btn-ghost btn-sm" style="color:#e65100" onclick="_donsFoyerTutelleModal(${f.id})">🛡️ Tutelle</button>` : ''}
+            <button class="btn btn-ghost btn-sm" onclick="_donsFoyerModifierComite(${f.id},${prog.id})">Modifier</button>
+            <button class="btn btn-ghost btn-sm" style="color:#c62828" onclick="_donsFoyerSupprimer(${f.id})">Supprimer</button>
+            </div>
           </td>
-        </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">Aucun foyer</td></tr>'}
+        </tr>`; }).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">Aucun foyer</td></tr>'}
       </tbody>
     </table></div>
   `;
+}
+
+function _donsFoyersFiltrerRecherche(q) {
+  q = q.trim().toLowerCase();
+  document.querySelectorAll('#donsFoyersTable tbody tr[data-search]').forEach(tr => {
+    tr.style.display = !q || tr.dataset.search.includes(q) ? '' : 'none';
+  });
+}
+
+function _donsFoyerTutelleModal(foyerId) {
+  const f = window._donsFoyersCache?.[foyerId];
+  const pending = (f?.personnes || []).filter(p => p.tutelle_statut === 'demandee');
+  openModal('Demande(s) de tutelle', `
+    ${pending.length ? pending.map(p => `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
+      <div><strong>${escHtml(p.prenom)} ${escHtml(p.nom)}</strong>${p.date_naissance ? ' — ' + (_donsAge(p.date_naissance) ?? '?') + ' ans' : ''}<br><span style="font-size:.8rem;color:var(--muted)">${escHtml(p.tutelle_motif || 'Aucun motif fourni')}</span></div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-primary btn-sm" onclick="closeModal();_donsApprouverTutelle(${foyerId},${p.id})">Approuver</button>
+        <button class="btn btn-ghost btn-sm" style="color:#c62828" onclick="closeModal();_donsRefuserTutelle(${foyerId},${p.id})">Refuser</button>
+      </div>
+    </div>`).join('') : '<p style="color:var(--muted);font-size:.85rem">Aucune demande en attente pour ce foyer.</p>'}
+    <div class="form-actions" style="margin-top:14px"><button type="button" class="btn btn-ghost" onclick="closeModal()">Fermer</button></div>
+  `);
+}
+
+function _donsFoyerModifierComite(foyerId, progId) {
+  const f = window._donsFoyersCache?.[foyerId];
+  if (!f) { toast('Foyer introuvable — rafraîchissez la page', true); return; }
+  const personnes = f.personnes || [];
+  openModal('Modifier le foyer — ' + f.prenom + ' ' + f.nom, `
+    <p style="font-size:.82rem;color:var(--muted);margin-bottom:10px">Ajouter ou retirer une personne renvoie ce foyer en attente si le comité n'est pas à l'origine du changement.</p>
+    <div id="dfc_personnes">
+      ${personnes.length ? personnes.map(p => { const badges = _donsPersonneBadges(p, foyerId); return `<div style="padding:8px 0;border-bottom:1px solid var(--border)">
+        <div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+          <span style="font-size:.88rem">${escHtml(p.prenom)} ${escHtml(p.nom)}${p.date_naissance ? ' — ' + fmt(p.date_naissance) : ''} <span style="color:var(--muted);font-size:.78rem">(${DONS_RELATION_LABEL[p.relation] || 'Enfant'})</span>${p.date_naissance_verifiee ? ' ✅' : ''}</span>
+          <button type="button" class="btn btn-ghost btn-sm" style="color:#c62828" onclick="_donsSupprimerPersonneComite(${foyerId},${p.id})">Retirer</button>
+        </div>
+        ${badges ? `<div style="margin-top:4px">${badges}</div>` : ''}
+      </div>`; }).join('') : '<p style="font-size:.85rem;color:var(--muted)">Aucune personne listée.</p>'}
+    </div>
+    <form id="dfcAjoutForm" style="margin-top:14px;display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+      <div class="form-group" style="flex:1;min-width:100px;margin:0"><label>Prénom</label><input id="dfc_prenom" required/></div>
+      <div class="form-group" style="flex:1;min-width:100px;margin:0"><label>Nom</label><input id="dfc_nom" required/></div>
+      <div class="form-group" style="flex:1;min-width:140px;margin:0"><label>Date de naissance</label><input id="dfc_dob" type="date"/></div>
+      <div class="form-group" style="flex:1;min-width:110px;margin:0"><label>Relation</label>
+        <select id="dfc_relation" onchange="document.getElementById('dfc_email_wrap').style.display=this.value==='conjoint'?'block':'none'">
+          <option value="enfant" selected>Enfant</option>
+          <option value="conjoint">Conjoint(e)</option>
+        </select>
+      </div>
+      <div class="form-group dfc-email-wrap" id="dfc_email_wrap" style="flex:1;min-width:170px;margin:0;display:none"><label>Courriel du conjoint (AHH)</label><input id="dfc_email" type="email"/></div>
+      <button type="submit" class="btn btn-primary btn-sm">+ Ajouter</button>
+    </form>
+    <div class="form-actions" style="margin-top:16px"><button type="button" class="btn btn-ghost" onclick="closeModal()">Fermer</button></div>
+  `);
+  document.getElementById('dfcAjoutForm').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      const r = await api('/dons/foyers/' + foyerId + '/personnes', { method:'POST', body: JSON.stringify({
+        prenom: document.getElementById('dfc_prenom').value,
+        nom: document.getElementById('dfc_nom').value,
+        date_naissance: document.getElementById('dfc_dob').value || null,
+        relation: document.getElementById('dfc_relation').value,
+        email: document.getElementById('dfc_email')?.value?.trim() || null
+      })});
+      if (r.lien_echoue) toast('Courriel introuvable ou déjà rattaché ailleurs — personne ajoutée mais non comptée', true);
+      toast('Personne ajoutée'); closeModal(); donsMgmtView();
+    } catch(e) { toast(e.message, true); }
+  };
+}
+
+async function _donsSupprimerPersonneComite(foyerId, personneId) {
+  if (!confirm('Retirer cette personne du foyer ?')) return;
+  try { await api('/dons/foyers/' + foyerId + '/personnes/' + personneId, { method:'DELETE' }); toast('Personne retirée'); closeModal(); donsMgmtView(); }
+  catch(e) { toast(e.message, true); }
+}
+
+async function _donsFoyerSupprimer(foyerId) {
+  if (!confirm("Supprimer définitivement ce foyer ? Impossible si un retrait a déjà été enregistré — utilisez « Refuser » dans ce cas.")) return;
+  try { await api('/dons/foyers/' + foyerId, { method:'DELETE' }); toast('Foyer supprimé'); donsMgmtView(); }
+  catch(e) { toast(e.message, true); }
 }
 
 async function _donsReserverPourFoyer(foyerId, progId) {
