@@ -66,7 +66,7 @@ document.body.appendChild(backTop);
 // ══════════════════════════════════════════════════════════
 const waBtn = document.createElement('a');
 waBtn.id        = 'whatsappBtn';
-waBtn.href      = 'https://wa.me/19055197967?text=' + encodeURIComponent("Bonjour M. Jean Raymond, j'aimerais rejoindre le groupe whats'App de l'Association Haïtienne de Hamilton");
+waBtn.href      = 'https://wa.me/12489622073?text=' + encodeURIComponent("Bonjour M. Jean Raymond, j'aimerais rejoindre le groupe whats'App de l'Association Haïtienne de Hamilton");
 waBtn.target    = '_blank';
 waBtn.rel       = 'noopener';
 waBtn.title     = 'Rejoindre le groupe WhatsApp';
