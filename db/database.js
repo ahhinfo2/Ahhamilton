@@ -1771,6 +1771,36 @@ try {
 try { db.exec('ALTER TABLE dons_stock ADD COLUMN age_min INTEGER'); } catch {}
 try { db.exec('ALTER TABLE dons_stock ADD COLUMN age_max INTEGER'); } catch {}
 
+// Doublons hérités d'un bug de génération par lot : on garde la ligne la plus ancienne de
+// chaque (programme, date_heure) et on supprime les autres — seulement celles SANS
+// réservation, pour ne jamais toucher à un rendez-vous existant.
+try {
+  db.exec(`DELETE FROM dons_creneaux WHERE id IN (
+    SELECT c.id FROM dons_creneaux c
+    WHERE c.id NOT IN (SELECT MIN(id) FROM dons_creneaux GROUP BY programme_id, date_heure)
+    AND NOT EXISTS (SELECT 1 FROM dons_rdv WHERE creneau_id = c.id)
+  )`);
+} catch {}
+// Filet de sécurité définitif : impossible de créer deux créneaux à la même date/heure pour
+// le même programme (silencieux s'il reste un doublon avec réservations des deux côtés —
+// cas résiduel extrêmement rare, à traiter manuellement le cas échéant).
+try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_dons_creneaux_unique ON dons_creneaux(programme_id, date_heure)'); } catch {}
+
+// Modèles de créneaux récurrents sauvegardés (ex. « chaque samedi, 9h-17h ») — appliqués à la
+// demande (génère N semaines en un clic), pas de tâche automatique en arrière-plan.
+try { db.exec(`CREATE TABLE IF NOT EXISTS dons_creneaux_regles (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  programme_id INTEGER NOT NULL REFERENCES dons_programmes(id) ON DELETE CASCADE,
+  nom TEXT NOT NULL,
+  jours_semaine TEXT NOT NULL,
+  heure_debut TEXT NOT NULL,
+  heure_fin TEXT NOT NULL,
+  intervalle_minutes INTEGER NOT NULL DEFAULT 60,
+  capacite INTEGER NOT NULL DEFAULT 10,
+  cree_par INTEGER REFERENCES users(id),
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
 // Coordinateur des dons : accès complet à la gestion opérationnelle du module Dons
 // (foyers, stock, créneaux, journal) pour un membre qui n'a pas de rôle comité —
 // sans lui donner accès au reste du site. La création/modification du programme

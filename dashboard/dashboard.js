@@ -15467,6 +15467,7 @@ async function donsMgmtView() {
   else if (prog) {
     if (tab === 'foyers') body = await _donsFoyersTabHtml(prog);
     else if (tab === 'journal') body = await _donsJournalTabHtml(prog);
+    else if (tab === 'calendrier') body = await _donsVueCalendrier(prog);
     else body = await _donsProgrammeTabHtml(prog);
   }
 
@@ -15482,7 +15483,7 @@ async function donsMgmtView() {
           ${programmes.map(p => `<option value="${p.id}" ${p.id===progId?'selected':''}>${escHtml(p.nom)} (${p.statut})</option>`).join('')}
         </select>
       </div>` : ''}
-    ${prog || can.executive() ? `<div class="page-tabs-inline">${prog ? tabBtn('programme','Programme & stock & créneaux') + tabBtn('foyers','Foyers') + tabBtn('journal','Journal') : ''}${can.executive() ? tabBtn('coordinateurs','Coordinateurs') : ''}</div>` : ''}
+    ${prog || can.executive() ? `<div class="page-tabs-inline">${prog ? tabBtn('programme','Programme & stock & créneaux') + tabBtn('foyers','Foyers') + tabBtn('journal','Journal') + tabBtn('calendrier','Vue Calendrier') : ''}${can.executive() ? tabBtn('coordinateurs','Coordinateurs') : ''}</div>` : ''}
     ${body}
   `);
   if (tab === 'coordinateurs' && can.executive()) _dcInitDropdown();
@@ -15538,8 +15539,8 @@ async function _donsProgrammeTabHtml(prog) {
     </div>
 
     <div class="table-card">
-      <div class="table-card-header"><h3>Créneaux</h3>
-        <div style="display:flex;gap:8px">
+      <div class="table-card-header" style="flex-wrap:wrap;gap:8px;row-gap:8px"><h3>Créneaux</h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-ghost btn-sm" onclick="_donsGenererCreneaux(${prog.id})">Générer par lot (heures)</button>
           <button class="btn btn-primary btn-sm" onclick="_donsNewCreneau(${prog.id})">+ Créneau</button>
         </div>
@@ -15555,6 +15556,249 @@ async function _donsProgrammeTabHtml(prog) {
           </tr>`).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--muted)">Aucun créneau</td></tr>'}
         </tbody>
       </table></div>
+    </div>
+  `;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PROGRAMME DE DONS — Vue Calendrier (4 présentations du même jour, lecture seule)
+// Aucune des 4 n'écrit en base : « Gérer les créneaux »/« Gérer le stock » renvoient
+// vers l'onglet Programme existant, pour ne jamais dupliquer la logique de gestion.
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function _donsVueCalendrier(prog) {
+  let toutesCreneaux = [];
+  try { toutesCreneaux = await api('/dons/programmes/' + prog.id + '/creneaux'); } catch(e) {}
+  const datesAvecCreneaux = [...new Set(toutesCreneaux.map(c => c.date_heure.slice(0,10)))].sort();
+
+  if (!window._donsCalJour) {
+    const today = new Date().toISOString().slice(0,10);
+    window._donsCalJour = (datesAvecCreneaux.includes(today) || !datesAvecCreneaux.length)
+      ? today
+      : (datesAvecCreneaux.find(d => d >= today) || datesAvecCreneaux[datesAvecCreneaux.length - 1]);
+  }
+  const jour = window._donsCalJour;
+
+  let data = { date: jour, creneaux: [], attendus: 0, servis: 0 };
+  let stock = [];
+  try { data = await api('/dons/programmes/' + prog.id + '/jour?date=' + jour); } catch(e) {}
+  try { stock = await api('/dons/programmes/' + prog.id + '/stock'); } catch(e) {}
+
+  const concept = window._donsCalConcept || 'dashboard';
+  const cTab = (id, label) => `<button class="ptab ${concept===id?'active':''}" onclick="window._donsCalConcept='${id}';donsMgmtView()">${label}</button>`;
+  const dateLabel = new Date(jour + 'T00:00:00').toLocaleDateString('fr-CA', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+
+  let panneau;
+  if (concept === 'mois') panneau = _donsCalConceptMois(jour, data, stock, datesAvecCreneaux);
+  else if (concept === 'chrono') panneau = _donsCalConceptChrono(jour, data, stock);
+  else if (concept === 'widgets') panneau = _donsCalConceptWidgets(jour, data, stock);
+  else panneau = _donsCalConceptDashboard(jour, data, stock);
+
+  return `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+      <button class="btn btn-ghost btn-sm" onclick="_donsCalNavJour(-1)">‹ Jour précédent</button>
+      <strong style="text-transform:capitalize">${dateLabel}</strong>
+      <button class="btn btn-ghost btn-sm" onclick="_donsCalNavJour(1)">Jour suivant ›</button>
+      <input type="date" value="${jour}" onchange="window._donsCalJour=this.value;donsMgmtView()" style="margin-left:auto;padding:6px 8px;border:1px solid var(--border);border-radius:6px"/>
+    </div>
+    <div class="page-tabs-inline">${cTab('dashboard','Tableau de bord')}${cTab('mois','Calendrier + détail')}${cTab('chrono','Chronologie')}${cTab('widgets','Salle de contrôle')}</div>
+    ${panneau}
+  `;
+}
+
+function _donsCalNavJour(delta) {
+  const d = new Date((window._donsCalJour || new Date().toISOString().slice(0,10)) + 'T00:00:00');
+  d.setDate(d.getDate() + delta);
+  window._donsCalJour = d.toISOString().slice(0,10);
+  donsMgmtView();
+}
+
+function _donsCalStockHtml(stock) {
+  if (!stock.length) return '<p style="color:var(--muted);font-size:.85rem">Aucun article de stock.</p>';
+  return stock.map(s => {
+    const p = s.quantite_recue > 0 ? Math.round(s.quantite_restante / s.quantite_recue * 100) : 0;
+    return `<div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:4px"><span>${escHtml(s.nom)}</span><span>${s.quantite_restante} / ${s.quantite_recue}</span></div>
+      <div style="height:7px;border-radius:99px;background:var(--off);overflow:hidden"><div style="width:${p}%;height:100%;background:var(--g2)"></div></div>
+    </div>`;
+  }).join('');
+}
+
+// ── Concept 1 : Tableau de bord du jour ──────────────────────────────────────
+function _donsCalConceptDashboard(jour, data, stock) {
+  const pct = data.attendus > 0 ? Math.round(data.servis / data.attendus * 100) : 0;
+  const restants = Math.max(0, data.attendus - data.servis);
+  const kpi = (n, label, hl) => `<div style="flex:1 1 140px;background:${hl ? '#fff3e0' : 'var(--off)'};border-radius:12px;padding:16px;text-align:center">
+    <div style="font-size:1.5rem;font-weight:800;font-variant-numeric:tabular-nums">${n}</div>
+    <div style="font-size:.7rem;color:var(--muted);font-weight:700;margin-top:2px">${label}</div>
+  </div>`;
+  return `
+    <div class="table-card" style="margin-bottom:16px">
+      <div style="padding:20px;display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+        <div style="width:84px;height:84px;border-radius:50%;flex-shrink:0;position:relative;background:conic-gradient(var(--g2) 0deg ${pct*3.6}deg, var(--off) ${pct*3.6}deg 360deg)">
+          <div style="position:absolute;inset:9px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-weight:800">${pct}%</div>
+        </div>
+        <div>
+          <div style="font-size:.72rem;font-weight:800;color:var(--muted);text-transform:uppercase">Progression du jour</div>
+          <div style="font-size:1.3rem;font-weight:800;margin-top:2px">${data.servis} / ${data.attendus} foyers</div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:18px">
+      ${kpi(data.attendus, "Attendus aujourd'hui")}
+      ${kpi(data.servis, 'Déjà servis')}
+      ${kpi(restants, 'Restants', restants > 0)}
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:16px">
+      <div class="table-card" style="flex:1 1 360px">
+        <div class="table-card-header" style="flex-wrap:wrap;gap:8px"><h3>Créneaux du jour</h3><button class="btn btn-ghost btn-sm" onclick="window._donsTab='programme';donsMgmtView()">Gérer les créneaux</button></div>
+        <div>
+          ${data.creneaux.length ? data.creneaux.map(c => {
+            const pctC = c.capacite_max > 0 ? Math.min(100, Math.round(c.nb_reserves / c.capacite_max * 100)) : 0;
+            const color = pctC >= 100 ? '#c62828' : pctC >= 70 ? '#e65100' : 'var(--g2)';
+            return `<div style="display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid var(--border);font-size:.82rem">
+              <span style="font-weight:800;width:56px;flex-shrink:0">${c.date_heure.slice(11,16)}</span>
+              <div style="flex:1;height:8px;border-radius:99px;background:var(--off);overflow:hidden"><div style="width:${pctC}%;height:100%;background:${color}"></div></div>
+              <span style="width:52px;text-align:right;color:var(--muted);flex-shrink:0">${c.nb_reserves}/${c.capacite_max}</span>
+            </div>`;
+          }).join('') : '<div style="padding:20px;text-align:center;color:var(--muted)">Aucun créneau ce jour-là</div>'}
+        </div>
+      </div>
+      <div class="table-card" style="flex:1 1 360px">
+        <div class="table-card-header" style="flex-wrap:wrap;gap:8px"><h3>Stock restant</h3><button class="btn btn-ghost btn-sm" onclick="window._donsTab='programme';donsMgmtView()">Gérer le stock</button></div>
+        <div style="padding:14px 18px">${_donsCalStockHtml(stock)}</div>
+      </div>
+    </div>
+  `;
+}
+
+// ── Concept 2 : Calendrier mensuel + panneau de détail ───────────────────────
+function _donsCalConceptMois(jour, data, stock, datesAvecCreneaux) {
+  const d = new Date(jour + 'T00:00:00');
+  const year = d.getFullYear(), month = d.getMonth();
+  const startDow = (new Date(year, month, 1).getDay() + 6) % 7;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const monthLabel = new Date(year, month, 1).toLocaleDateString('fr-CA', { month:'long', year:'numeric' });
+  const pad = n => String(n).padStart(2, '0');
+  let cells = '';
+  for (let i = 0; i < startDow; i++) cells += '<div></div>';
+  for (let dnum = 1; dnum <= daysInMonth; dnum++) {
+    const ds = `${year}-${pad(month+1)}-${pad(dnum)}`;
+    const has = datesAvecCreneaux.includes(ds);
+    const sel = ds === jour;
+    cells += `<div onclick="window._donsCalJour='${ds}';donsMgmtView()" style="aspect-ratio:1;border-radius:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-size:.78rem;font-weight:700;${sel ? 'background:var(--g2);color:#fff' : 'background:var(--off)'}">
+      ${dnum}${has ? `<span style="width:5px;height:5px;border-radius:50%;background:${sel ? '#fff' : 'var(--g2)'}"></span>` : ''}
+    </div>`;
+  }
+  const restants = Math.max(0, data.attendus - data.servis);
+  const detailStat = (label, val) => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--border);font-size:.84rem"><span>${label}</span><strong>${val}</strong></div>`;
+  return `
+    <div class="table-card">
+      <div style="display:flex;flex-wrap:wrap">
+        <div style="flex:1 1 320px;padding:16px 18px;border-right:1px solid var(--border)">
+          <div style="font-weight:800;text-transform:capitalize;margin-bottom:10px">${monthLabel}</div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:4px">
+            ${['L','M','M','J','V','S','D'].map(l => `<div style="text-align:center;font-size:.62rem;color:var(--muted);font-weight:800">${l}</div>`).join('')}
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px">${cells}</div>
+        </div>
+        <div style="flex:1 1 320px;padding:18px">
+          <h4 style="margin-bottom:12px;text-transform:capitalize">${d.toLocaleDateString('fr-CA', { weekday:'long', day:'numeric', month:'long' })}</h4>
+          ${detailStat('Attendus', data.attendus + ' foyers')}
+          ${detailStat('Déjà servis', data.servis + ' foyers')}
+          ${detailStat('Restants', restants + ' foyers')}
+          ${detailStat('Créneaux ce jour', data.creneaux.length)}
+          ${stock.map(s => detailStat(escHtml(s.nom), s.quantite_restante + ' / ' + s.quantite_recue)).join('')}
+          <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+            <button class="btn btn-primary btn-sm" onclick="window._donsTab='programme';donsMgmtView()">Gérer les créneaux</button>
+            <button class="btn btn-ghost btn-sm" onclick="window._donsTab='foyers';donsMgmtView()">Voir les foyers</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ── Concept 3 : Chronologie en direct ────────────────────────────────────────
+function _donsCalConceptChrono(jour, data, stock) {
+  const heures = data.creneaux.map(c => parseInt(c.date_heure.slice(11,13)));
+  const minH = heures.length ? Math.min(...heures) : 9, maxH = heures.length ? Math.max(...heures) + 1 : 17;
+  const span = Math.max(1, maxH - minH);
+  const now = new Date();
+  const isToday = jour === now.toISOString().slice(0,10);
+  const nowPct = isToday ? Math.min(100, Math.max(0, ((now.getHours() + now.getMinutes()/60) - minH) / span * 100)) : null;
+  const segs = data.creneaux.map(c => {
+    const h = parseInt(c.date_heure.slice(11,13)), m = parseInt(c.date_heure.slice(14,16));
+    const left = ((h + m/60 - minH) / span) * 100;
+    const pct = c.capacite_max > 0 ? Math.round(c.nb_reserves / c.capacite_max * 100) : 0;
+    const full = pct >= 100;
+    return `<div style="position:absolute;left:${left}%;top:14px;min-width:64px;height:42px;border-radius:8px;background:${full ? '#fbeae7' : '#eaf5ec'};border:1px solid ${full ? '#c62828' : 'var(--g2)'};display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:.66rem;font-weight:800;color:${full ? '#c62828' : 'var(--g1)'};padding:0 4px">
+      ${c.date_heure.slice(11,16)}<br>${c.nb_reserves}/${c.capacite_max}
+    </div>`;
+  }).join('');
+  let labels = '';
+  for (let h = minH; h <= maxH; h++) labels += `<span style="flex:1;text-align:center;font-size:.68rem;color:var(--muted);font-weight:700">${h} h</span>`;
+  return `
+    <div class="table-card">
+      <div class="table-card-header" style="flex-wrap:wrap;gap:8px">
+        <h3>Chronologie du jour</h3>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="width:9px;height:9px;border-radius:50%;background:#c62828"></span>
+          <strong style="font-variant-numeric:tabular-nums">${data.servis} / ${data.attendus}</strong>
+          <span style="color:var(--muted);font-size:.82rem">foyers servis</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap">
+        <div style="flex:1 1 220px;padding:16px;border-right:1px solid var(--border)">
+          <h4 style="font-size:.82rem;margin-bottom:10px">📦 Stock en direct</h4>
+          ${_donsCalStockHtml(stock)}
+        </div>
+        <div style="flex:2 1 400px;padding:18px;overflow-x:auto">
+          <div style="position:relative;height:70px;min-width:700px;background:var(--off);border-radius:8px">
+            ${nowPct !== null ? `<div style="position:absolute;top:0;bottom:0;left:${nowPct}%;width:2px;background:#c62828"></div>` : ''}
+            ${segs}
+          </div>
+          <div style="display:flex;min-width:700px;margin-top:6px">${labels}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ── Concept 4 : Salle de contrôle (widgets) ──────────────────────────────────
+function _donsCalConceptWidgets(jour, data, stock) {
+  const pct = data.attendus > 0 ? Math.round(data.servis / data.attendus * 100) : 0;
+  const now = new Date();
+  const isToday = jour === now.toISOString().slice(0,10);
+  const nowMin = now.getHours()*60 + now.getMinutes();
+  const prochain = data.creneaux.find(c => {
+    if (!isToday) return true;
+    const h = parseInt(c.date_heure.slice(11,13)), m = parseInt(c.date_heure.slice(14,16));
+    return (h*60+m) > nowMin;
+  });
+  const complets = data.creneaux.filter(c => c.nb_reserves >= c.capacite_max).length;
+  const presqueComplets = data.creneaux.filter(c => c.capacite_max > 0 && c.nb_reserves < c.capacite_max && c.nb_reserves / c.capacite_max >= .7).length;
+  const widget = (title, content, wide) => `<div class="table-card" style="flex:${wide ? '2 1 460px' : '1 1 220px'};padding:16px">
+    <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:800;margin-bottom:10px">${title}</div>
+    ${content}
+  </div>`;
+  return `
+    <div style="display:flex;flex-wrap:wrap;gap:14px">
+      ${widget('Progression du jour', `
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+          <div style="width:80px;height:80px;border-radius:50%;flex-shrink:0;position:relative;background:conic-gradient(var(--g2) 0deg ${pct*3.6}deg, var(--off) ${pct*3.6}deg 360deg)">
+            <div style="position:absolute;inset:8px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-weight:800">${pct}%</div>
+          </div>
+          <div><div style="font-size:1.6rem;font-weight:800">${data.servis} / ${data.attendus}</div><div style="font-size:.78rem;color:var(--muted)">foyers servis aujourd'hui</div></div>
+        </div>
+      `)}
+      ${widget('Prochain créneau', prochain ? `<div style="font-size:1.5rem;font-weight:800">${prochain.date_heure.slice(11,16)}</div><div style="font-size:.78rem;color:var(--muted)">${prochain.nb_reserves} réservation(s)</div>` : '<div style="color:var(--muted);font-size:.85rem">Aucun créneau à venir</div>')}
+      ${widget('Stock', _donsCalStockHtml(stock))}
+      ${widget('Créneaux du jour', `<div style="font-size:1.6rem;font-weight:800">${data.creneaux.length}</div><div style="font-size:.78rem;color:var(--muted)">dont ${complets} complet(s)</div>`)}
+      ${widget('Alertes', presqueComplets > 0
+        ? `<div style="background:#fff3e0;border-radius:9px;padding:10px 12px;font-size:.78rem;color:#e65100;font-weight:700">⚠️ ${presqueComplets} créneau(x) presque complet(s) — pensez à en ouvrir d'autres.</div>`
+        : `<div style="background:var(--off);border-radius:9px;padding:10px 12px;font-size:.78rem;color:var(--muted)">Aucune alerte pour l'instant.</div>`, true)}
+      ${widget('Gérer', `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" onclick="window._donsTab='programme';donsMgmtView()">Créneaux & stock</button><button class="btn btn-ghost btn-sm" onclick="window._donsTab='foyers';donsMgmtView()">Foyers</button></div>`)}
     </div>
   `;
 }

@@ -9743,6 +9743,32 @@ app.delete('/api/dons/stock/:id', authMiddleware, requireDonsAccess, (req, res) 
 });
 
 // ── Créneaux ─────────────────────────────────────────────────────────────────
+
+// Liste des date_heure (ISO locale "YYYY-MM-DDTHH:MM") à générer, sur nb_semaines semaines
+// à partir de date_debut, pour les jours de semaine indiqués (0=dimanche..6=samedi, comme
+// Date.getDay()). Fonction pure — utilisée par la génération ponctuelle (nb_semaines:1) et
+// par l'application d'un modèle récurrent (nb_semaines:N).
+function donsGenererSlots({ jours_semaine, date_debut, nb_semaines, heure_debut, heure_fin, intervalle_minutes }) {
+  const [hDebut, mDebut] = heure_debut.split(':').map(Number);
+  const [hFin, mFin] = heure_fin.split(':').map(Number);
+  const jours = new Set((jours_semaine || []).map(Number));
+  const slots = [];
+  const nbJours = (parseInt(nb_semaines) || 1) * 7;
+  for (let i = 0; i < nbJours; i++) {
+    const jour = new Date(date_debut + 'T00:00:00');
+    jour.setDate(jour.getDate() + i);
+    if (!jours.has(jour.getDay())) continue;
+    let cur = new Date(jour); cur.setHours(hDebut, mDebut, 0, 0);
+    const fin = new Date(jour); fin.setHours(hFin, mFin, 0, 0);
+    while (cur < fin) {
+      slots.push(cur.getFullYear() + '-' + String(cur.getMonth()+1).padStart(2,'0') + '-' + String(cur.getDate()).padStart(2,'0')
+        + 'T' + String(cur.getHours()).padStart(2,'0') + ':' + String(cur.getMinutes()).padStart(2,'0'));
+      cur = new Date(cur.getTime() + (parseInt(intervalle_minutes) || 60) * 60000);
+    }
+  }
+  return slots;
+}
+
 app.get('/api/dons/programmes/:id/creneaux', authMiddleware, requireDonsAccess, (req, res) => {
   res.json(db.prepare(`SELECT c.*, (SELECT COUNT(*) FROM dons_rdv WHERE creneau_id=c.id AND statut != 'annule') AS nb_reserves
     FROM dons_creneaux c WHERE c.programme_id=? ORDER BY c.date_heure`).all(req.params.id));
@@ -9751,16 +9777,139 @@ app.get('/api/dons/programmes/:id/creneaux', authMiddleware, requireDonsAccess, 
 app.post('/api/dons/creneaux', authMiddleware, requireDonsAccess, (req, res) => {
   const { programme_id, date_heure, capacite_max } = req.body;
   if (!programme_id || !date_heure) return res.status(400).json({ error: 'Programme et date requis' });
+  if (db.prepare('SELECT id FROM dons_creneaux WHERE programme_id=? AND date_heure=?').get(programme_id, date_heure)) {
+    return res.status(409).json({ error: 'Un créneau existe déjà à cette date et heure.' });
+  }
   const r = db.prepare('INSERT INTO dons_creneaux (programme_id, date_heure, capacite_max, cree_par) VALUES (?,?,?,?)')
     .run(programme_id, date_heure, parseInt(capacite_max) || 10, req.user.id);
+  donsNotifierChange(null, programme_id);
   res.json({ id: r.lastInsertRowid });
 });
 
+app.put('/api/dons/creneaux/:id', authMiddleware, requireDonsAccess, (req, res) => {
+  const creneau = db.prepare('SELECT * FROM dons_creneaux WHERE id=?').get(req.params.id);
+  if (!creneau) return res.status(404).json({ error: 'Créneau introuvable' });
+  const { capacite_max, date_heure } = req.body;
+  if (date_heure && date_heure !== creneau.date_heure) {
+    if (db.prepare('SELECT id FROM dons_creneaux WHERE programme_id=? AND date_heure=? AND id!=?').get(creneau.programme_id, date_heure, creneau.id)) {
+      return res.status(409).json({ error: 'Un créneau existe déjà à cette date et heure.' });
+    }
+  }
+  db.prepare('UPDATE dons_creneaux SET capacite_max=?, date_heure=? WHERE id=?').run(
+    capacite_max !== undefined ? parseInt(capacite_max) || creneau.capacite_max : creneau.capacite_max,
+    date_heure || creneau.date_heure, creneau.id
+  );
+  donsNotifierChange(null, creneau.programme_id);
+  res.json({ ok: true });
+});
+
 app.delete('/api/dons/creneaux/:id', authMiddleware, requireDonsAccess, (req, res) => {
+  const creneau = db.prepare('SELECT * FROM dons_creneaux WHERE id=?').get(req.params.id);
+  if (!creneau) return res.status(404).json({ error: 'Créneau introuvable' });
   const nb = db.prepare("SELECT COUNT(*) AS c FROM dons_rdv WHERE creneau_id=? AND statut != 'annule'").get(req.params.id).c;
   if (nb > 0) return res.status(400).json({ error: `${nb} rendez-vous sont liés à ce créneau — annulez-les d'abord.` });
   db.prepare('DELETE FROM dons_creneaux WHERE id=?').run(req.params.id);
+  donsNotifierChange(null, creneau.programme_id);
   res.json({ ok: true });
+});
+
+// Génération en lot (un jour, ou un modèle récurrent sur plusieurs semaines) — avec aperçu :
+// apercu=true ne touche pas la base, se contente de classer chaque date entre "à créer" et
+// "déjà existant", pour que le client affiche un avant-goût avant de confirmer.
+app.post('/api/dons/creneaux/lot', authMiddleware, requireDonsAccess, (req, res) => {
+  const { programme_id, jours_semaine, date_debut, nb_semaines, heure_debut, heure_fin, intervalle_minutes, capacite, apercu } = req.body;
+  if (!programme_id || !date_debut || !heure_debut || !heure_fin) return res.status(400).json({ error: 'Champs requis manquants' });
+  const jours = Array.isArray(jours_semaine) && jours_semaine.length ? jours_semaine : [new Date(date_debut + 'T00:00:00').getDay()];
+  const slots = donsGenererSlots({ jours_semaine: jours, date_debut, nb_semaines: nb_semaines || 1, heure_debut, heure_fin, intervalle_minutes });
+  const existeStmt = db.prepare('SELECT id FROM dons_creneaux WHERE programme_id=? AND date_heure=?');
+  const aCreer = [], dejaExistants = [];
+  slots.forEach(s => { (existeStmt.get(programme_id, s) ? dejaExistants : aCreer).push(s); });
+
+  if (apercu) return res.json({ a_creer: aCreer, deja_existants: dejaExistants });
+
+  const cap = parseInt(capacite) || 10;
+  const insert = db.prepare('INSERT INTO dons_creneaux (programme_id, date_heure, capacite_max, cree_par) VALUES (?,?,?,?)');
+  let crees = 0;
+  aCreer.forEach(s => { try { insert.run(programme_id, s, cap, req.user.id); crees++; } catch {} });
+  if (crees > 0) donsNotifierChange(null, programme_id);
+  res.json({ crees, ignores: dejaExistants.length });
+});
+
+// Actions de groupe (sélection multiple par glisser dans le calendrier).
+app.post('/api/dons/creneaux/bulk', authMiddleware, requireDonsAccess, (req, res) => {
+  const { ids, action, capacite_max } = req.body;
+  if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: 'Aucun créneau sélectionné' });
+  let programmeId = null, traites = 0;
+  const proteges = [];
+  ids.forEach(id => {
+    const creneau = db.prepare('SELECT * FROM dons_creneaux WHERE id=?').get(id);
+    if (!creneau) return;
+    programmeId = creneau.programme_id;
+    if (action === 'supprimer') {
+      const nb = db.prepare("SELECT COUNT(*) AS c FROM dons_rdv WHERE creneau_id=? AND statut != 'annule'").get(id).c;
+      if (nb > 0) { proteges.push(id); return; }
+      db.prepare('DELETE FROM dons_creneaux WHERE id=?').run(id);
+      traites++;
+    } else if (action === 'capacite') {
+      db.prepare('UPDATE dons_creneaux SET capacite_max=? WHERE id=?').run(parseInt(capacite_max) || creneau.capacite_max, id);
+      traites++;
+    }
+  });
+  if (traites > 0 && programmeId) donsNotifierChange(null, programmeId);
+  res.json({ traites, proteges: proteges.length });
+});
+
+// Copie tous les créneaux d'une journée vers une autre (même heure, même capacité) —
+// ignore silencieusement ceux qui existent déjà au jour cible.
+app.post('/api/dons/creneaux/dupliquer-jour', authMiddleware, requireDonsAccess, (req, res) => {
+  const { programme_id, date_source, date_cible } = req.body;
+  if (!programme_id || !date_source || !date_cible) return res.status(400).json({ error: 'Champs requis manquants' });
+  const sources = db.prepare(`SELECT * FROM dons_creneaux WHERE programme_id=? AND date_heure LIKE ? ORDER BY date_heure`).all(programme_id, date_source + '%');
+  const insert = db.prepare('INSERT INTO dons_creneaux (programme_id, date_heure, capacite_max, cree_par) VALUES (?,?,?,?)');
+  const existeStmt = db.prepare('SELECT id FROM dons_creneaux WHERE programme_id=? AND date_heure=?');
+  let crees = 0;
+  sources.forEach(s => {
+    const heure = s.date_heure.slice(10); // "THH:MM"
+    const cible = date_cible + heure;
+    if (existeStmt.get(programme_id, cible)) return;
+    try { insert.run(programme_id, cible, s.capacite_max, req.user.id); crees++; } catch {}
+  });
+  if (crees > 0) donsNotifierChange(null, programme_id);
+  res.json({ crees, ignores: sources.length - crees });
+});
+
+// ── Modèles de créneaux récurrents (sauvegardés, appliqués à la demande) ─────
+app.get('/api/dons/programmes/:id/regles', authMiddleware, requireDonsAccess, (req, res) => {
+  res.json(db.prepare('SELECT * FROM dons_creneaux_regles WHERE programme_id=? ORDER BY date_creation DESC').all(req.params.id));
+});
+
+app.post('/api/dons/creneaux/regles', authMiddleware, requireDonsAccess, (req, res) => {
+  const { programme_id, nom, jours_semaine, heure_debut, heure_fin, intervalle_minutes, capacite } = req.body;
+  if (!programme_id || !nom || !nom.trim() || !Array.isArray(jours_semaine) || !jours_semaine.length || !heure_debut || !heure_fin) {
+    return res.status(400).json({ error: 'Champs requis manquants' });
+  }
+  const r = db.prepare(`INSERT INTO dons_creneaux_regles (programme_id, nom, jours_semaine, heure_debut, heure_fin, intervalle_minutes, capacite, cree_par)
+    VALUES (?,?,?,?,?,?,?,?)`).run(programme_id, nom.trim(), jours_semaine.join(','), heure_debut, heure_fin,
+    parseInt(intervalle_minutes) || 60, parseInt(capacite) || 10, req.user.id);
+  res.json({ id: r.lastInsertRowid });
+});
+
+app.delete('/api/dons/creneaux/regles/:id', authMiddleware, requireDonsAccess, (req, res) => {
+  db.prepare('DELETE FROM dons_creneaux_regles WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// Agrège tout ce qu'il faut pour une journée de distribution donnée (Vue Calendrier) — une
+// seule route lue par les 4 présentations, pour ne jamais dupliquer la logique de comptage.
+app.get('/api/dons/programmes/:id/jour', authMiddleware, requireDonsAccess, (req, res) => {
+  const date = req.query.date;
+  if (!date) return res.status(400).json({ error: 'date requise' });
+  const creneaux = db.prepare(`SELECT c.*, (SELECT COUNT(*) FROM dons_rdv WHERE creneau_id=c.id AND statut != 'annule') AS nb_reserves
+    FROM dons_creneaux c WHERE c.programme_id=? AND c.date_heure LIKE ? ORDER BY c.date_heure`).all(req.params.id, date + '%');
+  const attendus = db.prepare(`SELECT COUNT(*) AS c FROM dons_rdv r JOIN dons_creneaux c ON c.id=r.creneau_id
+    WHERE c.programme_id=? AND c.date_heure LIKE ? AND r.statut != 'annule'`).get(req.params.id, date + '%').c;
+  const servis = db.prepare(`SELECT COUNT(*) AS c FROM dons_retraits WHERE programme_id=? AND date_retrait LIKE ?`).get(req.params.id, date + '%').c;
+  res.json({ date, creneaux, attendus, servis });
 });
 
 app.get('/api/dons/programmes/:id/creneaux-disponibles', authMiddleware, (req, res) => {
