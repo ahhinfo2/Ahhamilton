@@ -4557,6 +4557,12 @@ async function messages() {
   const { inbox, sent } = await api('/messages');
   const allUsers = can.adminOrSec() ? await api('/users') : [];
   window._msgAllUsers = allUsers;
+  // Cache par id — sujet/contenu sont déjà échappés côté serveur à l'envoi (POST /api/messages),
+  // mais ne doivent plus passer par un attribut onclick : même échappé, une valeur interpolée
+  // dans "fn('...')" reste un vecteur si l'échappement venait à changer. On lit depuis ce cache
+  // au clic plutôt que de reconstruire une chaîne JS avec des données utilisateur.
+  window._msgInbox = {};
+  inbox.forEach(m => { window._msgInbox[m.message_id||m.id] = m; });
   setContent(`
     <div class="page-header">
       <div><h2>Messages</h2><p>Boîte de réception et messages envoyés</p></div>
@@ -4569,8 +4575,8 @@ async function messages() {
       <div class="table-wrapper"><table>
         <thead><tr><th>De</th><th>Sujet</th><th>Date</th><th>Lu</th></tr></thead>
         <tbody>${inbox.map(m=>`<tr style="${!m.lu?'font-weight:600':''}">
-          <td>${m.expediteur}</td>
-          <td><span style="cursor:pointer;color:var(--g2)" onclick="readMessage(${m.message_id||m.id},'${m.sujet||'Sans sujet'}','${m.contenu?.replace(/'/g,"\\'")||''}')">${m.sujet||'(Sans sujet)'}</span></td>
+          <td>${escHtml(m.expediteur)}</td>
+          <td><span style="cursor:pointer;color:var(--g2)" onclick="readMessage(${m.message_id||m.id})">${m.sujet||'(Sans sujet)'}</span></td>
           <td>${fmt(m.date_envoi)}</td>
           <td>${m.lu ? '✅' : '🆕'}</td>
         </tr>`).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--muted)">Aucun message reçu</td></tr>'}</tbody>
@@ -4590,8 +4596,9 @@ async function messages() {
   `);
 }
 
-function readMessage(id, sujet, contenu) {
-  openModal(sujet || 'Message', `<div style="white-space:pre-wrap;line-height:1.7;font-size:.9rem">${contenu}</div>`);
+function readMessage(id) {
+  const m = window._msgInbox?.[id];
+  openModal(m?.sujet || 'Message', `<div style="white-space:pre-wrap;line-height:1.7;font-size:.9rem">${m?.contenu||''}</div>`);
   api(`/messages/${id}/read`, { method:'PUT' }).catch(()=>{});
 }
 
@@ -7165,6 +7172,14 @@ async function gmExtDeleteOne(uid) {
 
 let _extCurrent = null; // { e, body } for the open external email
 
+// Ne construit plus l'attribut onclick avec le sujet/expéditeur du courriel externe : un
+// expéditeur externe contrôle entièrement ces champs, et un " ou ' dans l'objet suffirait à
+// sortir de l'attribut et exécuter du JS dans la session de qui ouvre le courriel.
+function gmReplyToExtCurrent() {
+  if (!_extCurrent?.e) return;
+  gmCompose({ subject: 'Re: ' + (_extCurrent.e.subject || ''), to: _extCurrent.e.from || '' });
+}
+
 async function gmShowExternal(e) {
   _extCurrent = { e, body: '' };
   // Mark as read immediately in the DOM and fire API call in background
@@ -7184,7 +7199,7 @@ async function gmShowExternal(e) {
       <div style="padding:20px 24px 16px;flex-shrink:0;border-bottom:1px solid var(--gm-border)">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
           <button class="btn btn-ghost btn-sm" onclick="gmNav('external')">← Retour</button>
-          <button class="btn btn-outline btn-sm" onclick="gmCompose({subject:'Re: ${safeSubj.replace(/'/g,'&#39;')}',to:'${safeFrom}'})">↩ Répondre</button>
+          <button class="btn btn-outline btn-sm" onclick="gmReplyToExtCurrent()">↩ Répondre</button>
           <button class="btn btn-outline btn-sm" onclick="gmExtForward()">↪ Transférer</button>
           <button class="btn btn-sm" style="color:#d93025;border:1px solid #d93025;background:transparent" onclick="gmExtDelete(${e.uid})">🗑 Supprimer</button>
         </div>
@@ -7517,9 +7532,9 @@ function gmCompose(pre = {}) {
         </div>
       </div>
       <div class="gm-cfield"><label>Objet :</label>
-        <input id="mc-subj" class="gm-field-input" value="${(pre.subject||'').replace(/"/g,'&quot;')}" placeholder="Objet…"/>
+        <input id="mc-subj" class="gm-field-input" value="${escHtml(pre.subject||'')}" placeholder="Objet…"/>
       </div>
-      <textarea id="mc-body" class="gm-body-area">${pre.body||''}</textarea>
+      <textarea id="mc-body" class="gm-body-area">${escHtml(pre.body||'')}</textarea>
       <div class="gm-compose-foot">
         <button class="btn btn-primary" style="border-radius:20px;padding:9px 22px" id="mc-send" onclick="gmSend()">Envoyer</button>
         ${can.executive() ? `<button class="btn btn-accent btn-sm" style="border-radius:20px" onclick="gmSendToAll()" title="Envoyer à tous les membres">📢 Tous</button>` : ''}
@@ -9313,22 +9328,22 @@ async function mes_talents() {
           '<div class="mpc-header">' +
             (t.photo_path ? '<img src="' + BASE + t.photo_path + '" class="mpc-photo"/>' : '<div class="mpc-photo-placeholder">' + cat.emoji + '</div>') +
             '<div class="mpc-info">' +
-              '<div class="mpc-name">' + t.nom + '</div>' +
-              '<div class="mpc-cat">' + cat.emoji + ' ' + cat.label + (t.specialite ? ' · ' + t.specialite : '') + '</div>' +
+              '<div class="mpc-name">' + escHtml(t.nom) + '</div>' +
+              '<div class="mpc-cat">' + cat.emoji + ' ' + escHtml(cat.label) + (t.specialite ? ' · ' + escHtml(t.specialite) : '') + '</div>' +
               '<div style="margin-top:4px">' + statutBadge(t.statut) + '</div>' +
               '<div class="mpc-date">Publié le ' + fmt(t.date_creation) + '</div>' +
             '</div>' +
           '</div>' +
-          (t.description ? '<p class="mpc-desc">' + t.description + '</p>' : '') +
+          (t.description ? '<p class="mpc-desc">' + escHtml(t.description) + '</p>' : '') +
           '<div class="mpc-contact">' +
-            (t.telephone ? '<span>📞 ' + t.telephone + '</span>' : '') +
-            (t.site_web ? '<span>🌐 ' + t.site_web + '</span>' : '') +
-            (t.adresse ? '<span>📍 ' + t.adresse + '</span>' : '') +
+            (t.telephone ? '<span>📞 ' + escHtml(t.telephone) + '</span>' : '') +
+            (t.site_web ? '<span>🌐 ' + escHtml(t.site_web) + '</span>' : '') +
+            (t.adresse ? '<span>📍 ' + escHtml(t.adresse) + '</span>' : '') +
           '</div>' +
           (t.statut !== 'retire' ?
             '<div class="mpc-actions">' +
               '<button class="btn btn-sm btn-outline" onclick="openMemberTalentModify(window._myTalentById[' + t.id + '])">✏️ Modifier</button>' +
-              '<button class="btn btn-sm btn-danger" onclick="openTalentWithdraw(' + t.id + ',\'' + t.nom.replace(/'/g,"\\'") + '\')">📤 Retirer</button>' +
+              '<button class="btn btn-sm btn-danger" onclick="openTalentWithdraw(' + t.id + ',window._myTalentById[' + t.id + '].nom)">📤 Retirer</button>' +
             '</div>'
           : '<div class="mpc-actions"><span style="font-size:.78rem;color:var(--muted)">Publication retirée</span></div>') +
         '</div>';
@@ -9421,7 +9436,7 @@ function openMemberTalentModify(t) {
 function openTalentWithdraw(id, nom) {
   openModal('📤 Retirer ma fiche talent',
     '<form id="withdrawTalentForm">' +
-      '<p style="font-size:.88rem;color:var(--muted);margin-bottom:16px">Vous êtes sur le point de retirer votre fiche « <strong>' + nom + '</strong> » de la publication.</p>' +
+      '<p style="font-size:.88rem;color:var(--muted);margin-bottom:16px">Vous êtes sur le point de retirer votre fiche « <strong>' + escHtml(nom) + '</strong> » de la publication.</p>' +
       '<div class="form-group">' +
         '<label>Êtes-vous satisfait(e) de notre service ? *</label>' +
         '<div style="display:flex;gap:12px;margin-top:8px">' +
@@ -19171,6 +19186,10 @@ async function refreshNlSubs() {
     container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:32px">Aucun abonné pour l\'instant</p>';
     return;
   }
+  // Cache par id — l'adresse "email" saisie par un visiteur anonyme (formulaire public, sans
+  // authentification) ne doit jamais être reconstruite dans un attribut onclick.
+  window._nlSubsById = {};
+  subs.forEach(s => { window._nlSubsById[s.id] = s; });
   container.innerHTML =
     `<p style="margin:16px 0 12px;font-size:.85rem;color:var(--muted)">${subs.length} abonné${subs.length > 1 ? 's' : ''}</p>` +
     '<table class="data-table"><thead><tr>' +
@@ -19182,7 +19201,7 @@ async function refreshNlSubs() {
         <td>${escHtml(s.email)}</td>
         <td>${fmt(s.date_inscription)}</td>
         <td>
-          <button class="btn btn-ghost btn-sm" onclick="nlSubDelete(${s.id},'${escHtml(s.email)}')"
+          <button class="btn btn-ghost btn-sm" onclick="nlSubDelete(${s.id})"
             style="color:#c62828;padding:4px 8px" title="Désabonner">🗑️ Désabonner</button>
         </td>
       </tr>`
@@ -19190,7 +19209,8 @@ async function refreshNlSubs() {
     '</tbody></table>';
 }
 
-async function nlSubDelete(id, email) {
+async function nlSubDelete(id) {
+  const email = window._nlSubsById?.[id]?.email || '';
   if (!confirm('Désabonner ' + email + ' ?')) return;
   await api('/newsletter/subscribers/' + id, { method: 'DELETE' });
   toast('Abonné retiré');

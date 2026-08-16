@@ -162,6 +162,8 @@
 
     const CAT_EMOJI  = { electronique:'📱',meubles:'🛋️',vetements:'👗',maison:'🏡',sport:'⚽',vehicule:'🚗',cuisine:'🍽️',bebe:'🧸',services:'🤝',entraide:'🇭🇹',autre:'📦' };
 
+    function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
     function annCard(a, idx) {
       const photos = a.photos || [];
       const hasPhotos = photos.length > 0;
@@ -169,7 +171,7 @@
       let photoHtml = '';
       if (hasPhotos) {
         photoHtml = '<img id="ann-ph-' + idx + '" src="' + BASE + photos[0] +
-          '" alt="' + a.titre + '" onerror="this.style.display=\'none\'" ' +
+          '" alt="' + escHtml(a.titre) + '" onerror="this.style.display=\'none\'" ' +
           'onclick="annLbOpen(' + JSON.stringify(photos).replace(/"/g,'&quot;') + ',0)"/>';
         if (photos.length > 1) {
           photoHtml += '<button class="ann-nav-btn ann-prev" onclick="event.stopPropagation();annCardNav(' + idx + ',' + JSON.stringify(photos).replace(/"/g,'&quot;') + ',-1)">&#8249;</button>';
@@ -193,14 +195,14 @@
           photoHtml +
         '</div>' +
         '<div class="ann-body">' +
-          '<div class="ann-title">' + a.titre + '</div>' +
-          (a.description ? '<p class="ann-desc">' + a.description + '</p>' : '') +
+          '<div class="ann-title">' + escHtml(a.titre) + '</div>' +
+          (a.description ? '<p class="ann-desc">' + escHtml(a.description) + '</p>' : '') +
           prix +
           '<div class="ann-meta">' +
-            '<span>👤 ' + a.prenom + ' ' + a.nom + '</span>' +
+            '<span>👤 ' + escHtml(a.prenom) + ' ' + escHtml(a.nom) + '</span>' +
             '<span>📅 ' + date + '</span>' +
           '</div>' +
-          (a.telephone ? '<div class="ann-tel">📞 <a href="tel:' + a.telephone + '">' + a.telephone + '</a></div>' : '') +
+          (a.telephone ? '<div class="ann-tel">📞 <a href="tel:' + escHtml(a.telephone) + '">' + escHtml(a.telephone) + '</a></div>' : '') +
         '</div>' +
       '</div>';
     }

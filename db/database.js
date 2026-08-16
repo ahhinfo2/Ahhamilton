@@ -909,19 +909,15 @@ function init() {
     { i:8, prenom:'Claire',  nom:'Baptiste',  plan:'gratuit'     },
     { i:9, prenom:'Marc',    nom:'Henri',     plan:'gratuit'     },
   ];
-  const insertM = db.prepare(`INSERT OR IGNORE INTO users (prenom, nom, email, password_hash, role, plan) VALUES (?,?,?,?,'member',?)`);
-  mambData.forEach(m => insertM.run(m.prenom, m.nom, `mamb${m.i}@ahhamilton.ca`, hashMamb, m.plan));
-  // Forcer le mot de passe ET actif=1 sur tous les comptes mamb (corrige anciens hashes et comptes désactivés)
-  mambData.forEach(m => {
-    const existing = db.prepare("SELECT id FROM users WHERE email = ?").get(`mamb${m.i}@ahhamilton.ca`);
-    if (existing) {
-      db.prepare("UPDATE users SET password_hash = ?, actif = 1 WHERE email = ?").run(hashMamb, `mamb${m.i}@ahhamilton.ca`);
-      console.log(`  ↳ mamb${m.i} mis à jour`);
-    } else {
-      console.log(`  ↳ mamb${m.i} introuvable après INSERT, vérifier DB`);
-    }
-  });
-  console.log('✅ Comptes mamb1–mamb9 synchronisés (mot de passe: mam123456)');
+  // Comptes de démo — jamais en production : le dépôt est public sur GitHub, donc ce mot de
+  // passe est connu de quiconque le lit. Créés une seule fois (INSERT OR IGNORE) ; on ne
+  // touche plus jamais password_hash/actif d'un compte existant à chaque redémarrage, sinon un
+  // changement de mot de passe légitime serait silencieusement annulé au prochain déploiement.
+  if (process.env.NODE_ENV !== 'production') {
+    const insertM = db.prepare(`INSERT OR IGNORE INTO users (prenom, nom, email, password_hash, role, plan) VALUES (?,?,?,?,'member',?)`);
+    mambData.forEach(m => insertM.run(m.prenom, m.nom, `mamb${m.i}@ahhamilton.ca`, hashMamb, m.plan));
+    console.log('✅ Comptes de démo mamb1–mamb9 vérifiés (créés si absents, mot de passe inchangé sinon)');
+  }
 
   // ── Comptes comité (adresses génériques réassignables) ────────────────
   // Si un délégué/secrétaire quitte un jour, son successeur reprend la même
@@ -943,15 +939,19 @@ function init() {
       if (user) break;
     }
     if (user) {
-      // Ne jamais écraser un titre déjà personnalisé manuellement par le comité
-      db.prepare("UPDATE users SET email = ?, password_hash = ?, actif = 1, titre_comite = COALESCE(NULLIF(titre_comite,''), ?) WHERE id = ?")
-        .run(c.email, hashCommittee, c.titre_comite, user.id);
+      // Remappe l'adresse (successeur qui reprend un rôle) et ne jamais écraser un titre déjà
+      // personnalisé — mais on NE touche plus jamais password_hash/actif d'un compte existant :
+      // sinon un changement de mot de passe légitime par le titulaire du poste serait
+      // silencieusement annulé au prochain redémarrage (le mot de passe par défaut ci-dessus
+      // est visible de quiconque lit ce dépôt public).
+      db.prepare("UPDATE users SET email = ?, titre_comite = COALESCE(NULLIF(titre_comite,''), ?) WHERE id = ?")
+        .run(c.email, c.titre_comite, user.id);
     } else {
       db.prepare('INSERT INTO users (prenom, nom, email, password_hash, role, titre_comite) VALUES (?,?,?,?,?,?)')
         .run(c.prenom, c.nom, c.email, hashCommittee, c.role, c.titre_comite);
     }
   });
-  console.log('✅ Comptes comité synchronisés (mot de passe: AHH2026!)');
+  console.log('✅ Comptes comité vérifiés (mot de passe par défaut à la création uniquement : AHH2026!)');
 
   // ── Salons de chat par défaut ──────────────────────────────────────────
   const existingRoom = db.prepare("SELECT id FROM chat_rooms WHERE type = 'general'").get();

@@ -144,22 +144,27 @@
     let activeFilter = 'tous';
     let searchQuery = '';
 
+    function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    // N'autorise que http(s) dans un href — bloque javascript:/data: qu'un membre pourrait
+    // glisser dans son "site web" pour exécuter du JS quand un visiteur clique le lien.
+    function safeUrl(u) { return /^https?:\/\//i.test(u||'') ? escHtml(u) : '#'; }
+
     function renderTalent(t) {
       const cat = CAT_META[t.categorie] || { emoji: '✨', label: t.categorie };
       const photoHtml = t.photo_path
-        ? '<img src="' + BASE + t.photo_path + '" alt="' + t.nom + '" onerror="this.style.display=\'none\'"/>'
+        ? '<img src="' + BASE + t.photo_path + '" alt="' + escHtml(t.nom) + '" onerror="this.style.display=\'none\'"/>'
         : '<span>' + cat.emoji + '</span>';
 
       return '<div class="tal-card">' +
         '<div class="tal-photo">' + photoHtml + '</div>' +
         '<div class="tal-body">' +
-          '<div class="tal-name">' + t.nom + '</div>' +
-          '<div class="tal-spec">' + (t.specialite || cat.label) + '</div>' +
-          (t.description ? '<p class="tal-desc">' + t.description + '</p>' : '') +
+          '<div class="tal-name">' + escHtml(t.nom) + '</div>' +
+          '<div class="tal-spec">' + escHtml(t.specialite || cat.label) + '</div>' +
+          (t.description ? '<p class="tal-desc">' + escHtml(t.description) + '</p>' : '') +
           '<div class="tal-contact">' +
-            (t.telephone ? '<span>📞 <a href="tel:' + t.telephone + '">' + t.telephone + '</a></span>' : '') +
-            (t.adresse   ? '<span>📍 ' + t.adresse + '</span>' : '') +
-            (t.site_web  ? '<a href="' + t.site_web + '" target="_blank" rel="noopener">🌐 ' + t.site_web.replace(/^https?:\/\//, '') + '</a>' : '') +
+            (t.telephone ? '<span>📞 <a href="tel:' + escHtml(t.telephone) + '">' + escHtml(t.telephone) + '</a></span>' : '') +
+            (t.adresse   ? '<span>📍 ' + escHtml(t.adresse) + '</span>' : '') +
+            (t.site_web  ? '<a href="' + safeUrl(t.site_web) + '" target="_blank" rel="noopener">🌐 ' + escHtml(t.site_web.replace(/^https?:\/\//, '')) + '</a>' : '') +
           '</div>' +
         '</div>' +
       '</div>';

@@ -27,6 +27,7 @@
     "node-sqlite3-wasm": "^0.8.20",
     "nodemailer": "^8.0.7",
     "qrcode": "^1.5.4",
+    "sanitize-html": "^2.17.7",
     "stripe": "^22.1.1",
     "web-push": "^3.6.7"
   },

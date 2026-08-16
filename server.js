@@ -18,6 +18,7 @@ const multer   = require('multer');
 const path     = require('path');
 const fs       = require('fs');
 const Stripe   = require('stripe');
+const sanitizeHtml = require('sanitize-html');
 
 // Créer les dossiers uploads au démarrage
 ['uploads','uploads/gallery','uploads/profiles','uploads/invoices',
@@ -74,24 +75,26 @@ app.post('/api/stripe/webhook', express.raw({ type: '*/*' }), async (req, res) =
         console.error('⚠ Signature webhook invalide:', err.message);
         return;
       }
-    } else {
-      console.warn('⚠ STRIPE_WEBHOOK_SECRET non configuré — webhook non vérifié');
+    } else if (stripeKey) {
+      // Pas de secret de signature : on ne fait JAMAIS confiance au corps de la requête tel
+      // quel (n'importe qui peut poster un faux événement checkout.session.completed pour
+      // marquer une cotisation payée sans payer) — on ne retient que l'id fourni et on
+      // récupère le VRAI événement depuis l'API Stripe avec la clé secrète, qui elle est fiable.
+      console.warn('⚠ STRIPE_WEBHOOK_SECRET non configuré — événement re-vérifié via l\'API Stripe (id uniquement, corps ignoré)');
       const bodyStr = req.body ? req.body.toString('utf8') : '{}';
-      const parsed = JSON.parse(bodyStr);
-      if (stripeKey && parsed.id && (!parsed.data || !parsed.data.object)) {
-        try {
-          const stripe = Stripe(stripeKey);
-          event = await stripe.events.retrieve(parsed.id);
-        } catch (e) {
-          console.error('Erreur retrieve:', e.message);
-          return;
-        }
-      } else if (parsed.data && parsed.data.object) {
-        event = parsed;
-      } else {
-        console.error('Event invalide');
+      let parsed;
+      try { parsed = JSON.parse(bodyStr); } catch { console.error('Event invalide'); return; }
+      if (!parsed.id) { console.error('Event invalide — id manquant'); return; }
+      try {
+        const stripe = Stripe(stripeKey);
+        event = await stripe.events.retrieve(parsed.id);
+      } catch (e) {
+        console.error('Erreur retrieve:', e.message);
         return;
       }
+    } else {
+      console.error('⚠ Ni STRIPE_WEBHOOK_SECRET ni STRIPE_SECRET_KEY configurés — webhook rejeté (impossible à vérifier)');
+      return;
     }
   } catch (err) {
     console.error('Parse error:', err.message);
@@ -338,13 +341,42 @@ app.use('/', express.static(path.join(__dirname), { maxAge: 86400000, setHeaders
 const _crypto = require('crypto');
 const ALLOWED_IMAGE_MIMES = ['image/jpeg','image/png','image/gif','image/webp'];
 const ALLOWED_DOC_MIMES = [...ALLOWED_IMAGE_MIMES,'application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','text/csv','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
-function safeFilename(file) { return `${Date.now()}-${_crypto.randomBytes(8).toString('hex')}${path.extname(file.originalname).toLowerCase()}`; }
+// Extension dérivée du type MIME déclaré (déjà validé par imageFilter/docFilter/csvFilter),
+// jamais du nom de fichier fourni par le client — sinon un fichier envoyé avec un Content-Type
+// image/jpeg mais nommé "x.html" serait stocké en .html et servi comme HTML exécutable
+// (stockage statique non authentifié sous /uploads), permettant un XSS stocké via upload.
+const MIME_TO_EXT = {
+  'image/jpeg':'.jpg', 'image/png':'.png', 'image/gif':'.gif', 'image/webp':'.webp',
+  'application/pdf':'.pdf', 'application/msword':'.doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document':'.docx',
+  'text/csv':'.csv', 'application/vnd.ms-excel':'.xls',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'.xlsx',
+  'application/csv':'.csv', 'text/plain':'.csv',
+};
+function safeFilename(file) {
+  const ext = MIME_TO_EXT[file.mimetype] || '.bin';
+  return `${Date.now()}-${_crypto.randomBytes(8).toString('hex')}${ext}`;
+}
 function slugifyName(str) { return String(str||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-zA-Z0-9]+/g,'_').replace(/^_+|_+$/g,'') || 'membre'; }
 function imageFilter(req, file, cb) { cb(ALLOWED_IMAGE_MIMES.includes(file.mimetype) ? null : new Error('Type de fichier non autorisé'), ALLOWED_IMAGE_MIMES.includes(file.mimetype)); }
 function docFilter(req, file, cb) { cb(ALLOWED_DOC_MIMES.includes(file.mimetype) ? null : new Error('Type de fichier non autorisé'), ALLOWED_DOC_MIMES.includes(file.mimetype)); }
 const ALLOWED_CSV_MIMES = ['text/csv','application/vnd.ms-excel','application/csv','text/plain'];
 function csvFilter(req, file, cb) { cb(ALLOWED_CSV_MIMES.includes(file.mimetype) ? null : new Error('Type de fichier non autorisé'), ALLOWED_CSV_MIMES.includes(file.mimetype)); }
-function escHtmlServer(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escHtmlServer(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+// Pour les champs riches (notes de réunion, ordre du jour, description d'activité) que
+// l'éditeur contenteditable produit en HTML — escHtmlServer casserait le formatage, donc on
+// nettoie plutôt (retire <script>/<style>/gestionnaires d'événements/iframes, ne garde qu'un
+// jeu de balises de mise en forme de base) au lieu de tout échapper.
+function sanitizeRichText(html) {
+  return sanitizeHtml(String(html || ''), {
+    allowedTags: ['p','br','b','strong','i','em','u','s','ul','ol','li','h1','h2','h3','blockquote','a','span','div'],
+    allowedAttributes: { a: ['href','target','rel'], span: ['style'], div: ['style'], p: ['style'] },
+    allowedStyles: { '*': { 'color': [/.*/], 'background-color': [/.*/], 'text-align': [/.*/], 'font-weight': [/.*/] } },
+    allowedSchemes: ['http','https','mailto'],
+    transformTags: { 'a': sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer', target: '_blank' }) }
+  });
+}
 
 const SMTP_CIPHER_KEY = process.env.SMTP_CIPHER_KEY || _crypto.createHash('sha256').update(JWT_SECRET).digest();
 function encryptSmtpPass(text) {
@@ -838,7 +870,7 @@ const profileStorage = multer.diskStorage({
     const u = db.prepare('SELECT prenom, nom FROM users WHERE id = ?').get(targetId);
     const namePart = u ? `${slugifyName(u.prenom)}_${slugifyName(u.nom)}` : `user_${targetId}`;
     const suffix = file.fieldname === 'original' ? '_original' : '';
-    cb(null, `${namePart}_${targetId}${suffix}_${Date.now()}${path.extname(file.originalname).toLowerCase()}`);
+    cb(null, `${namePart}_${targetId}${suffix}_${Date.now()}${MIME_TO_EXT[file.mimetype] || '.jpg'}`);
   }
 });
 const uploadProfile = multer({ storage: profileStorage, limits: { fileSize: 8 * 1024 * 1024 }, fileFilter: imageFilter });
@@ -850,7 +882,7 @@ const ambassadorPhotoStorage = multer.diskStorage({
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
-  filename: (req, file, cb) => cb(null, `ambassador_${Date.now()}${path.extname(file.originalname)}`)
+  filename: (req, file, cb) => cb(null, `ambassador_${Date.now()}${MIME_TO_EXT[file.mimetype] || '.jpg'}`)
 });
 const uploadAmbassador = multer({ storage: ambassadorPhotoStorage, limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: imageFilter });
 
@@ -1076,6 +1108,7 @@ app.post('/api/activities', authMiddleware, requireRole(...ACTIVITY_ROLES), (req
           prix, paiement_requis, rabais_json, recurrence, recurrence_end, stream_url, stream_actif, rabais_jeune,
           benevoles_max, prix_benevole } = req.body;
   if (!titre) return res.status(400).json({ error: 'Titre requis' });
+  const descSafe = sanitizeRichText(description||'');
 
   const qr_token = crypto2.randomBytes(16).toString('hex');
   const r = db.prepare(`INSERT INTO activities
@@ -1083,7 +1116,7 @@ app.post('/api/activities', authMiddleware, requireRole(...ACTIVITY_ROLES), (req
      prix, paiement_requis, rabais_json, qr_token, recurrence, recurrence_end, stream_url, stream_actif, rabais_jeune,
      benevoles_max, prix_benevole)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(titre, description||'', type||'general', date_debut||'', date_fin||'', lieu||'',
+    .run(titre, descSafe, type||'general', date_debut||'', date_fin||'', lieu||'',
          budget_prevu||0, max_participants||null, req.user.id,
          parseFloat(prix)||0, paiement_requis?1:0,
          rabais_json||'{}', qr_token, recurrence||null, recurrence_end||null,
@@ -1110,7 +1143,7 @@ app.post('/api/activities', authMiddleware, requireRole(...ACTIVITY_ROLES), (req
         const childQr = crypto2.randomBytes(16).toString('hex');
         db.prepare(`INSERT INTO activities (titre,description,type,date_debut,date_fin,lieu,budget_prevu,max_participants,statut,cree_par,prix,paiement_requis,rabais_json,qr_token,parent_activity_id)
           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-          .run(titre, description||'', type||'general', currentStart.toISOString(), childEnd, lieu||'',
+          .run(titre, descSafe, type||'general', currentStart.toISOString(), childEnd, lieu||'',
                0, max_participants||null, 'planifiee', req.user.id,
                parseFloat(prix)||0, paiement_requis?1:0, rabais_json||'{}', childQr, parentId);
       }
@@ -1211,7 +1244,7 @@ app.put('/api/activities/:id', authMiddleware, requireRole(...ACTIVITY_ROLES), (
   db.prepare(`UPDATE activities SET titre=?, description=?, type=?, date_debut=?, date_fin=?, lieu=?,
     budget_prevu=?, max_participants=?, statut=?, prix=?, paiement_requis=?, rabais_json=?,
     stream_url=?, stream_actif=?, rabais_jeune=?, benevoles_max=?, prix_benevole=? WHERE id=?`)
-    .run(titre||prev.titre, description??prev.description, type||prev.type, date_debut||prev.date_debut,
+    .run(titre||prev.titre, description!=null ? sanitizeRichText(description) : prev.description, type||prev.type, date_debut||prev.date_debut,
          date_fin||prev.date_fin, lieu||prev.lieu, budget_prevu??prev.budget_prevu,
          max_participants??prev.max_participants, newStatut,
          prix!==undefined ? parseFloat(prix)||0 : prev.prix||0,
@@ -2203,12 +2236,12 @@ app.get('/api/volunteer-letters/:id/print', (req, res) => {
   const signataire = vl.signataire_id ? db.prepare('SELECT prenom, nom, titre_comite FROM users WHERE id=?').get(vl.signataire_id) : null;
 
   const tableHtml = hours.length ? `<table><thead><tr><th>Date</th><th>Activité</th><th>Description</th><th style="text-align:right">Heures</th></tr></thead><tbody>
-    ${hours.map(h => `<tr><td>${h.date_service||'–'}</td><td>${(h.activite||'–')}</td><td>${(h.description||'–')}</td><td style="text-align:right;font-weight:700">${h.heures||0}h</td></tr>`).join('')}
+    ${hours.map(h => `<tr><td>${escHtmlServer(h.date_service||'–')}</td><td>${escHtmlServer(h.activite||'–')}</td><td>${escHtmlServer(h.description||'–')}</td><td style="text-align:right;font-weight:700">${h.heures||0}h</td></tr>`).join('')}
     <tr class="total"><td colspan="3">Total</td><td style="text-align:right">${totalH.toFixed(1)}h</td></tr>
     </tbody></table>` : '';
 
   res.send(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/>
-  <title>Attestation de bénévolat — ${membre.prenom} ${membre.nom}</title>
+  <title>Attestation de bénévolat — ${escHtmlServer(membre.prenom)} ${escHtmlServer(membre.nom)}</title>
   <style>
     @page{size:letter;margin:0}
     *{box-sizing:border-box;margin:0;padding:0}
@@ -2244,14 +2277,14 @@ app.get('/api/volunteer-letters/:id/print', (req, res) => {
     <div class="date">Hamilton, le ${dateSignature || new Date().toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'})}</div>
     <div class="title">Attestation de bénévolat</div>
     <div class="ed">À qui de droit,</div>
-    <div class="ed">Par la présente, nous attestons que <strong>${membre.prenom} ${membre.nom}</strong> est un membre actif de l'Association Haïtienne de Hamilton (AHH) et a contribué bénévolement à nos activités communautaires.</div>
+    <div class="ed">Par la présente, nous attestons que <strong>${escHtmlServer(membre.prenom)} ${escHtmlServer(membre.nom)}</strong> est un membre actif de l'Association Haïtienne de Hamilton (AHH) et a contribué bénévolement à nos activités communautaires.</div>
     <div class="ed">${totalH > 0 ? `Au total, <strong>${totalH.toFixed(1)} heures</strong> de bénévolat ont été enregistrées et approuvées à son dossier.` : 'Ce membre participe activement à nos activités communautaires.'}</div>
     ${tableHtml}
     <div class="ed">L'Association Haïtienne de Hamilton est un organisme communautaire à but non lucratif dédié au rapprochement, à l'intégration et au soutien de la communauté haïtienne de Hamilton, Ontario.</div>
     <div class="ed">Cette attestation est délivrée pour servir et valoir ce que de droit.</div>
     <div class="ed" style="margin-top:28px">Cordialement,</div>
     <div class="sigs">
-      <div class="sig">${vl.signature_data ? `<img src="${vl.signature_data}"/>` : '<div style="height:44px"></div>'}<div class="ln">${signataire ? (signataire.titre_comite || (signataire.prenom + ' ' + signataire.nom)) : 'Président(e) / VP'}</div></div>
+      <div class="sig">${vl.signature_data ? `<img src="${vl.signature_data}"/>` : '<div style="height:44px"></div>'}<div class="ln">${signataire ? escHtmlServer(signataire.titre_comite || (signataire.prenom + ' ' + signataire.nom)) : 'Président(e) / VP'}</div></div>
     </div>
   </div>
   </body></html>`);
@@ -2291,7 +2324,7 @@ app.get('/api/notes', authMiddleware, (req, res) => {
 app.post('/api/notes', authMiddleware, (req, res) => {
   const { titre, contenu, langue, date_reunion, activity_id } = req.body;
   const r = db.prepare(`INSERT INTO meeting_notes (auteur_id, titre, contenu, langue, date_reunion, activity_id, last_editor_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?)`).run(req.user.id, titre||'Sans titre', contenu||'', langue||'fr', date_reunion||'', activity_id||null, req.user.id);
+    VALUES (?, ?, ?, ?, ?, ?, ?)`).run(req.user.id, titre||'Sans titre', sanitizeRichText(contenu||''), langue||'fr', date_reunion||'', activity_id||null, req.user.id);
   logAudit(req.user.id, 'note_created', 'note', r.lastInsertRowid, `Note créée: ${titre||'Sans titre'}`, req.ip);
   res.status(201).json({ id: r.lastInsertRowid });
 });
@@ -2315,7 +2348,7 @@ app.put('/api/notes/:id', authMiddleware, (req, res) => {
     date_reunion=COALESCE(?,date_reunion), activity_id=?,
     date_modification=CURRENT_TIMESTAMP, last_editor_id=?, editing_by=NULL, editing_since=NULL
     WHERE id=?`)
-    .run(titre||'', contenu||'', contenu_corrige||null, langue||'fr',
+    .run(titre||'', sanitizeRichText(contenu||''), contenu_corrige ? sanitizeRichText(contenu_corrige) : null, langue||'fr',
       date_reunion||null, activity_id||null, req.user.id, req.params.id);
   // Toute modification annule les signatures existantes
   const deleted = db.prepare('DELETE FROM note_signatures WHERE note_id=?').run(req.params.id);
@@ -2367,7 +2400,7 @@ app.get('/api/notes/:id/download', authMiddleware, (req, res) => {
   const fmt = d => { try { return new Date(d).toLocaleString('fr-CA', { timeZone:'America/Toronto', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' }); } catch { return d||''; } };
   const siteUrl2 = process.env.SITE_URL || 'https://ahhamilton.ca';
   const html = `<!DOCTYPE html><html lang="fr">
-<head><meta charset="UTF-8"><title>${n.titre||'Note de réunion'}</title>
+<head><meta charset="UTF-8"><title>${escHtmlServer(n.titre||'Note de réunion')}</title>
 <style>
   @page{size:8.5in 11in;margin:0}
   *{box-sizing:border-box}
@@ -2397,7 +2430,7 @@ app.get('/api/notes/:id/download', authMiddleware, (req, res) => {
   <img src="${siteUrl2}/Public/logo1.png" onerror="this.style.display='none'">
   <div class="ahh-header-text">
     <div class="ahh-header-org">Association Haïtienne de Hamilton (AHH)</div>
-    <div class="ahh-header-sub">Notes de réunion officielle${n.titre ? ' — ' + n.titre : ''}</div>
+    <div class="ahh-header-sub">Notes de réunion officielle${n.titre ? ' — ' + escHtmlServer(n.titre) : ''}</div>
   </div>
   <div class="ahh-header-date">
     ${n.date_reunion ? new Date(n.date_reunion).toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'}) : new Date().toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'})}
@@ -2411,7 +2444,7 @@ ${sigs.length ? `
   ${sigs.map(s => `<div class="sig-card">
     <img class="sig-img" src="${s.signature_data}" alt="Signature">
     <div>
-      <div class="sig-name">${s.nom_signataire}</div>
+      <div class="sig-name">${escHtmlServer(s.nom_signataire)}</div>
       <div class="sig-role">${ROLE_LABELS[s.role]||s.role}</div>
       <div class="sig-date">📅 Signé le ${fmt(s.date_signature)}</div>
     </div>
@@ -2440,7 +2473,7 @@ app.get('/api/notes/:id/attestation', authMiddleware, (req, res) => {
   const ROLE_LABELS = { admin:'Administrateur', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Délégué', member:'Membre' };
   const fmt = d => { try { return new Date(d).toLocaleString('fr-CA', { timeZone:'America/Toronto', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' }); } catch { return d||''; } };
   const html = `<!DOCTYPE html><html lang="fr">
-<head><meta charset="UTF-8"><title>Attestation — ${n.titre}</title>
+<head><meta charset="UTF-8"><title>Attestation — ${escHtmlServer(n.titre)}</title>
 <style>
   body{font-family:Arial,sans-serif;max-width:800px;margin:40px auto;padding:0 24px;color:#222}
   .header{text-align:center;padding-bottom:24px;margin-bottom:32px;border-bottom:3px solid #1b5e20}
@@ -2463,8 +2496,8 @@ app.get('/api/notes/:id/attestation', authMiddleware, (req, res) => {
   <p>Association Haïtienne de Hamilton — ahhamilton.ca</p>
 </div>
 <div class="doc-box">
-  <strong>Note :</strong> ${n.titre||'Sans titre'}<br>
-  <strong>Auteur :</strong> ${n.auteur||'?'}<br>
+  <strong>Note :</strong> ${escHtmlServer(n.titre||'Sans titre')}<br>
+  <strong>Auteur :</strong> ${escHtmlServer(n.auteur||'?')}<br>
   ${n.date_reunion ? `<strong>Date de réunion :</strong> ${new Date(n.date_reunion).toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'})}<br>` : ''}
   <strong>Statut :</strong> ${n.verrouille ? '🔒 Verrouillée' : '📝 Ouverte'}<br>
   <strong>Nombre de signataires :</strong> ${sigs.length}
@@ -4557,10 +4590,10 @@ app.get('/api/receipts/:id/print', (req, res) => {
 
   <div class="section">
     <h2>Remis à</h2>
-    <div class="row"><span class="label">Nom complet</span><span class="val">${r.prenom} ${r.nom}</span></div>
-    <div class="row"><span class="label">Courriel</span><span class="val">${r.email}</span></div>
-    ${r.adresse ? `<div class="row"><span class="label">Adresse</span><span class="val">${r.adresse}</span></div>` : ''}
-    ${r.telephone ? `<div class="row"><span class="label">Téléphone</span><span class="val">${r.telephone}</span></div>` : ''}
+    <div class="row"><span class="label">Nom complet</span><span class="val">${escHtmlServer(r.prenom)} ${escHtmlServer(r.nom)}</span></div>
+    <div class="row"><span class="label">Courriel</span><span class="val">${escHtmlServer(r.email)}</span></div>
+    ${r.adresse ? `<div class="row"><span class="label">Adresse</span><span class="val">${escHtmlServer(r.adresse)}</span></div>` : ''}
+    ${r.telephone ? `<div class="row"><span class="label">Téléphone</span><span class="val">${escHtmlServer(r.telephone)}</span></div>` : ''}
   </div>
 
   <div class="section">
@@ -4574,14 +4607,14 @@ app.get('/api/receipts/:id/print', (req, res) => {
   </div>
 
   <div class="legal">
-    Ce reçu confirme que <strong>${r.prenom} ${r.nom}</strong> a contribué le montant indiqué ci-dessus à l'Association Haïtienne de Hamilton au cours de l'année fiscale <strong>${r.annee}</strong>.
+    Ce reçu confirme que <strong>${escHtmlServer(r.prenom)} ${escHtmlServer(r.nom)}</strong> a contribué le montant indiqué ci-dessus à l'Association Haïtienne de Hamilton au cours de l'année fiscale <strong>${r.annee}</strong>.
     Ce reçu est émis conformément aux exigences de l'Agence du revenu du Canada (ARC).
     Veuillez conserver ce document pour votre déclaration de revenus.
   </div>
 
   <div class="sig">
     <div>
-      <div class="sig-line">${r.gen_prenom || ''} ${r.gen_nom || ''}<br/>Représentant autorisé, AHH</div>
+      <div class="sig-line">${escHtmlServer(r.gen_prenom || '')} ${escHtmlServer(r.gen_nom || '')}<br/>Représentant autorisé, AHH</div>
     </div>
     <div>
       <div class="sig-line">Date d'émission : ${new Date(r.date_generation||Date.now()).toLocaleDateString('fr-CA')}</div>
@@ -7061,7 +7094,7 @@ app.get('/api/documents/:id/attestation', authMiddleware, (req, res) => {
   const fmtDate = d => { try { return new Date(d).toLocaleDateString('fr-CA', { timeZone:'America/Toronto', year:'numeric', month:'long', day:'numeric' }); } catch { return d||''; } };
   const ROLE_LABELS = { admin:'Administrateur', tresoriere:'Trésorière', secretaire:'Secrétaire', delegue:'Délégué', member:'Membre' };
   const html = `<!DOCTYPE html><html lang="fr">
-<head><meta charset="UTF-8"><title>Attestation — ${doc.nom}</title>
+<head><meta charset="UTF-8"><title>Attestation — ${escHtmlServer(doc.nom)}</title>
 <style>
   body{font-family:Arial,sans-serif;max-width:800px;margin:40px auto;padding:0 24px;color:#222}
   .header{text-align:center;padding-bottom:24px;margin-bottom:32px;border-bottom:3px solid #1b5e20}
@@ -7087,8 +7120,8 @@ app.get('/api/documents/:id/attestation', authMiddleware, (req, res) => {
   <p>Association Haïtienne de Hamilton — ahhamilton.ca</p>
 </div>
 <div class="doc-box">
-  <strong>Document :</strong> ${doc.nom}<br>
-  ${doc.description ? `<strong>Description :</strong> ${doc.description}<br>` : ''}
+  <strong>Document :</strong> ${escHtmlServer(doc.nom)}<br>
+  ${doc.description ? `<strong>Description :</strong> ${escHtmlServer(doc.description)}<br>` : ''}
   <strong>Catégorie :</strong> ${({proces_verbaux:'Procès-verbaux',statuts:'Statuts & Règlements',formulaires:'Formulaires officiels',rapports:'Rapports annuels',autre:'Autres documents'})[doc.categorie]||doc.categorie}<br>
   <strong>Ajouté le :</strong> ${fmtDate(doc.date_upload)}<br>
   <strong>Nombre de signataires :</strong> ${sigs.length}
@@ -7099,7 +7132,7 @@ ${sigs.length === 0 ? '<p class="none">Aucune signature enregistrée pour ce doc
 <div class="sig-card">
   <img class="sig-img" src="${s.signature_data}" alt="Signature">
   <div>
-    <div class="sig-name">${s.nom_signataire}</div>
+    <div class="sig-name">${escHtmlServer(s.nom_signataire)}</div>
     <div class="sig-role">${ROLE_LABELS[s.role]||s.role}</div>
     <div class="sig-date">📅 Signé le ${fmt(s.date_signature)}</div>
   </div>
@@ -7947,7 +7980,7 @@ app.get('/api/share/activity/:id', (req, res) => {
 
 app.post('/api/newsletter/subscribe', async (req, res) => {
   const { email, prenom } = req.body;
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  if (!email || !/^[^\s@'"<>&]+@[^\s@'"<>&]+\.[^\s@'"<>&]+$/.test(email)) {
     return res.status(400).json({ error: 'Courriel invalide' });
   }
   try {
@@ -8049,7 +8082,7 @@ app.get('/api/reports/fiscal-annuel/:annee', authMiddleware, requireRole('admin'
   <table>
     <thead><tr><th>#</th><th>Membre</th><th>Courriel</th><th>Montant</th><th>Date</th></tr></thead>
     <tbody>
-    ${reçus.map((r,i) => `<tr><td>${i+1}</td><td>${r.prenom} ${r.nom}</td><td>${r.email}</td><td>$${(r.montant_total||0).toFixed(2)}</td><td>${r.date_generation||''}</td></tr>`).join('')}
+    ${reçus.map((r,i) => `<tr><td>${i+1}</td><td>${escHtmlServer(r.prenom)} ${escHtmlServer(r.nom)}</td><td>${escHtmlServer(r.email)}</td><td>$${(r.montant_total||0).toFixed(2)}</td><td>${r.date_generation||''}</td></tr>`).join('')}
     </tbody>
   </table>
   <div class="total">Total : ${nbReçus} reçus · ${totalDons.toFixed(2)} $</div>
@@ -8598,7 +8631,7 @@ const sponsorStorage = multer.diskStorage({
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
-  filename: (req, file, cb) => cb(null, `sponsor_${Date.now()}${path.extname(file.originalname)}`)
+  filename: (req, file, cb) => cb(null, `sponsor_${Date.now()}${MIME_TO_EXT[file.mimetype] || '.jpg'}`)
 });
 const uploadSponsor = multer({ storage: sponsorStorage, limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: imageFilter });
 
@@ -8674,7 +8707,7 @@ const teamBureauStorage = multer.diskStorage({
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
-  filename: (req, file, cb) => cb(null, `team_${Date.now()}${path.extname(file.originalname).toLowerCase()}`)
+  filename: (req, file, cb) => cb(null, `team_${Date.now()}${MIME_TO_EXT[file.mimetype] || '.jpg'}`)
 });
 const uploadTeamBureau = multer({ storage: teamBureauStorage, limits: { fileSize: 8 * 1024 * 1024 }, fileFilter: imageFilter });
 app.use('/uploads/team', express.static(path.join(__dirname, 'uploads', 'team')));
@@ -9959,7 +9992,7 @@ app.get('/api/dons/programmes/:id/feuille-de-route', authMiddleware, requireDons
   const statutLabel = { a_venir:'À venir', honore:'Servi', manque:'Manqué' };
 
   const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/>
-<title>Feuille de route — ${date}</title>
+<title>Feuille de route — ${escHtmlServer(date)}</title>
 <style>
   @page { size: letter; margin: 1.5cm; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -9978,14 +10011,14 @@ app.get('/api/dons/programmes/:id/feuille-de-route', authMiddleware, requireDons
 </head><body>
 <div class="wrap">
   <div class="noprint"><button onclick="window.print()">🖨️ Imprimer / Sauvegarder en PDF</button></div>
-  <h1>Feuille de route — ${programme.nom}</h1>
+  <h1>Feuille de route — ${escHtmlServer(programme.nom)}</h1>
   <div class="sub">${new Date(date + 'T00:00:00').toLocaleDateString('fr-CA', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}</div>
   <table>
     <thead><tr><th></th><th>Heure</th><th>Responsable</th><th>Taille du foyer</th><th>Statut</th></tr></thead>
     <tbody>${rows.length ? rows.map(r => `<tr>
       <td><span class="check"></span></td>
       <td>${r.date_heure.slice(11,16)}</td>
-      <td>${r.prenom ? r.prenom + ' ' + r.nom : '—'}</td>
+      <td>${r.prenom ? escHtmlServer(r.prenom) + ' ' + escHtmlServer(r.nom) : '—'}</td>
       <td>${r.nb_personnes ?? '—'}</td>
       <td>${r.statut ? (statutLabel[r.statut] || r.statut) : '—'}</td>
     </tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:#999;padding:20px">Aucun créneau ce jour-là</td></tr>`}</tbody>
@@ -10435,7 +10468,7 @@ app.get('/api/dons/retraits/:id/recu', authMiddleware, (req, res) => {
   const articles = JSON.parse(retrait.stock_json || '[]');
 
   const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/>
-<title>Reçu — ${programme ? programme.nom : 'Don'}</title>
+<title>Reçu — ${escHtmlServer(programme ? programme.nom : 'Don')}</title>
 <style>
   @page { size: letter; margin: 2cm; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -10461,11 +10494,11 @@ app.get('/api/dons/retraits/:id/recu', authMiddleware, (req, res) => {
     <div class="org-name">Association Haïtienne de Hamilton</div>
   </div>
   <h1>Reçu de distribution</h1>
-  <div class="sub">${programme ? programme.nom : ''} — ${new Date(retrait.date_retrait).toLocaleDateString('fr-CA', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}</div>
-  <p style="margin-bottom:14px;font-size:.9rem"><strong>Foyer :</strong> ${responsable ? responsable.prenom + ' ' + responsable.nom : '—'}</p>
+  <div class="sub">${escHtmlServer(programme ? programme.nom : '')} — ${new Date(retrait.date_retrait).toLocaleDateString('fr-CA', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}</div>
+  <p style="margin-bottom:14px;font-size:.9rem"><strong>Foyer :</strong> ${responsable ? escHtmlServer(responsable.prenom) + ' ' + escHtmlServer(responsable.nom) : '—'}</p>
   <table>
     <thead><tr><th>Article</th><th>Quantité remise</th></tr></thead>
-    <tbody>${articles.length ? articles.map(a => `<tr><td>${a.nom}</td><td>${a.donne} ${a.unite}</td></tr>`).join('') : '<tr><td colspan="2" style="text-align:center;color:#999">Aucun détail</td></tr>'}</tbody>
+    <tbody>${articles.length ? articles.map(a => `<tr><td>${escHtmlServer(a.nom)}</td><td>${a.donne} ${escHtmlServer(a.unite)}</td></tr>`).join('') : '<tr><td colspan="2" style="text-align:center;color:#999">Aucun détail</td></tr>'}</tbody>
   </table>
   ${retrait.partiel ? '<p style="font-size:.82rem;color:#e65100">⚠️ Distribution partielle — stock insuffisant pour combler entièrement ce retrait.</p>' : ''}
 </div>
@@ -10504,7 +10537,7 @@ app.get('/api/dons/programmes/:id/rapport-bailleur', authMiddleware, requireDons
   }
 
   const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/>
-<title>Rapport bailleur de fonds — ${programme.nom}</title>
+<title>Rapport bailleur de fonds — ${escHtmlServer(programme.nom)}</title>
 <style>
   @page { size: letter; margin: 2cm; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -10527,7 +10560,7 @@ app.get('/api/dons/programmes/:id/rapport-bailleur', authMiddleware, requireDons
 <div class="wrap">
   <div class="noprint"><button onclick="window.print()">🖨️ Imprimer / Sauvegarder en PDF</button></div>
   <h1>Rapport bailleur de fonds</h1>
-  <div class="sub">${programme.nom} — généré le ${new Date().toLocaleDateString('fr-CA')}</div>
+  <div class="sub">${escHtmlServer(programme.nom)} — généré le ${new Date().toLocaleDateString('fr-CA')}</div>
   <div class="kpis">
     <div class="kpi"><div class="v">${foyers.c}</div><div class="l">Foyers validés</div></div>
     <div class="kpi"><div class="v">${foyers.personnes}</div><div class="l">Personnes couvertes</div></div>
@@ -10535,7 +10568,7 @@ app.get('/api/dons/programmes/:id/rapport-bailleur', authMiddleware, requireDons
   </div>
   <table>
     <thead><tr><th>Article</th><th>Unité</th><th>Quantité distribuée</th></tr></thead>
-    <tbody>${articles.map(a => `<tr><td>${a.nom}</td><td>${a.unite}</td><td>${a.distribue}</td></tr>`).join('')}</tbody>
+    <tbody>${articles.map(a => `<tr><td>${escHtmlServer(a.nom)}</td><td>${escHtmlServer(a.unite)}</td><td>${a.distribue}</td></tr>`).join('')}</tbody>
   </table>
 </div>
 </body></html>`;
@@ -10871,7 +10904,7 @@ app.post('/api/agendas', authMiddleware, requireRole(...EXEC_ROLES), (req, res) 
   const { titre, date_reunion, statut, contenu } = req.body;
   if (!titre) return res.status(400).json({ error: 'Titre requis' });
   const r = db.prepare('INSERT INTO agendas (titre, date_reunion, statut, contenu, cree_par) VALUES (?,?,?,?,?)')
-    .run(titre, date_reunion||null, statut||'brouillon', contenu||'', req.user.id);
+    .run(titre, date_reunion||null, statut||'brouillon', sanitizeRichText(contenu||''), req.user.id);
   res.status(201).json({ id: r.lastInsertRowid });
 });
 
@@ -10881,7 +10914,7 @@ app.put('/api/agendas/:id', authMiddleware, requireRole(...EXEC_ROLES), (req, re
   if (existing.verrouille) return res.status(403).json({ error: 'Ordre du jour verrouillé — impossible de modifier après 2 signatures' });
   const { titre, date_reunion, statut, contenu } = req.body;
   db.prepare('UPDATE agendas SET titre=?, date_reunion=?, statut=?, contenu=? WHERE id=?')
-    .run(titre || existing.titre, date_reunion||null, statut||existing.statut, contenu !== undefined ? contenu : existing.contenu, req.params.id);
+    .run(titre || existing.titre, date_reunion||null, statut||existing.statut, contenu !== undefined ? sanitizeRichText(contenu) : existing.contenu, req.params.id);
   // Toute modification annule les signatures existantes
   const deleted = db.prepare('DELETE FROM agenda_signatures WHERE agenda_id=?').run(req.params.id);
   res.json({ ok: true, signatures_annulees: deleted.changes });
@@ -10934,7 +10967,7 @@ app.get('/api/agendas/:id/download', authMiddleware, requireRole(...EXEC_ROLES),
   const fmt = d => { try { return new Date(d).toLocaleString('fr-CA', { timeZone:'America/Toronto', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' }); } catch { return d||''; } };
   const siteUrl2 = process.env.SITE_URL || 'https://ahhamilton.ca';
   const html = `<!DOCTYPE html><html lang="fr">
-<head><meta charset="UTF-8"><title>${a.titre||'Ordre du jour'}</title>
+<head><meta charset="UTF-8"><title>${escHtmlServer(a.titre||'Ordre du jour')}</title>
 <style>
   @page{size:8.5in 11in;margin:0}
   *{box-sizing:border-box}
@@ -10965,7 +10998,7 @@ app.get('/api/agendas/:id/download', authMiddleware, requireRole(...EXEC_ROLES),
   <img src="${siteUrl2}/Public/logo1.png" onerror="this.style.display='none'">
   <div class="ahh-header-text">
     <div class="ahh-header-org">Association Haïtienne de Hamilton (AHH)</div>
-    <div class="ahh-header-sub">Ordre du jour${a.titre ? ' — ' + a.titre : ''}</div>
+    <div class="ahh-header-sub">Ordre du jour${a.titre ? ' — ' + escHtmlServer(a.titre) : ''}</div>
   </div>
   <div class="ahh-header-date">
     ${a.date_reunion ? new Date(a.date_reunion).toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'}) : new Date().toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'})}
@@ -10979,8 +11012,8 @@ ${sigs.length ? `
   ${sigs.map(s => `<div class="sig-card">
     <img class="sig-img" src="${s.signature_data}" alt="Signature">
     <div>
-      <div class="sig-name">${s.nom_signataire}</div>
-      <div class="sig-role">${s.titre_comite || ROLE_LABELS[s.role] || s.role}</div>
+      <div class="sig-name">${escHtmlServer(s.nom_signataire)}</div>
+      <div class="sig-role">${escHtmlServer(s.titre_comite || ROLE_LABELS[s.role] || s.role)}</div>
       <div class="sig-date">📅 Signé le ${fmt(s.date_signature)}</div>
     </div>
   </div>`).join('')}
@@ -11681,7 +11714,7 @@ app.delete('/api/rideshares/:id', authMiddleware, (req, res) => {
 // ── Multer : shop product images ────────────────────────────────────────────
 const shopStorage = multer.diskStorage({
   destination: (req, file, cb) => { const d = path.join(__dirname,'uploads','shop'); fs.mkdirSync(d,{recursive:true}); cb(null,d); },
-  filename:    (req, file, cb) => cb(null, `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g,'_')}`)
+  filename:    (req, file, cb) => cb(null, `${Date.now()}-${_crypto.randomBytes(8).toString('hex')}${MIME_TO_EXT[file.mimetype] || '.jpg'}`)
 });
 const uploadShop = multer({ storage: shopStorage, limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: imageFilter });
 
@@ -13032,7 +13065,7 @@ app.post('/api/committee-meetings', authMiddleware, requireRole(...CM_ROLES), (r
     if (ag.verrouille) return res.status(400).json({ error: 'Cet ordre du jour est verrouillé — impossible à lier' });
   }
   const r = db.prepare('INSERT INTO committee_meetings (date_heure, lieu, notes, agenda_id, cree_par) VALUES (?,?,?,?,?)')
-    .run(date_heure, lieu || '', notes || '', agenda_id || null, req.user.id);
+    .run(date_heure, lieu || '', sanitizeRichText(notes || ''), agenda_id || null, req.user.id);
   const meetingId = r.lastInsertRowid;
   const exec = db.prepare("SELECT id FROM users WHERE role IN ('admin','tresoriere','secretaire','delegue') AND actif=1 AND (phantom IS NULL OR phantom=0)").all();
   const ins = db.prepare('INSERT OR IGNORE INTO committee_meeting_attendance (meeting_id, user_id, statut) VALUES (?,?,?)');
@@ -13113,7 +13146,7 @@ app.put('/api/committee-meetings/:id', authMiddleware, requireRole(...CM_ROLES),
     if (ag.verrouille) return res.status(400).json({ error: 'Cet ordre du jour est verrouillé — impossible à lier' });
   }
   db.prepare('UPDATE committee_meetings SET date_heure=COALESCE(?,date_heure), lieu=COALESCE(?,lieu), notes=COALESCE(?,notes), agenda_id=? WHERE id=?')
-    .run(date_heure || null, lieu !== undefined ? lieu : null, notes !== undefined ? notes : null, agenda_id !== undefined ? (agenda_id || null) : m.agenda_id, m.id);
+    .run(date_heure || null, lieu !== undefined ? lieu : null, notes !== undefined ? sanitizeRichText(notes) : null, agenda_id !== undefined ? (agenda_id || null) : m.agenda_id, m.id);
   res.json({ ok: true });
 });
 
@@ -13240,18 +13273,18 @@ app.get('/api/committee-meetings/:id/download', authMiddleware, requireRole(...C
 <div class="content">
   <h2 style="color:#1a237e;margin-bottom:4px">Rencontre du comité exécutif</h2>
   <p><strong>Date :</strong> ${fmt(m.date_heure)}</p>
-  ${m.lieu ? '<p><strong>Lieu :</strong> ' + m.lieu + '</p>' : ''}
+  ${m.lieu ? '<p><strong>Lieu :</strong> ' + escHtmlServer(m.lieu) + '</p>' : ''}
   ${m.notes ? '<p><strong>Notes :</strong> ' + m.notes + '</p>' : ''}
   <h3 style="color:#1a237e;margin-top:24px">Présences</h3>
   ${m.verrouille ? '<div class="locked">🔒 Document verrouillé : ' + sigs.length + ' signature(s)</div>' : ''}
   <table>
     <thead><tr><th>Membre</th><th>Rôle</th><th>Statut</th></tr></thead>
-    <tbody>${exec.map(u => '<tr><td>' + u.prenom + ' ' + u.nom + '</td><td>' + (u.titre_comite || ROLE_LABELS[u.role] || u.role) + '</td><td>' + (STATUS_LABELS[attMap[u.id]||'absent']) + '</td></tr>').join('')}</tbody>
+    <tbody>${exec.map(u => '<tr><td>' + escHtmlServer(u.prenom) + ' ' + escHtmlServer(u.nom) + '</td><td>' + escHtmlServer(u.titre_comite || ROLE_LABELS[u.role] || u.role) + '</td><td>' + (STATUS_LABELS[attMap[u.id]||'absent']) + '</td></tr>').join('')}</tbody>
   </table>
 </div>
 ${sigs.length ? `<div class="sig-section" style="padding:0 64px 20px">
   <h2>Signatures</h2>
-  ${sigs.map(s => '<div class="sig-card"><img class="sig-img" src="' + s.signature_data + '" alt="Signature"><div><div class="sig-name">' + s.nom_signataire + '</div><div class="sig-role">' + (s.titre_comite || ROLE_LABELS[s.role] || s.role) + '</div><div class="sig-date">Signé le ' + fmt(s.date_signature) + '</div></div></div>').join('')}
+  ${sigs.map(s => '<div class="sig-card"><img class="sig-img" src="' + s.signature_data + '" alt="Signature"><div><div class="sig-name">' + escHtmlServer(s.nom_signataire) + '</div><div class="sig-role">' + escHtmlServer(s.titre_comite || ROLE_LABELS[s.role] || s.role) + '</div><div class="sig-date">Signé le ' + fmt(s.date_signature) + '</div></div></div>').join('')}
 </div>` : ''}
 <div class="ahh-footer">
   <span>Association Haïtienne de Hamilton, Hamilton, Ontario, Canada</span>
