@@ -16364,6 +16364,7 @@ async function _donsFoyersTabHtml(prog) {
   const foyersActifs = tousFoyers.filter(f => f.valide_pour_reservation);
   const nbPersonnesCouvertes = foyersActifs.reduce((s, f) => s + (f.nb_comptees ?? f.nb_personnes ?? 0), 0);
   const nbAReconfirmer = tousFoyers.filter(f => f.necessite_reconfirmation).length;
+  const nbTutelleEnAttente = tousFoyers.reduce((s, f) => s + (f.personnes || []).filter(p => p.tutelle_statut === 'demandee').length, 0);
   const now = new Date();
   const nbRetraitsMois = (journal.retraits || []).filter(r => {
     const d = new Date(r.date_retrait);
@@ -16393,11 +16394,12 @@ async function _donsFoyersTabHtml(prog) {
       ${kpi(foyersActifs.length, 'Foyers actifs')}
       ${kpi(nbPersonnesCouvertes, 'Personnes couvertes')}
       ${kpi(nbAReconfirmer, 'À reconfirmer', nbAReconfirmer > 0)}
+      ${kpi(nbTutelleEnAttente, 'Tutelles en attente', nbTutelleEnAttente > 0)}
       ${kpi(nbRetraitsMois, 'Retraits ce mois-ci')}
     </div>
     ${stockBars}
     <div style="margin-bottom:14px">
-      ${filterBtn('en_attente','En attente')}${filterBtn('valide','Validés')}${filterBtn('a_revalider','À revalider (>1 an)')}${filterBtn('refuse','Refusés')}${filterBtn('','Tous')}
+      ${filterBtn('en_attente','En attente')}${filterBtn('valide','Validés')}${filterBtn('a_revalider','À revalider (>1 an)')}${filterBtn('refuse','Refusés')}${nbTutelleEnAttente > 0 ? filterBtn('tutelle', `🛡️ Tutelles (${nbTutelleEnAttente})`) : ''}${filterBtn('','Tous')}
     </div>
     <div class="table-wrapper"><table>
       <thead><tr><th>Responsable</th><th>Foyer</th><th>Taille</th><th>Statut</th><th>Absences</th><th>Actions</th></tr></thead>

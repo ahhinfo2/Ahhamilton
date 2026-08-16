@@ -10103,6 +10103,11 @@ app.get('/api/dons/programmes/:id/foyers', authMiddleware, requireDonsAccess, (r
   const params = [req.params.id];
   if (req.query.statut === 'a_revalider') {
     sql += " AND f.statut != 'refuse' AND f.date_validation IS NOT NULL AND f.date_validation < datetime('now','-365 days')";
+  } else if (req.query.statut === 'tutelle') {
+    // Une demande de tutelle peut concerner un foyer déjà validé (nouvelle personne ajoutée
+    // après coup) — ce filtre l'affiche indépendamment du statut du foyer lui-même, pour que
+    // le comité la retrouve même si elle n'apparaît pas dans « En attente ».
+    sql += " AND EXISTS (SELECT 1 FROM dons_foyer_personnes p WHERE p.foyer_id=f.id AND p.tutelle_statut='demandee')";
   } else if (req.query.statut) {
     sql += ' AND f.statut=?'; params.push(req.query.statut);
   }
