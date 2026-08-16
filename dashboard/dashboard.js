@@ -16371,7 +16371,7 @@ async function _donsFoyersTabHtml(prog) {
     return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
   }).length;
 
-  const kpi = (n, label, hl) => `<div style="background:${hl ? '#fff3e0' : 'var(--off)'};border-radius:12px;padding:16px;text-align:center">
+  const kpi = (n, label, hl) => `<div style="flex:1 1 110px;background:${hl ? '#fff3e0' : 'var(--off)'};border-radius:12px;padding:16px;text-align:center">
     <div style="font-size:1.5rem;font-weight:800;font-variant-numeric:tabular-nums">${n}</div>
     <div style="font-size:.7rem;color:var(--muted);font-weight:700;margin-top:2px">${label}</div>
   </div>`;
@@ -16386,10 +16386,10 @@ async function _donsFoyersTabHtml(prog) {
     }).join('')}
   </div>` : '';
 
-  const filterBtn = (v, label) => `<button class="btn btn-sm ${statutFilter===v?'btn-primary':'btn-ghost'}" onclick="window._donsFoyerFilter='${v}';donsMgmtView()" style="margin-right:6px">${label}</button>`;
+  const filterBtn = (v, label) => `<button class="btn btn-sm ${statutFilter===v?'btn-primary':'btn-ghost'}" onclick="window._donsFoyerFilter='${v}';donsMgmtView()">${label}</button>`;
 
   return `
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;margin-bottom:20px">
+    <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:20px">
       ${kpi(nbEnAttente, 'En attente', nbEnAttente > 0)}
       ${kpi(foyersActifs.length, 'Foyers actifs')}
       ${kpi(nbPersonnesCouvertes, 'Personnes couvertes')}
@@ -16398,7 +16398,7 @@ async function _donsFoyersTabHtml(prog) {
       ${kpi(nbRetraitsMois, 'Retraits ce mois-ci')}
     </div>
     ${stockBars}
-    <div style="margin-bottom:14px">
+    <div style="margin-bottom:14px;display:flex;flex-wrap:wrap;gap:6px">
       ${filterBtn('en_attente','En attente')}${filterBtn('valide','Validés')}${filterBtn('a_revalider','À revalider (>1 an)')}${filterBtn('refuse','Refusés')}${nbTutelleEnAttente > 0 ? filterBtn('tutelle', `🛡️ Tutelles (${nbTutelleEnAttente})`) : ''}${filterBtn('','Tous')}
     </div>
     <div class="table-wrapper"><table>
@@ -16495,12 +16495,24 @@ async function _donsReconfirmerFoyer(id) {
   catch(e) { toast(e.message, true); }
 }
 
-async function _donsApprouverTutelle(foyerId, personneId) {
-  if (!confirm('Approuver cette demande de tutelle ?')) return;
-  try {
-    await api('/dons/foyers/' + foyerId + '/personnes/' + personneId + '/tutelle-decision', { method:'POST', body: JSON.stringify({ approuve: true }) });
-    toast('Tutelle approuvée'); donsMgmtView();
-  } catch(e) { toast(e.message, true); }
+function _donsApprouverTutelle(foyerId, personneId) {
+  openModal('Approuver la tutelle', `
+    <p style="font-size:.85rem;color:var(--muted);margin-bottom:14px">Cette personne comptera de nouveau pour le calcul du stock, sans avoir besoin de sa propre carte membre.</p>
+    <form id="donsTutelleApprouveForm">
+      <div class="form-group"><label>Note (optionnel)</label><textarea id="dta_note" rows="2"></textarea></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">✓ Approuver</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('donsTutelleApprouveForm').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      await api('/dons/foyers/' + foyerId + '/personnes/' + personneId + '/tutelle-decision', { method:'POST', body: JSON.stringify({ approuve: true, note: document.getElementById('dta_note').value }) });
+      closeModal(); toast('Tutelle approuvée'); donsMgmtView();
+    } catch(e) { toast(e.message, true); }
+  };
 }
 
 function _donsRefuserTutelle(foyerId, personneId) {
@@ -16669,8 +16681,8 @@ async function donsScanView() {
       </select>
     </div>` : ''}
 
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;max-width:1100px">
-      <div class="table-card" style="padding:14px">
+    <div style="display:flex;flex-wrap:wrap;gap:16px;max-width:1100px">
+      <div class="table-card" style="flex:1 1 280px;padding:14px">
         <h4 style="margin-bottom:8px;color:var(--g2);font-size:.9rem">📷 Caméra</h4>
         <div id="donsReaderWrap" style="border-radius:12px;overflow:hidden;background:#111;min-height:160px;max-height:40vh;position:relative">
           <video id="donsScanVideo" autoplay muted playsinline style="width:100%;display:none;border-radius:12px;max-height:40vh;object-fit:cover"></video>
@@ -16699,11 +16711,11 @@ async function donsScanView() {
         </div>
       </div>
 
-      <div id="donsScanResult" class="table-card" style="padding:20px">
+      <div id="donsScanResult" class="table-card" style="flex:1 1 280px;padding:20px">
         <div class="empty-state"><div class="es-icon">🎁</div><p>Scannez une carte pour enregistrer un retrait</p></div>
       </div>
 
-      <div class="table-card" style="padding:14px">
+      <div class="table-card" style="flex:1 1 280px;padding:14px">
         <h4 style="margin-bottom:8px;color:var(--g2);font-size:.9rem">🔴 En direct — tous les postes</h4>
         <div id="donsLiveFeed" style="max-height:400px;overflow-y:auto;font-size:.82rem">
           <p style="padding:8px;color:var(--muted)">Les scans des autres postes du comité apparaîtront ici en temps réel.</p>
