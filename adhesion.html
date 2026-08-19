@@ -172,48 +172,48 @@
         <h3 data-i18n="adh.form.h3">Formulaire d'adhésion</h3>
         <div class="form-row">
           <div class="form-group">
-            <label data-i18n="Prénom *">Prénom *</label>
+            <label for="adh_prenom" data-i18n="Prénom *">Prénom *</label>
             <input type="text" id="adh_prenom" placeholder="Jean" required/>
           </div>
           <div class="form-group">
-            <label data-i18n="Nom *">Nom *</label>
+            <label for="adh_nom" data-i18n="Nom *">Nom *</label>
             <input type="text" id="adh_nom" placeholder="Dupont" required/>
           </div>
         </div>
         <div class="form-group">
-          <label data-i18n="Adresse courriel *">Adresse courriel *</label>
+          <label for="adh_email" data-i18n="Adresse courriel *">Adresse courriel *</label>
           <input type="email" id="adh_email" placeholder="votre@email.com" required/>
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label data-i18n="adh.password">Mot de passe *</label>
+            <label for="adh_password" data-i18n="adh.password">Mot de passe *</label>
             <input type="password" id="adh_password" placeholder="Choisir un mot de passe" data-i18n-ph="adh.password.ph" required minlength="6"/>
           </div>
           <div class="form-group">
-            <label data-i18n="adh.password2">Confirmer le mot de passe *</label>
+            <label for="adh_password2" data-i18n="adh.password2">Confirmer le mot de passe *</label>
             <input type="password" id="adh_password2" placeholder="Répéter le mot de passe" data-i18n-ph="adh.password2.ph" required minlength="6"/>
           </div>
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label data-i18n="Téléphone">Téléphone</label>
+            <label for="adh_tel" data-i18n="Téléphone">Téléphone</label>
             <input type="tel" id="adh_tel" placeholder="905-000-0000"/>
           </div>
           <div class="form-group">
-            <label data-i18n="Date de naissance">Date de naissance</label>
-            <div style="display:flex;gap:6px">
-              <select id="adh_dob_day" style="flex:1"></select>
-              <select id="adh_dob_month" style="flex:1.6"></select>
-              <select id="adh_dob_year" style="flex:1"></select>
+            <label id="adh_dob_label" data-i18n="Date de naissance">Date de naissance</label>
+            <div style="display:flex;gap:6px" role="group" aria-labelledby="adh_dob_label">
+              <select id="adh_dob_day" aria-label="Jour de naissance" style="flex:1"></select>
+              <select id="adh_dob_month" aria-label="Mois de naissance" style="flex:1.6"></select>
+              <select id="adh_dob_year" aria-label="Année de naissance" style="flex:1"></select>
             </div>
           </div>
         </div>
         <div class="form-group">
-          <label data-i18n="Adresse">Adresse</label>
+          <label for="adh_addr" data-i18n="Adresse">Adresse</label>
           <input type="text" id="adh_addr" placeholder="123 rue Principale, Hamilton, ON"/>
         </div>
         <div class="form-group">
-          <label data-i18n="Type d'adhésion *">Type d'adhésion *</label>
+          <label for="adh_type" data-i18n="Type d'adhésion *">Type d'adhésion *</label>
           <select id="adh_type" required>
             <option value="" data-i18n="adh.type.choose">Choisir une formule…</option>
             <option value="Membre (Gratuit)" data-i18n="adh.type.free">Membre (Gratuit)</option>
@@ -223,7 +223,7 @@
           </select>
         </div>
         <div class="form-group">
-          <label data-i18n="Comment avez-vous connu AHH ?">Comment avez-vous connu AHH ?</label>
+          <label for="adh_source" data-i18n="Comment avez-vous connu AHH ?">Comment avez-vous connu AHH ?</label>
           <select id="adh_source">
             <option value="" data-i18n="adh.source.choose">Choisir…</option>
             <option value="Bouche à oreille" data-i18n="adh.source.wordofmouth">Bouche à oreille</option>
@@ -234,7 +234,7 @@
           </select>
         </div>
         <div class="form-group">
-          <label data-i18n="Message (facultatif)">Message (facultatif)</label>
+          <label for="adh_msg" data-i18n="Message (facultatif)">Message (facultatif)</label>
           <textarea id="adh_msg" rows="3" placeholder="Présentez-vous ou posez vos questions…"></textarea>
         </div>
         <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:18px">

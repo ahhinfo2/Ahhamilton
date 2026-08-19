@@ -3,6 +3,13 @@
 ═══════════════════════════════════════════════ */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Visuellement caché mais lu par les lecteurs d'écran — pour un label dont le placeholder
+   suffit visuellement mais qui a besoin d'un nom accessible réel. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
+
 :root {
   --g1: #1b5e20;
   --g2: #2e7d32;
@@ -10,6 +17,9 @@
   --g4: #66bb6a;
   --accent:    #f9a825;
   --accent-lt: #fdd835;
+  --on-accent: #1a2e1a; /* texte sur fond accent (boutons) — fixe, ne suit PAS --text : en
+    mode sombre --text devient presque blanc alors que --accent reste le même jaune-orangé
+    vif, ce qui rendait "Faire un don"/connexion quasi illisibles (contraste ~1.7:1) */
   --white:     #ffffff;
   --off:       #f4f8f4;
   --text:      #1a2e1a;
@@ -46,7 +56,7 @@ img   { display: block; max-width: 100%; }
   border: 2px solid transparent; cursor: pointer; transition: var(--tr);
   white-space: nowrap;
 }
-.btn-primary  { background: linear-gradient(135deg, var(--accent), var(--accent-lt)); color: var(--text); box-shadow: 0 3px 14px rgba(249,168,37,.3); }
+.btn-primary  { background: linear-gradient(135deg, var(--accent), var(--accent-lt)); color: var(--on-accent); box-shadow: 0 3px 14px rgba(249,168,37,.3); }
 .btn-primary:hover  { transform: translateY(-2px); box-shadow: 0 6px 22px rgba(249,168,37,.45); }
 .btn-ghost    { background: rgba(255,255,255,.14); color: #fff; border-color: rgba(255,255,255,.45); backdrop-filter: blur(6px); }
 .btn-ghost:hover    { background: rgba(255,255,255,.25); }
@@ -58,7 +68,7 @@ img   { display: block; max-width: 100%; }
 
 .btn-login {
   background: linear-gradient(135deg, var(--accent), var(--accent-lt)) !important;
-  color: var(--text) !important; border-color: transparent !important;
+  color: var(--on-accent) !important; border-color: transparent !important;
   font-weight: 700 !important; font-size: .83rem !important;
   padding: 9px 18px !important; border-radius: 50px !important;
   box-shadow: 0 3px 12px rgba(249,168,37,.3);
@@ -1102,7 +1112,7 @@ img   { display: block; max-width: 100%; }
   font-family: 'Poppins', sans-serif; transition: var(--tr);
   white-space: nowrap;
 }
-.newsletter-btn:hover { background: var(--accent); color: var(--text); }
+.newsletter-btn:hover { background: var(--accent); color: var(--on-accent); }
 .newsletter-msg {
   margin-top: 12px; font-size: .82rem; color: rgba(255,255,255,.9);
   min-height: 20px; display: none;

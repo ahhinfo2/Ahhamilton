@@ -101,6 +101,18 @@ app.post('/api/stripe/webhook', express.raw({ type: '*/*' }), async (req, res) =
     return;
   }
 
+  // Stripe garantit une livraison "au moins une fois" — un même événement peut être redélivré
+  // (retry réseau, ou l'API events.retrieve ci-dessus rejouée). Sans ce garde-fou, un rejeu
+  // insérerait un deuxième paiement/transaction pour le même événement réel.
+  if (event.id) {
+    try {
+      db.prepare('INSERT INTO webhook_events (id) VALUES (?)').run(event.id);
+    } catch (e) {
+      console.log(`Webhook déjà traité, ignoré : ${event.id}`);
+      return;
+    }
+  }
+
   if (event.type === 'checkout.session.completed') {
     const session  = event.data.object;
     const email    = session.customer_details?.email || session.metadata?.acheteur_email || '';
@@ -849,6 +861,11 @@ app.put('/api/users/:id', authMiddleware, (req, res) => {
   if (isMgr && membre_depuis !== undefined) { updates.push('membre_depuis = ?'); vals.push(membre_depuis || null); }
   if (isAdmin && role !== undefined)          { updates.push('role = ?');          vals.push(role); }
   if (isAdmin && actif !== undefined)         { updates.push('actif = ?');         vals.push(actif); }
+  // Un changement de rôle ou de statut actif doit invalider les JWT déjà émis pour ce compte —
+  // sinon un membre rétrogradé/désactivé pour cause garde ses anciens privilèges jusqu'à
+  // expiration naturelle du token (jusqu'à 8h) : authMiddleware compare déjà decoded.iat à
+  // password_changed_at, on réutilise ce mécanisme plutôt que d'en ajouter un nouveau.
+  if (isAdmin && (role !== undefined || actif !== undefined)) { updates.push("password_changed_at = datetime('now')"); }
   if (isAdmin && req.body.email_org !== undefined)    { updates.push('email_org = ?');    vals.push(req.body.email_org || null); }
   if (isAdmin && req.body.smtp_pass_org !== undefined && req.body.smtp_pass_org !== '') { updates.push('smtp_pass_org = ?'); vals.push(encryptSmtpPass(req.body.smtp_pass_org)); }
 
@@ -1080,7 +1097,10 @@ async function compressImage(filePath, maxWidth) {
     if (img.width > (maxWidth || 1200)) {
       img.resize({ w: maxWidth || 1200 });
     }
-    await img.write(filePath);
+    // Sans quality explicite, jimp encode en JPEG à ~90%+ — une photo déjà sous maxWidth (le
+    // cas le plus fréquent, ex. une photo de téléphone pour une fiche talent) ressortait quasi
+    // intacte, sans compression réelle. 80% est visuellement indiscernable pour des photos web.
+    await img.write(filePath, { quality: 80 });
     return true;
   } catch(e) { console.error('[COMPRESS]', e.message); return false; }
 }
@@ -4200,6 +4220,10 @@ function appliquerApprobationPaiement(pay, approuveParId, req) {
 app.patch('/api/payments/:id/approuver', authMiddleware, requireRole('admin','tresoriere'), (req, res) => {
   const pay = db.prepare('SELECT * FROM payments WHERE id = ?').get(req.params.id);
   if (!pay) return res.status(404).json({ error: 'Paiement introuvable' });
+  // Court-circuite le double-clic (ou deux membres du comité qui approuvent au même moment) —
+  // sans ça, appliquerApprobationPaiement() renvoie un courriel/SMS de confirmation en double
+  // au membre à chaque appel répété.
+  if (pay.statut === 'approuve') return res.status(409).json({ error: 'Déjà approuvé' });
 
   db.prepare('UPDATE payments SET statut=?, approuve_par=?, date_approbation=CURRENT_TIMESTAMP WHERE id=?')
     .run('approuve', req.user.id, pay.id);
@@ -4646,9 +4670,9 @@ function runPaymentReminderJob() {
     AND (plan_paid_month IS NULL OR plan_paid_month < ?)
   `).all(currentMonth);
 
+  const adminId = db.prepare("SELECT id FROM users WHERE role='admin' LIMIT 1").get()?.id || 1;
   debtors.forEach(u => {
     const montantDu = PLAN_PRIX[u.plan] || 10;
-    const adminId = db.prepare("SELECT id FROM users WHERE role='admin' LIMIT 1").get()?.id || 1;
 
     const unpaidCount = (u.plan_unpaid_count || 0) + 1;
     db.prepare('UPDATE users SET plan_unpaid_count=? WHERE id=?').run(unpaidCount, u.id);
@@ -5457,22 +5481,34 @@ app.post('/api/activities/:id/tickets/sell', authMiddleware, requireRole('admin'
   const ticketUid = crypto.randomBytes(4).toString('hex');
   const qrData = `Vendu par ${vendeur.prenom} ${vendeur.nom}\nTable ${table.numero}\n${act.titre}\n${ticketUid}`;
 
-  const r = db.prepare(`INSERT INTO tickets (activity_id, table_id, acheteur_nom, acheteur_email, acheteur_telephone, vendu_par, qr_data, prix, methode_paiement, quantite)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(actId, table.id, acheteur_nom, acheteur_email || '', acheteur_telephone || '', req.user.id, qrData, prixUnit, methode_paiement, parseInt(quantite));
+  // Le billet et l'écriture financière (transaction + solde) doivent être créés ensemble —
+  // un échec entre les deux laisserait un billet vendu sans recette enregistrée, ou une
+  // recette sans billet, désynchronisant la comptabilité de trésorerie.
+  let ticketId;
+  try {
+    db.prepare('BEGIN').run();
+    const r = db.prepare(`INSERT INTO tickets (activity_id, table_id, acheteur_nom, acheteur_email, acheteur_telephone, vendu_par, qr_data, prix, methode_paiement, quantite)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(actId, table.id, acheteur_nom, acheteur_email || '', acheteur_telephone || '', req.user.id, qrData, prixUnit, methode_paiement, parseInt(quantite));
+    ticketId = r.lastInsertRowid;
 
-  // Enregistrer le revenu dans la ligne financière
-  if (prixUnit > 0) {
-    const line = db.prepare('SELECT id FROM financial_lines WHERE activity_id = ? LIMIT 1').get(actId);
-    if (line) {
-      db.prepare(`INSERT INTO transactions (financial_line_id, type, montant, description, methode, cree_par)
-        VALUES (?, 'revenu', ?, ?, ?, ?)`)
-        .run(line.id, prixUnit * parseInt(quantite), `Vente billet: ${acheteur_nom}`, methode_paiement, req.user.id);
-      db.prepare('UPDATE account_info SET solde = solde + ?, date_maj = CURRENT_TIMESTAMP WHERE id = 1').run(prixUnit * parseInt(quantite));
+    if (prixUnit > 0) {
+      const line = db.prepare('SELECT id FROM financial_lines WHERE activity_id = ? LIMIT 1').get(actId);
+      if (line) {
+        db.prepare(`INSERT INTO transactions (financial_line_id, type, montant, description, methode, cree_par)
+          VALUES (?, 'revenu', ?, ?, ?, ?)`)
+          .run(line.id, prixUnit * parseInt(quantite), `Vente billet: ${acheteur_nom}`, methode_paiement, req.user.id);
+        db.prepare('UPDATE account_info SET solde = solde + ?, date_maj = CURRENT_TIMESTAMP WHERE id = 1').run(prixUnit * parseInt(quantite));
+      }
     }
+    db.prepare('COMMIT').run();
+  } catch (e) {
+    try { db.prepare('ROLLBACK').run(); } catch {}
+    console.error('Erreur vente billet:', e.message);
+    return res.status(500).json({ error: 'Erreur serveur — vente non enregistrée.' });
   }
 
-  res.status(201).json({ id: r.lastInsertRowid, qr_data: qrData, table_numero: table.numero });
+  res.status(201).json({ id: ticketId, qr_data: qrData, table_numero: table.numero });
 });
 
 // Tous les billets d'une activité (comité)
@@ -6044,7 +6080,13 @@ app.post('/api/activities/:id/buy', async (req, res) => {
   res.json({ order_token: orderToken, interac: { email: interacEmail, montant: montantTotal, reference: orderRef } });
 });
 
-// Public: activer les billets après retour Stripe (order_token = UUID impossible à deviner)
+// Public : renvoie les QR d'une commande déjà confirmée payée. Ne confirme JAMAIS un
+// paiement elle-même — seul le webhook Stripe (vérifié par signature) peut faire passer
+// payment_status à 'paid'. Avant ce correctif, cette route acceptait un simple POST avec le
+// order_token (renvoyé au client dès la création de la commande, avant tout paiement) pour
+// activer les billets et créditer la recette — un acheteur pouvait obtenir des billets
+// gratuits et gonfler le solde de trésorerie sans jamais payer. Sert la page de succès Stripe,
+// qui poll cette route en attendant que le webhook ait fait son travail.
 app.post('/api/orders/:orderToken/activate', async (req, res) => {
   const { orderToken } = req.params;
   // UUID format check (basic security)
@@ -6053,63 +6095,46 @@ app.post('/api/orders/:orderToken/activate', async (req, res) => {
   const tickets = db.prepare('SELECT * FROM tickets WHERE order_token = ?').all(orderToken);
   if (!tickets.length) return res.status(404).json({ error: 'Commande introuvable' });
 
+  if (tickets[0].payment_status !== 'paid') {
+    // Billets gratuits déjà marqués 'paid' à la création (POST /buy) ; les billets payants ne
+    // le sont que via le webhook Stripe, potentiellement pas encore reçu à cet instant (la
+    // page de succès arrive parfois avant le webhook) — rien à confirmer nous-mêmes ici.
+    return res.json({ ok: false, pending: true, hint: 'Paiement pas encore confirmé — réessayez dans quelques secondes.' });
+  }
+
   const email  = tickets[0].acheteur_email || '';
   const prenom = (tickets[0].acheteur_nom || '').split(' ')[0];
   const act    = db.prepare('SELECT * FROM activities WHERE id=?').get(tickets[0].activity_id);
   const forceResend = req.query.resend === '1';
 
-  // Déjà activé → renvoyer le QR seulement si ?resend=1
-  if (tickets[0].payment_status === 'paid' && !forceResend) {
-    return res.json({ ok: true, email, already: true, hint: 'Ajoutez ?resend=1 pour renvoyer le QR' });
-  }
-
   try {
-    // Activer tous les billets de cette commande
-    db.prepare("UPDATE tickets SET statut='actif', payment_status='paid' WHERE order_token=?").run(orderToken);
-    const activated = db.prepare('SELECT * FROM tickets WHERE order_token=?').all(orderToken);
-
-    // Envoyer QR par courriel (URL publique sur le serveur)
+    // Le paiement est déjà confirmé (webhook, ou gratuit dès la création) — régénérer le
+    // fichier QR sur disque est sans risque et idempotent (aucune écriture financière ici),
+    // et c'est nécessaire pour que la page de succès puisse l'afficher : le webhook envoie le
+    // QR par courriel mais n'écrit jamais le fichier public consulté par GET /api/orders/:token.
     const siteBase = process.env.SITE_URL || 'https://ahhamilton.ca';
     const qrDir = path.join(__dirname, 'uploads', 'qr');
     if (!fs.existsSync(qrDir)) fs.mkdirSync(qrDir, { recursive: true });
-    for (const t of activated) {
+    for (const t of tickets) {
       const ticketToken = (t.qr_data || '').replace('TICKET:', '');
+      const qrFile = path.join(qrDir, `${ticketToken}.png`);
+      const isNew = !fs.existsSync(qrFile);
       try {
         const scanUrl = `${siteBase}/scan.html?t=${ticketToken}`;
         const qrBuf = await QRCode.toBuffer(scanUrl, { type: 'png', width: 500, margin: 2, errorCorrectionLevel: 'H', color: { dark: '#1b5e20', light: '#ffffff' } });
-        const qrFile = path.join(qrDir, `${ticketToken}.png`);
         fs.writeFileSync(qrFile, qrBuf);
-        const qrPublicUrl = `${siteBase}/uploads/qr/${ticketToken}.png`;
-        const nomBillet = t.ticket_type_id ? (db.prepare('SELECT nom FROM activity_ticket_types WHERE id=?').get(t.ticket_type_id)?.nom || 'Entrée générale') : 'Entrée générale';
-        console.log(`📧 Envoi QR à ${t.acheteur_email} — URL: ${qrPublicUrl}`);
-        mailer.sendBilletQR(t.acheteur_email, prenom, act, { ...t, nom: nomBillet, token: ticketToken }, qrBuf.toString('base64'), qrPublicUrl).catch(e => console.error('QR mail error:', e.message));
+        // Courriel envoyé seulement si demandé explicitement (?resend=1) ou si c'est la toute
+        // première fois qu'on voit ce billet — évite de renvoyer un doublon à chaque visite
+        // de la page de succès.
+        if (forceResend || isNew) {
+          const qrPublicUrl = `${siteBase}/uploads/qr/${ticketToken}.png`;
+          const nomBillet = t.ticket_type_id ? (db.prepare('SELECT nom FROM activity_ticket_types WHERE id=?').get(t.ticket_type_id)?.nom || 'Entrée générale') : 'Entrée générale';
+          mailer.sendBilletQR(t.acheteur_email, prenom, act, { ...t, nom: nomBillet, token: ticketToken }, qrBuf.toString('base64'), qrPublicUrl).catch(e => console.error('QR mail error:', e.message));
+        }
       } catch(e) { console.error('QR gen error:', e.message); }
     }
 
-    // Inscrire dans activity_registrations si c'est un membre connu
-    const membre = email ? db.prepare('SELECT id FROM users WHERE email = ? AND actif = 1').get(email) : null;
-    if (membre && act) {
-      const existing = db.prepare('SELECT id FROM activity_registrations WHERE activity_id=? AND user_id=?').get(act.id, membre.id);
-      if (!existing) db.prepare("INSERT INTO activity_registrations (activity_id, user_id, statut) VALUES (?,?,'inscrit')").run(act.id, membre.id);
-    }
-
-    // Enregistrer le revenu dans les finances
-    const montant = activated.reduce((s, t) => s + (t.prix || 0), 0);
-    if (montant > 0 && act) {
-      const line = db.prepare('SELECT id FROM financial_lines WHERE activity_id=? LIMIT 1').get(act.id);
-      if (line) {
-        const adminId = db.prepare("SELECT id FROM users WHERE role='admin' AND (phantom IS NULL OR phantom=0) LIMIT 1").get()?.id || 1;
-        const alreadyTx = db.prepare("SELECT id FROM transactions WHERE description LIKE ? AND financial_line_id=?").get(`%${orderToken.substring(0,8)}%`, line.id);
-        if (!alreadyTx) {
-          db.prepare("INSERT INTO transactions (financial_line_id, type, montant, description, methode, cree_par) VALUES (?, 'revenu', ?, ?, 'stripe', ?)")
-            .run(line.id, montant, `Stripe billet ${orderToken.substring(0,8)} — ${email}`, adminId);
-          db.prepare('UPDATE account_info SET solde = solde + ?, date_maj = CURRENT_TIMESTAMP WHERE id = 1').run(montant);
-        }
-      }
-    }
-
-    console.log(`✅ Billets activés (retour Stripe): ${email} — ${activated.length} billet(s) — $${montant}`);
-    res.json({ ok: true, email, nb_billets: activated.length });
+    res.json({ ok: true, email, nb_billets: tickets.length });
   } catch(e) {
     console.error('Activate order error:', e.message);
     res.status(500).json({ error: 'Erreur serveur' });
@@ -6154,7 +6179,7 @@ app.get('/api/orders/:orderToken', (req, res) => {
 // Admin: confirmer paiement Interac → activer billets + envoyer QR
 app.post('/api/orders/:orderToken/confirm', authMiddleware, requireRole('admin', 'tresoriere', 'secretaire'), async (req, res) => {
   const { orderToken } = req.params;
-  const tickets = db.prepare('SELECT * FROM tickets WHERE order_token=? AND payment_status="pending"').all(orderToken);
+  const tickets = db.prepare("SELECT * FROM tickets WHERE order_token=? AND payment_status='pending'").all(orderToken);
   if (!tickets.length) return res.status(404).json({ error: 'Commande introuvable ou déjà confirmée' });
 
   db.prepare("UPDATE tickets SET statut='actif', payment_status='paid' WHERE order_token=?").run(orderToken);
@@ -6188,7 +6213,7 @@ app.post('/api/orders/:orderToken/confirm', authMiddleware, requireRole('admin',
 app.post('/api/orders/:orderToken/cancel', authMiddleware, requireRole('admin', 'tresoriere', 'secretaire'), (req, res) => {
   const tickets = db.prepare('SELECT * FROM tickets WHERE order_token=?').all(req.params.orderToken);
   if (!tickets.length) return res.status(404).json({ error: 'Commande introuvable' });
-  db.prepare('UPDATE tickets SET statut="annule", payment_status="cancelled" WHERE order_token=?').run(req.params.orderToken);
+  db.prepare("UPDATE tickets SET statut='annule', payment_status='cancelled' WHERE order_token=?").run(req.params.orderToken);
   tickets.forEach(t => {
     if (t.ticket_type_id) db.prepare('UPDATE activity_ticket_types SET nb_vendus = MAX(0, nb_vendus - 1) WHERE id=?').run(t.ticket_type_id);
   });
@@ -7938,7 +7963,11 @@ app.get('/api/public/election/:token', (req, res) => {
   res.json({ titre: election.titre, description: election.description, candidates });
 });
 
-app.post('/api/public/election/:token/vote', (req, res) => {
+// Vote public sans authentification, seule barrière anti-fraude = unicité du numéro de
+// cellulaire — sans limite de débit, un script peut tenter des numéros à 10 chiffres en boucle
+// jusqu'à en trouver d'inutilisés et bourrer l'urne d'une élection réelle du comité.
+const voteLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 5, message: { error: 'Trop de votes depuis cette connexion. Réessayez plus tard.' }, standardHeaders: true, legacyHeaders: false });
+app.post('/api/public/election/:token/vote', voteLimiter, (req, res) => {
   const election = db.prepare("SELECT * FROM committee_elections WHERE public_token=? AND statut='ouvert'").get(req.params.token);
   if (!election) return res.status(404).json({ error: 'Élection introuvable ou fermée' });
   const { candidate_id, nom, telephone } = req.body;
@@ -10262,7 +10291,8 @@ app.put('/api/dons/foyers/:id', authMiddleware, (req, res) => {
 });
 
 app.get('/api/dons/programmes/:id/foyers', authMiddleware, requireDonsAccess, (req, res) => {
-  let sql = `SELECT f.*, u.prenom, u.nom, u.email, u.telephone FROM dons_foyers f JOIN users u ON u.id=f.responsable_id WHERE f.programme_id=?`;
+  let sql = `SELECT f.*, u.prenom, u.nom, u.email, u.telephone, u.adresse AS responsable_adresse
+    FROM dons_foyers f JOIN users u ON u.id=f.responsable_id WHERE f.programme_id=?`;
   const params = [req.params.id];
   if (req.query.statut === 'a_revalider') {
     sql += " AND f.statut != 'refuse' AND f.date_validation IS NOT NULL AND f.date_validation < datetime('now','-365 days')";
@@ -10276,20 +10306,42 @@ app.get('/api/dons/programmes/:id/foyers', authMiddleware, requireDonsAccess, (r
   }
   sql += ' ORDER BY f.date_creation DESC';
   const foyers = db.prepare(sql).all(...params);
-  const membresStmt = db.prepare(`SELECT u.prenom, u.nom, u.email FROM dons_foyer_membres m JOIN users u ON u.id=m.user_id WHERE m.foyer_id=?`);
-  const depStmt = db.prepare('SELECT prenom, nom, lien, date_naissance FROM dependents WHERE user_id=?');
-  const persStmt = db.prepare('SELECT * FROM dons_foyer_personnes WHERE foyer_id=? ORDER BY id');
-  const rdvStmt = db.prepare(`SELECT r.id, c.date_heure FROM dons_rdv r JOIN dons_creneaux c ON c.id=r.creneau_id
-    WHERE r.foyer_id=? AND r.statut='a_venir' ORDER BY c.date_heure LIMIT 1`);
-  const respStmt = db.prepare('SELECT id, adresse, telephone FROM users WHERE id=?');
+
+  // Batch : une requête IN(...) par table au lieu de 5 requêtes par foyer (un programme de
+  // dons peut compter des centaines de foyers — c'était plusieurs milliers de requêtes par
+  // chargement de page, en double puisque le client rappelle cette route sans filtre pour les
+  // compteurs ET avec filtre pour la liste affichée).
+  if (!foyers.length) return res.json(foyers);
+  const foyerIds = foyers.map(f => f.id);
+  const respIds = [...new Set(foyers.map(f => f.responsable_id))];
+  const foyerPh = foyerIds.map(() => '?').join(',');
+  const respPh = respIds.map(() => '?').join(',');
+
+  const membresByFoyer = {};
+  db.prepare(`SELECT m.foyer_id, u.prenom, u.nom, u.email FROM dons_foyer_membres m JOIN users u ON u.id=m.user_id WHERE m.foyer_id IN (${foyerPh})`)
+    .all(...foyerIds).forEach(r => { (membresByFoyer[r.foyer_id] ??= []).push(r); });
+
+  const depsByUser = {};
+  db.prepare(`SELECT user_id, prenom, nom, lien, date_naissance FROM dependents WHERE user_id IN (${respPh})`)
+    .all(...respIds).forEach(r => { (depsByUser[r.user_id] ??= []).push(r); });
+
+  const personnesByFoyer = {};
+  db.prepare(`SELECT * FROM dons_foyer_personnes WHERE foyer_id IN (${foyerPh}) ORDER BY id`)
+    .all(...foyerIds).forEach(r => { (personnesByFoyer[r.foyer_id] ??= []).push(r); });
+
+  const rdvByFoyer = {};
+  db.prepare(`SELECT r.foyer_id, r.id, c.date_heure FROM dons_rdv r JOIN dons_creneaux c ON c.id=r.creneau_id
+    WHERE r.foyer_id IN (${foyerPh}) AND r.statut='a_venir' ORDER BY c.date_heure`)
+    .all(...foyerIds).forEach(r => { if (!(r.foyer_id in rdvByFoyer)) rdvByFoyer[r.foyer_id] = r; });
+
   foyers.forEach(f => {
-    f.membres = membresStmt.all(f.id); f.dependants = depStmt.all(f.responsable_id);
-    f.personnes = persStmt.all(f.id).map(p => ({ ...p, compte: donsPersonneCompte(p) }));
+    f.membres = membresByFoyer[f.id] || [];
+    f.dependants = depsByUser[f.responsable_id] || [];
+    f.personnes = (personnesByFoyer[f.id] || []).map(p => ({ ...p, compte: donsPersonneCompte(p) }));
     f.nb_comptees = f.personnes.filter(p => p.compte).length;
     f.valide_pour_reservation = donsFoyerValidePourReservation(f);
-    f.prochain_rdv = rdvStmt.get(f.id) || null;
-    const respUser = respStmt.get(f.responsable_id);
-    f.correspondances = respUser ? donsCorrespondances(respUser) : [];
+    f.prochain_rdv = rdvByFoyer[f.id] || null;
+    f.correspondances = donsCorrespondances({ id: f.responsable_id, adresse: f.responsable_adresse, telephone: f.telephone });
     // Écart entre la taille déclarée dans le foyer dons et la taille de famille déjà connue du
     // profil membre (responsable + personnes à charge existantes). Un conjoint ajoute 1 sans
     // être dans "dependents", donc un petit écart (0-2) est normal — seul un grand écart est
@@ -10697,30 +10749,49 @@ app.post('/api/dons/scan', authMiddleware, (req, res) => {
 
   const items = db.prepare('SELECT * FROM dons_stock WHERE programme_id=?').all(programme_id);
   let partiel = false;
-  const detail = items.map(it => {
-    const sansRestriction = it.age_min == null && it.age_max == null;
-    const eligibles = sansRestriction
-      ? comptent.length
-      : comptent.filter(p => { const a = donsAgeDe(p.date_naissance); return a != null && (it.age_min == null || a >= it.age_min) && (it.age_max == null || a <= it.age_max); }).length;
-    const du = it.qte_fixe_foyer + (it.qte_par_personne * eligibles);
-    const donne = Math.max(0, Math.min(du, it.quantite_restante));
-    if (donne < du) partiel = true;
-    if (donne > 0) {
-      const restant = it.quantite_restante - donne;
-      db.prepare('UPDATE dons_stock SET quantite_restante = quantite_restante - ? WHERE id=?').run(donne, it.id);
-      if (it.seuil_alerte != null && restant <= it.seuil_alerte && it.quantite_restante > it.seuil_alerte) {
-        donsAlerterStockBas(it, restant);
+  const alertesStockBas = [];
+  // Décrémenter le stock, mettre à jour le rendez-vous et enregistrer le retrait dans une
+  // seule transaction : ces trois écritures doivent réussir ou échouer ensemble, sinon un
+  // échec au milieu (ex. l'INSERT final) laisserait du stock décrémenté sans retrait
+  // correspondant — de la marchandise disparaît sans trace dans un module dont le but même
+  // est la traçabilité anti-fraude.
+  let detail;
+  try {
+    db.prepare('BEGIN').run();
+    detail = items.map(it => {
+      const sansRestriction = it.age_min == null && it.age_max == null;
+      const eligibles = sansRestriction
+        ? comptent.length
+        : comptent.filter(p => { const a = donsAgeDe(p.date_naissance); return a != null && (it.age_min == null || a >= it.age_min) && (it.age_max == null || a <= it.age_max); }).length;
+      const du = it.qte_fixe_foyer + (it.qte_par_personne * eligibles);
+      const donne = Math.max(0, Math.min(du, it.quantite_restante));
+      if (donne < du) partiel = true;
+      if (donne > 0) {
+        const restant = it.quantite_restante - donne;
+        db.prepare('UPDATE dons_stock SET quantite_restante = quantite_restante - ? WHERE id=?').run(donne, it.id);
+        if (it.seuil_alerte != null && restant <= it.seuil_alerte && it.quantite_restante > it.seuil_alerte) {
+          alertesStockBas.push({ item: it, restant });
+        }
       }
-    }
-    return { nom: it.nom, unite: it.unite, du, donne };
-  });
+      return { nom: it.nom, unite: it.unite, du, donne };
+    });
 
-  const rdv = db.prepare("SELECT * FROM dons_rdv WHERE foyer_id=? AND statut='a_venir' ORDER BY id DESC LIMIT 1").get(foyer.id);
-  if (rdv) db.prepare("UPDATE dons_rdv SET statut='honore' WHERE id=?").run(rdv.id);
+    const rdv = db.prepare("SELECT * FROM dons_rdv WHERE foyer_id=? AND statut='a_venir' ORDER BY id DESC LIMIT 1").get(foyer.id);
+    if (rdv) db.prepare("UPDATE dons_rdv SET statut='honore' WHERE id=?").run(rdv.id);
 
-  db.prepare(`INSERT INTO dons_retraits (foyer_id, rdv_id, programme_id, scanne_par, carte_scannee_id, derogation, motif_derogation, stock_json, partiel)
-    VALUES (?,?,?,?,?,?,?,?,?)`).run(foyer.id, rdv ? rdv.id : null, programme_id, req.user.id, membre.id,
-    derogation ? 1 : 0, derogation ? motif.trim() : null, JSON.stringify(detail), partiel ? 1 : 0);
+    db.prepare(`INSERT INTO dons_retraits (foyer_id, rdv_id, programme_id, scanne_par, carte_scannee_id, derogation, motif_derogation, stock_json, partiel)
+      VALUES (?,?,?,?,?,?,?,?,?)`).run(foyer.id, rdv ? rdv.id : null, programme_id, req.user.id, membre.id,
+      derogation ? 1 : 0, derogation ? motif.trim() : null, JSON.stringify(detail), partiel ? 1 : 0);
+    db.prepare('COMMIT').run();
+  } catch (e) {
+    try { db.prepare('ROLLBACK').run(); } catch {}
+    console.error('Erreur transaction scan dons:', e.message);
+    logScan('erreur', foyer.id, e.message);
+    return res.status(500).json({ error: 'Erreur serveur — retrait non enregistré, aucune quantité n\'a été déduite.', fiche, correspondances });
+  }
+
+  // Effets de bord non transactionnels — après le commit, une fois le retrait garanti réel.
+  alertesStockBas.forEach(({ item, restant }) => donsAlerterStockBas(item, restant));
 
   logScan('ok', foyer.id, derogation ? `Dérogation : ${motif.trim()}` : null);
   if (derogation) {
