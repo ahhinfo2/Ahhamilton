@@ -15520,12 +15520,16 @@ async function _donsProgrammeTabHtml(prog) {
           <button class="btn btn-ghost btn-sm" onclick="window.open('${API}/dons/programmes/${prog.id}/rapport-bailleur?format=html&token='+encodeURIComponent(TOKEN))">📊 Rapport bailleur de fonds</button>
           <button class="btn btn-ghost btn-sm" onclick="window.open('${API}/dons/programmes/${prog.id}/rapport-bailleur?format=csv&token='+encodeURIComponent(TOKEN))">⬇️ CSV</button>
           ${can.executive() ? `<button class="btn btn-ghost btn-sm" onclick="_donsEditProgramme(${prog.id})">Modifier</button>` : ''}
+          ${can.executive() ? (prog.visible_membres
+            ? `<button class="btn btn-ghost btn-sm" style="color:#c62828" onclick="_donsTogglerVisibilite(${prog.id},false)">🙈 Retirer des membres</button>`
+            : `<button class="btn btn-primary btn-sm" onclick="_donsTogglerVisibilite(${prog.id},true)">📣 Publier aux membres</button>`) : ''}
         </div>
       </div>
       <div style="padding:16px;font-size:.88rem;color:var(--muted)">
         ${prog.organisme_source ? `<p><strong>Organisme :</strong> ${escHtml(prog.organisme_source)}</p>` : ''}
         ${prog.description ? `<p>${escHtml(prog.description)}</p>` : ''}
-        <p><strong>Délai entre deux retraits :</strong> ${prog.intervalle_jours} jours &nbsp;·&nbsp; <strong>Statut :</strong> ${pill(prog.statut, prog.statut==='actif'?'bp-green':prog.statut==='en_pause'?'bp-orange':'bp-gray')}</p>
+        <p><strong>Délai entre deux retraits :</strong> ${prog.intervalle_jours} jours &nbsp;·&nbsp; <strong>Statut :</strong> ${pill(prog.statut, prog.statut==='actif'?'bp-green':prog.statut==='en_pause'?'bp-orange':'bp-gray')}
+          &nbsp;·&nbsp; <strong>Visible des membres :</strong> ${prog.visible_membres ? pill('✅ Oui — publié','bp-green') : pill('🙈 Non — approbation en attente','bp-orange')}</p>
       </div>
     </div>
 
@@ -15822,6 +15826,18 @@ function _donsNewProgramme() {
       closeModal(); toast('Programme créé'); donsMgmtView();
     } catch(e) { toast(e.message, true); }
   };
+}
+
+async function _donsTogglerVisibilite(id, visible) {
+  const msg = visible
+    ? 'Publier ce programme aux membres ? Le lien « Programme de dons » deviendra actif dans leur menu.'
+    : 'Retirer ce programme des membres ? Ils ne le verront plus tant qu\'il ne sera pas republié — le travail déjà fait (foyers, stock, créneaux) reste intact.';
+  if (!confirm(msg)) return;
+  try {
+    await api('/dons/programmes/' + id + '/visibilite', { method:'PATCH', body: JSON.stringify({ visible }) });
+    toast(visible ? 'Programme publié aux membres' : 'Programme retiré des membres');
+    donsMgmtView();
+  } catch(e) { toast(e.message, true); }
 }
 
 async function _donsEditProgramme(id) {

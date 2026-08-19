@@ -9802,8 +9802,19 @@ app.get('/api/dons/programmes', authMiddleware, requireDonsAccess, (req, res) =>
 });
 
 app.get('/api/dons/programme-actif', authMiddleware, (req, res) => {
-  const prog = db.prepare("SELECT id, nom, description, intervalle_jours, statut FROM dons_programmes WHERE statut != 'ferme' ORDER BY date_creation DESC LIMIT 1").get();
+  // visible_membres=1 seulement — un programme peut être entièrement configuré (foyers,
+  // stock, créneaux) côté comité sans encore être publié aux membres.
+  const prog = db.prepare("SELECT id, nom, description, intervalle_jours, statut FROM dons_programmes WHERE statut != 'ferme' AND visible_membres=1 ORDER BY date_creation DESC LIMIT 1").get();
   res.json(prog || null);
+});
+
+app.patch('/api/dons/programmes/:id/visibilite', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {
+  const prog = db.prepare('SELECT * FROM dons_programmes WHERE id=?').get(req.params.id);
+  if (!prog) return res.status(404).json({ error: 'Programme introuvable' });
+  const visible = req.body.visible ? 1 : 0;
+  db.prepare('UPDATE dons_programmes SET visible_membres=? WHERE id=?').run(visible, prog.id);
+  logAudit(req.user.id, visible ? 'don_programme_publie' : 'don_programme_retire', 'dons_programmes', prog.id, prog.nom, req.ip);
+  res.json({ ok: true, visible_membres: visible });
 });
 
 app.post('/api/dons/programmes', authMiddleware, requireRole(...DON_EXEC_ROLES), (req, res) => {

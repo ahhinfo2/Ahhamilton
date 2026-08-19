@@ -1674,6 +1674,12 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS dons_programmes (
   date_creation TEXT DEFAULT CURRENT_TIMESTAMP
 )`); } catch {}
 
+// Publication aux membres, distincte de "statut" (qui gère le cycle de vie opérationnel côté
+// comité) — un programme peut être monté/configuré (foyers, stock, créneaux) sans encore être
+// visible des membres, le temps que le comité l'approuve. DEFAULT 0 s'applique aussi aux
+// programmes déjà créés (ALTER TABLE), donc rien ne devient visible sans action explicite.
+try { db.exec('ALTER TABLE dons_programmes ADD COLUMN visible_membres INTEGER NOT NULL DEFAULT 0'); } catch {}
+
 try { db.exec(`CREATE TABLE IF NOT EXISTS dons_foyers (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   programme_id INTEGER NOT NULL REFERENCES dons_programmes(id) ON DELETE CASCADE,
