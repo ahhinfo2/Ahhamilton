@@ -6063,9 +6063,16 @@ app.post('/api/orders/:orderToken/activate', async (req, res) => {
     return res.json({ ok: true, email, already: true, hint: 'Ajoutez ?resend=1 pour renvoyer le QR' });
   }
 
+  // Le paiement n'est confirmé QUE par le webhook Stripe (signature vérifiée, voir
+  // /api/stripe/webhook) ou par le comité (confirmation manuelle Interac) — jamais par cette
+  // route publique. Sans cette garde, n'importe qui pouvait appeler /activate juste après /buy
+  // et obtenir un billet "payé" sans jamais payer (Stripe ou Interac).
+  if (tickets[0].payment_status !== 'paid') {
+    return res.json({ ok: false, pending: true, hint: 'Paiement pas encore confirmé — réessayez dans quelques secondes.' });
+  }
+
   try {
-    // Activer tous les billets de cette commande
-    db.prepare("UPDATE tickets SET statut='actif', payment_status='paid' WHERE order_token=?").run(orderToken);
+    // Billets déjà marqués payés (webhook ou confirmation comité) → (re)envoyer le QR uniquement.
     const activated = db.prepare('SELECT * FROM tickets WHERE order_token=?').all(orderToken);
 
     // Envoyer QR par courriel (URL publique sur le serveur)
@@ -12827,10 +12834,13 @@ app.get('/api/payment-plans/my', authMiddleware, (req, res) => {
   } catch (e) { console.error('[ERR]', e.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
-// Pay next versement
-app.post('/api/payment-plans/:id/pay-next', authMiddleware, (req, res) => {
+// Pay next versement — nécessite un PaymentIntent Stripe réellement complété (jamais une simple
+// confirmation du client : sinon un membre pouvait marquer tout son échéancier "payé" sans jamais
+// payer, juste en appelant cette route plusieurs fois).
+app.post('/api/payment-plans/:id/pay-next', authMiddleware, async (req, res) => {
   try {
     const planId = parseInt(req.params.id);
+    const { payment_intent_id } = req.body;
     const plan = db.prepare("SELECT * FROM payment_plans WHERE id=? AND user_id=?").get(planId, req.user.id);
     if (!plan) return res.status(404).json({ error: 'Plan introuvable' });
     if (plan.statut !== 'actif') return res.status(400).json({ error: 'Ce plan n\'est plus actif' });
@@ -12839,8 +12849,27 @@ app.post('/api/payment-plans/:id/pay-next', authMiddleware, (req, res) => {
     const nextVersement = db.prepare("SELECT * FROM payment_plan_versements WHERE plan_id=? AND statut='en_attente' ORDER BY numero LIMIT 1").get(planId);
     if (!nextVersement) return res.status(400).json({ error: 'Tous les versements ont déjà été payés' });
 
+    if (!payment_intent_id) return res.status(400).json({ error: 'payment_intent_id requis' });
+    const alreadyUsed = db.prepare('SELECT id FROM payment_plan_versements WHERE stripe_payment_id=?').get(payment_intent_id);
+    if (alreadyUsed) return res.status(400).json({ error: 'Ce paiement a déjà été utilisé pour un autre versement' });
+
+    const stripeKey = (process.env.STRIPE_SECRET_KEY || '').trim();
+    if (!stripeKey) return res.status(500).json({ error: 'Paiement Stripe non configuré' });
+    let intent;
+    try {
+      intent = await Stripe(stripeKey).paymentIntents.retrieve(payment_intent_id);
+    } catch {
+      return res.status(400).json({ error: 'PaymentIntent introuvable' });
+    }
+    if (intent.status !== 'succeeded') return res.status(400).json({ error: 'Paiement non complété' });
+    const paidAmount = intent.amount_received / 100;
+    if (Math.abs(paidAmount - nextVersement.montant) > 0.01) {
+      return res.status(400).json({ error: `Montant payé ($${paidAmount}) ne correspond pas au versement dû ($${nextVersement.montant})` });
+    }
+
     // Mark as paid
-    db.prepare("UPDATE payment_plan_versements SET statut='paye', date_paiement=CURRENT_TIMESTAMP WHERE id=?").run(nextVersement.id);
+    db.prepare("UPDATE payment_plan_versements SET statut='paye', date_paiement=CURRENT_TIMESTAMP, stripe_payment_id=? WHERE id=?")
+      .run(payment_intent_id, nextVersement.id);
     const newCount = plan.versements_payes + 1;
     const newStatut = (newCount >= plan.nb_versements) ? 'complete' : 'actif';
     db.prepare('UPDATE payment_plans SET versements_payes=?, statut=? WHERE id=?').run(newCount, newStatut, planId);

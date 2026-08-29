@@ -2366,7 +2366,7 @@ async function openActivityDetail(actId) {
                 <span style="background:#e53935;color:#fff;padding:6px 16px;border-radius:20px;font-weight:800;font-size:.82rem;animation:pulse 1.5s infinite">EN DIRECT</span>
                 <a href="${escHtml(a.stream_url)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;background:#fff;color:#1b5e20;padding:10px 22px;border-radius:10px;font-weight:700;font-size:.9rem;text-decoration:none;box-shadow:0 2px 10px rgba(0,0,0,.2)">Regarder</a>
               </div>` : ''}
-              ${a.description ? `<div style="font-size:.9rem;opacity:.8;margin-bottom:28px;line-height:1.7;max-width:480px">${a.description}</div>` : ''}
+              ${a.description ? `<div style="font-size:.9rem;opacity:.8;margin-bottom:28px;line-height:1.7;max-width:480px">${escHtml(a.description)}</div>` : ''}
 
               ${a.statut === 'planifiee' ? `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px">
                 ${a.user_registered > 0
@@ -6383,9 +6383,10 @@ function openLetterForm(allUsers) {
         langue: document.getElementById('let_lang').value,
         raison: document.getElementById('let_raison').value })});
       closeModal();
-      openModal(`Lettre pour ${r.membre}`, `<div class="letter-preview">${r.contenu}</div>
+      window._letterPreview = { contenu: r.contenu, membre: r.membre };
+      openModal(`Lettre pour ${escHtml(r.membre)}`, `<div class="letter-preview">${escHtml(r.contenu)}</div>
         <div style="text-align:right;margin-top:14px">
-          <button class="btn btn-outline" onclick="printLetter(\`${r.contenu.replace(/`/g,"'")}\`,'${r.membre}')">🖨️ Imprimer</button>
+          <button class="btn btn-outline" onclick="printLetter(window._letterPreview.contenu,window._letterPreview.membre)">🖨️ Imprimer</button>
         </div>`);
       letters();
     } catch(ex) { toast(ex.message,'error'); btn.textContent='🤖 Générer avec l\'IA'; btn.disabled=false; }
@@ -6434,15 +6435,15 @@ function ahhPrintStyles() {
 
 function printLetter(contenu, nom) {
   const w = window.open('','_blank');
-  w.document.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/><title>Lettre – ${nom}</title>
+  w.document.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/><title>Lettre – ${escHtml(nom)}</title>
     ${ahhPrintStyles()}
     <style>pre{white-space:pre-wrap;font-family:Georgia,serif;font-size:13px;line-height:1.9;color:#111}</style>
     </head><body>
     <div class="noprint"><button class="btn-print" onclick="window.print()">🖨️ Imprimer / Sauvegarder en PDF</button></div>
     ${ahhPrintHeader()}
     <h2 style="font-size:1.1rem;font-weight:700;color:#1b5e20;margin-bottom:6px">Lettre de recommandation</h2>
-    <p style="font-size:.78rem;color:#888;margin-bottom:24px">Émise le ${new Date().toLocaleDateString('fr-CA')} · ${nom}</p>
-    <pre>${contenu}</pre>
+    <p style="font-size:.78rem;color:#888;margin-bottom:24px">Émise le ${new Date().toLocaleDateString('fr-CA')} · ${escHtml(nom)}</p>
+    <pre>${escHtml(contenu)}</pre>
     <div style="margin-top:60px;display:flex;justify-content:flex-end">
       <div style="border-top:1px solid #333;width:220px;padding-top:6px;font-size:.8rem;color:#555;text-align:center">
         Signature — Secrétaire / Président(e)<br/>Association Haïtienne de Hamilton
@@ -8241,8 +8242,8 @@ async function alerts() {
         ${data.map(a=>`<div class="alert-item">
           <div class="alert-dot ${a.lu?'lu':''}"></div>
           <div>
-            <div class="alert-title">${a.titre||'Alerte'}</div>
-            <div class="alert-body">${a.contenu||''}</div>
+            <div class="alert-title">${escHtml(a.titre||'Alerte')}</div>
+            <div class="alert-body">${escHtml(a.contenu||'')}</div>
             <div class="alert-time">${fmt(a.date_creation)} · ${pill(a.type,'bp-orange')}</div>
           </div>
           ${!a.lu ? `<button class="btn btn-sm btn-ghost" style="margin-left:auto;flex-shrink:0" onclick="markAlert(${a.id})">Lu</button>` : ''}
@@ -8303,14 +8304,14 @@ async function profile() {
       </div>
       ${photoLocked ? `<p style="font-size:.72rem;color:var(--muted);text-align:center;margin-top:6px">🔒 Carte valide — contactez le comité pour changer votre photo</p>` : ''}
       <div class="profile-info">
-        <h3>${u.prenom} ${u.nom}</h3>
+        <h3>${escHtml(u.prenom)} ${escHtml(u.nom)}</h3>
         <span class="role-tag">${roleName(u.role)}</span>
         ${u.role === 'member' ? `<span class="role-tag" style="background:${u.plan==='partenaire'?'#1b5e20':u.plan==='bienfaiteur'?'#e65100':'#37474f'};margin-left:6px">${{gratuit:'Gratuit',bienfaiteur:'Bienfaiteur',partenaire:'Partenaire'}[u.plan]||'Gratuit'}</span>` : ''}
         <div class="info-grid">
           ${u.role === 'member' ? `<div class="info-item"><label>Type d'adhésion</label><span><strong>${{gratuit:'Membre Gratuit',bienfaiteur:'Bienfaiteur',partenaire:'Partenaire'}[u.plan]||'Gratuit'}</strong></span></div>` : ''}
-          <div class="info-item"><label>Courriel</label><span>${u.email}</span></div>
-          <div class="info-item"><label>Téléphone</label><span>${u.telephone||'–'}</span></div>
-          <div class="info-item"><label>Adresse</label><span>${u.adresse||'–'}</span></div>
+          <div class="info-item"><label>Courriel</label><span>${escHtml(u.email)}</span></div>
+          <div class="info-item"><label>Téléphone</label><span>${escHtml(u.telephone||'–')}</span></div>
+          <div class="info-item"><label>Adresse</label><span>${escHtml(u.adresse||'–')}</span></div>
           <div class="info-item"><label>Date naissance</label><span>${u.date_naissance||'–'}</span></div>
           <div class="info-item"><label>Membre depuis</label><span>${fmt(u.date_inscription)}</span></div>
           <div class="info-item"><label>Heures bénévolat</label><span><strong>${totalH}h</strong></span></div>
@@ -8490,14 +8491,14 @@ function openEditProfile(u, nameLocked) {
   openModal('Modifier mon profil', `
     <form id="editProf">
       <div class="form-row">
-        <div class="form-group"><label>Prénom</label><input id="ep_prenom" value="${u.prenom||''}" ${nameLocked ? 'disabled' : ''}/></div>
-        <div class="form-group"><label>Nom</label><input id="ep_nom" value="${u.nom||''}" ${nameLocked ? 'disabled' : ''}/></div>
+        <div class="form-group"><label>Prénom</label><input id="ep_prenom" value="${escHtml(u.prenom||'')}" ${nameLocked ? 'disabled' : ''}/></div>
+        <div class="form-group"><label>Nom</label><input id="ep_nom" value="${escHtml(u.nom||'')}" ${nameLocked ? 'disabled' : ''}/></div>
       </div>
       ${nameLocked ? `<p style="font-size:.75rem;color:var(--muted);margin-top:-8px;margin-bottom:14px">🔒 Votre nom ne peut plus être modifié après l'approbation de votre photo. Contactez le comité si nécessaire.</p>` : ''}
-      <div class="form-group"><label>Téléphone</label><input id="ep_tel" placeholder="514-555-1234" value="${u.telephone||''}"/></div>
-      <div class="form-group"><label>Adresse</label><input id="ep_addr" value="${u.adresse||''}"/></div>
+      <div class="form-group"><label>Téléphone</label><input id="ep_tel" placeholder="514-555-1234" value="${escHtml(u.telephone||'')}"/></div>
+      <div class="form-group"><label>Adresse</label><input id="ep_addr" value="${escHtml(u.adresse||'')}"/></div>
       <div class="form-group"><label>Date de naissance</label><div style="display:flex;gap:6px">${htmlDobSelects('ep_dob')}</div></div>
-      <div class="form-group"><label>Bio</label><textarea id="ep_bio">${u.bio||''}</textarea></div>
+      <div class="form-group"><label>Bio</label><textarea id="ep_bio">${escHtml(u.bio||'')}</textarea></div>
       <div class="form-group">
         <label>📱 Opérateur cellulaire (pour les SMS)</label>
         <select id="ep_op">${optsHtml}</select>

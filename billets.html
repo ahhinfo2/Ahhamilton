@@ -172,10 +172,19 @@
         '✅ Votre paiement par carte a été accepté.<br/><br/>' +
         '⏳ Activation de votre billet en cours...';
 
-      // Activer les billets et afficher le QR directement sur la page
+      // Activer les billets et afficher le QR directement sur la page.
+      // Le paiement Stripe est confirmé de façon asynchrone par le webhook (quelques secondes) —
+      // on ré-essaie donc quelques fois avant d'abandonner plutôt que d'afficher une erreur
+      // immédiate à un client qui vient tout juste de payer.
       try {
-        const r = await fetch(`${API}/orders/${orderToken}/activate`, { method: 'POST' });
-        const d = await r.json();
+        let d = null;
+        for (let attempt = 0; attempt < 6; attempt++) {
+          const r = await fetch(`${API}/orders/${orderToken}/activate`, { method: 'POST' });
+          d = await r.json();
+          if (!d.pending) break;
+          await new Promise(res => setTimeout(res, 1500));
+        }
+        if (d && d.pending) throw new Error('pending');
         // Charger les billets pour afficher les QR
         const bRes = await fetch(`${API}/orders/${orderToken}`);
         const bData = await bRes.json();
