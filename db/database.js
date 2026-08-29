@@ -1531,6 +1531,28 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS correspondance (
   date_creation TEXT DEFAULT CURRENT_TIMESTAMP
 )`); } catch {}
 
+// Index sur les colonnes les plus filtrées/jointes — la base n'en avait aucun, donc chaque
+// requête (connexion par email, jointures par clé étrangère) faisait un scan complet de table.
+// Sans impact fonctionnel, additif, sûr à ajouter à tout moment.
+try { db.exec('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)'); } catch {}
+try { db.exec('CREATE INDEX IF NOT EXISTS idx_dons_foyer_membres_foyer ON dons_foyer_membres(foyer_id)'); } catch {}
+try { db.exec('CREATE INDEX IF NOT EXISTS idx_dons_foyer_personnes_foyer ON dons_foyer_personnes(foyer_id)'); } catch {}
+try { db.exec('CREATE INDEX IF NOT EXISTS idx_dependents_user ON dependents(user_id)'); } catch {}
+try { db.exec('CREATE INDEX IF NOT EXISTS idx_dons_rdv_foyer ON dons_rdv(foyer_id)'); } catch {}
+try { db.exec('CREATE INDEX IF NOT EXISTS idx_message_recipients_dest ON message_recipients(destinataire_id)'); } catch {}
+try { db.exec('CREATE INDEX IF NOT EXISTS idx_messages_expediteur ON messages(expediteur_id)'); } catch {}
+try { db.exec('CREATE INDEX IF NOT EXISTS idx_payments_user ON payments(user_id)'); } catch {}
+try { db.exec('CREATE INDEX IF NOT EXISTS idx_payments_statut ON payments(statut)'); } catch {}
+try { db.exec('CREATE INDEX IF NOT EXISTS idx_tickets_order_token ON tickets(order_token)'); } catch {}
+try { db.exec('CREATE INDEX IF NOT EXISTS idx_tickets_activity ON tickets(activity_id)'); } catch {}
+
+// Idempotence webhook Stripe — Stripe garantit une livraison "au moins une fois" (peut
+// redélivrer le même événement) ; sans ce garde-fou un rejeu double-compterait un paiement.
+try { db.exec(`CREATE TABLE IF NOT EXISTS webhook_events (
+  id TEXT PRIMARY KEY,
+  date_traitement TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
 // Personnes à charge (enfants/famille) rattachées à un membre
 try { db.exec(`CREATE TABLE IF NOT EXISTS dependents (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1651,6 +1673,12 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS dons_programmes (
   cree_par INTEGER REFERENCES users(id),
   date_creation TEXT DEFAULT CURRENT_TIMESTAMP
 )`); } catch {}
+
+// Publication aux membres, distincte de "statut" (qui gère le cycle de vie opérationnel côté
+// comité) — un programme peut être monté/configuré (foyers, stock, créneaux) sans encore être
+// visible des membres, le temps que le comité l'approuve. DEFAULT 0 s'applique aussi aux
+// programmes déjà créés (ALTER TABLE), donc rien ne devient visible sans action explicite.
+try { db.exec('ALTER TABLE dons_programmes ADD COLUMN visible_membres INTEGER NOT NULL DEFAULT 0'); } catch {}
 
 try { db.exec(`CREATE TABLE IF NOT EXISTS dons_foyers (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

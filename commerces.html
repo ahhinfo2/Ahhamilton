@@ -136,7 +136,7 @@
         return;
       }
       grid.innerHTML = filtered.map(function(b) {
-        return '<div class="com-card" onclick="focusBusiness(' + b.id + ')">' +
+        return '<div class="com-card" onclick="focusBusiness(' + b.id + ')" tabindex="0" role="button" aria-label="' + escHtml(b.nom) + '" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();focusBusiness(' + b.id + ')}">' +
           '<div class="com-photo">' + (b.photo_url ? '<img src="' + b.photo_url + '" alt="' + escHtml(b.nom) + '" loading="lazy">' : '🏪') + '</div>' +
           '<div class="com-body">' +
             '<div class="com-cat">' + (CAT_LABELS[b.categorie] || b.categorie) + '</div>' +

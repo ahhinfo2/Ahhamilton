@@ -153,7 +153,7 @@ function showPWAInstallBanner(isIOS) {
   banner.id = 'pwa-install-banner';
   banner.innerHTML =
     '<div style="display:flex;align-items:center;gap:12px">' +
-      '<img src="/Public/logo1.png" style="width:48px;height:48px;border-radius:10px;flex-shrink:0" onerror="this.style.display=\'none\'">' +
+      '<img src="/Public/logo1.png" alt="AHH Hamilton" style="width:48px;height:48px;border-radius:10px;flex-shrink:0" onerror="this.style.display=\'none\'">' +
       '<div style="flex:1;min-width:0">' +
         '<div style="font-weight:700;font-size:.95rem">Ajouter AHH à votre téléphone</div>' +
         '<div style="font-size:.8rem;color:rgba(255,255,255,.8);margin-top:2px">Accédez rapidement depuis votre écran d\'accueil</div>' +
@@ -239,8 +239,14 @@ async function apiForm(path, formData, method = 'POST') {
 // ── HELPERS ─────────────────────────────────────────────────────────────────
 function toast(msg, type = 'ok') {
   const el = document.getElementById('toast');
+  // Deux conventions d'appel coexistent dans ce fichier : toast(msg, true) (207 appels
+  // historiques) et toast(msg, 'error') (159 appels) — les deux doivent être traitées comme
+  // une erreur, sinon la moitié des toasts d'erreur de l'appli s'affichaient sans le style
+  // rouge ni l'annonce prioritaire aux lecteurs d'écran.
+  const isError = type === 'error' || type === true;
   el.textContent = msg;
-  el.className = 'toast' + (type === 'error' ? ' error' : type === 'info' ? ' info' : '');
+  el.className = 'toast' + (isError ? ' error' : type === 'info' ? ' info' : '');
+  el.setAttribute('aria-live', isError ? 'assertive' : 'polite');
   el.style.display = 'block';
   clearTimeout(el._t);
   el._t = setTimeout(() => el.style.display = 'none', 3500);
@@ -515,7 +521,7 @@ async function buildSidebar() {
 
     nav.innerHTML = memberItems.map((i, idx) => {
       const sectionHeader = i._section ? `<div class="nav-section">${i._section}</div>` : '';
-      return sectionHeader + `<div class="nav-item" data-view="${i.id}" onclick="showView('${i.id}')">
+      return sectionHeader + `<div class="nav-item" data-view="${i.id}" tabindex="0" role="button" onclick="showView('${i.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showView('${i.id}')}">
         <span class="nav-icon">${i.icon}</span>
         <span class="nav-label">${i.label}</span>
         ${badge(i.id)}
@@ -537,7 +543,7 @@ async function buildSidebar() {
     if (!visibleItems.length) return '';
     if (!section.label) {
       return visibleItems.map(i => `
-        <div class="nav-item" data-view="${i.id}" onclick="showView('${i.id}')">
+        <div class="nav-item" data-view="${i.id}" tabindex="0" role="button" onclick="showView('${i.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showView('${i.id}')}">
           <span class="nav-icon">${i.icon}</span>
           <span class="nav-label">${i.label}</span>
           ${badge(i.id)}
@@ -546,13 +552,13 @@ async function buildSidebar() {
     const gid = 'g' + idx;
     const isOpen = openGroups[gid] !== false; // ouvert par défaut
     return `
-      <div class="nav-group-header ${isOpen ? 'open' : ''}" onclick="_navToggleGroup('${gid}',this)">
+      <div class="nav-group-header ${isOpen ? 'open' : ''}" tabindex="0" role="button" aria-expanded="${isOpen}" onclick="_navToggleGroup('${gid}',this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();_navToggleGroup('${gid}',this)}">
         <span>${section.label}</span>
         <span class="nav-group-chevron">›</span>
       </div>
       <div class="nav-group-items ${isOpen ? 'open' : ''}" id="navgrp-${gid}">
         ${visibleItems.map(i => `
-          <div class="nav-item" data-view="${i.id}" onclick="showView('${i.id}')">
+          <div class="nav-item" data-view="${i.id}" tabindex="0" role="button" onclick="showView('${i.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showView('${i.id}')}">
             <span class="nav-icon">${i.icon}</span>
             <span class="nav-label">${i.label}</span>
             ${badge(i.id)}
@@ -567,6 +573,7 @@ function _navToggleGroup(gid, header) {
   if (!panel) return;
   const isOpen = panel.classList.toggle('open');
   header.classList.toggle('open', isOpen);
+  header.setAttribute('aria-expanded', isOpen);
   const saved = JSON.parse(localStorage.getItem('ahh_nav_groups') || '{}');
   saved[gid] = isOpen;
   localStorage.setItem('ahh_nav_groups', JSON.stringify(saved));
@@ -1414,7 +1421,7 @@ async function home() {
     const jour = parts ? parseInt(parts[2]) : '?';
     return `<div style="display:flex;align-items:center;gap:10px;padding:8px 16px;border-bottom:1px solid var(--border)">
       <div style="width:32px;height:32px;background:var(--accent);color:#000;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:800;flex-shrink:0">${jour}</div>
-      ${m.photo_url ? `<img src="${BASE}${m.photo_url}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0"/>` : `<div style="width:28px;height:28px;border-radius:50%;background:var(--g3);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0">${(m.prenom||'?')[0]}</div>`}
+      ${m.photo_url ? `<img src="${BASE}${m.photo_url}" alt="${escHtml(m.prenom||'')}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0"/>` : `<div style="width:28px;height:28px;border-radius:50%;background:var(--g3);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0">${(m.prenom||'?')[0]}</div>`}
       <div style="flex:1"><div style="font-size:.83rem;font-weight:600">${escHtml(m.prenom)} ${escHtml(m.nom)}</div>${age ? `<div style="font-size:.72rem;color:var(--muted)">${age} ans</div>` : ''}</div>
     </div>`;
   }).join('');
@@ -1647,7 +1654,7 @@ async function memberHome() {
 
   const initials = `${(USER.prenom||'?')[0]}${(USER.nom||'')[0]}`.toUpperCase();
   const avatarHtml = USER.photo_url
-    ? `<img src="${BASE}${USER.photo_url}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:3px solid rgba(255,255,255,.45);flex-shrink:0"/>`
+    ? `<img src="${BASE}${USER.photo_url}" alt="Photo de profil" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:3px solid rgba(255,255,255,.45);flex-shrink:0"/>`
     : `<div style="width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.2);border:3px solid rgba(255,255,255,.45);color:#fff;font-size:1.6rem;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;letter-spacing:-.02em">${initials}</div>`;
 
   // Feature 3: Compte à rebours — prochain événement inscrit
@@ -2199,7 +2206,7 @@ async function openMemberDetail(u) {
       <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;margin-bottom:20px">
         <div style="flex-shrink:0">
           ${m.photo_url
-            ? `<img src="${BASE}${m.photo_url}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid var(--border)"/>`
+            ? `<img src="${BASE}${m.photo_url}" alt="${escHtml((m.prenom||'')+' '+(m.nom||''))}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid var(--border)"/>`
             : `<div style="width:80px;height:80px;border-radius:50%;background:var(--g3);color:#fff;font-size:2rem;font-weight:700;display:flex;align-items:center;justify-content:center">${(m.prenom||'?')[0]}${(m.nom||'')[0]||''}</div>`}
         </div>
         <div style="flex:1;min-width:200px">
@@ -2271,13 +2278,6 @@ async function toggleFeatured(id, isFeatured) {
     toast(isFeatured ? 'Activité retirée de la une' : '⭐ Activité mise à la une sur le site !');
     activities();
   } catch(e) { toast('Erreur : ' + e.message, true); }
-}
-
-async function archiveActivity(id) {
-  const a = (window._activitiesData || []).find(x => x.id === id);
-  if (!confirm(`Archiver "${a?.titre || '#'+id}" ? Elle sera retirée des finances mais ses données seront conservées.`)) return;
-  try { await api(`/activities/${id}/archive`, { method: 'PATCH' }); toast('Activité archivée'); activities(); }
-  catch(ex) { toast(ex.message, 'error'); }
 }
 
 async function unarchiveActivity(id) {
@@ -5376,7 +5376,7 @@ function _openNoteEditor(n, allActs, forceReadOnly) {
         <div style="flex:1"></div>
 
         <!-- Statut + actions -->
-        <span id="noteStatus" style="font-size:.75rem;color:var(--muted);margin-right:8px">${readOnly ? (n?.verrouille ? '🔒 Note verrouillée' : '👁 Lecture seule') : ''}</span>
+        <span id="noteStatus" role="status" aria-live="polite" style="font-size:.75rem;color:var(--muted);margin-right:8px">${readOnly ? (n?.verrouille ? '🔒 Note verrouillée' : '👁 Lecture seule') : ''}</span>
         <button class="btn btn-sm btn-ghost" onclick="if(_noteEditingId)api('/notes/'+_noteEditingId+'/editing',{method:'DELETE'}).catch(()=>{});clearInterval(_noteSyncInterval);notes()" title="Fermer">✕ Fermer</button>
         <a href="/api/notes/${noteId}/download?token=${TOKEN}" target="_blank" class="btn btn-sm btn-outline" title="Télécharger">⬇ PDF</a>
         ${n?.nb_signatures > 0 ? `<a href="/api/notes/${noteId}/attestation?token=${TOKEN}" target="_blank" class="btn btn-sm btn-outline" style="color:#1b5e20;border-color:#1b5e20">🔏 Attestation</a>` : ''}
@@ -5402,7 +5402,7 @@ function _openNoteEditor(n, allActs, forceReadOnly) {
           /* ─── ÉDITION : feuille unique scrollable ─── */
           : `<div id="notePageWrapper" style="width:816px;max-width:calc(100vw - 40px);margin:0 auto;background:#fff;box-shadow:0 2px 20px rgba(0,0,0,.22);position:relative">
               <div style="border-bottom:3px solid #1a237e;padding:12px 64px 10px;display:flex;align-items:center;gap:14px;user-select:none">
-                <img src="/Public/logo1.png" style="height:52px;width:52px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display='none'">
+                <img src="/Public/logo1.png" alt="AHH Hamilton" style="height:52px;width:52px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display='none'">
                 <div style="flex:1">
                   <div style="font-weight:800;font-size:12pt;color:#1a237e;letter-spacing:.3px">Association Haïtienne de Hamilton (AHH)</div>
                   <div style="font-size:9pt;color:#555;margin-top:2px">Notes de réunion officielle</div>
@@ -5648,7 +5648,7 @@ function _makeSpacerEl(subtitle, nextPageNum) {
     </div>
     <div style="height:32px;background:#e0e0e0"></div>
     <div style="border-bottom:3px solid #1a237e;background:#fff;padding:12px 64px 10px;display:flex;align-items:center;gap:14px;box-shadow:0 -6px 10px -6px rgba(0,0,0,.15)">
-      <img src="/Public/logo1.png" style="height:52px;width:52px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display='none'">
+      <img src="/Public/logo1.png" alt="AHH Hamilton" style="height:52px;width:52px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display='none'">
       <div style="flex:1">
         <div style="font-weight:800;font-size:12pt;color:#1a237e;letter-spacing:.3px">Association Haïtienne de Hamilton (AHH)</div>
         <div style="font-size:9pt;color:#555;margin-top:2px">${subtitle}</div>
@@ -5858,7 +5858,7 @@ function _paginateReadOnly(html) {
 
   const makeHeader = (pg, total) =>
     `<div style="border-bottom:3px solid #1a237e;padding:10px 64px 8px;display:flex;align-items:center;gap:14px;user-select:none">
-      <img src="/Public/logo1.png" style="height:48px;width:48px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display='none'">
+      <img src="/Public/logo1.png" alt="AHH Hamilton" style="height:48px;width:48px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display='none'">
       <div style="flex:1">
         <div style="font-weight:800;font-size:11pt;color:#1a237e;letter-spacing:.3px">Association Haïtienne de Hamilton (AHH)</div>
         <div style="font-size:8.5pt;color:#555;margin-top:1px">Notes de réunion officielle</div>
@@ -5931,7 +5931,7 @@ function _paginateAgendaReadOnly(html) {
 
   const makeHeader = (pg, total) =>
     `<div style="border-bottom:3px solid #1a237e;padding:10px 64px 8px;display:flex;align-items:center;gap:14px;user-select:none">
-      <img src="/Public/logo1.png" style="height:48px;width:48px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display='none'">
+      <img src="/Public/logo1.png" alt="AHH Hamilton" style="height:48px;width:48px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display='none'">
       <div style="flex:1">
         <div style="font-weight:800;font-size:11pt;color:#1a237e;letter-spacing:.3px">Association Haïtienne de Hamilton (AHH)</div>
         <div style="font-size:8.5pt;color:#555;margin-top:1px">Ordre du jour</div>
@@ -7738,16 +7738,6 @@ async function gmSendToAll() {
     _MC.to=[]; _MC.cc=[];
     gmNav('sent');
   } catch(ex) { toast(ex.message, 'error'); btn.disabled=false; btn.textContent='Envoyer'; }
-}
-
-async function deleteGalleryPhoto(id) {
-  if (!confirm('Supprimer cette photo de la galerie? Cette action est irréversible.')) return;
-  try {
-    await api(`/gallery/${id}`, { method: 'DELETE' });
-    toast('Photo supprimée');
-    const card = document.getElementById(`gmc-${id}`);
-    if (card) { card.style.opacity = '0'; setTimeout(() => card.remove(), 300); }
-  } catch(ex) { toast(ex.message, 'error'); }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -12591,7 +12581,7 @@ async function viewActivityQR(id, titre, qrToken) {
     '<div style="text-align:center;padding:8px">' +
       '<p style="font-size:.82rem;color:var(--muted);margin-bottom:16px">Les participants scannent ce code avec leur téléphone pour s\'enregistrer ou payer.</p>' +
       '<div style="width:240px;height:240px;margin:0 auto;border-radius:16px;border:1px solid var(--border);overflow:hidden;background:#fff;display:flex;align-items:center;justify-content:center">' +
-        '<img id="qrImgModal" src="' + qrUrl + '?t=' + Date.now() + '" style="width:220px;height:220px;display:block" onerror="this.parentElement.innerHTML=\'<span style=\\\'font-size:.8rem;color:var(--muted)\\\'>Erreur QR</span>\'"/>' +
+        '<img id="qrImgModal" src="' + qrUrl + '?t=' + Date.now() + '" alt="Code QR" style="width:220px;height:220px;display:block" onerror="this.parentElement.innerHTML=\'<span style=\\\'font-size:.8rem;color:var(--muted)\\\'>Erreur QR</span>\'"/>' +
       '</div>' +
 
       '<div style="margin-top:16px;background:var(--off);border-radius:10px;padding:12px 14px;text-align:left">' +
@@ -15539,12 +15529,16 @@ async function _donsProgrammeTabHtml(prog) {
           <button class="btn btn-ghost btn-sm" onclick="window.open('${API}/dons/programmes/${prog.id}/rapport-bailleur?format=html&token='+encodeURIComponent(TOKEN))">📊 Rapport bailleur de fonds</button>
           <button class="btn btn-ghost btn-sm" onclick="window.open('${API}/dons/programmes/${prog.id}/rapport-bailleur?format=csv&token='+encodeURIComponent(TOKEN))">⬇️ CSV</button>
           ${can.executive() ? `<button class="btn btn-ghost btn-sm" onclick="_donsEditProgramme(${prog.id})">Modifier</button>` : ''}
+          ${can.executive() ? (prog.visible_membres
+            ? `<button class="btn btn-ghost btn-sm" style="color:#c62828" onclick="_donsTogglerVisibilite(${prog.id},false)">🙈 Retirer des membres</button>`
+            : `<button class="btn btn-primary btn-sm" onclick="_donsTogglerVisibilite(${prog.id},true)">📣 Publier aux membres</button>`) : ''}
         </div>
       </div>
       <div style="padding:16px;font-size:.88rem;color:var(--muted)">
         ${prog.organisme_source ? `<p><strong>Organisme :</strong> ${escHtml(prog.organisme_source)}</p>` : ''}
         ${prog.description ? `<p>${escHtml(prog.description)}</p>` : ''}
-        <p><strong>Délai entre deux retraits :</strong> ${prog.intervalle_jours} jours &nbsp;·&nbsp; <strong>Statut :</strong> ${pill(prog.statut, prog.statut==='actif'?'bp-green':prog.statut==='en_pause'?'bp-orange':'bp-gray')}</p>
+        <p><strong>Délai entre deux retraits :</strong> ${prog.intervalle_jours} jours &nbsp;·&nbsp; <strong>Statut :</strong> ${pill(prog.statut, prog.statut==='actif'?'bp-green':prog.statut==='en_pause'?'bp-orange':'bp-gray')}
+          &nbsp;·&nbsp; <strong>Visible des membres :</strong> ${prog.visible_membres ? pill('✅ Oui — publié','bp-green') : pill('🙈 Non — approbation en attente','bp-orange')}</p>
       </div>
     </div>
 
@@ -15841,6 +15835,18 @@ function _donsNewProgramme() {
       closeModal(); toast('Programme créé'); donsMgmtView();
     } catch(e) { toast(e.message, true); }
   };
+}
+
+async function _donsTogglerVisibilite(id, visible) {
+  const msg = visible
+    ? 'Publier ce programme aux membres ? Le lien « Programme de dons » deviendra actif dans leur menu.'
+    : 'Retirer ce programme des membres ? Ils ne le verront plus tant qu\'il ne sera pas republié — le travail déjà fait (foyers, stock, créneaux) reste intact.';
+  if (!confirm(msg)) return;
+  try {
+    await api('/dons/programmes/' + id + '/visibilite', { method:'PATCH', body: JSON.stringify({ visible }) });
+    toast(visible ? 'Programme publié aux membres' : 'Programme retiré des membres');
+    donsMgmtView();
+  } catch(e) { toast(e.message, true); }
 }
 
 async function _donsEditProgramme(id) {
@@ -16424,8 +16430,14 @@ async function _donsFoyersTabHtml(prog) {
   if (window._donsFoyerFilter === undefined) {
     window._donsFoyerFilter = nbFoyersEnAttente > 0 ? 'en_attente' : (nbFoyersTutelle > 0 ? 'tutelle' : 'en_attente');
   }
+  // Filtre calculé côté client à partir de tousFoyers déjà en main — un second appel réseau
+  // identique (juste avec ?statut=) était refait à chaque clic de filtre pour rien, doublant
+  // les requêtes N+1 côté serveur pour un programme au roster potentiellement large.
   const statutFilter = window._donsFoyerFilter;
-  const foyers = await api('/dons/programmes/' + prog.id + '/foyers' + (statutFilter ? '?statut=' + statutFilter : '')).catch(() => []);
+  const foyers = statutFilter === 'a_revalider' ? tousFoyers.filter(f => f.statut !== 'refuse' && f.date_validation && (Date.now() - new Date(f.date_validation).getTime()) > unAnMs)
+    : statutFilter === 'tutelle' ? tousFoyers.filter(f => (f.personnes || []).some(p => p.tutelle_statut === 'demandee'))
+    : statutFilter ? tousFoyers.filter(f => f.statut === statutFilter)
+    : tousFoyers;
 
   const kpi = (n, label, hl) => `<div style="flex:1 1 110px;background:${hl ? '#fff3e0' : 'var(--off)'};border-radius:12px;padding:16px;text-align:center">
     <div style="font-size:1.5rem;font-weight:800;font-variant-numeric:tabular-nums">${n}</div>
@@ -19657,7 +19669,7 @@ function openAgendaEditor(a) {
         ` : `
         <div id="agPageWrapper" style="width:816px;max-width:calc(100vw - 40px);margin:0 auto;background:#fff;box-shadow:0 2px 20px rgba(0,0,0,.22);position:relative">
           <div style="border-bottom:3px solid #1a237e;padding:12px 64px 10px;display:flex;align-items:center;gap:14px;user-select:none">
-            <img src="/Public/logo1.png" style="height:52px;width:52px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display='none'">
+            <img src="/Public/logo1.png" alt="AHH Hamilton" style="height:52px;width:52px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display='none'">
             <div style="flex:1">
               <div style="font-weight:800;font-size:12pt;color:#1a237e;letter-spacing:.3px">Association Haïtienne de Hamilton (AHH)</div>
               <div style="font-size:9pt;color:#555;margin-top:2px">Ordre du jour</div>
@@ -21311,7 +21323,7 @@ function _clearSignaturePad(fid, selector) {
   canvas.dataset.hasDrawing = '';
 }
 function _showSignatureFull(src) {
-  openModal('Signature', `<div style="text-align:center;padding:10px"><img src="${src}" style="max-width:100%;border:1px solid var(--border);border-radius:8px;background:#fff"/></div>`);
+  openModal('Signature', `<div style="text-align:center;padding:10px"><img src="${src}" alt="Signature" style="max-width:100%;border:1px solid var(--border);border-radius:8px;background:#fff"/></div>`);
 }
 
 // ── Comité : soumettre une réponse au nom d'un membre (même après l'échéance) ──
@@ -21778,7 +21790,7 @@ async function committeeMeetingDetail(id) {
 
   let sigsHtml = data.signatures.length ? data.signatures.map(s => `
     <div style="display:flex;align-items:center;gap:14px;background:var(--off);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
-      <img src="${s.signature_data}" style="width:160px;height:60px;object-fit:contain;border:1px solid var(--border);border-radius:6px;background:#fff"/>
+      <img src="${s.signature_data}" alt="Signature" style="width:160px;height:60px;object-fit:contain;border:1px solid var(--border);border-radius:6px;background:#fff"/>
       <div>
         <div style="font-weight:700">${escHtml(s.nom_signataire)}</div>
         <div style="font-size:.78rem;color:var(--muted)">${s.titre_comite || ROLE_LABELS_CM[s.role] || s.role}</div>

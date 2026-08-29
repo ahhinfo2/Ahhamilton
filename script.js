@@ -801,11 +801,11 @@ document.addEventListener('DOMContentLoaded', () => {
   var chatOpen = false;
   var wrap = document.createElement('div');
   wrap.id = 'ahhChat';
-  wrap.innerHTML = '<button id="chatBtn" style="position:fixed;bottom:96px;right:22px;z-index:997;width:48px;height:48px;border-radius:50%;border:none;background:#1b5e20;color:#fff;font-size:1.2rem;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.3);transition:.3s" onclick="toggleChat()">💬</button>' +
+  wrap.innerHTML = '<button id="chatBtn" aria-label="Ouvrir l\'assistant AHH" style="position:fixed;bottom:96px;right:22px;z-index:997;width:48px;height:48px;border-radius:50%;border:none;background:#1b5e20;color:#fff;font-size:1.2rem;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.3);transition:.3s" onclick="toggleChat()">💬</button>' +
     '<div id="chatBox" style="display:none;position:fixed;bottom:155px;right:22px;width:340px;max-width:calc(100vw - 40px);height:400px;background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.2);z-index:997;flex-direction:column;overflow:hidden">' +
-      '<div style="background:#1b5e20;color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center"><div><strong>Assistant AHH</strong><br><span style=font-size:.75rem;opacity:.7>Posez-moi une question !</span></div><button onclick="toggleChat()" style="background:none;border:none;color:#fff;font-size:1.2rem;cursor:pointer">✕</button></div>' +
-      '<div id="chatMessages" style="flex:1;overflow-y:auto;padding:14px;font-size:.85rem"></div>' +
-      '<div style="padding:10px;border-top:1px solid #eee;display:flex;gap:6px"><input id="chatInput" placeholder="Votre question..." style="flex:1;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:.85rem" onkeydown="if(event.key===\'Enter\')sendChat()"/><button onclick="sendChat()" style="background:#1b5e20;color:#fff;border:none;padding:8px 14px;border-radius:8px;cursor:pointer;font-weight:600">→</button></div>' +
+      '<div style="background:#1b5e20;color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center"><div><strong>Assistant AHH</strong><br><span style=font-size:.75rem;opacity:.7>Posez-moi une question !</span></div><button onclick="toggleChat()" aria-label="Fermer l\'assistant" style="background:none;border:none;color:#fff;font-size:1.2rem;cursor:pointer">✕</button></div>' +
+      '<div id="chatMessages" role="log" aria-live="polite" aria-label="Conversation avec l\'assistant" style="flex:1;overflow-y:auto;padding:14px;font-size:.85rem"></div>' +
+      '<div style="padding:10px;border-top:1px solid #eee;display:flex;gap:6px"><label for="chatInput" class="sr-only">Votre question</label><input id="chatInput" placeholder="Votre question..." style="flex:1;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:.85rem" onkeydown="if(event.key===\'Enter\')sendChat()"/><button onclick="sendChat()" aria-label="Envoyer" style="background:#1b5e20;color:#fff;border:none;padding:8px 14px;border-radius:8px;cursor:pointer;font-weight:600">→</button></div>' +
     '</div>';
   document.body.appendChild(wrap);
 
@@ -823,7 +823,10 @@ document.addEventListener('DOMContentLoaded', () => {
     var div = document.getElementById('chatMessages');
     var m = document.createElement('div');
     m.style.cssText = 'margin-bottom:10px;padding:8px 12px;border-radius:12px;max-width:85%;font-size:.84rem;line-height:1.5;' + (who === 'bot' ? 'background:#e8f5e9;color:#1a2e1a;margin-right:auto' : 'background:#1b5e20;color:#fff;margin-left:auto');
-    m.innerHTML = text;
+    // Les réponses du bot sont du HTML de confiance (liens/mise en forme écrits en dur côté
+    // serveur, jamais du contenu utilisateur reflété) — mais ce que la personne tape elle-même
+    // ne doit jamais être interprété comme HTML.
+    if (who === 'bot') m.innerHTML = text; else m.textContent = text;
     div.appendChild(m);
     div.scrollTop = div.scrollHeight;
   }

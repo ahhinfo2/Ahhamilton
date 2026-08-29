@@ -197,7 +197,8 @@
           var thumb = BASE + albumPhotos[0].photo_path;
           var count = albumPhotos.length;
           html +=
-            '<div onclick="openAlbum(\'' + key + '\')" ' +
+            '<div onclick="openAlbum(\'' + key + '\')" tabindex="0" role="button" aria-label="' + (albumName + '').replace(/"/g,'') + '" ' +
+            'onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();openAlbum(\'' + key + '\')}" ' +
             'onmouseenter="var i=this.querySelector(\'img\');if(i)i.style.transform=\'scale(1.06)\'" ' +
             'onmouseleave="var i=this.querySelector(\'img\');if(i)i.style.transform=\'scale(1)\'" ' +
             'style="position:relative;height:220px;border-radius:16px;overflow:hidden;cursor:pointer;background:#1b5e20;box-shadow:0 4px 16px rgba(0,0,0,.15)">' +

@@ -720,6 +720,7 @@
       </div>
       <div class="newsletter-form-wrap">
         <div class="newsletter-form" id="newsletterForm">
+          <label for="nlEmail" class="sr-only" data-i18n="nl.label">Adresse courriel</label>
           <input type="email" class="newsletter-input" id="nlEmail" placeholder="votre@courriel.com" data-i18n-ph="nl.placeholder" autocomplete="email"/>
           <button class="newsletter-btn" id="nlBtn" type="button" data-i18n="nl.btn">S'abonner</button>
         </div>
@@ -779,15 +780,15 @@
         </div>
         <div id="contactMsg" style="display:none;padding:10px 14px;border-radius:8px;font-size:.82rem;margin-bottom:14px"></div>
         <div class="form-group">
-          <label data-i18n="cf.name">Nom complet</label>
+          <label for="cf_nom" data-i18n="cf.name">Nom complet</label>
           <input type="text" id="cf_nom" placeholder="Jean Dupont" required/>
         </div>
         <div class="form-group">
-          <label data-i18n="cf.email">Courriel</label>
+          <label for="cf_email" data-i18n="cf.email">Courriel</label>
           <input type="email" id="cf_email" placeholder="votre@email.com" required/>
         </div>
         <div class="form-group">
-          <label data-i18n="cf.subject">Sujet</label>
+          <label for="cf_sujet" data-i18n="cf.subject">Sujet</label>
           <select id="cf_sujet">
             <option value="" data-i18n="cf.subject.choose">Choisir un sujet…</option>
             <option value="Information générale" data-i18n="cf.subject.general">Information générale</option>
@@ -803,7 +804,7 @@
           </div>
         </div>
         <div class="form-group">
-          <label data-i18n="cf.message">Message</label>
+          <label for="cf_message" data-i18n="cf.message">Message</label>
           <textarea id="cf_message" rows="4" placeholder="Comment pouvons-nous vous aider ?" data-i18n-ph="cf.message.placeholder" required></textarea>
         </div>
         <button type="submit" id="cf_btn" class="btn btn-primary full" data-i18n="cf.submit">Envoyer le message</button>
