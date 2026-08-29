@@ -640,6 +640,14 @@ function renderUserChip() {
   if (nameEl) nameEl.textContent = USER.prenom;
   const logoutStrip = document.getElementById('siteNavLogout');
   if (logoutStrip) logoutStrip.onclick = logout;
+
+  // Avatar du membre dans l'en-tête "Mon espace" (remplace le logo générique)
+  const avatarSlot = document.getElementById('sbAvatarSlot');
+  if (avatarSlot) {
+    avatarSlot.innerHTML = USER.photo_url
+      ? `<img src="${BASE}${USER.photo_url}" class="sb-avatar-img" alt=""/>`
+      : `<div class="sb-avatar-fallback">${(USER.prenom||'?')[0]}${(USER.nom||'')[0]||''}</div>`;
+  }
 }
 
 function setupTopbar() {
@@ -1511,7 +1519,7 @@ async function home() {
 
     <div class="home-grid" style="grid-template-columns:1fr 1fr 1fr">
       <!-- Actions rapides -->
-      <div class="table-card">
+      <div class="table-card home-flag-card">
         <div class="table-card-header"><h3>⚡ Actions rapides</h3></div>
         <div class="quick-actions-grid">
           ${quickActionsHtml}
@@ -1545,7 +1553,7 @@ async function home() {
       </div>
 
       <!-- Prochaines activités -->
-      <div class="table-card">
+      <div class="table-card home-flag-card">
         <div class="table-card-header">
           <h3>📅 Prochaines activités</h3>
           <button class="btn btn-sm btn-ghost" onclick="showView('activities')">Toutes →</button>
@@ -1554,7 +1562,7 @@ async function home() {
       </div>
 
       <!-- Alertes + Derniers membres -->
-      <div class="table-card">
+      <div class="table-card home-flag-card">
         ${can.adminOrSec() ? `
         <div class="table-card-header">
           <h3>🔔 Alertes</h3>

@@ -3,6 +3,7 @@
 :root{
   --g1:#1b5e20;--g2:#2e7d32;--g3:#43a047;--g4:#66bb6a;
   --accent:#f9a825;--accent-lt:#fdd835;
+  --navy1:#003F87;--navy2:#002060;--flag-red:#CE1126;
   --white:#fff;--off:#f1f8f1;--bg:#f4f6f8;
   --text:#1c2b1c;--muted:#5a7a5a;--border:#c8e6c9;
   --red:#e53935;--blue:#1565c0;
@@ -118,16 +119,17 @@ img{display:block;max-width:100%}
 /* ── SIDEBAR ───────────────────────────────────────────────────────────── */
 .sidebar{
   width:var(--sidebar);flex-shrink:0;
-  background:linear-gradient(180deg,var(--g1) 0%,var(--g2) 100%);
+  background:linear-gradient(180deg,var(--navy1) 0%,var(--navy2) 100%);
   display:flex;flex-direction:column;
   position:fixed;top:var(--strip-h);left:0;bottom:0;z-index:200;
   transition:transform var(--tr);
 }
 .sidebar-brand{
-  display:flex;align-items:center;gap:8px;
+  display:flex;align-items:center;gap:9px;
   padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.12);
 }
-.sb-logo-img{width:32px;height:32px;border-radius:8px;object-fit:cover;border:1px solid rgba(255,255,255,.25);flex-shrink:0}
+.sb-avatar-img{width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,.4);flex-shrink:0}
+.sb-avatar-fallback{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.22);border:2px solid rgba(255,255,255,.4);color:#fff;font-size:.7rem;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .sb-badge{background:rgba(255,255,255,.2);color:#fff;font-weight:800;font-size:.85rem;padding:5px 9px;border-radius:7px;letter-spacing:.05em}
 .sb-name{color:#fff;font-weight:700;font-size:.9rem}
 
@@ -139,7 +141,7 @@ img{display:block;max-width:100%}
   cursor:pointer;transition:var(--tr);margin-bottom:1px;
 }
 .nav-item:hover{background:rgba(255,255,255,.12);color:#fff}
-.nav-item.active{background:rgba(255,255,255,.2);color:#fff;font-weight:600}
+.nav-item.active{background:var(--flag-red);color:#fff;font-weight:600}
 .nav-item .nav-icon{font-size:1.1rem;width:22px;text-align:center}
 .nav-section{font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.4);padding:10px 10px 4px;margin-top:4px}
 .nav-group-header{
@@ -545,7 +547,7 @@ tr.inv-row-clickable{cursor:pointer}
   padding: 6px 8px; border-radius: 18px; min-width: 46px; text-align: center;
   transition: background .18s, color .15s;
 }
-.mbn-item.active { background: var(--g2); color: #fff; }
+.mbn-item.active { background: var(--flag-red); color: #fff; }
 .mbn-icon { font-size: 1.2rem; line-height: 1; }
 
 /* ── BOUTON FLOTTANT DE RECHERCHE (remplace la loupe du header sur mobile) */
@@ -1808,10 +1810,23 @@ html.dark .search-results { background: var(--white); }
 }
 /* Palette coordonnée : chaque couleur porte un sens répété (bleu = décompte info,
    navy = marque par défaut, or = bénévolat, vert = argent) plutôt qu'un arc-en-ciel. */
-.stat-card.card-blue  { --sc-color: #1565c0; border-left: 3px solid var(--sc-color); }
-.stat-card.card-red   { --sc-color: var(--navy1, #003F87); border-left: 3px solid var(--sc-color); }
-.stat-card.card-gold  { --sc-color: var(--accent); border-left: 3px solid var(--sc-color); }
-.stat-card.card-navy  { --sc-color: #1565c0; border-left: 3px solid var(--sc-color); }
+.stat-card.card-blue  { --sc-color: var(--navy1); }
+.stat-card.card-red   { --sc-color: var(--flag-red); }
+.stat-card.card-gold  { --sc-color: var(--accent); }
+.stat-card.card-navy  { --sc-color: var(--g1); }
+/* Tuiles pleines (identité drapeau) au lieu du liséré gauche */
+.stat-card.card-blue, .stat-card.card-red, .stat-card.card-navy {
+  background: var(--sc-color); border-color: transparent;
+}
+.stat-card.card-gold { background: var(--sc-color); border-color: transparent; }
+.stat-card.card-blue .sc-icon, .stat-card.card-red .sc-icon, .stat-card.card-navy .sc-icon { background: rgba(255,255,255,.2); }
+.stat-card.card-gold .sc-icon { background: rgba(0,0,0,.08); }
+.stat-card.card-blue .sc-value, .stat-card.card-red .sc-value, .stat-card.card-navy .sc-value { color: #fff; }
+.stat-card.card-blue .sc-label, .stat-card.card-red .sc-label, .stat-card.card-navy .sc-label { color: rgba(255,255,255,.78); }
+.stat-card.card-gold .sc-value { color: #3a2600; }
+.stat-card.card-gold .sc-label { color: #5c4200; }
+/* Cartes d'accueil à bordure franche (identité drapeau) — n'affecte que le tableau de bord */
+.table-card.home-flag-card { border: 2px solid var(--navy1); }
 
 /* ── Quick actions : badge d'icône teinté au lieu d'un bouton plein saturé ── */
 .quick-action-btn { font-size: .8rem; }
