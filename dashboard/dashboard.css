@@ -141,7 +141,8 @@ img{display:block;max-width:100%}
   cursor:pointer;transition:var(--tr);margin-bottom:1px;
 }
 .nav-item:hover{background:rgba(255,255,255,.12);color:#fff}
-.nav-item.active{background:var(--flag-red);color:#fff;font-weight:600}
+/* L'état actif définitif est plus bas, dans la section "DRAPEAU HAÏTIEN"
+   (une redéfinition ici serait écrasée par elle vu l'ordre du fichier). */
 .nav-item .nav-icon{font-size:1.1rem;width:22px;text-align:center}
 .nav-section{font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.4);padding:10px 10px 4px;margin-top:4px}
 .nav-group-header{
@@ -1764,7 +1765,7 @@ html.dark .search-results { background: var(--white); }
    ══════════════════════════════════════════════════════════════════════════ */
 
 /* ── Sidebar couleurs drapeau ───────────────────────────────────────────── */
-.sidebar { background: linear-gradient(180deg, #003F87 0%, #001f5c 100%); }
+.sidebar { background: linear-gradient(180deg, var(--navy1) 0%, var(--navy2) 100%); }
 .sidebar-brand { border-bottom-color: rgba(206,17,38,.35); }
 .nav-section {
   color: rgba(255,170,170,.65);
@@ -1774,8 +1775,8 @@ html.dark .search-results { background: var(--white); }
 .nav-item { border-left: 3px solid transparent; padding-left: 7px; }
 .nav-item:hover { background: rgba(255,255,255,.1); border-left-color: rgba(206,17,38,.45); color: #fff; }
 .nav-item.active {
-  background: rgba(255,255,255,.18);
-  border-left-color: #CE1126;
+  background: var(--flag-red);
+  border-left-color: var(--flag-red);
   color: #fff; font-weight: 700;
 }
 .nav-item .nav-icon { font-size: 1rem; width: 20px; }
