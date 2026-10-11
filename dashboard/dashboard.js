@@ -16091,12 +16091,21 @@ function _donsRegleDe(s) {
   const n = fixe > 0 && !pp ? fixe : !fixe && pp > 0 ? pp : null;
   const found = n && Object.entries(DONS_REGLES).find(([, r]) =>
     r.fixe * n === fixe && r.pp * n === pp && r.min === (s.age_min ?? null) && r.max === (s.age_max ?? null));
-  return found ? { regle: found[0], n } : { regle: 'custom', n: 1 };
+  if (found) return { regle: found[0], n };
+  // « N par personne de X à Y ans » : tranche d'âge libre, sans quantité fixe par famille.
+  if (!fixe && pp > 0 && (s.age_min != null || s.age_max != null)) return { regle: 'tranche', n: pp, min: s.age_min, max: s.age_max };
+  return { regle: 'custom', n: 1 };
+}
+
+function _donsTrancheTexte(min, max) {
+  if (max == null) return `de ${min} ans et +`;
+  return `de ${min ?? 0} à ${max} ans`;
 }
 
 // Texte court pour la colonne « Par famille » du tableau de stock.
 function _donsRegleTexte(s) {
-  const { regle, n } = _donsRegleDe(s);
+  const { regle, n, min, max } = _donsRegleDe(s);
+  if (regle === 'tranche') return escHtml(`${n} par personne ${_donsTrancheTexte(min, max)}`);
   if (regle !== 'custom') return escHtml(n + ' ' + DONS_REGLES[regle].label);
   const parts = [];
   if (s.qte_fixe_foyer) parts.push(`${s.qte_fixe_foyer} par famille`);
@@ -16105,7 +16114,8 @@ function _donsRegleTexte(s) {
 }
 
 function _donsCategorieChangee(cat) {
-  if (document.querySelector('input[name="ds_regle"][value="custom"]')?.checked) return; // ne pas écraser un réglage personnalisé
+  const actuelle = document.querySelector('input[name="ds_regle"]:checked')?.value;
+  if (actuelle === 'custom' || actuelle === 'tranche') return; // ne pas écraser un réglage fait à la main
   const r = document.querySelector(`input[name="ds_regle"][value="${DONS_REGLE_PAR_CATEGORIE[cat] || 'famille'}"]`);
   if (r) r.checked = true;
 }
@@ -16122,7 +16132,9 @@ function _donsUniteSelectHtml(selected) {
 
 // « Combien par famille ? » + « Me prévenir quand il en reste ». Les champs détaillés
 // (quantité fixe, par personne, âges) ne s'affichent que pour « Personnaliser ».
-function _donsStockRegleHtml(s, { regle, n }) {
+function _donsStockRegleHtml(s, { regle, n, min, max }) {
+  const ageInput = (id, val, ph) => `<input id="${id}" type="number" min="0" max="120" value="${val ?? ''}" placeholder="${ph}"
+    onfocus="document.querySelector('input[name=ds_regle][value=tranche]').checked=true;_donsRegleChangee()" style="width:70px;padding:4px 8px"/>`;
   return `<div class="form-group"><label>Combien par famille ?</label>
       <div style="display:flex;align-items:center;gap:8px;margin:4px 0 8px">
         <input id="ds_n" type="number" min="0.01" step="0.01" value="${n}" style="width:80px"/>
@@ -16131,6 +16143,9 @@ function _donsStockRegleHtml(s, { regle, n }) {
       <div style="display:flex;flex-direction:column;gap:6px">
         ${Object.entries(DONS_REGLES).map(([k, r]) => `<label style="display:flex;align-items:center;gap:8px;font-size:.92rem;cursor:pointer;text-transform:none;letter-spacing:0;font-weight:500">
           <input type="radio" name="ds_regle" style="width:auto;margin:0;flex:none" value="${k}"${regle === k ? ' checked' : ''} onchange="_donsRegleChangee()"/> ${escHtml(r.label)}</label>`).join('')}
+        <label style="display:flex;align-items:center;gap:8px;font-size:.92rem;cursor:pointer;text-transform:none;letter-spacing:0;font-weight:500;flex-wrap:wrap">
+          <input type="radio" name="ds_regle" style="width:auto;margin:0;flex:none" value="tranche"${regle === 'tranche' ? ' checked' : ''} onchange="_donsRegleChangee()"/>
+          par personne de ${ageInput('ds_tr_min', min, '6')} à ${ageInput('ds_tr_max', max, '12')} ans</label>
         <label style="display:flex;align-items:center;gap:8px;font-size:.88rem;cursor:pointer;color:var(--muted);text-transform:none;letter-spacing:0;font-weight:500">
           <input type="radio" name="ds_regle" style="width:auto;margin:0;flex:none" value="custom"${regle === 'custom' ? ' checked' : ''} onchange="_donsRegleChangee()"/> Personnaliser…</label>
       </div>
@@ -16160,8 +16175,15 @@ function _donsStockRegleValeurs() {
     age_max: document.getElementById('ds_age_max').value,
     seuil_alerte
   };
-  const r = DONS_REGLES[regle];
   const n = parseFloat(document.getElementById('ds_n').value) || 1;
+  if (regle === 'tranche') {
+    const min = document.getElementById('ds_tr_min').value, max = document.getElementById('ds_tr_max').value;
+    if (min === '' && max === '') throw new Error("Indiquez la tranche d'âge (ex. de 6 à 12 ans)");
+    if (min !== '' && max !== '' && parseInt(min) > parseInt(max)) throw new Error("L'âge de départ doit être plus petit que l'âge de fin");
+    // Âge de départ vide = depuis la naissance ; âge de fin vide = « et + ».
+    return { qte_fixe_foyer: 0, qte_par_personne: n, age_min: min === '' ? 0 : min, age_max: max, seuil_alerte };
+  }
+  const r = DONS_REGLES[regle];
   return { qte_fixe_foyer: r.fixe * n, qte_par_personne: r.pp * n, age_min: r.min ?? '', age_max: r.max ?? '', seuil_alerte };
 }
 
