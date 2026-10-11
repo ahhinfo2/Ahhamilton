@@ -9852,6 +9852,27 @@ function donsBesoinsDe(foyer) {
   try { const b = JSON.parse(foyer.besoins || 'null'); return Array.isArray(b) ? b : null; } catch { return null; }
 }
 
+// Contenu de la boîte d'un foyer, article par article (même ordre que items) — partagé par
+// le scan (ce qui est déduit) et la fiche de préparation (ce que les bénévoles emballent).
+// du = règle de l'article (par famille / par personne éligible selon l'âge, seulement si la
+// catégorie fait partie des besoins cochés) + ajouts du comité pour ce foyer.
+function donsCalculerBoite(foyer, items, roster, extras) {
+  const comptent = roster.filter(donsPersonneCompte);
+  const besoins = donsBesoinsDe(foyer);
+  return items.map(it => {
+    const sansRestriction = it.age_min == null && it.age_max == null;
+    const eligibles = sansRestriction
+      ? comptent.length
+      : comptent.filter(p => { const a = donsAgeDe(p.date_naissance); return a != null && (it.age_min == null || a >= it.age_min) && (it.age_max == null || a <= it.age_max); }).length;
+    // Article d'une catégorie que le foyer n'a pas cochée : rien n'est dû (le stock reste
+    // pour les foyers qui en ont besoin). Sans besoins déclarés, le foyer reçoit tout.
+    const pasBesoin = it.categorie && besoins && !besoins.includes(it.categorie);
+    const regle = pasBesoin ? 0 : it.qte_fixe_foyer + (it.qte_par_personne * eligibles);
+    const extra = extras.filter(e => e.stock_id === it.id).reduce((s, e) => s + e.quantite, 0);
+    return { stock_id: it.id, nom: it.nom, unite: it.unite, du: regle + extra, extra };
+  });
+}
+
 app.post('/api/dons/stock', authMiddleware, requireDonsAccess, (req, res) => {
   const { programme_id, nom, unite, categorie, quantite_recue, qte_fixe_foyer, qte_par_personne, age_min, age_max, seuil_alerte } = req.body;
   if (!programme_id || !nom || !nom.trim()) return res.status(400).json({ error: 'Programme et nom requis' });
@@ -10086,6 +10107,97 @@ app.get('/api/dons/programmes/:id/jour', authMiddleware, requireDonsAccess, (req
     WHERE c.programme_id=? AND c.date_heure LIKE ? AND r.statut != 'annule'`).get(req.params.id, date + '%').c;
   const servis = db.prepare(`SELECT COUNT(*) AS c FROM dons_retraits WHERE programme_id=? AND date_retrait LIKE ?`).get(req.params.id, date + '%').c;
   res.json({ date, creneaux, attendus, servis });
+});
+
+// ── Préparation des boîtes ───────────────────────────────────────────────────
+// Pour une journée : chaque créneau, les foyers attendus (composition par âge, besoins) et
+// le contenu calculé de leur boîte, avec totaux par créneau et total du jour vs stock.
+app.get('/api/dons/programmes/:id/preparation', authMiddleware, requireDonsAccess, (req, res) => {
+  const date = req.query.date;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) return res.status(400).json({ error: 'date requise (AAAA-MM-JJ)' });
+  const items = db.prepare('SELECT * FROM dons_stock WHERE programme_id=? ORDER BY nom').all(req.params.id);
+  const rows = db.prepare(`SELECT c.id AS creneau_id, c.date_heure, r.id AS rdv_id, r.statut AS rdv_statut, f.*, u.prenom, u.nom
+    FROM dons_creneaux c
+    JOIN dons_rdv r ON r.creneau_id=c.id AND r.statut IN ('a_venir','honore')
+    JOIN dons_foyers f ON f.id=r.foyer_id
+    JOIN users u ON u.id=f.responsable_id
+    WHERE c.programme_id=? AND c.date_heure LIKE ?
+    ORDER BY c.date_heure, u.nom`).all(req.params.id, date + '%');
+
+  const totalJour = {};
+  const creneaux = [];
+  rows.forEach(row => {
+    const roster = db.prepare('SELECT * FROM dons_foyer_personnes WHERE foyer_id=?').all(row.id);
+    const extras = db.prepare(`SELECT e.*, s.nom AS article, s.unite FROM dons_extras e JOIN dons_stock s ON s.id=e.stock_id
+      WHERE e.foyer_id=? ORDER BY e.id`).all(row.id);
+    const boite = donsCalculerBoite(row, items, roster, extras).filter(l => l.du > 0);
+    let cr = creneaux[creneaux.length - 1];
+    if (!cr || cr.creneau_id !== row.creneau_id) {
+      cr = { creneau_id: row.creneau_id, date_heure: row.date_heure, foyers: [], total: {} };
+      creneaux.push(cr);
+    }
+    // Un foyer déjà servi est listé (pour le suivi) mais ne compte plus dans ce qu'il reste
+    // à préparer.
+    if (row.rdv_statut === 'a_venir') boite.forEach(l => {
+      cr.total[l.stock_id] = (cr.total[l.stock_id] || 0) + l.du;
+      totalJour[l.stock_id] = (totalJour[l.stock_id] || 0) + l.du;
+    });
+    cr.foyers.push({
+      foyer_id: row.id, nom: `${row.prenom} ${row.nom}`, servi: row.rdv_statut === 'honore',
+      personnes: roster.filter(donsPersonneCompte).map(p => ({ prenom: p.prenom, age: donsAgeDe(p.date_naissance) })),
+      besoins: donsBesoinsDe(row), taille_principale: row.taille_principale, besoins_note: row.besoins_note,
+      boite, extras: extras.map(e => ({ id: e.id, article: e.article, unite: e.unite, quantite: e.quantite, permanent: !!e.permanent, note: e.note }))
+    });
+  });
+  const parId = Object.fromEntries(items.map(it => [it.id, it]));
+  const versListe = t => Object.entries(t).map(([id, q]) => ({ stock_id: +id, nom: parId[id].nom, unite: parId[id].unite, quantite: q, en_stock: parId[id].quantite_restante }));
+  res.json({
+    date,
+    creneaux: creneaux.map(c => ({ ...c, total: versListe(c.total) })),
+    total_jour: versListe(totalJour),
+    stock: items.map(it => ({ id: it.id, nom: it.nom, unite: it.unite, quantite_restante: it.quantite_restante }))
+  });
+});
+
+// Ajout du comité dans la boîte d'un foyer (ex. 2 paires de mitaines). Ponctuel = consommé au
+// prochain retrait ; permanent = à chaque retrait jusqu'à suppression. Déduit du stock au scan.
+app.post('/api/dons/foyers/:id/extras', authMiddleware, requireDonsAccess, (req, res) => {
+  const foyer = db.prepare('SELECT * FROM dons_foyers WHERE id=?').get(req.params.id);
+  if (!foyer) return res.status(404).json({ error: 'Foyer introuvable' });
+  const item = db.prepare('SELECT * FROM dons_stock WHERE id=? AND programme_id=?').get(req.body.stock_id, foyer.programme_id);
+  if (!item) return res.status(400).json({ error: 'Article introuvable dans ce programme' });
+  const qte = parseFloat(req.body.quantite);
+  if (!qte || qte <= 0) return res.status(400).json({ error: 'Quantité invalide' });
+  db.prepare('INSERT INTO dons_extras (foyer_id, stock_id, quantite, permanent, note, ajoute_par) VALUES (?,?,?,?,?,?)')
+    .run(foyer.id, item.id, qte, req.body.permanent ? 1 : 0, (req.body.note || '').trim() || null, req.user.id);
+  res.json({ ok: true });
+});
+
+// Même ajout ponctuel pour toutes les boîtes encore à préparer d'une journée.
+app.post('/api/dons/programmes/:id/extras-jour', authMiddleware, requireDonsAccess, (req, res) => {
+  const { date, stock_id, note } = req.body;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) return res.status(400).json({ error: 'date requise (AAAA-MM-JJ)' });
+  const item = db.prepare('SELECT * FROM dons_stock WHERE id=? AND programme_id=?').get(stock_id, req.params.id);
+  if (!item) return res.status(400).json({ error: 'Article introuvable dans ce programme' });
+  const qte = parseFloat(req.body.quantite);
+  if (!qte || qte <= 0) return res.status(400).json({ error: 'Quantité invalide' });
+  const foyers = db.prepare(`SELECT DISTINCT r.foyer_id FROM dons_rdv r JOIN dons_creneaux c ON c.id=r.creneau_id
+    WHERE c.programme_id=? AND c.date_heure LIKE ? AND r.statut='a_venir'`).all(req.params.id, date + '%');
+  const ins = db.prepare('INSERT INTO dons_extras (foyer_id, stock_id, quantite, permanent, note, ajoute_par) VALUES (?,?,?,0,?,?)');
+  try {
+    db.prepare('BEGIN').run();
+    foyers.forEach(f => ins.run(f.foyer_id, item.id, qte, (note || '').trim() || null, req.user.id));
+    db.prepare('COMMIT').run();
+  } catch (e) {
+    try { db.prepare('ROLLBACK').run(); } catch {}
+    return res.status(500).json({ error: 'Erreur serveur — aucun ajout enregistré.' });
+  }
+  res.json({ ok: true, nb_foyers: foyers.length });
+});
+
+app.delete('/api/dons/extras/:id', authMiddleware, requireDonsAccess, (req, res) => {
+  db.prepare('DELETE FROM dons_extras WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
 });
 
 // Feuille de route imprimable pour une journée de distribution — un tableau Heure /
@@ -10829,6 +10941,8 @@ app.post('/api/dons/scan', authMiddleware, (req, res) => {
 
   const items = db.prepare('SELECT * FROM dons_stock WHERE programme_id=?').all(programme_id);
   const besoins = donsBesoinsDe(foyer);
+  const extras = db.prepare('SELECT * FROM dons_extras WHERE foyer_id=?').all(foyer.id);
+  const boite = donsCalculerBoite(foyer, items, roster, extras);
   let partiel = false;
   const alertesStockBas = [];
   // Décrémenter le stock, mettre à jour le rendez-vous et enregistrer le retrait dans une
@@ -10839,15 +10953,10 @@ app.post('/api/dons/scan', authMiddleware, (req, res) => {
   let detail;
   try {
     db.prepare('BEGIN').run();
-    detail = items.map(it => {
-      const sansRestriction = it.age_min == null && it.age_max == null;
-      const eligibles = sansRestriction
-        ? comptent.length
-        : comptent.filter(p => { const a = donsAgeDe(p.date_naissance); return a != null && (it.age_min == null || a >= it.age_min) && (it.age_max == null || a <= it.age_max); }).length;
-      // Article d'une catégorie que le foyer n'a pas cochée : rien n'est dû (le stock reste
-      // pour les foyers qui en ont besoin). Sans besoins déclarés, le foyer reçoit tout.
-      const pasBesoin = it.categorie && besoins && !besoins.includes(it.categorie);
-      const du = pasBesoin ? 0 : it.qte_fixe_foyer + (it.qte_par_personne * eligibles);
+    detail = items.map((it, i) => {
+      // Même calcul que la fiche de préparation des boîtes (donsCalculerBoite) : ce que les
+      // bénévoles ont mis dans la boîte est exactement ce qui est déduit ici.
+      const du = boite[i].du;
       const donne = Math.max(0, Math.min(du, it.quantite_restante));
       if (donne < du) partiel = true;
       if (donne > 0) {
@@ -10859,6 +10968,9 @@ app.post('/api/dons/scan', authMiddleware, (req, res) => {
       }
       return { nom: it.nom, unite: it.unite, du, donne };
     });
+
+    // Les ajouts ponctuels du comité sont consommés par ce retrait ; les permanents restent.
+    db.prepare('DELETE FROM dons_extras WHERE foyer_id=? AND permanent=0').run(foyer.id);
 
     const rdv = db.prepare("SELECT * FROM dons_rdv WHERE foyer_id=? AND statut='a_venir' ORDER BY id DESC LIMIT 1").get(foyer.id);
     if (rdv) db.prepare("UPDATE dons_rdv SET statut='honore' WHERE id=?").run(rdv.id);

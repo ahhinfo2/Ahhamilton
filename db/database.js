@@ -1886,6 +1886,20 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS dons_receptions (
 )`); } catch {}
 try { db.exec('CREATE INDEX IF NOT EXISTS idx_dons_receptions_stock ON dons_receptions(stock_id)'); } catch {}
 
+// Ajouts du comité dans la boîte d'un foyer (ex. 2 paires de mitaines), en plus de ce que
+// les règles des articles prévoient. permanent=0 : consommé (supprimé) au prochain retrait.
+try { db.exec(`CREATE TABLE IF NOT EXISTS dons_extras (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  foyer_id INTEGER NOT NULL REFERENCES dons_foyers(id) ON DELETE CASCADE,
+  stock_id INTEGER NOT NULL REFERENCES dons_stock(id) ON DELETE CASCADE,
+  quantite REAL NOT NULL,
+  permanent INTEGER NOT NULL DEFAULT 0,
+  note TEXT,
+  ajoute_par INTEGER REFERENCES users(id),
+  date_creation TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+try { db.exec('CREATE INDEX IF NOT EXISTS idx_dons_extras_foyer ON dons_extras(foyer_id)'); } catch {}
+
 init();
 
 module.exports = db;

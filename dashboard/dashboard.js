@@ -15482,6 +15482,7 @@ async function donsMgmtView() {
     if (tab === 'foyers') body = await _donsFoyersTabHtml(prog);
     else if (tab === 'journal') body = await _donsJournalTabHtml(prog);
     else if (tab === 'calendrier') body = await _donsVueCalendrier(prog);
+    else if (tab === 'preparation') body = await _donsPreparationTabHtml(prog);
     else body = await _donsProgrammeTabHtml(prog);
   }
 
@@ -15497,7 +15498,7 @@ async function donsMgmtView() {
           ${programmes.map(p => `<option value="${p.id}" ${p.id===progId?'selected':''}>${escHtml(p.nom)} (${p.statut})</option>`).join('')}
         </select>
       </div>` : ''}
-    ${prog || can.executive() ? `<div class="page-tabs-inline">${prog ? tabBtn('programme','Programme & stock & créneaux') + tabBtn('foyers','Foyers') + tabBtn('journal','Journal') + tabBtn('calendrier','Vue Calendrier') : ''}${can.executive() ? tabBtn('coordinateurs','Coordinateurs') : ''}</div>` : ''}
+    ${prog || can.executive() ? `<div class="page-tabs-inline">${prog ? tabBtn('programme','Programme & stock & créneaux') + tabBtn('foyers','Foyers') + tabBtn('journal','Journal') + tabBtn('calendrier','Vue Calendrier') + tabBtn('preparation','📦 Préparation des boîtes') : ''}${can.executive() ? tabBtn('coordinateurs','Coordinateurs') : ''}</div>` : ''}
     ${body}
   `);
   if (tab === 'coordinateurs' && can.executive()) _dcInitDropdown();
@@ -15610,6 +15611,178 @@ async function _donsVueCalendrier(prog) {
     <div class="page-tabs-inline">${cTab('dashboard','Tableau de bord')}${cTab('mois','Calendrier + détail')}${cTab('chrono','Chronologie')}${cTab('widgets','Salle de contrôle')}</div>
     ${panneau}
   `;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PROGRAMME DE DONS — Préparation des boîtes (bénévoles)
+// Par créneau : qui arrive, composition par âge, besoins, et contenu calculé de chaque boîte
+// (même calcul que le scan). Le comité peut ajouter des articles dans une boîte ou dans
+// toutes les boîtes de la journée.
+// ══════════════════════════════════════════════════════════════════════════════
+
+const _donsQ = q => +(+q).toFixed(2);
+
+function _donsCompositionHtml(personnes) {
+  const enfants = personnes.filter(p => p.age != null && p.age <= 12);
+  const ados = personnes.filter(p => p.age != null && p.age >= 13 && p.age <= 17);
+  const adultes = personnes.filter(p => p.age == null || p.age >= 18);
+  const ages = l => l.map(p => p.age).sort((a, b) => a - b).join(', ') + ' ans';
+  const parts = [];
+  if (enfants.length) parts.push(`👶 ${enfants.length} enfant${enfants.length > 1 ? 's' : ''} (${ages(enfants)})`);
+  if (ados.length) parts.push(`🧒 ${ados.length} ado${ados.length > 1 ? 's' : ''} (${ages(ados)})`);
+  if (adultes.length) parts.push(`🧑 ${adultes.length} adulte${adultes.length > 1 ? 's' : ''}`);
+  return parts.join(' · ');
+}
+
+async function _donsPreparationTabHtml(prog) {
+  if (!window._donsCalJour) window._donsCalJour = new Date().toISOString().slice(0, 10);
+  const jour = window._donsCalJour;
+  let data = { creneaux: [], total_jour: [], stock: [] };
+  try { data = await api('/dons/programmes/' + prog.id + '/preparation?date=' + jour); } catch(e) { toast(e.message, true); }
+  window._donsPrepStock = data.stock;
+  window._donsPrepNoms = {};
+  data.creneaux.forEach(c => c.foyers.forEach(f => { window._donsPrepNoms[f.foyer_id] = f.nom; }));
+  const dateLabel = new Date(jour + 'T00:00:00').toLocaleDateString('fr-CA', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+  const nbFoyers = data.creneaux.reduce((s, c) => s + c.foyers.length, 0);
+
+  const totalHtml = data.total_jour.length ? `
+    <div class="table-card" style="margin-bottom:18px">
+      <div class="table-card-header"><h3>Total à préparer pour la journée</h3></div>
+      <div class="table-wrapper"><table>
+        <thead><tr><th>Article</th><th>À préparer</th><th>En stock</th><th></th></tr></thead>
+        <tbody>${data.total_jour.map(t => { const manque = _donsQ(t.quantite - t.en_stock); return `<tr>
+          <td><strong>${escHtml(t.nom)}</strong></td>
+          <td>${_donsQ(t.quantite)} ${escHtml(t.unite)}</td>
+          <td>${_donsQ(t.en_stock)} ${escHtml(t.unite)}</td>
+          <td>${manque > 0 ? pill('⚠️ Manque ' + manque, 'bp-orange') : pill('✅ OK', 'bp-green')}</td>
+        </tr>`; }).join('')}</tbody>
+      </table></div>
+    </div>` : '';
+
+  let numero = 0;
+  const creneauxHtml = data.creneaux.map(c => {
+    const heure = c.date_heure.slice(11, 16).replace(':', ' h ');
+    const foyersHtml = c.foyers.map(f => {
+      numero++;
+      const besoins = f.besoins ? f.besoins.map(k => DONS_CATEGORIES[k] || k).join(', ') : 'tout';
+      const details = [f.taille_principale ? 'Taille ' + f.taille_principale : '', f.besoins_note || ''].filter(Boolean).join(' · ');
+      const contenu = f.boite.length
+        ? f.boite.map(l => `<li><strong>${escHtml(l.nom)}</strong> — ${_donsQ(l.du)} ${escHtml(l.unite)}${l.extra ? ` <span style="color:#1565c0;font-size:.78rem">(dont +${_donsQ(l.extra)} ajouté)</span>` : ''}</li>`).join('')
+        : '<li style="color:var(--muted)">Rien à mettre (stock vide ou aucun besoin correspondant)</li>';
+      const extras = f.extras.length ? `<div style="margin-top:6px;font-size:.8rem">${f.extras.map(e => `<span style="display:inline-flex;align-items:center;gap:4px;background:#e3f2fd;border-radius:999px;padding:2px 4px 2px 10px;margin:2px 4px 2px 0">
+          + ${_donsQ(e.quantite)} ${escHtml(e.article)} ${e.permanent ? '· à chaque fois' : '· cette fois'}${e.note ? ' · ' + escHtml(e.note) : ''}
+          <button class="btn btn-ghost btn-sm no-print" style="padding:0 6px;min-height:0;color:#c62828" title="Retirer" onclick="_donsSupprimerExtra(${e.id})">✕</button></span>`).join('')}</div>` : '';
+      return `<div style="border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px;break-inside:avoid;${f.servi ? 'opacity:.55' : ''}">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <input type="checkbox" style="width:20px;height:20px;margin:0;flex:none" title="Boîte prête"${f.servi ? ' checked disabled' : ''}/>
+          <strong>Boîte ${numero} — ${escHtml(f.nom)}</strong>
+          <span style="color:var(--muted);font-size:.85rem">${f.personnes.length} personne${f.personnes.length > 1 ? 's' : ''}</span>
+          ${f.servi ? pill('✅ Déjà servi', 'bp-green') : ''}
+          ${!f.servi ? `<button class="btn btn-ghost btn-sm no-print" style="margin-left:auto" onclick="_donsAjouterExtra(${f.foyer_id})">+ Ajouter</button>` : ''}
+        </div>
+        <div style="font-size:.85rem;margin-top:4px">${_donsCompositionHtml(f.personnes)}</div>
+        <div style="font-size:.82rem;color:var(--muted);margin-top:2px">Besoins : ${escHtml(besoins)}${details ? ' · ' + escHtml(details) : ''}</div>
+        <ul style="margin:8px 0 0;padding-left:20px;font-size:.88rem">${contenu}</ul>
+        ${extras}
+      </div>`;
+    }).join('');
+    const total = c.total.length ? `<div style="font-size:.85rem;background:var(--off);border-radius:8px;padding:8px 12px;margin-bottom:6px"><strong>Total pour ${heure} :</strong> ${c.total.map(t => `${escHtml(t.nom)} ${_donsQ(t.quantite)} ${escHtml(t.unite)}`).join(' · ')}</div>` : '';
+    return `<div style="margin-bottom:22px">
+      <h3 style="font-size:1.05rem;margin:0 0 10px;padding-bottom:6px;border-bottom:2px solid var(--g2)">🕑 ${heure} — ${c.foyers.length} foyer${c.foyers.length > 1 ? 's' : ''}</h3>
+      ${foyersHtml}
+      ${total}
+    </div>`;
+  }).join('');
+
+  return `
+    <div class="no-print" style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+      <button class="btn btn-ghost btn-sm" onclick="_donsCalNavJour(-1)">‹ Jour précédent</button>
+      <strong style="text-transform:capitalize">${dateLabel}</strong>
+      <button class="btn btn-ghost btn-sm" onclick="_donsCalNavJour(1)">Jour suivant ›</button>
+      <input type="date" value="${jour}" onchange="window._donsCalJour=this.value;donsMgmtView()" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px"/>
+      <span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+        ${nbFoyers ? `<button class="btn btn-outline btn-sm" onclick="_donsAjouterExtraJour()">+ Ajouter à toutes les boîtes</button>` : ''}
+        <button class="btn btn-primary btn-sm" onclick="window.print()">🖨️ Imprimer</button>
+      </span>
+    </div>
+    <h2 style="font-size:1.15rem;margin:0 0 12px">Fiche de préparation — <span style="text-transform:capitalize">${dateLabel}</span></h2>
+    ${nbFoyers ? totalHtml + creneauxHtml : '<div class="empty-state"><div class="es-icon">📦</div><p>Aucun rendez-vous ce jour-là.</p></div>'}
+  `;
+}
+
+function _donsArticleSelectHtml() {
+  const stock = window._donsPrepStock || [];
+  return `<div class="form-group"><label>Article *</label>
+    <select id="dx_article" class="form-input" required>
+      ${stock.map(s => `<option value="${s.id}">${escHtml(s.nom)} (${_donsQ(s.quantite_restante)} ${escHtml(s.unite)} en stock)</option>`).join('')}
+    </select>
+    <p style="font-size:.78rem;color:var(--muted);margin-top:4px">L'article doit exister dans le stock (onglet Programme → + Article). Il sera déduit du stock au scan.</p>
+  </div>`;
+}
+
+function _donsAjouterExtra(foyerId) {
+  const nom = escHtml((window._donsPrepNoms || {})[foyerId] || '');
+  if (!(window._donsPrepStock || []).length) { toast("Ajoutez d'abord l'article dans le stock", true); return; }
+  openModal('Ajouter dans la boîte — ' + nom, `
+    <form id="donsExtraForm">
+      ${_donsArticleSelectHtml()}
+      <div class="form-group"><label>Quantité *</label><input id="dx_qte" type="number" min="0.01" step="0.01" value="1" required style="max-width:140px"/></div>
+      <div class="form-group"><label>Pour combien de fois ?</label>
+        <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-weight:500"><input type="radio" name="dx_perm" value="0" checked style="width:auto;margin:0;flex:none"/> Seulement la prochaine boîte</label>
+        <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-weight:500"><input type="radio" name="dx_perm" value="1" style="width:auto;margin:0;flex:none"/> À chaque distribution (jusqu'à ce qu'on le retire)</label>
+      </div>
+      <div class="form-group"><label>Note (optionnel)</label><input id="dx_note" maxlength="200" placeholder="ex. nouveau-né, hiver"/></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Ajouter</button>
+      </div>
+    </form>`);
+  document.getElementById('donsExtraForm').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      await api('/dons/foyers/' + foyerId + '/extras', { method:'POST', body: JSON.stringify({
+        stock_id: parseInt(document.getElementById('dx_article').value),
+        quantite: document.getElementById('dx_qte').value,
+        permanent: document.querySelector('input[name="dx_perm"]:checked').value === '1',
+        note: document.getElementById('dx_note').value
+      })});
+      closeModal(); toast('Ajouté dans la boîte');
+    } catch(e) { toast(e.message, true); }
+  };
+}
+
+function _donsAjouterExtraJour() {
+  if (!(window._donsPrepStock || []).length) { toast("Ajoutez d'abord l'article dans le stock", true); return; }
+  const dateLabel = new Date(window._donsCalJour + 'T00:00:00').toLocaleDateString('fr-CA', { weekday:'long', day:'numeric', month:'long' });
+  openModal('Ajouter à toutes les boîtes du ' + dateLabel, `
+    <form id="donsExtraJourForm">
+      <p style="font-size:.88rem;margin-bottom:12px">Chaque famille attendue ce jour-là (pas encore servie) recevra cet article en plus, une seule fois. Ex. 2 paires de mitaines.</p>
+      ${_donsArticleSelectHtml()}
+      <div class="form-group"><label>Quantité par famille *</label><input id="dx_qte" type="number" min="0.01" step="0.01" value="1" required style="max-width:140px"/></div>
+      <div class="form-group"><label>Note (optionnel)</label><input id="dx_note" maxlength="200" placeholder="ex. distribution d'hiver"/></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Ajouter à toutes les boîtes</button>
+      </div>
+    </form>`);
+  document.getElementById('donsExtraJourForm').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      const r = await api('/dons/programmes/' + window._donsProgId + '/extras-jour', { method:'POST', body: JSON.stringify({
+        date: window._donsCalJour,
+        stock_id: parseInt(document.getElementById('dx_article').value),
+        quantite: document.getElementById('dx_qte').value,
+        note: document.getElementById('dx_note').value
+      })});
+      closeModal(); toast(`Ajouté dans ${r.nb_foyers} boîte(s)`);
+    } catch(e) { toast(e.message, true); }
+  };
+}
+
+async function _donsSupprimerExtra(id) {
+  if (!confirm('Retirer cet ajout de la boîte ?')) return;
+  try { await api('/dons/extras/' + id, { method:'DELETE' }); toast('Ajout retiré'); donsMgmtView(); }
+  catch(e) { toast(e.message, true); }
 }
 
 function _donsCalNavJour(delta) {
@@ -15902,26 +16075,29 @@ function _donsCategorieSelectHtml(selected) {
 // « Combien par famille ? » — chaque règle correspond à une combinaison des champs
 // qte_fixe_foyer / qte_par_personne / age_min / age_max utilisés au scan.
 const DONS_REGLES = {
-  famille:  { label: '1 par famille',                  fixe: 1, pp: 0, min: null, max: null },
-  adulte:   { label: '1 par adulte (18 ans et +)',     fixe: 0, pp: 1, min: 18,   max: null },
-  enfant:   { label: '1 par enfant (0 à 17 ans)',      fixe: 0, pp: 1, min: 0,    max: 17 },
-  bebe:     { label: '1 par bébé (0 à 2 ans)',         fixe: 0, pp: 1, min: 0,    max: 2 },
-  personne: { label: '1 par personne',                 fixe: 0, pp: 1, min: null, max: null },
+  famille:  { label: 'par famille',                fixe: 1, pp: 0, min: null, max: null },
+  adulte:   { label: 'par adulte (18 ans et +)',   fixe: 0, pp: 1, min: 18,   max: null },
+  enfant:   { label: 'par enfant (0 à 17 ans)',    fixe: 0, pp: 1, min: 0,    max: 17 },
+  bebe:     { label: 'par bébé (0 à 2 ans)',       fixe: 0, pp: 1, min: 0,    max: 2 },
+  personne: { label: 'par personne',               fixe: 0, pp: 1, min: null, max: null },
 };
 const DONS_REGLE_PAR_CATEGORIE = { vet_adulte: 'adulte', vet_enfant: 'enfant', sac_dos: 'enfant', bebe: 'bebe' };
 const DONS_UNITES = ['pièce', 'sac', 'boîte', 'paquet', 'kg'];
 
-// Règle correspondant à un article existant, ou 'custom' s'il ne correspond à aucune.
+// Règle + quantité (« 2 par famille ») correspondant à un article existant, ou
+// { regle:'custom' } s'il ne correspond à aucune (ex. 2 par famille + 0,5 par personne).
 function _donsRegleDe(s) {
-  const found = Object.entries(DONS_REGLES).find(([, r]) =>
-    r.fixe === s.qte_fixe_foyer && r.pp === s.qte_par_personne && r.min === (s.age_min ?? null) && r.max === (s.age_max ?? null));
-  return found ? found[0] : 'custom';
+  const fixe = s.qte_fixe_foyer, pp = s.qte_par_personne;
+  const n = fixe > 0 && !pp ? fixe : !fixe && pp > 0 ? pp : null;
+  const found = n && Object.entries(DONS_REGLES).find(([, r]) =>
+    r.fixe * n === fixe && r.pp * n === pp && r.min === (s.age_min ?? null) && r.max === (s.age_max ?? null));
+  return found ? { regle: found[0], n } : { regle: 'custom', n: 1 };
 }
 
 // Texte court pour la colonne « Par famille » du tableau de stock.
 function _donsRegleTexte(s) {
-  const regle = _donsRegleDe(s);
-  if (regle !== 'custom') return escHtml(DONS_REGLES[regle].label);
+  const { regle, n } = _donsRegleDe(s);
+  if (regle !== 'custom') return escHtml(n + ' ' + DONS_REGLES[regle].label);
   const parts = [];
   if (s.qte_fixe_foyer) parts.push(`${s.qte_fixe_foyer} par famille`);
   if (s.qte_par_personne) parts.push(`${s.qte_par_personne} par personne` + (s.age_min != null || s.age_max != null ? ` (${s.age_min ?? 0}–${s.age_max ?? '∞'} ans)` : ''));
@@ -15946,9 +16122,13 @@ function _donsUniteSelectHtml(selected) {
 
 // « Combien par famille ? » + « Me prévenir quand il en reste ». Les champs détaillés
 // (quantité fixe, par personne, âges) ne s'affichent que pour « Personnaliser ».
-function _donsStockRegleHtml(s, regle) {
+function _donsStockRegleHtml(s, { regle, n }) {
   return `<div class="form-group"><label>Combien par famille ?</label>
-      <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
+      <div style="display:flex;align-items:center;gap:8px;margin:4px 0 8px">
+        <input id="ds_n" type="number" min="0.01" step="0.01" value="${n}" style="width:80px"/>
+        <span style="font-size:.88rem;color:var(--muted)">… choisissez ci-dessous à qui ça s'applique</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
         ${Object.entries(DONS_REGLES).map(([k, r]) => `<label style="display:flex;align-items:center;gap:8px;font-size:.92rem;cursor:pointer;text-transform:none;letter-spacing:0;font-weight:500">
           <input type="radio" name="ds_regle" style="width:auto;margin:0;flex:none" value="${k}"${regle === k ? ' checked' : ''} onchange="_donsRegleChangee()"/> ${escHtml(r.label)}</label>`).join('')}
         <label style="display:flex;align-items:center;gap:8px;font-size:.88rem;cursor:pointer;color:var(--muted);text-transform:none;letter-spacing:0;font-weight:500">
@@ -15981,7 +16161,8 @@ function _donsStockRegleValeurs() {
     seuil_alerte
   };
   const r = DONS_REGLES[regle];
-  return { qte_fixe_foyer: r.fixe, qte_par_personne: r.pp, age_min: r.min ?? '', age_max: r.max ?? '', seuil_alerte };
+  const n = parseFloat(document.getElementById('ds_n').value) || 1;
+  return { qte_fixe_foyer: r.fixe * n, qte_par_personne: r.pp * n, age_min: r.min ?? '', age_max: r.max ?? '', seuil_alerte };
 }
 
 function _donsNewStock(progId) {
@@ -15993,7 +16174,7 @@ function _donsNewStock(progId) {
         <div class="form-group"><label>Quantité en main</label><input id="ds_recue" type="number" step="0.01" min="0" value="0"/></div>
         <div class="form-group"><label>Unité</label>${_donsUniteSelectHtml('pièce')}</div>
       </div>
-      ${_donsStockRegleHtml({ qte_fixe_foyer: 1, qte_par_personne: 0 }, 'famille')}
+      ${_donsStockRegleHtml({ qte_fixe_foyer: 1, qte_par_personne: 0 }, { regle: 'famille', n: 1 })}
       <div class="form-actions">
         <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
         <button type="submit" class="btn btn-primary">Ajouter</button>
