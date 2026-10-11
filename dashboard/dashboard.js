@@ -15545,18 +15545,20 @@ async function _donsProgrammeTabHtml(prog) {
     <div class="table-card" style="margin-bottom:18px">
       <div class="table-card-header"><h3>Stock</h3><button class="btn btn-primary btn-sm" onclick="_donsNewStock(${prog.id})">+ Article</button></div>
       <div class="table-wrapper"><table>
-        <thead><tr><th>Article</th><th>Reçu</th><th>Restant</th><th>Fixe / foyer</th><th>Par personne</th><th>Éligibilité</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Article</th><th>Catégorie</th><th>Reçu</th><th>Restant</th><th>Fixe / foyer</th><th>Par personne</th><th>Éligibilité</th><th>Actions</th></tr></thead>
         <tbody>
-          ${stock.length ? stock.map(s => `<tr>
+          ${stock.length ? stock.map(s => { const bas = s.seuil_alerte != null && s.quantite_restante <= s.seuil_alerte; return `<tr>
             <td><strong>${escHtml(s.nom)}</strong></td>
+            <td style="font-size:.82rem">${s.categorie ? escHtml(DONS_CATEGORIES[s.categorie] || s.categorie) : '<span style="color:var(--muted)">Tous les foyers</span>'}</td>
             <td>${s.quantite_recue} ${escHtml(s.unite)}</td>
-            <td>${s.quantite_restante} ${escHtml(s.unite)}</td>
+            <td>${bas ? pill(s.quantite_restante + ' ' + escHtml(s.unite) + ' — bas', 'bp-orange') : s.quantite_restante + ' ' + escHtml(s.unite)}</td>
             <td>${s.qte_fixe_foyer}</td>
             <td>${s.qte_par_personne}</td>
             <td style="font-size:.82rem">${s.age_min == null && s.age_max == null ? 'Tout le foyer' : (s.age_min ?? '0') + '–' + (s.age_max ?? '∞') + ' ans'}</td>
-            <td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="_donsEditStock(${s.id})">Modifier</button>
+            <td style="white-space:nowrap"><button class="btn btn-primary btn-sm" onclick="_donsReception(${s.id})">+ Réception</button>
+                <button class="btn btn-ghost btn-sm" onclick="_donsEditStock(${s.id})">Modifier</button>
                 <button class="btn btn-ghost btn-sm" style="color:#c62828" onclick="_donsDeleteStock(${s.id})">Supprimer</button></td>
-          </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted)">Aucun article</td></tr>'}
+          </tr>`; }).join('') : '<tr><td colspan="8" style="text-align:center;color:var(--muted)">Aucun article</td></tr>'}
         </tbody>
       </table></div>
     </div>
@@ -15887,26 +15889,49 @@ async function _donsEditProgramme(id) {
   };
 }
 
-function _donsNewStock(progId) {
-  openModal('Nouvel article de stock', `
-    <form id="donsStockForm">
-      <div class="form-group"><label>Nom *</label><input id="ds_nom" required/></div>
-      <div class="form-group"><label>Unité</label><input id="ds_unite" value="unité"/></div>
+// Sélecteur de catégorie — partagé par les formulaires d'ajout et de modification d'article.
+function _donsCategorieSelectHtml(selected) {
+  return `<div class="form-group"><label>Catégorie</label>
+    <select id="ds_categorie" class="form-input">
+      <option value="">Tous les foyers (ex. nourriture)</option>
+      ${Object.entries(DONS_CATEGORIES).map(([k, l]) => `<option value="${k}"${selected === k ? ' selected' : ''}>${escHtml(l)}</option>`).join('')}
+    </select>
+    <p style="font-size:.78rem;color:var(--muted);margin-top:4px">Un foyer qui a coché ses besoins ne reçoit que les articles des catégories cochées.</p>
+  </div>`;
+}
+
+// Réglages de quantité/âge/alerte, repliés par défaut : la plupart des articles se contentent
+// de « 1 par foyer ».
+function _donsStockAvanceHtml(s, open) {
+  return `<details style="margin:6px 0 12px"${open ? ' open' : ''}>
+    <summary style="cursor:pointer;font-weight:600;font-size:.88rem">Options avancées (quantités, âge, alerte)</summary>
+    <div style="padding-top:10px">
       <div class="form-row">
-        <div class="form-group"><label>Quantité reçue</label><input id="ds_recue" type="number" step="0.01" value="0"/></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label>Quantité fixe / foyer</label><input id="ds_fixe" type="number" step="0.01" value="0"/></div>
-        <div class="form-group"><label>Quantité additionnelle / personne éligible</label><input id="ds_pp" type="number" step="0.01" value="0"/></div>
+        <div class="form-group"><label>Quantité fixe / foyer</label><input id="ds_fixe" type="number" step="0.01" value="${s.qte_fixe_foyer}"/></div>
+        <div class="form-group"><label>Quantité additionnelle / personne éligible</label><input id="ds_pp" type="number" step="0.01" value="${s.qte_par_personne}"/></div>
       </div>
       <p class="muted" style="font-size:.8rem;color:var(--muted)">Quantité remise à un foyer = fixe + (par personne × nombre de personnes éligibles).</p>
       <div class="form-row">
-        <div class="form-group"><label>Âge minimum (optionnel)</label><input id="ds_age_min" type="number" min="0" placeholder="ex. 0"/></div>
-        <div class="form-group"><label>Âge maximum (optionnel)</label><input id="ds_age_max" type="number" min="0" placeholder="ex. 5"/></div>
+        <div class="form-group"><label>Âge minimum (optionnel)</label><input id="ds_age_min" type="number" min="0" value="${s.age_min ?? ''}" placeholder="ex. 0"/></div>
+        <div class="form-group"><label>Âge maximum (optionnel)</label><input id="ds_age_max" type="number" min="0" value="${s.age_max ?? ''}" placeholder="ex. 5"/></div>
       </div>
       <p class="muted" style="font-size:.8rem;color:var(--muted)">Laisser vide = article pour tout le foyer. Remplir les deux = seulement les personnes dans cette tranche d'âge (ex. 0 à 5 pour « enfant -6 ans »). Un seul champ rempli = pas de limite de l'autre côté (ex. 18 et vide = « adultes seulement »).</p>
-      <div class="form-group"><label>Seuil d'alerte stock bas (optionnel)</label><input id="ds_seuil" type="number" step="0.01" placeholder="ex. 10"/></div>
+      <div class="form-group"><label>Seuil d'alerte stock bas (optionnel)</label><input id="ds_seuil" type="number" step="0.01" value="${s.seuil_alerte ?? ''}" placeholder="ex. 10"/></div>
       <p class="muted" style="font-size:.8rem;color:var(--muted)">Le comité et les coordinateurs sont alertés dès qu'un retrait fait passer la quantité restante à ce seuil ou en dessous.</p>
+    </div>
+  </details>`;
+}
+
+function _donsNewStock(progId) {
+  openModal('Nouvel article de stock', `
+    <form id="donsStockForm">
+      <div class="form-group"><label>Nom *</label><input id="ds_nom" required placeholder="ex. Chandails enfant"/></div>
+      ${_donsCategorieSelectHtml('')}
+      <div class="form-row">
+        <div class="form-group"><label>Quantité en main</label><input id="ds_recue" type="number" step="0.01" value="0"/></div>
+        <div class="form-group"><label>Unité</label><input id="ds_unite" value="unité" placeholder="ex. sac, pièce, kg"/></div>
+      </div>
+      ${_donsStockAvanceHtml({ qte_fixe_foyer: 1, qte_par_personne: 0 }, false)}
       <div class="form-actions">
         <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
         <button type="submit" class="btn btn-primary">Ajouter</button>
@@ -15920,6 +15945,7 @@ function _donsNewStock(progId) {
         programme_id: progId,
         nom: document.getElementById('ds_nom').value,
         unite: document.getElementById('ds_unite').value,
+        categorie: document.getElementById('ds_categorie').value,
         quantite_recue: document.getElementById('ds_recue').value,
         qte_fixe_foyer: document.getElementById('ds_fixe').value,
         qte_par_personne: document.getElementById('ds_pp').value,
@@ -15939,22 +15965,14 @@ async function _donsEditStock(id) {
   openModal("Modifier l'article", `
     <form id="donsStockEditForm">
       <div class="form-group"><label>Nom *</label><input id="ds_nom" value="${escHtml(s.nom)}" required/></div>
+      ${_donsCategorieSelectHtml(s.categorie)}
       <div class="form-group"><label>Unité</label><input id="ds_unite" value="${escHtml(s.unite)}"/></div>
+      <p style="font-size:.8rem;color:var(--muted);background:#e3f2fd;padding:8px 10px;border-radius:8px">Pour une nouvelle livraison, utilisez plutôt le bouton <strong>+ Réception</strong> : il met à jour « reçu » et « restant » en même temps. Les champs ci-dessous servent à corriger après un inventaire.</p>
       <div class="form-row">
-        <div class="form-group"><label>Quantité reçue</label><input id="ds_recue" type="number" step="0.01" value="${s.quantite_recue}"/></div>
+        <div class="form-group"><label>Quantité reçue (total)</label><input id="ds_recue" type="number" step="0.01" value="${s.quantite_recue}"/></div>
         <div class="form-group"><label>Quantité restante</label><input id="ds_restante" type="number" step="0.01" value="${s.quantite_restante}"/></div>
       </div>
-      <div class="form-row">
-        <div class="form-group"><label>Quantité fixe / foyer</label><input id="ds_fixe" type="number" step="0.01" value="${s.qte_fixe_foyer}"/></div>
-        <div class="form-group"><label>Quantité additionnelle / personne éligible</label><input id="ds_pp" type="number" step="0.01" value="${s.qte_par_personne}"/></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label>Âge minimum (optionnel)</label><input id="ds_age_min" type="number" min="0" value="${s.age_min ?? ''}" placeholder="ex. 0"/></div>
-        <div class="form-group"><label>Âge maximum (optionnel)</label><input id="ds_age_max" type="number" min="0" value="${s.age_max ?? ''}" placeholder="ex. 5"/></div>
-      </div>
-      <p class="muted" style="font-size:.8rem;color:var(--muted)">Laisser vide = pas de limite de ce côté. Les deux vides = article pour tout le foyer.</p>
-      <div class="form-group"><label>Seuil d'alerte stock bas (optionnel)</label><input id="ds_seuil" type="number" step="0.01" value="${s.seuil_alerte ?? ''}" placeholder="ex. 10"/></div>
-      <p class="muted" style="font-size:.8rem;color:var(--muted)">Le comité et les coordinateurs sont alertés dès qu'un retrait fait passer la quantité restante à ce seuil ou en dessous.</p>
+      ${_donsStockAvanceHtml(s, false)}
       <div class="form-actions">
         <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
         <button type="submit" class="btn btn-primary">Enregistrer</button>
@@ -15967,6 +15985,7 @@ async function _donsEditStock(id) {
       await api('/dons/stock/' + id, { method:'PUT', body: JSON.stringify({
         nom: document.getElementById('ds_nom').value,
         unite: document.getElementById('ds_unite').value,
+        categorie: document.getElementById('ds_categorie').value,
         quantite_recue: document.getElementById('ds_recue').value,
         quantite_restante: document.getElementById('ds_restante').value,
         qte_fixe_foyer: document.getElementById('ds_fixe').value,
@@ -15976,6 +15995,48 @@ async function _donsEditStock(id) {
         seuil_alerte: document.getElementById('ds_seuil').value
       })});
       closeModal(); toast('Article mis à jour'); donsMgmtView();
+    } catch(e) { toast(e.message, true); }
+  };
+}
+
+async function _donsReception(id) {
+  const [stock, historique] = await Promise.all([
+    api('/dons/programmes/' + window._donsProgId + '/stock'),
+    api('/dons/stock/' + id + '/receptions').catch(() => [])
+  ]);
+  const s = stock.find(x => x.id === id);
+  if (!s) return;
+  const histHtml = historique.length ? `
+    <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:10px">
+      <div style="font-weight:700;font-size:.85rem;margin-bottom:6px">Dernières réceptions</div>
+      ${historique.slice(0, 5).map(h => `<div style="display:flex;justify-content:space-between;gap:10px;font-size:.82rem;padding:3px 0">
+        <span>${fmt(h.date_reception)}${h.source ? ' · ' + escHtml(h.source) : ''}${h.note ? ' · ' + escHtml(h.note) : ''}</span>
+        <strong>+${h.quantite} ${escHtml(s.unite)}</strong>
+      </div>`).join('')}
+    </div>` : '';
+  openModal('Réception — ' + escHtml(s.nom), `
+    <form id="donsReceptionForm">
+      <p style="font-size:.88rem;margin-bottom:12px">En stock actuellement : <strong>${s.quantite_restante} ${escHtml(s.unite)}</strong></p>
+      <div class="form-group"><label>Quantité reçue *</label><input id="dr_qte" type="number" step="0.01" min="0.01" required autofocus placeholder="ex. 40"/></div>
+      <div class="form-group"><label>Provenance (optionnel)</label><input id="dr_source" list="dr_sources" placeholder="ex. Brands For Canada"/>
+        <datalist id="dr_sources"><option value="Brands For Canada"></option><option value="Don d'un membre"></option><option value="Achat AHH"></option></datalist></div>
+      <div class="form-group"><label>Note (optionnel)</label><input id="dr_note" placeholder="ex. livraison d'octobre"/></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Ajouter au stock</button>
+      </div>
+    </form>
+    ${histHtml}
+  `);
+  document.getElementById('donsReceptionForm').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      const r = await api('/dons/stock/' + id + '/reception', { method:'POST', body: JSON.stringify({
+        quantite: document.getElementById('dr_qte').value,
+        source: document.getElementById('dr_source').value,
+        note: document.getElementById('dr_note').value
+      })});
+      closeModal(); toast(`Stock mis à jour : ${r.quantite_restante} ${s.unite}`); donsMgmtView();
     } catch(e) { toast(e.message, true); }
   };
 }
@@ -17036,9 +17097,16 @@ async function donsScanSearch() {
 
   try {
     const r = await api('/dons/scan', { method:'POST', body: JSON.stringify({ qr, programme_id: window._donsProgId, derogation, motif }) });
-    const detailRows = (r.detail || []).map(d => `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:.85rem">
+    // du = 0 : article d'une catégorie que le foyer n'a pas cochée — rien à remettre, on ne l'affiche pas.
+    const detailRows = (r.detail || []).filter(d => d.du > 0).map(d => `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:.85rem">
       <span>${escHtml(d.nom)}</span><span>${d.donne} / ${d.du} ${escHtml(d.unite)}</span>
     </div>`).join('');
+    const besoinsHtml = (r.besoins || r.taille_principale || r.besoins_note) ? `
+      <div style="margin-top:14px;padding:10px 12px;background:#e3f2fd;border-radius:8px;font-size:.85rem;text-align:left">
+        <strong>🛍️ À préparer :</strong> ${r.besoins ? r.besoins.map(c => escHtml(DONS_CATEGORIES[c] || c)).join(', ') : 'tous les articles'}
+        ${r.taille_principale ? `<br><strong>Taille :</strong> ${escHtml(r.taille_principale)}` : ''}
+        ${r.besoins_note ? `<br><strong>Précisions :</strong> ${escHtml(r.besoins_note)}` : ''}
+      </div>` : '';
     if (resultEl) resultEl.innerHTML = `
       <div style="text-align:center">
         <div style="font-size:2.2rem">✅</div>
@@ -17046,6 +17114,7 @@ async function donsScanSearch() {
         <div style="margin-top:6px">${pill('Retrait enregistré','bp-green')}</div>
         ${r.partiel ? `<div style="margin-top:8px">${pill('⚠️ Stock insuffisant — remise partielle','bp-orange')}</div>` : ''}
       </div>
+      ${besoinsHtml}
       <div style="margin-top:16px;text-align:left">${detailRows}</div>
       <div style="margin-top:14px;font-size:.82rem;color:var(--muted);text-align:center">Prochain retrait suggéré : <strong>${r.prochain_retrait_suggere}</strong>${r.prochain_creneau ? ` (créneau : ${_donsFmtDT(r.prochain_creneau.date_heure)})` : " (aucun créneau ouvert pour l'instant)"}</div>
       ${_donsRenderFiche(r.fiche, r.correspondances)}
@@ -17295,6 +17364,29 @@ async function donsMonFoyerView() {
       </div>`;
     }
 
+    let besoins = null;
+    try { besoins = JSON.parse(foyer.besoins || 'null'); } catch {}
+    const besoinsHtml = foyer.statut === 'refuse' ? '' : `
+      <div class="table-card" style="margin-top:14px">
+        <div class="table-card-header"><h3>🛍️ Mes besoins</h3>${besoins ? pill('Enregistré', 'bp-green') : pill('À compléter', 'bp-orange')}</div>
+        <div style="padding:16px">
+          <p style="font-size:.85rem;color:var(--muted);margin-bottom:10px">Cochez ce dont votre foyer a besoin : votre sac sera préparé en conséquence. Sans case cochée, vous recevez un peu de tout.</p>
+          <div id="dbs_cases" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;margin-bottom:12px">
+            ${Object.entries(DONS_CATEGORIES).map(([k, l]) => `<label style="display:flex;align-items:center;gap:8px;font-size:.9rem;cursor:pointer">
+              <input type="checkbox" value="${k}"${besoins && besoins.includes(k) ? ' checked' : ''}/> ${escHtml(l)}</label>`).join('')}
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Taille principale (adulte)</label>
+              <select id="dbs_taille" class="form-input"><option value="">—</option>
+                ${DONS_TAILLES.map(t => `<option${foyer.taille_principale === t ? ' selected' : ''}>${t}</option>`).join('')}
+              </select></div>
+            <div class="form-group"><label>Précisions (optionnel)</label>
+              <input id="dbs_note" class="form-input" maxlength="300" value="${escHtml(foyer.besoins_note || '')}" placeholder="ex. enfant taille 8 ans, pointure 6"/></div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="_donsEnregistrerBesoins(${foyer.id})">Enregistrer mes besoins</button>
+        </div>
+      </div>`;
+
     const personnesRows = (foyer.personnes || []).map(p => { const a = p.date_naissance ? _donsAge(p.date_naissance) : null; const badges = _donsPersonneBadges(p, foyer.id, { canRequestTutelle: true }); return `<li>${escHtml(p.prenom)} ${escHtml(p.nom)}${a !== null ? ' — ' + a + ' ans' : ''} <span style="color:var(--muted);font-size:.78rem">(${DONS_RELATION_LABEL[p.relation] || 'Enfant'})</span>${p.date_naissance_verifiee ? ' ✅' : ''}${badges ? '<br>' + badges : ''}</li>`; }).join('');
 
     bodyHtml = `
@@ -17307,6 +17399,7 @@ async function donsMonFoyerView() {
 
       <div style="max-width:640px;margin:0 auto">
         ${cardHtml}
+        ${besoinsHtml}
         ${histHtml}
 
         <div class="table-card" style="margin-top:14px">
@@ -17377,6 +17470,23 @@ function _donsAge(dateNaissance) {
 }
 
 const DONS_RELATION_LABEL = { responsable:'Responsable', conjoint:'Conjoint(e)', enfant:'Enfant' };
+// Mêmes clés que DONS_CATEGORIES_LABEL côté serveur.
+const DONS_CATEGORIES = { vet_adulte:'Vêtements adulte', vet_enfant:'Vêtements enfant', bebe:'Bébé / maternité',
+  sac_dos:'Sac à dos scolaire', hygiene:'Hygiène', maison:'Maison' };
+const DONS_TAILLES = ['S', 'M', 'L', 'XL', 'Plus Size'];
+
+async function _donsEnregistrerBesoins(foyerId) {
+  const besoins = Array.from(document.querySelectorAll('#dbs_cases input:checked')).map(c => c.value);
+  try {
+    await api('/dons/foyers/' + foyerId + '/besoins', { method:'PUT', body: JSON.stringify({
+      besoins,
+      taille_principale: document.getElementById('dbs_taille').value,
+      besoins_note: document.getElementById('dbs_note').value
+    })});
+    toast('Besoins enregistrés — merci !');
+    donsMonFoyerView();
+  } catch(e) { toast(e.message, true); }
+}
 
 // Badges d'état (carte requise / tutelle) réutilisés dans la vue membre, le tableau comité
 // et le panneau de scan — reflète p.compte / p.tutelle_statut renvoyés par le serveur.

@@ -9841,23 +9841,66 @@ app.get('/api/dons/programmes/:id/stock', authMiddleware, requireDonsAccess, (re
   res.json(db.prepare('SELECT * FROM dons_stock WHERE programme_id=? ORDER BY nom').all(req.params.id));
 });
 
+// Catégories d'articles = cases que le membre coche dans « Mes besoins ». Un article sans
+// catégorie est remis à tous les foyers.
+const DONS_CATEGORIES_LABEL = { vet_adulte:'Vêtements adulte', vet_enfant:'Vêtements enfant', bebe:'Bébé / maternité',
+  sac_dos:'Sac à dos scolaire', hygiene:'Hygiène', maison:'Maison' };
+const DONS_CATEGORIES = Object.keys(DONS_CATEGORIES_LABEL);
+const DONS_TAILLES = ['S', 'M', 'L', 'XL', 'Plus Size'];
+const donsCategorieOuNull = c => DONS_CATEGORIES.includes(c) ? c : null;
+function donsBesoinsDe(foyer) {
+  try { const b = JSON.parse(foyer.besoins || 'null'); return Array.isArray(b) ? b : null; } catch { return null; }
+}
+
 app.post('/api/dons/stock', authMiddleware, requireDonsAccess, (req, res) => {
-  const { programme_id, nom, unite, quantite_recue, qte_fixe_foyer, qte_par_personne, age_min, age_max, seuil_alerte } = req.body;
+  const { programme_id, nom, unite, categorie, quantite_recue, qte_fixe_foyer, qte_par_personne, age_min, age_max, seuil_alerte } = req.body;
   if (!programme_id || !nom || !nom.trim()) return res.status(400).json({ error: 'Programme et nom requis' });
   const qte = parseFloat(quantite_recue) || 0;
-  const r = db.prepare(`INSERT INTO dons_stock (programme_id, nom, unite, quantite_recue, quantite_restante, qte_fixe_foyer, qte_par_personne, age_min, age_max, seuil_alerte)
-    VALUES (?,?,?,?,?,?,?,?,?,?)`).run(programme_id, nom.trim(), unite || 'unité', qte, qte, parseFloat(qte_fixe_foyer) || 0, parseFloat(qte_par_personne) || 0,
+  const r = db.prepare(`INSERT INTO dons_stock (programme_id, nom, unite, categorie, quantite_recue, quantite_restante, qte_fixe_foyer, qte_par_personne, age_min, age_max, seuil_alerte)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(programme_id, nom.trim(), unite || 'unité', donsCategorieOuNull(categorie), qte, qte, parseFloat(qte_fixe_foyer) || 0, parseFloat(qte_par_personne) || 0,
     age_min !== undefined && age_min !== '' ? parseInt(age_min) : null, age_max !== undefined && age_max !== '' ? parseInt(age_max) : null,
     seuil_alerte !== undefined && seuil_alerte !== '' ? parseFloat(seuil_alerte) : null);
+  if (qte > 0) {
+    db.prepare('INSERT INTO dons_receptions (stock_id, quantite, source, note, recu_par) VALUES (?,?,?,?,?)')
+      .run(r.lastInsertRowid, qte, null, 'Stock initial', req.user.id);
+  }
   res.json({ id: r.lastInsertRowid });
+});
+
+// Réception d'une livraison : augmente « reçu » et « restant » ensemble, et garde la trace
+// (qui, quand, d'où) pour le rapport bailleur de fonds.
+app.post('/api/dons/stock/:id/reception', authMiddleware, requireDonsAccess, (req, res) => {
+  const item = db.prepare('SELECT * FROM dons_stock WHERE id=?').get(req.params.id);
+  if (!item) return res.status(404).json({ error: 'Article introuvable' });
+  const qte = parseFloat(req.body.quantite);
+  if (!qte || qte <= 0) return res.status(400).json({ error: 'Quantité reçue invalide' });
+  const source = (req.body.source || '').trim() || null;
+  const note = (req.body.note || '').trim() || null;
+  try {
+    db.prepare('BEGIN').run();
+    db.prepare('UPDATE dons_stock SET quantite_recue = quantite_recue + ?, quantite_restante = quantite_restante + ? WHERE id=?').run(qte, qte, item.id);
+    db.prepare('INSERT INTO dons_receptions (stock_id, quantite, source, note, recu_par) VALUES (?,?,?,?,?)').run(item.id, qte, source, note, req.user.id);
+    db.prepare('COMMIT').run();
+  } catch (e) {
+    try { db.prepare('ROLLBACK').run(); } catch {}
+    console.error('Erreur réception stock dons:', e.message);
+    return res.status(500).json({ error: 'Erreur serveur — réception non enregistrée.' });
+  }
+  res.json({ ok: true, quantite_restante: item.quantite_restante + qte });
+});
+
+app.get('/api/dons/stock/:id/receptions', authMiddleware, requireDonsAccess, (req, res) => {
+  res.json(db.prepare(`SELECT r.*, u.prenom, u.nom FROM dons_receptions r LEFT JOIN users u ON u.id=r.recu_par
+    WHERE r.stock_id=? ORDER BY r.date_reception DESC LIMIT 20`).all(req.params.id));
 });
 
 app.put('/api/dons/stock/:id', authMiddleware, requireDonsAccess, (req, res) => {
   const item = db.prepare('SELECT * FROM dons_stock WHERE id=?').get(req.params.id);
   if (!item) return res.status(404).json({ error: 'Article introuvable' });
-  const { nom, unite, quantite_recue, quantite_restante, qte_fixe_foyer, qte_par_personne, age_min, age_max, seuil_alerte } = req.body;
-  db.prepare(`UPDATE dons_stock SET nom=?, unite=?, quantite_recue=?, quantite_restante=?, qte_fixe_foyer=?, qte_par_personne=?, age_min=?, age_max=?, seuil_alerte=? WHERE id=?`).run(
+  const { nom, unite, categorie, quantite_recue, quantite_restante, qte_fixe_foyer, qte_par_personne, age_min, age_max, seuil_alerte } = req.body;
+  db.prepare(`UPDATE dons_stock SET nom=?, unite=?, categorie=?, quantite_recue=?, quantite_restante=?, qte_fixe_foyer=?, qte_par_personne=?, age_min=?, age_max=?, seuil_alerte=? WHERE id=?`).run(
     nom || item.nom, unite || item.unite,
+    categorie !== undefined ? donsCategorieOuNull(categorie) : item.categorie,
     quantite_recue !== undefined ? parseFloat(quantite_recue) : item.quantite_recue,
     quantite_restante !== undefined ? parseFloat(quantite_restante) : item.quantite_restante,
     qte_fixe_foyer !== undefined ? parseFloat(qte_fixe_foyer) : item.qte_fixe_foyer,
@@ -10052,7 +10095,7 @@ app.get('/api/dons/programmes/:id/feuille-de-route', authMiddleware, requireDons
   if (!date) return res.status(400).send('date requise');
   const programme = db.prepare('SELECT * FROM dons_programmes WHERE id=?').get(req.params.id);
   if (!programme) return res.status(404).send('Programme introuvable');
-  const rows = db.prepare(`SELECT c.date_heure, u.prenom, u.nom, f.nb_personnes, r.statut
+  const rows = db.prepare(`SELECT c.date_heure, u.prenom, u.nom, f.nb_personnes, f.besoins, f.taille_principale, f.besoins_note, r.statut
     FROM dons_creneaux c
     LEFT JOIN dons_rdv r ON r.creneau_id=c.id AND r.statut != 'annule'
     LEFT JOIN dons_foyers f ON f.id=r.foyer_id
@@ -10060,6 +10103,14 @@ app.get('/api/dons/programmes/:id/feuille-de-route', authMiddleware, requireDons
     WHERE c.programme_id=? AND c.date_heure LIKE ?
     ORDER BY c.date_heure, u.nom`).all(req.params.id, date + '%');
   const statutLabel = { a_venir:'À venir', honore:'Servi', manque:'Manqué' };
+  const besoinsTexte = r => {
+    if (!r.prenom) return '—';
+    const b = donsBesoinsDe(r);
+    const parts = [b ? b.map(c => DONS_CATEGORIES_LABEL[c] || c).join(', ') : 'Tout'];
+    if (r.taille_principale) parts.push('Taille ' + r.taille_principale);
+    if (r.besoins_note) parts.push(r.besoins_note);
+    return escHtmlServer(parts.join(' · '));
+  };
 
   const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/>
 <title>Feuille de route — ${escHtmlServer(date)}</title>
@@ -10084,14 +10135,15 @@ app.get('/api/dons/programmes/:id/feuille-de-route', authMiddleware, requireDons
   <h1>Feuille de route — ${escHtmlServer(programme.nom)}</h1>
   <div class="sub">${new Date(date + 'T00:00:00').toLocaleDateString('fr-CA', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}</div>
   <table>
-    <thead><tr><th></th><th>Heure</th><th>Responsable</th><th>Taille du foyer</th><th>Statut</th></tr></thead>
+    <thead><tr><th></th><th>Heure</th><th>Responsable</th><th>Taille du foyer</th><th>Besoins</th><th>Statut</th></tr></thead>
     <tbody>${rows.length ? rows.map(r => `<tr>
       <td><span class="check"></span></td>
       <td>${r.date_heure.slice(11,16)}</td>
       <td>${r.prenom ? escHtmlServer(r.prenom) + ' ' + escHtmlServer(r.nom) : '—'}</td>
       <td>${r.nb_personnes ?? '—'}</td>
+      <td>${besoinsTexte(r)}</td>
       <td>${r.statut ? (statutLabel[r.statut] || r.statut) : '—'}</td>
-    </tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:#999;padding:20px">Aucun créneau ce jour-là</td></tr>`}</tbody>
+    </tr>`).join('') : `<tr><td colspan="6" style="text-align:center;color:#999;padding:20px">Aucun créneau ce jour-là</td></tr>`}</tbody>
   </table>
 </div>
 </body></html>`;
@@ -10299,6 +10351,23 @@ app.put('/api/dons/foyers/:id', authMiddleware, (req, res) => {
   const repasseEnAttente = compositionChange && foyer.statut === 'valide';
   if (repasseEnAttente) db.prepare("UPDATE dons_foyers SET statut='en_attente', necessite_reconfirmation=0 WHERE id=?").run(foyer.id);
   res.json({ ok: true, repasse_en_attente: repasseEnAttente, membres_ignores: membresIgnores });
+});
+
+// Besoins du foyer (cases à cocher + taille). Volontairement séparé de PUT /foyers/:id :
+// changer ses besoins ne touche pas la composition, donc ne remet PAS le foyer en attente.
+app.put('/api/dons/foyers/:id/besoins', authMiddleware, (req, res) => {
+  const foyer = db.prepare('SELECT * FROM dons_foyers WHERE id=?').get(req.params.id);
+  if (!foyer) return res.status(404).json({ error: 'Foyer introuvable' });
+  const isExec = DON_EXEC_ROLES.includes(req.user.role);
+  const estMembreFoyer = foyer.responsable_id === req.user.id
+    || !!db.prepare('SELECT 1 FROM dons_foyer_membres WHERE foyer_id=? AND user_id=?').get(foyer.id, req.user.id);
+  if (!isExec && !estMembreFoyer) return res.status(403).json({ error: 'Accès refusé' });
+  const besoins = Array.isArray(req.body.besoins) ? [...new Set(req.body.besoins.filter(c => DONS_CATEGORIES.includes(c)))] : [];
+  const taille = DONS_TAILLES.includes(req.body.taille_principale) ? req.body.taille_principale : null;
+  const note = (req.body.besoins_note || '').trim().slice(0, 300) || null;
+  db.prepare('UPDATE dons_foyers SET besoins=?, taille_principale=?, besoins_note=? WHERE id=?')
+    .run(besoins.length ? JSON.stringify(besoins) : null, taille, note, foyer.id); // aucune case = reçoit tout
+  res.json({ ok: true });
 });
 
 app.get('/api/dons/programmes/:id/foyers', authMiddleware, requireDonsAccess, (req, res) => {
@@ -10759,6 +10828,7 @@ app.post('/api/dons/scan', authMiddleware, (req, res) => {
   const comptent = roster.filter(donsPersonneCompte);
 
   const items = db.prepare('SELECT * FROM dons_stock WHERE programme_id=?').all(programme_id);
+  const besoins = donsBesoinsDe(foyer);
   let partiel = false;
   const alertesStockBas = [];
   // Décrémenter le stock, mettre à jour le rendez-vous et enregistrer le retrait dans une
@@ -10774,7 +10844,10 @@ app.post('/api/dons/scan', authMiddleware, (req, res) => {
       const eligibles = sansRestriction
         ? comptent.length
         : comptent.filter(p => { const a = donsAgeDe(p.date_naissance); return a != null && (it.age_min == null || a >= it.age_min) && (it.age_max == null || a <= it.age_max); }).length;
-      const du = it.qte_fixe_foyer + (it.qte_par_personne * eligibles);
+      // Article d'une catégorie que le foyer n'a pas cochée : rien n'est dû (le stock reste
+      // pour les foyers qui en ont besoin). Sans besoins déclarés, le foyer reçoit tout.
+      const pasBesoin = it.categorie && besoins && !besoins.includes(it.categorie);
+      const du = pasBesoin ? 0 : it.qte_fixe_foyer + (it.qte_par_personne * eligibles);
       const donne = Math.max(0, Math.min(du, it.quantite_restante));
       if (donne < du) partiel = true;
       if (donne > 0) {
@@ -10821,7 +10894,8 @@ app.post('/api/dons/scan', authMiddleware, (req, res) => {
     ok: true, foyer_nom: `${membre.prenom} ${membre.nom}`, partiel, detail,
     prochain_retrait_suggere: prochainDate.toISOString().slice(0,10),
     prochain_creneau: prochainCreneau || null,
-    fiche, correspondances, roster: roster.map(p => ({ ...p, compte: donsPersonneCompte(p) })), foyer_id: foyer.id
+    fiche, correspondances, roster: roster.map(p => ({ ...p, compte: donsPersonneCompte(p) })), foyer_id: foyer.id,
+    besoins, taille_principale: foyer.taille_principale, besoins_note: foyer.besoins_note
   };
   sseNotify('all', { type: 'don_scan', resultat: 'ok', foyer_nom: payload.foyer_nom, partiel, message: `Retrait enregistré pour ${payload.foyer_nom}` });
   donsNotifierChange(foyer.id, programme_id);

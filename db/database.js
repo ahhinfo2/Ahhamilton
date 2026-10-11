@@ -1862,6 +1862,30 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS dons_delegations (
   date_expiration TEXT
 )`); } catch {}
 
+// Catégorie d'un article (ex. 'vet_enfant') — NULL = remis à tous les foyers (ex. nourriture).
+// Un foyer qui a déclaré ses besoins ne reçoit que les articles des catégories cochées.
+try { db.exec('ALTER TABLE dons_stock ADD COLUMN categorie TEXT'); } catch {}
+
+// Besoins déclarés par le foyer : JSON ['vet_adulte','hygiene',...] — NULL = rien déclaré,
+// le foyer reçoit alors tout, comme avant. taille_principale/besoins_note guident la
+// préparation du sac (informatif, n'affecte pas les quantités).
+try { db.exec('ALTER TABLE dons_foyers ADD COLUMN besoins TEXT'); } catch {}
+try { db.exec('ALTER TABLE dons_foyers ADD COLUMN taille_principale TEXT'); } catch {}
+try { db.exec('ALTER TABLE dons_foyers ADD COLUMN besoins_note TEXT'); } catch {}
+
+// Journal des livraisons reçues — chaque « + Réception » ajoute une ligne et augmente
+// quantite_recue ET quantite_restante d'un même geste (plus de double saisie).
+try { db.exec(`CREATE TABLE IF NOT EXISTS dons_receptions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  stock_id INTEGER NOT NULL REFERENCES dons_stock(id) ON DELETE CASCADE,
+  quantite REAL NOT NULL,
+  source TEXT,
+  note TEXT,
+  recu_par INTEGER REFERENCES users(id),
+  date_reception TEXT DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+try { db.exec('CREATE INDEX IF NOT EXISTS idx_dons_receptions_stock ON dons_receptions(stock_id)'); } catch {}
+
 init();
 
 module.exports = db;
