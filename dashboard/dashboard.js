@@ -15545,20 +15545,18 @@ async function _donsProgrammeTabHtml(prog) {
     <div class="table-card" style="margin-bottom:18px">
       <div class="table-card-header"><h3>Stock</h3><button class="btn btn-primary btn-sm" onclick="_donsNewStock(${prog.id})">+ Article</button></div>
       <div class="table-wrapper"><table>
-        <thead><tr><th>Article</th><th>Catégorie</th><th>Reçu</th><th>Restant</th><th>Fixe / foyer</th><th>Par personne</th><th>Éligibilité</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Article</th><th>Catégorie</th><th>Reçu</th><th>Restant</th><th>Par famille</th><th>Actions</th></tr></thead>
         <tbody>
           ${stock.length ? stock.map(s => { const bas = s.seuil_alerte != null && s.quantite_restante <= s.seuil_alerte; return `<tr>
             <td><strong>${escHtml(s.nom)}</strong></td>
             <td style="font-size:.82rem">${s.categorie ? escHtml(DONS_CATEGORIES[s.categorie] || s.categorie) : '<span style="color:var(--muted)">Tous les foyers</span>'}</td>
             <td>${s.quantite_recue} ${escHtml(s.unite)}</td>
             <td>${bas ? pill(s.quantite_restante + ' ' + escHtml(s.unite) + ' — bas', 'bp-orange') : s.quantite_restante + ' ' + escHtml(s.unite)}</td>
-            <td>${s.qte_fixe_foyer}</td>
-            <td>${s.qte_par_personne}</td>
-            <td style="font-size:.82rem">${s.age_min == null && s.age_max == null ? 'Tout le foyer' : (s.age_min ?? '0') + '–' + (s.age_max ?? '∞') + ' ans'}</td>
+            <td style="font-size:.82rem">${_donsRegleTexte(s)}</td>
             <td style="white-space:nowrap"><button class="btn btn-primary btn-sm" onclick="_donsReception(${s.id})">+ Réception</button>
                 <button class="btn btn-ghost btn-sm" onclick="_donsEditStock(${s.id})">Modifier</button>
                 <button class="btn btn-ghost btn-sm" style="color:#c62828" onclick="_donsDeleteStock(${s.id})">Supprimer</button></td>
-          </tr>`; }).join('') : '<tr><td colspan="8" style="text-align:center;color:var(--muted)">Aucun article</td></tr>'}
+          </tr>`; }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted)">Aucun article</td></tr>'}
         </tbody>
       </table></div>
     </div>
@@ -15890,9 +15888,10 @@ async function _donsEditProgramme(id) {
 }
 
 // Sélecteur de catégorie — partagé par les formulaires d'ajout et de modification d'article.
+// Changer de catégorie coche la règle « Combien par famille ? » la plus probable.
 function _donsCategorieSelectHtml(selected) {
   return `<div class="form-group"><label>Catégorie</label>
-    <select id="ds_categorie" class="form-input">
+    <select id="ds_categorie" class="form-input" onchange="_donsCategorieChangee(this.value)">
       <option value="">Tous les foyers (ex. nourriture)</option>
       ${Object.entries(DONS_CATEGORIES).map(([k, l]) => `<option value="${k}"${selected === k ? ' selected' : ''}>${escHtml(l)}</option>`).join('')}
     </select>
@@ -15900,38 +15899,101 @@ function _donsCategorieSelectHtml(selected) {
   </div>`;
 }
 
-// Réglages de quantité/âge/alerte, repliés par défaut : la plupart des articles se contentent
-// de « 1 par foyer ».
-function _donsStockAvanceHtml(s, open) {
-  return `<details style="margin:6px 0 12px"${open ? ' open' : ''}>
-    <summary style="cursor:pointer;font-weight:600;font-size:.88rem">Options avancées (quantités, âge, alerte)</summary>
-    <div style="padding-top:10px">
-      <div class="form-row">
-        <div class="form-group"><label>Quantité fixe / foyer</label><input id="ds_fixe" type="number" step="0.01" value="${s.qte_fixe_foyer}"/></div>
-        <div class="form-group"><label>Quantité additionnelle / personne éligible</label><input id="ds_pp" type="number" step="0.01" value="${s.qte_par_personne}"/></div>
+// « Combien par famille ? » — chaque règle correspond à une combinaison des champs
+// qte_fixe_foyer / qte_par_personne / age_min / age_max utilisés au scan.
+const DONS_REGLES = {
+  famille:  { label: '1 par famille',                  fixe: 1, pp: 0, min: null, max: null },
+  adulte:   { label: '1 par adulte (18 ans et +)',     fixe: 0, pp: 1, min: 18,   max: null },
+  enfant:   { label: '1 par enfant (0 à 17 ans)',      fixe: 0, pp: 1, min: 0,    max: 17 },
+  bebe:     { label: '1 par bébé (0 à 2 ans)',         fixe: 0, pp: 1, min: 0,    max: 2 },
+  personne: { label: '1 par personne',                 fixe: 0, pp: 1, min: null, max: null },
+};
+const DONS_REGLE_PAR_CATEGORIE = { vet_adulte: 'adulte', vet_enfant: 'enfant', sac_dos: 'enfant', bebe: 'bebe' };
+const DONS_UNITES = ['pièce', 'sac', 'boîte', 'paquet', 'kg'];
+
+// Règle correspondant à un article existant, ou 'custom' s'il ne correspond à aucune.
+function _donsRegleDe(s) {
+  const found = Object.entries(DONS_REGLES).find(([, r]) =>
+    r.fixe === s.qte_fixe_foyer && r.pp === s.qte_par_personne && r.min === (s.age_min ?? null) && r.max === (s.age_max ?? null));
+  return found ? found[0] : 'custom';
+}
+
+// Texte court pour la colonne « Par famille » du tableau de stock.
+function _donsRegleTexte(s) {
+  const regle = _donsRegleDe(s);
+  if (regle !== 'custom') return escHtml(DONS_REGLES[regle].label);
+  const parts = [];
+  if (s.qte_fixe_foyer) parts.push(`${s.qte_fixe_foyer} par famille`);
+  if (s.qte_par_personne) parts.push(`${s.qte_par_personne} par personne` + (s.age_min != null || s.age_max != null ? ` (${s.age_min ?? 0}–${s.age_max ?? '∞'} ans)` : ''));
+  return escHtml(parts.join(' + ') || 'Rien');
+}
+
+function _donsCategorieChangee(cat) {
+  if (document.querySelector('input[name="ds_regle"][value="custom"]')?.checked) return; // ne pas écraser un réglage personnalisé
+  const r = document.querySelector(`input[name="ds_regle"][value="${DONS_REGLE_PAR_CATEGORIE[cat] || 'famille'}"]`);
+  if (r) r.checked = true;
+}
+
+function _donsRegleChangee() {
+  const custom = document.querySelector('input[name="ds_regle"][value="custom"]')?.checked;
+  document.getElementById('ds_custom').style.display = custom ? 'block' : 'none';
+}
+
+function _donsUniteSelectHtml(selected) {
+  const opts = selected && !DONS_UNITES.includes(selected) ? [selected, ...DONS_UNITES] : DONS_UNITES;
+  return `<select id="ds_unite" class="form-input">${opts.map(u => `<option${u === selected ? ' selected' : ''}>${escHtml(u)}</option>`).join('')}</select>`;
+}
+
+// « Combien par famille ? » + « Me prévenir quand il en reste ». Les champs détaillés
+// (quantité fixe, par personne, âges) ne s'affichent que pour « Personnaliser ».
+function _donsStockRegleHtml(s, regle) {
+  return `<div class="form-group"><label>Combien par famille ?</label>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
+        ${Object.entries(DONS_REGLES).map(([k, r]) => `<label style="display:flex;align-items:center;gap:8px;font-size:.92rem;cursor:pointer;text-transform:none;letter-spacing:0;font-weight:500">
+          <input type="radio" name="ds_regle" style="width:auto;margin:0;flex:none" value="${k}"${regle === k ? ' checked' : ''} onchange="_donsRegleChangee()"/> ${escHtml(r.label)}</label>`).join('')}
+        <label style="display:flex;align-items:center;gap:8px;font-size:.88rem;cursor:pointer;color:var(--muted);text-transform:none;letter-spacing:0;font-weight:500">
+          <input type="radio" name="ds_regle" style="width:auto;margin:0;flex:none" value="custom"${regle === 'custom' ? ' checked' : ''} onchange="_donsRegleChangee()"/> Personnaliser…</label>
       </div>
-      <p class="muted" style="font-size:.8rem;color:var(--muted)">Quantité remise à un foyer = fixe + (par personne × nombre de personnes éligibles).</p>
+    </div>
+    <div id="ds_custom" style="display:${regle === 'custom' ? 'block' : 'none'};padding:12px;border:1px dashed var(--border);border-radius:10px;margin-bottom:12px">
+      <div class="form-row">
+        <div class="form-group"><label>Quantité fixe / famille</label><input id="ds_fixe" type="number" step="0.01" min="0" value="${s.qte_fixe_foyer}"/></div>
+        <div class="form-group"><label>+ Quantité par personne</label><input id="ds_pp" type="number" step="0.01" min="0" value="${s.qte_par_personne}"/></div>
+      </div>
       <div class="form-row">
         <div class="form-group"><label>Âge minimum (optionnel)</label><input id="ds_age_min" type="number" min="0" value="${s.age_min ?? ''}" placeholder="ex. 0"/></div>
         <div class="form-group"><label>Âge maximum (optionnel)</label><input id="ds_age_max" type="number" min="0" value="${s.age_max ?? ''}" placeholder="ex. 5"/></div>
       </div>
-      <p class="muted" style="font-size:.8rem;color:var(--muted)">Laisser vide = article pour tout le foyer. Remplir les deux = seulement les personnes dans cette tranche d'âge (ex. 0 à 5 pour « enfant -6 ans »). Un seul champ rempli = pas de limite de l'autre côté (ex. 18 et vide = « adultes seulement »).</p>
-      <div class="form-group"><label>Seuil d'alerte stock bas (optionnel)</label><input id="ds_seuil" type="number" step="0.01" value="${s.seuil_alerte ?? ''}" placeholder="ex. 10"/></div>
-      <p class="muted" style="font-size:.8rem;color:var(--muted)">Le comité et les coordinateurs sont alertés dès qu'un retrait fait passer la quantité restante à ce seuil ou en dessous.</p>
+      <p style="font-size:.78rem;color:var(--muted)">Ex. riz : 2 par famille + 0,5 par personne. L'âge limite les personnes comptées « par personne ».</p>
     </div>
-  </details>`;
+    <div class="form-group"><label>Me prévenir quand il en reste (optionnel)</label><input id="ds_seuil" type="number" step="0.01" min="0" value="${s.seuil_alerte ?? ''}" placeholder="ex. 5" style="max-width:160px"/></div>`;
+}
+
+// Valeurs à envoyer au serveur selon la règle cochée.
+function _donsStockRegleValeurs() {
+  const regle = document.querySelector('input[name="ds_regle"]:checked')?.value || 'famille';
+  const seuil_alerte = document.getElementById('ds_seuil').value;
+  if (regle === 'custom') return {
+    qte_fixe_foyer: document.getElementById('ds_fixe').value,
+    qte_par_personne: document.getElementById('ds_pp').value,
+    age_min: document.getElementById('ds_age_min').value,
+    age_max: document.getElementById('ds_age_max').value,
+    seuil_alerte
+  };
+  const r = DONS_REGLES[regle];
+  return { qte_fixe_foyer: r.fixe, qte_par_personne: r.pp, age_min: r.min ?? '', age_max: r.max ?? '', seuil_alerte };
 }
 
 function _donsNewStock(progId) {
   openModal('Nouvel article de stock', `
     <form id="donsStockForm">
-      <div class="form-group"><label>Nom *</label><input id="ds_nom" required placeholder="ex. Chandails enfant"/></div>
+      <div class="form-group"><label>Nom *</label><input id="ds_nom" required placeholder="ex. Chandail"/></div>
       ${_donsCategorieSelectHtml('')}
       <div class="form-row">
-        <div class="form-group"><label>Quantité en main</label><input id="ds_recue" type="number" step="0.01" value="0"/></div>
-        <div class="form-group"><label>Unité</label><input id="ds_unite" value="unité" placeholder="ex. sac, pièce, kg"/></div>
+        <div class="form-group"><label>Quantité en main</label><input id="ds_recue" type="number" step="0.01" min="0" value="0"/></div>
+        <div class="form-group"><label>Unité</label>${_donsUniteSelectHtml('pièce')}</div>
       </div>
-      ${_donsStockAvanceHtml({ qte_fixe_foyer: 1, qte_par_personne: 0 }, false)}
+      ${_donsStockRegleHtml({ qte_fixe_foyer: 1, qte_par_personne: 0 }, 'famille')}
       <div class="form-actions">
         <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
         <button type="submit" class="btn btn-primary">Ajouter</button>
@@ -15947,11 +16009,7 @@ function _donsNewStock(progId) {
         unite: document.getElementById('ds_unite').value,
         categorie: document.getElementById('ds_categorie').value,
         quantite_recue: document.getElementById('ds_recue').value,
-        qte_fixe_foyer: document.getElementById('ds_fixe').value,
-        qte_par_personne: document.getElementById('ds_pp').value,
-        age_min: document.getElementById('ds_age_min').value,
-        age_max: document.getElementById('ds_age_max').value,
-        seuil_alerte: document.getElementById('ds_seuil').value
+        ..._donsStockRegleValeurs()
       })});
       closeModal(); toast('Article ajouté'); donsMgmtView();
     } catch(e) { toast(e.message, true); }
@@ -15966,13 +16024,16 @@ async function _donsEditStock(id) {
     <form id="donsStockEditForm">
       <div class="form-group"><label>Nom *</label><input id="ds_nom" value="${escHtml(s.nom)}" required/></div>
       ${_donsCategorieSelectHtml(s.categorie)}
-      <div class="form-group"><label>Unité</label><input id="ds_unite" value="${escHtml(s.unite)}"/></div>
-      <p style="font-size:.8rem;color:var(--muted);background:#e3f2fd;padding:8px 10px;border-radius:8px">Pour une nouvelle livraison, utilisez plutôt le bouton <strong>+ Réception</strong> : il met à jour « reçu » et « restant » en même temps. Les champs ci-dessous servent à corriger après un inventaire.</p>
-      <div class="form-row">
-        <div class="form-group"><label>Quantité reçue (total)</label><input id="ds_recue" type="number" step="0.01" value="${s.quantite_recue}"/></div>
-        <div class="form-group"><label>Quantité restante</label><input id="ds_restante" type="number" step="0.01" value="${s.quantite_restante}"/></div>
-      </div>
-      ${_donsStockAvanceHtml(s, false)}
+      <div class="form-group"><label>Unité</label>${_donsUniteSelectHtml(s.unite)}</div>
+      ${_donsStockRegleHtml(s, _donsRegleDe(s))}
+      <details style="margin:6px 0 12px">
+        <summary style="cursor:pointer;font-weight:600;font-size:.88rem">Corriger les quantités (après un inventaire)</summary>
+        <p style="font-size:.8rem;color:var(--muted);background:#e3f2fd;padding:8px 10px;border-radius:8px;margin-top:8px">Pour une nouvelle livraison, utilisez plutôt le bouton <strong>+ Réception</strong>.</p>
+        <div class="form-row">
+          <div class="form-group"><label>Quantité reçue (total)</label><input id="ds_recue" type="number" step="0.01" min="0" value="${s.quantite_recue}"/></div>
+          <div class="form-group"><label>Quantité restante</label><input id="ds_restante" type="number" step="0.01" min="0" value="${s.quantite_restante}"/></div>
+        </div>
+      </details>
       <div class="form-actions">
         <button type="button" class="btn btn-ghost" onclick="closeModal()">Annuler</button>
         <button type="submit" class="btn btn-primary">Enregistrer</button>
@@ -15988,11 +16049,7 @@ async function _donsEditStock(id) {
         categorie: document.getElementById('ds_categorie').value,
         quantite_recue: document.getElementById('ds_recue').value,
         quantite_restante: document.getElementById('ds_restante').value,
-        qte_fixe_foyer: document.getElementById('ds_fixe').value,
-        qte_par_personne: document.getElementById('ds_pp').value,
-        age_min: document.getElementById('ds_age_min').value,
-        age_max: document.getElementById('ds_age_max').value,
-        seuil_alerte: document.getElementById('ds_seuil').value
+        ..._donsStockRegleValeurs()
       })});
       closeModal(); toast('Article mis à jour'); donsMgmtView();
     } catch(e) { toast(e.message, true); }
