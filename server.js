@@ -8001,6 +8001,14 @@ app.post('/api/public/election/:token/vote', voteLimiter, (req, res) => {
   if (!candidate_id || !phone || phone.length < 10) return res.status(400).json({ error: 'Numéro de cellulaire valide requis' });
   const cand = db.prepare('SELECT id FROM committee_election_candidates WHERE id=? AND election_id=?').get(candidate_id, election.id);
   if (!cand) return res.status(400).json({ error: 'Candidat invalide' });
+  // Article 5 des règlements : seul un membre avec droit de vote (né en Haïti ou au Canada
+  // d'un parent haïtien, 18 ans et plus) peut voter. Le cellulaire doit correspondre à celui
+  // du dossier d'un membre actif.
+  const membres = db.prepare("SELECT id, telephone, droit_vote, date_naissance FROM users WHERE actif=1 AND (phantom IS NULL OR phantom=0) AND telephone IS NOT NULL AND telephone != ''").all()
+    .filter(u => normalizePhone(u.telephone) === phone);
+  if (!membres.length) return res.status(403).json({ error: "Ce numéro ne correspond à aucun membre de l'AHH. Utilisez le cellulaire inscrit à votre dossier, ou demandez au comité de le mettre à jour." });
+  const votant = membres.find(u => { const age = donsAgeDe(u.date_naissance); return u.droit_vote !== 0 && !(age != null && age < 18); });
+  if (!votant) return res.status(403).json({ error: "Selon nos règlements (article 5), le droit de vote est réservé aux membres de 18 ans et plus nés en Haïti ou au Canada d'un parent haïtien." });
   try {
     db.prepare('INSERT INTO committee_election_votes (election_id, candidate_id, telephone, nom_votant) VALUES (?,?,?,?)')
       .run(election.id, candidate_id, phone, (nom||'').trim());

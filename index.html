@@ -979,6 +979,9 @@
     if (form) {
       // Redirect to adhesion.html when "Adhésion" is selected
       var sujetSel = document.getElementById('cf_sujet');
+      // ?sujet=benevolat (lien « Proposer mon aide » de rejoindre.html) : présélectionne le sujet
+      var sujetUrl = { benevolat: 'Bénévolat', partenariat: 'Partenariat' }[new URLSearchParams(location.search).get('sujet')];
+      if (sujetSel && sujetUrl) sujetSel.value = sujetUrl;
       if (sujetSel) {
         sujetSel.addEventListener('change', function() {
           var notice = document.getElementById('cf_adhesion_notice');

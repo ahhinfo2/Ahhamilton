@@ -98,7 +98,8 @@
             </div>`).join('')}
         </div>
         <div class="form-group"><label>Votre nom complet</label><input type="text" id="v_nom" placeholder="Prénom Nom"/></div>
-        <div class="form-group"><label>Votre numéro de cellulaire *</label><input type="tel" id="v_tel" placeholder="(905) 555-1234"/></div>
+        <div class="form-group"><label>Votre numéro de cellulaire *</label><input type="tel" id="v_tel" placeholder="(905) 555-1234"/>
+          <small style="display:block;margin-top:4px;color:#777;font-size:.75rem">Le numéro inscrit à votre dossier de membre. Selon nos règlements (article 5), seuls les membres avec droit de vote peuvent voter.</small></div>
         <div class="error-box" id="voteError"></div>
         <button class="btn" id="submitBtn" onclick="submitVote()" disabled>Choisissez un candidat pour voter</button>
       `;
