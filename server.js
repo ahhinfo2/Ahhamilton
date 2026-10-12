@@ -535,12 +535,22 @@ app.post('/api/auth/login', (req, res) => {
 });
 
 // Inscription publique → demande en attente (pending_registrations)
+// Critères de l'article 5.1 des règlements généraux. Seuls 5.1.1 et 5.1.2 donnent le droit de
+// vote (avec 18 ans et plus, cotisation payée et présence à l'AGA) ; adoption et mariage
+// rendent membre sans droit de vote.
+const ADH_CRITERES = ['ne_haiti', 'ne_canada_parent', 'adoption', 'mariage'];
+const ADH_CRITERES_VOTE = ['ne_haiti', 'ne_canada_parent'];
+
 app.post('/api/auth/register', (req, res) => {
   const { prenom, nom, email, telephone, adresse, date_naissance, password, plan, message, source } = req.body;
   if (!prenom || !nom || !email)
     return res.status(400).json({ error: 'Champs requis manquants' });
-  // Déclaration d'admissibilité (voir adhesion.html « Qui peut devenir membre ? »).
-  const categorieMembre = ['votant', 'sympathisant'].includes(req.body.categorie_membre) ? req.body.categorie_membre : null;
+  // Admissibilité selon l'article 5.1 des règlements (voir adhesion.html « Qui peut devenir membre ? »).
+  const categorieMembre = req.body.categorie_membre;
+  if (categorieMembre === 'aucun')
+    return res.status(400).json({ error: "Selon nos règlements, l'adhésion est réservée aux personnes admissibles (article 5). Vous êtes le bienvenu comme bénévole ou donateur." });
+  if (!ADH_CRITERES.includes(categorieMembre))
+    return res.status(400).json({ error: "Indiquez votre admissibilité (article 5 des règlements)." });
   const effectivePassword = password || require('crypto').randomBytes(16).toString('hex');
 
   if (db.prepare('SELECT id FROM users WHERE email = ?').get(email))
@@ -626,12 +636,13 @@ app.patch('/api/inscriptions/:id/approuver', authMiddleware, requireRole('admin'
   if (p.statut !== 'en_attente') return res.status(400).json({ error: 'Demande déjà traitée' });
 
   // Créer le compte
-  // Sympathisant (ami(e) de l'AHH) = sans droit de vote ; le comité peut corriger ensuite
-  // depuis la fiche du membre.
+  // Droit de vote seulement pour 5.1.1 / 5.1.2 (l'âge est vérifié au moment du vote). Une
+  // ancienne demande sans déclaration part sans droit de vote : le comité le coche dans la
+  // fiche du membre après vérification.
   const r = db.prepare(`INSERT INTO users (prenom, nom, email, telephone, adresse, date_naissance, password_hash, role, plan, droit_vote)
     VALUES (?, ?, ?, ?, ?, ?, ?, 'member', ?, ?)`)
     .run(p.prenom, p.nom, p.email, p.telephone, p.adresse, p.date_naissance, p.password_hash, p.plan,
-         p.categorie_membre === 'sympathisant' ? 0 : 1);
+         ADH_CRITERES_VOTE.includes(p.categorie_membre) ? 1 : 0);
 
   db.prepare(`UPDATE pending_registrations SET statut='approuve', traite_par=?, date_traitement=CURRENT_TIMESTAMP WHERE id=?`)
     .run(req.user.id, p.id);
@@ -7759,9 +7770,14 @@ app.post('/api/votes/:id/voter', authMiddleware, (req, res) => {
   const { option_index } = req.body;
   const vote = db.prepare("SELECT * FROM votes WHERE id=? AND statut='ouvert'").get(req.params.id);
   if (!vote) return res.status(400).json({ error: 'Vote fermé ou introuvable' });
-  const votant = db.prepare('SELECT droit_vote FROM users WHERE id=?').get(req.user.id);
+  // Article 5 : droit de vote = né(e) en Haïti ou au Canada de parent haïtien, 18 ans et plus.
+  const votant = db.prepare('SELECT droit_vote, date_naissance FROM users WHERE id=?').get(req.user.id);
   if (!votant || votant.droit_vote === 0) {
-    return res.status(403).json({ error: "Votre adhésion (ami(e) de l'AHH) ne comprend pas le droit de vote." });
+    return res.status(403).json({ error: "Selon nos règlements (article 5), le droit de vote est réservé aux membres nés en Haïti ou au Canada d'un parent haïtien." });
+  }
+  const ageVotant = donsAgeDe(votant.date_naissance);
+  if (ageVotant != null && ageVotant < 18) {
+    return res.status(403).json({ error: 'Le droit de vote est réservé aux membres de 18 ans et plus (article 5).' });
   }
   const options = JSON.parse(vote.options_json || '[]');
   if (option_index < 0 || option_index >= options.length) return res.status(400).json({ error: 'Option invalide' });

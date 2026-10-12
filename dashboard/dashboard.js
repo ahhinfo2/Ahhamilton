@@ -10105,11 +10105,17 @@ async function refuserInscription(id) {
   } catch(ex) { toast(ex.message, 'error'); }
 }
 
-// Catégorie déclarée sur adhesion.html — détermine le droit de vote à l'approbation.
+// Admissibilité déclarée sur adhesion.html (article 5.1 des règlements) — 5.1.1 et 5.1.2
+// donnent le droit de vote à l'approbation, adoption et mariage non.
 function _inscCategoriePill(cat) {
-  if (cat === 'votant') return pill('🗳️ Membre votant (origine haïtienne)', 'bp-green');
-  if (cat === 'sympathisant') return pill("🤝 Ami(e) de l'AHH — sans droit de vote", 'bp-blue');
-  return pill('Catégorie non déclarée (ancienne demande)', 'bp-gray');
+  const libelles = {
+    ne_haiti:         ['Né(e) en Haïti, réside dans la région (5.1.1) — droit de vote', 'bp-green'],
+    ne_canada_parent: ['Né(e) au Canada, parent haïtien (5.1.2) — droit de vote', 'bp-green'],
+    adoption:         ['Lien d\'adoption (5.1.3 / 5.1.4) — sans droit de vote', 'bp-blue'],
+    mariage:          ['Mariage avec une personne admissible (5.1.5) — sans droit de vote', 'bp-blue'],
+  };
+  const l = libelles[cat];
+  return l ? pill(l[0], l[1]) : pill('Admissibilité non déclarée — à vérifier', 'bp-gray');
 }
 
 function _inscOpenDetail(id) {
@@ -15299,8 +15305,8 @@ function _cgEditInfo(id) {
         <small style="color:var(--muted)">Date réelle d'arrivée à AHH, utilisée pour « Membre depuis » et « Avec AHH » — distincte de la date d'inscription qui ancre le cycle de 2 ans de la carte.</small>
       </div>
       <div class="form-group"><label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
-        <input type="checkbox" id="cgei_droit_vote" style="width:auto;margin:0"${m.droit_vote === 0 ? '' : ' checked'}/> Membre votant (droit de vote aux assemblées et élections)</label>
-        <small style="color:var(--muted)">Décoché = ami(e) de l'AHH, sans droit de vote, selon les règlements généraux.</small>
+        <input type="checkbox" id="cgei_droit_vote" style="width:auto;margin:0"${m.droit_vote === 0 ? '' : ' checked'}/> Droit de vote (article 5)</label>
+        <small style="color:var(--muted)">Réservé aux membres nés en Haïti, ou au Canada d'un parent haïtien. Les membres par adoption ou par mariage n'ont pas le droit de vote. L'âge (18 ans et plus) est vérifié au moment du vote.</small>
       </div>
       ${['admin','tresoriere','secretaire','delegue'].includes(m.role) ? `<div class="form-group"><label>Titre affiché sur la carte de membre</label><input id="cgei_titre" value="${escHtml(m.titre_comite||'')}" placeholder="Ex. Présidente, Vice-président, Conseiller..."/></div>` : ''}
       <p style="font-size:.78rem;color:var(--muted);margin:-4px 0 14px">Le comité peut modifier ces informations en tout temps, peu importe l'état de la carte.</p>
