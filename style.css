@@ -44,7 +44,9 @@ body  { font-family: 'Poppins', sans-serif; color: var(--text); background: #fff
 a     { text-decoration: none; color: inherit; }
 img   { display: block; max-width: 100%; }
 
-.container { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
+/* Pleine largeur, comme le tableau de bord ; la marge latérale suit la taille de l'écran
+   (16 px sur téléphone → 48 px sur grand écran). */
+.container { max-width: none; margin: 0 auto; padding: 0 clamp(16px, 3vw, 48px); }
 
 /* ═══════════════════════════════════════════════
    BUTTONS

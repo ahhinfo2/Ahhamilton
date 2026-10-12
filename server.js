@@ -345,8 +345,10 @@ app.use((req, res, next) => {
   if (PUBLIC_ROOT_FILES.has(base) || SAFE_ROOT_ASSET_EXT.test(req.path)) return next();
   return res.status(404).end();
 });
+// HTML, CSS et JS : revalidés à chaque visite (réponse 304 légère s'ils n'ont pas changé),
+// sinon un déploiement de style.css / _lang.js reste invisible jusqu'à 24 h. Images : 1 jour.
 app.use('/', express.static(path.join(__dirname), { maxAge: 86400000, setHeaders: (res, filePath) => {
-  if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
+  if (/\.(html|css|js)$/.test(filePath)) res.setHeader('Cache-Control', 'no-cache');
 } }));
 
 // ── Helpers sécurité uploads ────────────────────────────────────────────────
