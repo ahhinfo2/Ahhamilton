@@ -10024,6 +10024,7 @@ async function inscriptions() {
       '<div class="table-card-header">' +
         '<div><h3>' + p.prenom + ' ' + p.nom + '</h3>' +
         '<small style="color:var(--muted)">' + p.email + ' · ' + (p.telephone||'–') + ' · Plan: <strong>' + (p.plan||'gratuit') + '</strong></small>' +
+        '<br/>' + _inscCategoriePill(p.categorie_membre) +
         '<br/><small style="color:var(--muted)">Soumis le : ' + fmt(p.date_soumission) + '</small></div>' +
         '<div class="tc-actions">' +
           '<button class="btn btn-primary btn-sm" onclick="approuverInscription(' + p.id + ')">✅ Approuver</button>' +
@@ -10104,6 +10105,13 @@ async function refuserInscription(id) {
   } catch(ex) { toast(ex.message, 'error'); }
 }
 
+// Catégorie déclarée sur adhesion.html — détermine le droit de vote à l'approbation.
+function _inscCategoriePill(cat) {
+  if (cat === 'votant') return pill('🗳️ Membre votant (origine haïtienne)', 'bp-green');
+  if (cat === 'sympathisant') return pill("🤝 Ami(e) de l'AHH — sans droit de vote", 'bp-blue');
+  return pill('Catégorie non déclarée (ancienne demande)', 'bp-gray');
+}
+
 function _inscOpenDetail(id) {
   const p = (window._inscPending || {})[id];
   if (!p) return;
@@ -10112,6 +10120,7 @@ function _inscOpenDetail(id) {
       <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">Courriel</span><strong>${escHtml(p.email)}</strong></div>
       <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">Téléphone</span><strong>${escHtml(p.telephone||'–')}</strong></div>
       <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">Plan souhaité</span><strong>${escHtml(p.plan||'gratuit')}</strong></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">Catégorie déclarée</span>${_inscCategoriePill(p.categorie_membre)}</div>
       <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">Soumis le</span><strong>${fmt(p.date_soumission)}</strong></div>
       ${p.message ? `<div style="padding:10px 12px;background:var(--off);border-radius:10px;font-size:.85rem;color:var(--text)">💬 ${escHtml(p.message)}</div>` : ''}
     </div>
@@ -15289,6 +15298,10 @@ function _cgEditInfo(id) {
       <div class="form-group"><label>Membre actif depuis</label><input type="date" id="cgei_membre_depuis" value="${m.membre_depuis ? m.membre_depuis.substring(0,10) : ''}"/>
         <small style="color:var(--muted)">Date réelle d'arrivée à AHH, utilisée pour « Membre depuis » et « Avec AHH » — distincte de la date d'inscription qui ancre le cycle de 2 ans de la carte.</small>
       </div>
+      <div class="form-group"><label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
+        <input type="checkbox" id="cgei_droit_vote" style="width:auto;margin:0"${m.droit_vote === 0 ? '' : ' checked'}/> Membre votant (droit de vote aux assemblées et élections)</label>
+        <small style="color:var(--muted)">Décoché = ami(e) de l'AHH, sans droit de vote, selon les règlements généraux.</small>
+      </div>
       ${['admin','tresoriere','secretaire','delegue'].includes(m.role) ? `<div class="form-group"><label>Titre affiché sur la carte de membre</label><input id="cgei_titre" value="${escHtml(m.titre_comite||'')}" placeholder="Ex. Présidente, Vice-président, Conseiller..."/></div>` : ''}
       <p style="font-size:.78rem;color:var(--muted);margin:-4px 0 14px">Le comité peut modifier ces informations en tout temps, peu importe l'état de la carte.</p>
       <div class="form-actions">
@@ -15307,6 +15320,7 @@ function _cgEditInfo(id) {
         telephone: document.getElementById('cgei_tel').value,
         adresse: document.getElementById('cgei_addr').value,
         membre_depuis: document.getElementById('cgei_membre_depuis').value || null,
+        droit_vote: document.getElementById('cgei_droit_vote').checked,
         ...(titreInput ? { titre_comite: titreInput.value.trim() } : {})
       })});
       toast('Informations mises à jour');

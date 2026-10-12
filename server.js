@@ -539,6 +539,8 @@ app.post('/api/auth/register', (req, res) => {
   const { prenom, nom, email, telephone, adresse, date_naissance, password, plan, message, source } = req.body;
   if (!prenom || !nom || !email)
     return res.status(400).json({ error: 'Champs requis manquants' });
+  // Déclaration d'admissibilité (voir adhesion.html « Qui peut devenir membre ? »).
+  const categorieMembre = ['votant', 'sympathisant'].includes(req.body.categorie_membre) ? req.body.categorie_membre : null;
   const effectivePassword = password || require('crypto').randomBytes(16).toString('hex');
 
   if (db.prepare('SELECT id FROM users WHERE email = ?').get(email))
@@ -549,10 +551,10 @@ app.post('/api/auth/register', (req, res) => {
   const hash = bcrypt.hashSync(effectivePassword, 10);
   const emailToken = _crypto.randomBytes(32).toString('hex');
   db.prepare(`INSERT INTO pending_registrations
-    (prenom, nom, email, telephone, adresse, date_naissance, password_hash, plan, message, source, email_token)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    (prenom, nom, email, telephone, adresse, date_naissance, password_hash, plan, message, source, email_token, categorie_membre)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .run(prenom, nom, email, telephone||'', adresse||'', date_naissance||'', hash,
-         plan||'gratuit', message||'', source||'', emailToken);
+         plan||'gratuit', message||'', source||'', emailToken, categorieMembre);
 
   const siteUrl = process.env.SITE_URL || `http://localhost:${PORT}`;
   const verifyLink = `${siteUrl}/api/auth/verify-email?token=${emailToken}`;
@@ -624,9 +626,12 @@ app.patch('/api/inscriptions/:id/approuver', authMiddleware, requireRole('admin'
   if (p.statut !== 'en_attente') return res.status(400).json({ error: 'Demande déjà traitée' });
 
   // Créer le compte
-  const r = db.prepare(`INSERT INTO users (prenom, nom, email, telephone, adresse, date_naissance, password_hash, role, plan)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 'member', ?)`)
-    .run(p.prenom, p.nom, p.email, p.telephone, p.adresse, p.date_naissance, p.password_hash, p.plan);
+  // Sympathisant (ami(e) de l'AHH) = sans droit de vote ; le comité peut corriger ensuite
+  // depuis la fiche du membre.
+  const r = db.prepare(`INSERT INTO users (prenom, nom, email, telephone, adresse, date_naissance, password_hash, role, plan, droit_vote)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'member', ?, ?)`)
+    .run(p.prenom, p.nom, p.email, p.telephone, p.adresse, p.date_naissance, p.password_hash, p.plan,
+         p.categorie_membre === 'sympathisant' ? 0 : 1);
 
   db.prepare(`UPDATE pending_registrations SET statut='approuve', traite_par=?, date_traitement=CURRENT_TIMESTAMP WHERE id=?`)
     .run(req.user.id, p.id);
@@ -859,6 +864,7 @@ app.put('/api/users/:id', authMiddleware, (req, res) => {
   if (sms_notifs !== undefined){ updates.push('sms_notifs = ?'); vals.push(sms_notifs ? 1 : 0); }
   if (isMgr && titre_comite !== undefined) { updates.push('titre_comite = ?'); vals.push(titre_comite || null); }
   if (isMgr && membre_depuis !== undefined) { updates.push('membre_depuis = ?'); vals.push(membre_depuis || null); }
+  if (isMgr && req.body.droit_vote !== undefined) { updates.push('droit_vote = ?'); vals.push(req.body.droit_vote ? 1 : 0); }
   if (isAdmin && role !== undefined)          { updates.push('role = ?');          vals.push(role); }
   if (isAdmin && actif !== undefined)         { updates.push('actif = ?');         vals.push(actif); }
   // Un changement de rôle ou de statut actif doit invalider les JWT déjà émis pour ce compte —
@@ -7734,7 +7740,7 @@ app.post('/api/votes', authMiddleware, requireRole('admin','secretaire'), (req, 
   const { titre, description, type, options, date_debut, date_fin } = req.body;
   if (!titre || !options?.length) return res.status(400).json({ error: 'Titre et options requis' });
   const r = db.prepare(`INSERT INTO votes (titre,description,type,options_json,date_debut,date_fin,cree_par,statut)
-    VALUES (?,?,?,?,?,?,'brouillon')`).run(titre, description||'', type||'election',
+    VALUES (?,?,?,?,?,?,?,'brouillon')`).run(titre, description||'', type||'election',
     JSON.stringify(options), date_debut||null, date_fin||null, req.user.id);
   res.status(201).json({ id: r.lastInsertRowid });
 });
@@ -7753,6 +7759,10 @@ app.post('/api/votes/:id/voter', authMiddleware, (req, res) => {
   const { option_index } = req.body;
   const vote = db.prepare("SELECT * FROM votes WHERE id=? AND statut='ouvert'").get(req.params.id);
   if (!vote) return res.status(400).json({ error: 'Vote fermé ou introuvable' });
+  const votant = db.prepare('SELECT droit_vote FROM users WHERE id=?').get(req.user.id);
+  if (!votant || votant.droit_vote === 0) {
+    return res.status(403).json({ error: "Votre adhésion (ami(e) de l'AHH) ne comprend pas le droit de vote." });
+  }
   const options = JSON.parse(vote.options_json || '[]');
   if (option_index < 0 || option_index >= options.length) return res.status(400).json({ error: 'Option invalide' });
   try {
@@ -8208,7 +8218,7 @@ const CARTE_ROLES = ['admin','tresoriere','secretaire','delegue'];
 
 app.get('/api/admin/cartes', authMiddleware, requireRole(...CARTE_ROLES), (req, res) => {
   const members = db.prepare(`
-    SELECT id, prenom, nom, email, telephone, adresse, plan, role, actif, titre_comite, date_inscription, membre_depuis, photo_url, photo_original_url,
+    SELECT id, prenom, nom, email, telephone, adresse, plan, role, actif, titre_comite, date_inscription, membre_depuis, droit_vote, photo_url, photo_original_url,
            carte_photo_approuvee, carte_photo_deja_approuvee, carte_notif_renouv
     FROM users WHERE (phantom IS NULL OR phantom=0)
     ORDER BY nom, prenom

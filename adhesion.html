@@ -82,7 +82,39 @@
 
   <main id="main-content" role="main">
   <!-- TYPES DE MEMBRES -->
-  <section class="adh-section">
+  <!-- ADMISSIBILITÉ — doit rester conforme aux règlements généraux de l'AHH -->
+  <section class="adh-section" id="admissibilite">
+    <div class="container">
+      <div class="section-header" data-reveal>
+        <span class="section-badge" data-i18n="adh.elig.badge">Admissibilité</span>
+        <h2 data-i18n="adh.elig.h2">Qui peut devenir membre ?</h2>
+        <p data-i18n="adh.elig.p">L'Association Haïtienne de Hamilton est une association communautaire au service des Haïtiennes et des Haïtiens de Hamilton, de Brantford et des environs.</p>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;max-width:900px;margin:0 auto" data-reveal>
+        <div class="mem-card" style="text-align:left">
+          <div class="mem-icon">🗳️</div>
+          <div class="mem-name" data-i18n="adh.elig.votant.name">Membre votant</div>
+          <p style="font-size:.9rem;margin:8px 0" data-i18n="adh.elig.votant.who">Les personnes d'origine haïtienne qui habitent Hamilton, Brantford ou les environs, ainsi que leur conjoint(e) et leurs enfants.</p>
+          <ul class="mem-features">
+            <li data-i18n="adh.elig.votant.f1">Droit de vote à l'assemblée générale et aux élections</li>
+            <li data-i18n="adh.elig.votant.f2">Peut être élu(e) au conseil d'administration</li>
+          </ul>
+        </div>
+        <div class="mem-card" style="text-align:left">
+          <div class="mem-icon">🤝</div>
+          <div class="mem-name" data-i18n="adh.elig.ami.name">Ami(e) de l'AHH</div>
+          <p style="font-size:.9rem;margin:8px 0" data-i18n="adh.elig.ami.who">Toute personne qui souhaite soutenir notre mission, quelle que soit son origine.</p>
+          <ul class="mem-features">
+            <li data-i18n="adh.elig.ami.f1">Accès aux activités et aux avantages de la formule choisie</li>
+            <li data-i18n="adh.elig.ami.f2">Sans droit de vote ni éligibilité au conseil d'administration</li>
+          </ul>
+        </div>
+      </div>
+      <p style="max-width:900px;margin:18px auto 0;font-size:.85rem;color:var(--muted);text-align:center" data-i18n="adh.elig.note">Les formules Membre, Bienfaiteur et Partenaire sont offertes dans les deux catégories. Chaque demande est examinée par le comité ; si une demande n'est pas acceptée, toute somme versée est remboursée en entier. Ces conditions découlent des règlements généraux de l'AHH.</p>
+    </div>
+  </section>
+
+  <section class="adh-section alt">
     <div class="container">
       <div class="section-header" data-reveal>
         <span class="section-badge" data-i18n="adh.plans.badge">Adhésion</span>
@@ -137,7 +169,7 @@
   </section>
 
   <!-- FORMULAIRE D'ADHÉSION -->
-  <section class="adh-section alt" id="formAdh">
+  <section class="adh-section" id="formAdh">
     <div class="container adh-form-section">
       <div class="adh-info" data-reveal>
         <span class="section-badge" data-i18n="adh.form.badge">Inscription</span>
@@ -222,6 +254,18 @@
             <option value="Don ponctuel" data-i18n="adh.type.don">Don ponctuel</option>
           </select>
         </div>
+        <fieldset class="form-group" style="border:none;padding:0;margin-bottom:16px">
+          <legend style="font-weight:700;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px" data-i18n="adh.cat.label">Catégorie d'adhésion *</legend>
+          <label style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px;text-transform:none;letter-spacing:0;font-weight:500;font-size:.88rem;cursor:pointer">
+            <input type="radio" name="adh_categorie" value="votant" required style="width:auto;margin-top:3px"/>
+            <span data-i18n="adh.cat.votant">Membre votant — je suis d'origine haïtienne (ou conjoint(e) ou enfant d'une personne d'origine haïtienne) et j'habite Hamilton, Brantford ou les environs</span>
+          </label>
+          <label style="display:flex;align-items:flex-start;gap:10px;text-transform:none;letter-spacing:0;font-weight:500;font-size:.88rem;cursor:pointer">
+            <input type="radio" name="adh_categorie" value="sympathisant" style="width:auto;margin-top:3px"/>
+            <span data-i18n="adh.cat.ami">Ami(e) de l'AHH — je souhaite soutenir l'association, sans droit de vote</span>
+          </label>
+          <small style="display:block;margin-top:6px;color:var(--muted);font-size:.75rem" data-i18n-html="adh.cat.help">Cette déclaration sert uniquement à déterminer le droit de vote. <a href="#admissibilite" style="color:var(--g2)">Qui peut devenir membre ?</a></small>
+        </fieldset>
         <div class="form-group">
           <label for="adh_source" data-i18n="Comment avez-vous connu AHH ?">Comment avez-vous connu AHH ?</label>
           <select id="adh_source">
@@ -335,6 +379,7 @@
             })(),
             adresse: document.getElementById('adh_addr').value.trim(),
             plan: planMap[typeRaw] || 'gratuit',
+            categorie_membre: (document.querySelector('input[name="adh_categorie"]:checked') || {}).value || null,
             source: document.getElementById('adh_source').value,
             message: document.getElementById('adh_msg').value.trim(),
             password: password

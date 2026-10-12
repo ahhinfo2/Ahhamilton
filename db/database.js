@@ -1900,6 +1900,14 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS dons_extras (
 )`); } catch {}
 try { db.exec('CREATE INDEX IF NOT EXISTS idx_dons_extras_foyer ON dons_extras(foyer_id)'); } catch {}
 
+// Catégorie d'adhésion déclarée à l'inscription : 'votant' (membre d'origine haïtienne de
+// Hamilton, Brantford et environs, ou conjoint(e)/enfant) ou 'sympathisant' (ami(e) de l'AHH,
+// sans droit de vote). NULL = demande faite avant l'ajout de la question.
+try { db.exec('ALTER TABLE pending_registrations ADD COLUMN categorie_membre TEXT'); } catch {}
+// Droit de vote aux votes/élections. DEFAULT 1 : les membres existants le conservent ;
+// seuls les sympathisants approuvés après ce changement sont créés à 0.
+try { db.exec('ALTER TABLE users ADD COLUMN droit_vote INTEGER NOT NULL DEFAULT 1'); } catch {}
+
 init();
 
 module.exports = db;
