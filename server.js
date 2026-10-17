@@ -9434,13 +9434,14 @@ app.post('/api/forms', authMiddleware, requireRole(...FORM_EXEC), (req, res) => 
   if (!titre) return res.status(400).json({ error: 'Titre requis' });
   const crypto = require('crypto');
   const share_token = crypto.randomBytes(24).toString('hex');
-  const r = db.prepare(`INSERT INTO forms (titre, description, share_token, activity_id, allow_anonymous, message_fin, redirect_adhesion, date_fermeture, cree_par)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+  const r = db.prepare(`INSERT INTO forms (titre, description, share_token, activity_id, allow_anonymous, message_fin, redirect_adhesion, date_fermeture, max_reponses, cree_par)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     titre, description || null, share_token, activity_id || null,
     allow_anonymous === undefined ? 1 : (allow_anonymous ? 1 : 0),
     message_fin || 'Merci pour votre réponse !',
     redirect_adhesion === undefined ? 1 : (redirect_adhesion ? 1 : 0),
     date_fermeture || null,
+    formMaxReponses(req.body.max_reponses),
     req.user.id
   );
   res.status(201).json({ id: r.lastInsertRowid, share_token });
@@ -9451,10 +9452,10 @@ app.put('/api/forms/:id', authMiddleware, requireRole(...FORM_EXEC), (req, res) 
   const form = db.prepare('SELECT id FROM forms WHERE id = ?').get(req.params.id);
   if (!form) return res.status(404).json({ error: 'Formulaire introuvable' });
   const { titre, description, activity_id, statut, allow_anonymous, message_fin, redirect_adhesion, date_fermeture } = req.body;
-  db.prepare(`UPDATE forms SET titre=?, description=?, activity_id=?, statut=?, allow_anonymous=?, message_fin=?, redirect_adhesion=?, date_fermeture=? WHERE id=?`).run(
+  db.prepare(`UPDATE forms SET titre=?, description=?, activity_id=?, statut=?, allow_anonymous=?, message_fin=?, redirect_adhesion=?, date_fermeture=?, max_reponses=? WHERE id=?`).run(
     titre, description || null, activity_id || null, statut || 'actif',
     allow_anonymous ? 1 : 0, message_fin || 'Merci pour votre réponse !',
-    redirect_adhesion ? 1 : 0, date_fermeture || null, req.params.id
+    redirect_adhesion ? 1 : 0, date_fermeture || null, formMaxReponses(req.body.max_reponses), req.params.id
   );
   res.json({ message: 'Formulaire mis à jour' });
 });
@@ -9559,22 +9560,39 @@ function formDeadlinePassed(form) {
   return !!(form.date_fermeture && new Date() > new Date(form.date_fermeture));
 }
 
+// Limite de réponses (ex. 8 bénévoles) : entier > 0, sinon illimité (NULL).
+function formMaxReponses(v) {
+  const n = parseInt(v, 10);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+function formComplet(form) {
+  if (!form.max_reponses) return false;
+  return db.prepare('SELECT COUNT(*) AS c FROM form_responses WHERE form_id = ?').get(form.id).c >= form.max_reponses;
+}
+
 // ── PUBLIC : récupérer un formulaire par token ──────────────────────────────
 app.get('/api/forms/public/:token', (req, res) => {
   // 'ferme' = fermé manuellement par le comité → introuvable, comme avant.
   // Une échéance dépassée reste consultable, mais en lecture seule (accepting_responses:false).
-  const form = db.prepare("SELECT id, titre, description, image_path, share_token, activity_id, allow_anonymous, message_fin, redirect_adhesion, date_fermeture FROM forms WHERE share_token = ? AND statut != 'ferme'").get(req.params.token);
+  // Un formulaire archivé est fermé lui aussi (avant, son lien public acceptait encore des réponses).
+  const form = db.prepare("SELECT id, titre, description, image_path, share_token, activity_id, allow_anonymous, message_fin, redirect_adhesion, date_fermeture, max_reponses FROM forms WHERE share_token = ? AND statut NOT IN ('ferme','archivee')").get(req.params.token);
   if (!form) return res.status(404).json({ error: 'Formulaire introuvable ou fermé' });
   form.fields = db.prepare('SELECT id, type, label, description, obligatoire, options_json, ordre FROM form_fields WHERE form_id = ? ORDER BY ordre, id').all(form.id);
-  form.accepting_responses = !formDeadlinePassed(form);
+  form.complet = formComplet(form);
+  form.accepting_responses = !formDeadlinePassed(form) && !form.complet;
+  delete form.max_reponses;
   res.json(form);
 });
 
 // ── PUBLIC : soumettre une réponse ──────────────────────────────────────────
 app.post('/api/forms/public/:token/respond', (req, res) => {
-  const form = db.prepare("SELECT * FROM forms WHERE share_token = ? AND statut != 'ferme'").get(req.params.token);
+  const form = db.prepare("SELECT * FROM forms WHERE share_token = ? AND statut NOT IN ('ferme','archivee')").get(req.params.token);
   if (!form) return res.status(404).json({ error: 'Formulaire introuvable ou fermé' });
   if (formDeadlinePassed(form)) return res.status(403).json({ error: `Ce formulaire n'accepte plus de réponses depuis le ${new Date(form.date_fermeture).toLocaleString('fr-CA')}.` });
+  // Vérification et insertion dans le même gestionnaire synchrone : deux envois simultanés ne
+  // peuvent pas dépasser la limite.
+  if (formComplet(form)) return res.status(403).json({ error: 'Complet — le nombre maximum de réponses est atteint. Merci de votre intérêt !', complet: true });
   const { nom, email, telephone, answers } = req.body;
   const r = db.prepare('INSERT INTO form_responses (form_id, nom, email, telephone) VALUES (?, ?, ?, ?)').run(
     form.id, nom || null, email || null, telephone || null

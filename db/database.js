@@ -1233,6 +1233,9 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS forms (
   date_creation TEXT DEFAULT CURRENT_TIMESTAMP,
   date_fermeture TEXT
 )`); } catch {}
+// Nombre maximum de réponses (ex. 8 bénévoles) — NULL = illimité. Le lien public refuse
+// toute nouvelle réponse une fois la limite atteinte.
+try { db.exec('ALTER TABLE forms ADD COLUMN max_reponses INTEGER'); } catch {}
 
 try { db.exec(`CREATE TABLE IF NOT EXISTS form_fields (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

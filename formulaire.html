@@ -291,6 +291,16 @@
     }
     html += '</div>';
 
+    if (formData.complet) {
+      // Limite de réponses atteinte (ex. équipe de bénévoles complète)
+      html += '<div class="field-card" style="text-align:center">';
+      html += '<p style="margin:0;font-weight:700;color:#1b5e20">Complet — merci de votre intérêt !</p>';
+      html += '<p style="margin:6px 0 0;color:#555">Li konplè. Mèsi anpil pou volonte w!</p>';
+      html += '</div>';
+      container.innerHTML = html;
+      return;
+    }
+
     if (formData.accepting_responses === false) {
       html += '<div class="field-card" style="text-align:center;color:#c62828">';
       html += '<p style="margin:0;font-weight:700">Ce formulaire n\'accepte plus de réponses.</p>';

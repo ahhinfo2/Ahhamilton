@@ -21169,7 +21169,7 @@ async function formsMgmtView() {
       : '<span style="background:#fce4ec;color:#c62828;padding:3px 10px;border-radius:12px;font-size:.78rem;font-weight:600">Fermé</span>';
     return `<tr>
       <td style="font-weight:600">${escHtml(f.titre)}</td>
-      <td style="text-align:center"><span style="background:var(--off);padding:4px 12px;border-radius:8px;font-weight:600">${f.nb_reponses || 0}</span></td>
+      <td style="text-align:center"><span style="background:${f.max_reponses && (f.nb_reponses || 0) >= f.max_reponses ? '#e8f5e9' : 'var(--off)'};padding:4px 12px;border-radius:8px;font-weight:600">${f.nb_reponses || 0}${f.max_reponses ? ' / ' + f.max_reponses : ''}</span>${f.max_reponses && (f.nb_reponses || 0) >= f.max_reponses ? '<div style="font-size:.72rem;color:#2e7d32;font-weight:700;margin-top:3px">Complet</div>' : ''}</td>
       <td style="text-align:center">${statutPill}</td>
       <td>${fmt(f.date_creation)}</td>
       <td>
@@ -21309,6 +21309,11 @@ async function openFormBuilder(formId) {
           <label style="font-weight:600;font-size:.85rem;display:block;margin-bottom:4px">Date et heure de fin (optionnel)</label>
           <input id="fb_date_fermeture" type="datetime-local" value="${form && form.date_fermeture ? form.date_fermeture.slice(0,16) : ''}" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:.9rem"/>
           <small style="color:var(--muted)">Après cette date, seul le comité peut encore soumettre une réponse (au nom d'un membre).</small>
+        </div>
+        <div>
+          <label style="font-weight:600;font-size:.85rem;display:block;margin-bottom:4px">Nombre maximum de réponses (optionnel)</label>
+          <input id="fb_max_reponses" type="number" min="1" step="1" placeholder="Illimité" value="${form && form.max_reponses ? form.max_reponses : ''}" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:.9rem"/>
+          <small style="color:var(--muted)">Ex. 8 bénévoles. Une fois atteint, le lien affiche « Complet » et refuse les nouvelles réponses. Augmentez-le pour rouvrir.</small>
         </div>
         <div>
           <label style="font-weight:600;font-size:.85rem;display:block;margin-bottom:4px">Message de fin</label>
@@ -21536,7 +21541,8 @@ async function _saveFormBuilder(formId) {
     allow_anonymous: document.getElementById('fb_anonymous').checked ? 1 : 0,
     message_fin: document.getElementById('fb_message_fin').value.trim() || 'Merci pour votre réponse !',
     redirect_adhesion: document.getElementById('fb_redirect').checked ? 1 : 0,
-    date_fermeture: document.getElementById('fb_date_fermeture').value || null
+    date_fermeture: document.getElementById('fb_date_fermeture').value || null,
+    max_reponses: document.getElementById('fb_max_reponses').value || null
   };
 
   try {
@@ -21638,6 +21644,9 @@ async function viewFormResults(formId) {
       </div>
       ${form.date_fermeture ? `<div style="background:${new Date() > new Date(form.date_fermeture) ? '#fce4ec' : '#fff8e1'};border-radius:8px;padding:10px 16px;margin-bottom:20px;font-size:.85rem;color:${new Date() > new Date(form.date_fermeture) ? '#c62828' : '#e65100'}">
         ${new Date() > new Date(form.date_fermeture) ? '⛔ Échéance dépassée' : '🕐 Se ferme'} le ${new Date(form.date_fermeture).toLocaleString('fr-CA', { dateStyle:'long', timeStyle:'short' })} — seul le comité peut encore soumettre une réponse.
+      </div>` : ''}
+      ${form.max_reponses ? `<div style="background:${form.responses.length >= form.max_reponses ? '#e8f5e9' : 'var(--off)'};border-radius:8px;padding:10px 16px;margin-bottom:20px;font-size:.85rem;color:${form.responses.length >= form.max_reponses ? '#2e7d32' : 'var(--text)'}">
+        ${form.responses.length >= form.max_reponses ? '✅ Complet' : 'Places'} : <strong>${form.responses.length} / ${form.max_reponses}</strong> réponses${form.responses.length >= form.max_reponses ? ' — le lien public affiche « Complet ». Augmentez la limite dans « Modifier » pour rouvrir.' : ''}
       </div>` : ''}
 
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px">
