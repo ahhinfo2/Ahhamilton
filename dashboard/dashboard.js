@@ -11910,12 +11910,25 @@ function _ticketChipClick(chip) {
 }
 
 // ══ DOCUMENTS OFFICIELS ══════════════════════════════════════════════════════
+// Ordre d'affichage des sections ; « autre » reste en dernier.
+const DOCUMENT_CATEGORIES = {
+  statuts:        '📜 Statuts & documents légaux',
+  proces_verbaux: '📋 Procès-verbaux',
+  rapports:       '📊 Rapports financiers',
+  partenariats:   '🤝 Partenariats & correspondance',
+  dons:           '🎁 Programme de dons',
+  condoleances:   '🕊️ Condoléances & hommages',
+  formulaires:    '📄 Formulaires officiels',
+  autre:          '📁 Autres documents',
+};
+
 async function documents_mgmt() {
   const canUpload = can.adminOrSec();
   const docs = await api('/documents').catch(() => []);
-  const CATS = { proces_verbaux:'📋 Procès-verbaux', statuts:'📜 Statuts & Règlements', formulaires:'📄 Formulaires officiels', rapports:'📊 Rapports annuels', autre:'📁 Autres documents' };
+  const CATS = DOCUMENT_CATEGORIES;
   const grouped = {};
-  docs.forEach(d => { const c = d.categorie||'autre'; if(!grouped[c]) grouped[c]=[]; grouped[c].push(d); });
+  // Une catégorie inconnue tombe dans « Autres documents » au lieu de rendre le document invisible.
+  docs.forEach(d => { const c = CATS[d.categorie] ? d.categorie : 'autre'; if(!grouped[c]) grouped[c]=[]; grouped[c].push(d); });
   const docIcon = m => { if(!m)return'📄'; if(m.includes('pdf'))return'📕'; if(m.includes('word')||m.includes('document'))return'📘'; if(m.includes('sheet')||m.includes('excel'))return'📗'; if(m.includes('image'))return'🖼️'; return'📄'; };
   const fmtSize = b => { if(!b)return''; if(b<1024)return b+'B'; if(b<1048576)return(b/1024).toFixed(1)+'KB'; return(b/1048576).toFixed(1)+'MB'; };
   setContent(`
@@ -11961,11 +11974,7 @@ async function documentUploadForm() {
     <div class="form-group"><label class="form-label">Description</label><input id="doc_desc" class="form-input" placeholder="Optionnel"/></div>
     <div class="form-group"><label class="form-label">Catégorie</label>
       <select id="doc_cat" class="form-input">
-        <option value="proces_verbaux">📋 Procès-verbaux</option>
-        <option value="statuts">📜 Statuts & Règlements</option>
-        <option value="formulaires">📄 Formulaires officiels</option>
-        <option value="rapports">📊 Rapports annuels</option>
-        <option value="autre">📁 Autre</option>
+        ${Object.entries(DOCUMENT_CATEGORIES).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}
       </select>
     </div>
     <div class="form-group"><label class="form-label">Fichier * <span style="font-weight:400;color:var(--muted)">(PDF, Word, Excel, image — max 50 Mo)</span></label>
