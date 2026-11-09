@@ -6414,7 +6414,7 @@ function ahhPrintHeader() {
       <img src="/Public/logo1.png" alt="AHH" style="width:72px;height:72px;border-radius:50%;object-fit:cover;flex-shrink:0;border:3px solid rgba(255,255,255,.4);box-shadow:0 2px 8px rgba(0,0,0,.2)"/>
       <div style="flex:1">
         <div style="font-size:1.35rem;font-weight:900;color:#fff;letter-spacing:.02em;text-shadow:0 1px 2px rgba(0,0,0,.2)">Association Haïtienne de Hamilton</div>
-        <div style="font-size:.82rem;color:rgba(255,255,255,.85);margin-top:3px">231 Fernwood Crescent, Hamilton, ON  L8T 3L7</div>
+        <div style="font-size:.82rem;color:rgba(255,255,255,.85);margin-top:3px">126 Macassa Ave, Hamilton, ON  L8V 2B2</div>
         <div style="font-size:.78rem;color:rgba(255,255,255,.7);margin-top:2px">905-818-8269 &nbsp;·&nbsp; contact@ahhamilton.ca &nbsp;·&nbsp; ahhamilton.ca</div>
       </div>
     </div>`;
@@ -6423,7 +6423,7 @@ function ahhPrintHeader() {
 function ahhPrintFooter() {
   return `
     <div style="position:fixed;bottom:0;left:0;right:0;background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:10px 28px;text-align:center">
-      <div style="font-size:.72rem;color:rgba(255,255,255,.85)">Association Haïtienne de Hamilton · 231 Fernwood Crescent, Hamilton, ON L8T 3L7</div>
+      <div style="font-size:.72rem;color:rgba(255,255,255,.85)">Association Haïtienne de Hamilton · 126 Macassa Ave, Hamilton, ON L8V 2B2</div>
       <div style="font-size:.68rem;color:rgba(255,255,255,.6);margin-top:2px">contact@ahhamilton.ca · 905-818-8269 · ahhamilton.ca</div>
     </div>`;
 }

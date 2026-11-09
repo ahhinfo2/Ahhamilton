@@ -227,7 +227,7 @@ app.post('/api/stripe/webhook', express.raw({ type: '*/*' }), async (req, res) =
         SELECT COALESCE(SUM(montant),0) AS total FROM payments
         WHERE user_id = ? AND statut = 'approuve' AND strftime('%Y', date_soumission) = ?
       `).get(membre.id, String(annee))?.total || 0);
-      const contenu = `REÇU FISCAL ${annee}\nAssociation Haïtienne de Hamilton\n231 Fernwood Crescent, Hamilton, ON L8T 3L7\n\nRemis à : ${membre.prenom} ${membre.nom}\nCourriel : ${membre.email}\n\nDons et cotisations approuvés pour ${annee} : $${totalAnnuel.toFixed(2)}\n\nRéférence Stripe : ${ref}\n\nCe reçu confirme les contributions à l'Association Haïtienne de Hamilton pour l'année fiscale ${annee}.`;
+      const contenu = `REÇU FISCAL ${annee}\nAssociation Haïtienne de Hamilton\n126 Macassa Ave, Hamilton, ON L8V 2B2\n\nRemis à : ${membre.prenom} ${membre.nom}\nCourriel : ${membre.email}\n\nDons et cotisations approuvés pour ${annee} : $${totalAnnuel.toFixed(2)}\n\nRéférence Stripe : ${ref}\n\nCe reçu confirme les contributions à l'Association Haïtienne de Hamilton pour l'année fiscale ${annee}.`;
       db.prepare(`INSERT INTO tax_receipts (user_id, annee, montant_total, genere_par, contenu, mode_emission, stripe_payment_id)
         VALUES (?,?,?,?,?,'stripe',?)`).run(membre.id, annee, totalAnnuel, adminId2, contenu, ref);
       createAlert(membre.id, 'paiement', `🧾 Reçu fiscal ${annee} disponible`, `Don Stripe $${montant.toFixed(2)} — Total annuel : $${totalAnnuel.toFixed(2)}`);
@@ -2317,7 +2317,7 @@ app.get('/api/volunteer-letters/:id/print', (req, res) => {
   </style></head><body>
   <div class="tb"><button onclick="window.print()">🖨️ Imprimer / PDF</button></div>
   <div class="hd"><img src="/Public/logo1.png" alt="AHH" onerror="this.style.display='none'"/>
-    <div><h1>Association Haïtienne de Hamilton</h1><div class="a1">231 Fernwood Crescent, Hamilton, ON L8T 3L7</div></div>
+    <div><h1>Association Haïtienne de Hamilton</h1><div class="a1">126 Macassa Ave, Hamilton, ON L8V 2B2</div></div>
   </div>
   <div class="bar"></div>
   <div class="page">
@@ -2888,7 +2888,7 @@ app.get('/api/ai/recommendations/:id/print', (req, res) => {
   </style></head><body>
   <div class="tb"><button onclick="window.print()">🖨️ Imprimer / PDF</button></div>
   <div class="hd"><img src="/Public/logo1.png" alt="AHH" onerror="this.style.display='none'"/>
-    <div><h1>Association Haïtienne de Hamilton</h1><div class="a1">231 Fernwood Crescent, Hamilton, ON L8T 3L7</div></div>
+    <div><h1>Association Haïtienne de Hamilton</h1><div class="a1">126 Macassa Ave, Hamilton, ON L8V 2B2</div></div>
   </div>
   <div class="bar"></div>
   <div class="page">
@@ -4336,7 +4336,7 @@ app.post('/api/receipts', authMiddleware, requireRole('admin','tresoriere'), (re
 
   if (total <= 0) return res.status(400).json({ error: `Aucun paiement approuvé pour ${u.prenom} ${u.nom} en ${annee}. Impossible de générer un reçu à $0.` });
 
-  const contenu = `REÇU FISCAL ${annee}\nAssociation Haïtienne de Hamilton\n231 Fernwood Crescent, Hamilton, ON L8T 3L7\n\nRemis à : ${u.prenom} ${u.nom}\nCourriel : ${u.email}\n\nDons et cotisations approuvés pour ${annee} : $${total.toFixed(2)}\n\nCe reçu confirme les contributions à l'Association Haïtienne de Hamilton pour l'année fiscale ${annee}.\n\nSigné par : ${req.user.prenom} ${req.user.nom}`;
+  const contenu = `REÇU FISCAL ${annee}\nAssociation Haïtienne de Hamilton\n126 Macassa Ave, Hamilton, ON L8V 2B2\n\nRemis à : ${u.prenom} ${u.nom}\nCourriel : ${u.email}\n\nDons et cotisations approuvés pour ${annee} : $${total.toFixed(2)}\n\nCe reçu confirme les contributions à l'Association Haïtienne de Hamilton pour l'année fiscale ${annee}.\n\nSigné par : ${req.user.prenom} ${req.user.nom}`;
 
   const print_token = crypto.randomBytes(24).toString('hex');
   // Remplacer l'ancien reçu si existant pour ce membre + année
@@ -4384,7 +4384,7 @@ app.post('/api/receipts/bulk', authMiddleware, requireRole('admin','tresoriere')
       const u = db.prepare('SELECT * FROM users WHERE id=?').get(user_id);
       if (!u) continue;
       const total = db.prepare(`SELECT COALESCE(SUM(montant),0) AS t FROM payments WHERE user_id=? AND statut='approuve' AND substr(date_soumission,1,4)=?`).get(user_id, String(annee)).t;
-      const contenu = `REÇU FISCAL ${annee}\nAssociation Haïtienne de Hamilton\n231 Fernwood Crescent, Hamilton, ON L8T 3L7\n\nRemis à : ${u.prenom} ${u.nom}\nCourriel : ${u.email}\n\nDons et cotisations approuvés pour ${annee} : $${total.toFixed(2)}\n\nCe reçu confirme les contributions à l'Association Haïtienne de Hamilton pour l'année fiscale ${annee}.\n\nSigné par : ${req.user.prenom} ${req.user.nom}`;
+      const contenu = `REÇU FISCAL ${annee}\nAssociation Haïtienne de Hamilton\n126 Macassa Ave, Hamilton, ON L8V 2B2\n\nRemis à : ${u.prenom} ${u.nom}\nCourriel : ${u.email}\n\nDons et cotisations approuvés pour ${annee} : $${total.toFixed(2)}\n\nCe reçu confirme les contributions à l'Association Haïtienne de Hamilton pour l'année fiscale ${annee}.\n\nSigné par : ${req.user.prenom} ${req.user.nom}`;
       const print_token = crypto.randomBytes(24).toString('hex');
       const r = db.prepare('INSERT INTO tax_receipts (user_id, annee, montant_total, genere_par, contenu, print_token) VALUES (?,?,?,?,?,?)').run(user_id, annee, total, req.user.id, contenu, print_token);
       const msgR = db.prepare("INSERT INTO messages (expediteur_id, sujet, contenu, type) VALUES (?,?,?,'individuel')").run(req.user.id, `🧾 Votre reçu fiscal ${annee} — AHH`, contenu);
@@ -4629,7 +4629,7 @@ app.get('/api/receipts/:id/print', (req, res) => {
     <div>
       <div class="org-name">Association Haïtienne de Hamilton</div>
       <div class="org-sub">No. d'enregistrement : AHH-Hamilton-ON</div>
-      <div class="org-addr">231 Fernwood Crescent, Hamilton, ON  L8T 3L7<br/>
+      <div class="org-addr">126 Macassa Ave, Hamilton, ON  L8V 2B2<br/>
         Tél : 905-818-8269 &nbsp;|&nbsp; contact@ahhamilton.ca</div>
     </div>
   </div>
@@ -8149,7 +8149,7 @@ app.get('/api/reports/fiscal-annuel/:annee', authMiddleware, requireRole('admin'
   <div class="header">
     <img src="/Public/logo1.png" alt="AHH"/>
     <div><h1>Rapport fiscal ${annee}</h1>
-    <div>Association Haïtienne de Hamilton · 231 Fernwood Crescent, Hamilton, ON L8T 3L7</div></div>
+    <div>Association Haïtienne de Hamilton · 126 Macassa Ave, Hamilton, ON L8V 2B2</div></div>
   </div>
   <p>Ce rapport résume tous les reçus fiscaux émis pour l'année ${annee}.</p>
   <table>
@@ -11997,13 +11997,13 @@ app.post('/api/chatbot', (req, res) => {
   const faqs = [
     { keys: ['inscription','inscrire','membre','adhésion','rejoindre','join'], reply: 'Pour devenir membre, visitez notre page d\'adhésion : <a href="/adhesion.html">Devenir membre</a>. L\'inscription est simple et rapide !' },
     { keys: ['activité','événement','activite','evenement','bbq','gala'], reply: 'Consultez nos prochains événements sur la page <a href="/actualites.html">Activités</a>. Vous pouvez vous inscrire directement en ligne !' },
-    { keys: ['contact','joindre','téléphone','telephone','email','courriel'], reply: 'Contactez-nous :<br>📞 905-818-8269<br>📧 contact@ahhamilton.ca<br>📍 231 Fernwood Crescent, Hamilton, ON' },
+    { keys: ['contact','joindre','téléphone','telephone','email','courriel'], reply: 'Contactez-nous :<br>📞 905-818-8269<br>📧 contact@ahhamilton.ca<br>📍 126 Macassa Ave, Hamilton, ON' },
     { keys: ['don','donner','donation','soutenir','supporter'], reply: 'Merci pour votre générosité ! Vous pouvez faire un don via <a href="https://donate.stripe.com/fZe9CTg1Oh0qehacMM" target="_blank">Stripe</a> ou par virement Interac.' },
     { keys: ['bénévol','benevol','volontaire','aider'], reply: 'Le bénévolat est au cœur de notre mission ! Connectez-vous à votre espace membre pour soumettre vos heures.' },
     { keys: ['horaire','heure','ouvert','quand'], reply: 'Nos événements ont lieu principalement les week-ends. Consultez le calendrier des <a href="/actualites.html">activités</a> pour les dates exactes.' },
     { keys: ['talent','annonce','service'], reply: 'Découvrez les talents de notre communauté sur <a href="/talents.html">Nos talents</a> et publiez vos annonces sur <a href="/annonces.html">Petites annonces</a>.' },
     { keys: ['galerie','photo','image'], reply: 'Revivez nos meilleurs moments sur notre <a href="/galerie.html">Galerie photos</a> !' },
-    { keys: ['hamilton','ontario','canada','adresse','lieu','où','ou'], reply: 'L\'AHH est basée à Hamilton, Ontario, Canada.<br>📍 231 Fernwood Crescent, Hamilton, ON L8T 3L7' },
+    { keys: ['hamilton','ontario','canada','adresse','lieu','où','ou'], reply: 'L\'AHH est basée à Hamilton, Ontario, Canada.<br>📍 126 Macassa Ave, Hamilton, ON L8V 2B2' },
     { keys: ['merci','thank','mèsi'], reply: 'Avec plaisir ! N\'hésitez pas si vous avez d\'autres questions. 😊' },
     { keys: ['bonjour','salut','hello','hi','bonsoir','allo'], reply: 'Bonjour ! 👋 Comment puis-je vous aider ? Je peux répondre à vos questions sur l\'AHH, les activités, l\'inscription, et plus encore.' },
   ];

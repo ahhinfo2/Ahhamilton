@@ -85,7 +85,7 @@ function wrap(titre, corps) {
     ${corps}
   </div>
   <div class="footer">
-    231 Fernwood Crescent, Hamilton, ON L8T 3L7 &nbsp;|&nbsp;
+    126 Macassa Ave, Hamilton, ON L8V 2B2 &nbsp;|&nbsp;
     <a href="mailto:contact@ahhamilton.ca" style="color:#2e7d32">contact@ahhamilton.ca</a><br/>
     © 2026 Association Haïtienne de Hamilton
   </div>
