@@ -9476,6 +9476,34 @@ app.put('/api/forms/:id', authMiddleware, requireRole(...FORM_EXEC), (req, res) 
   res.json({ message: 'Formulaire mis à jour' });
 });
 
+// ── Code QR d'un formulaire (comité seulement : il contient le lien de partage) ──
+// PNG haute résolution pour affiches et impression, ou SVG (net à toutes les tailles).
+// Utilise le lien court quand il existe : code plus simple, plus facile à scanner.
+app.get('/api/forms/:id/qr', authMiddleware, requireRole(...FORM_EXEC), async (req, res) => {
+  const form = db.prepare('SELECT id, titre, share_token, lien_court FROM forms WHERE id = ?').get(req.params.id);
+  if (!form) return res.status(404).json({ error: 'Formulaire introuvable' });
+  const host = req.get('host') || 'ahhamilton.ca';
+  const site = (process.env.SITE_URL || `${/^(localhost|127\.)/.test(host) ? 'http' : 'https'}://${host}`).replace(/\/$/, '');
+  const url = form.lien_court ? `${site}/${form.lien_court}` : `${site}/formulaire.html?t=${form.share_token}`;
+  const format = req.query.format === 'svg' ? 'svg' : 'png';
+  const size = Math.min(Math.max(parseInt(req.query.size) || 1200, 200), 3000);
+  const nomFichier = 'QR-' + (form.lien_court || ('formulaire-' + form.id));
+  try {
+    if (format === 'svg') {
+      const svg = await QRCode.toString(url, { type: 'svg', margin: 2, errorCorrectionLevel: 'M' });
+      res.setHeader('Content-Type', 'image/svg+xml');
+      res.setHeader('Content-Disposition', `attachment; filename="${nomFichier}.svg"`);
+      return res.send(svg);
+    }
+    const png = await QRCode.toBuffer(url, { type: 'png', width: size, margin: 2, errorCorrectionLevel: 'M' });
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Content-Disposition', `${req.query.inline ? 'inline' : 'attachment'}; filename="${nomFichier}.png"`);
+    res.send(png);
+  } catch (e) {
+    res.status(500).json({ error: 'Impossible de générer le code QR' });
+  }
+});
+
 // ── Supprimer un formulaire ─────────────────────────────────────────────────
 app.delete('/api/forms/:id', authMiddleware, requireRole(...FORM_EXEC), (req, res) => {
   const form = db.prepare('SELECT id FROM forms WHERE id = ?').get(req.params.id);

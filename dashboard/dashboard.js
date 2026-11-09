@@ -21189,6 +21189,7 @@ async function formsMgmtView() {
           ` : `
           <button onclick="openFormBuilder(${f.id})" style="background:#fff3e0;color:#e65100;border:none;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:.78rem">Modifier</button>
           <button onclick="_copyFormLink(${f.id})" style="background:#e8f5e9;color:#2e7d32;border:none;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:.78rem">Copier lien</button>
+          <button onclick="_formQr(${f.id})" style="background:#ede7f6;color:#4527a0;border:none;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:.78rem">Code QR</button>
           <button onclick="_archiveForm(${f.id})" style="background:var(--off);color:var(--muted);border:none;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:.78rem">📦 Archiver</button>
           `}
           <button onclick="_deleteForm(${f.id})" style="background:#fce4ec;color:#c62828;border:none;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:.78rem">Supprimer</button>
@@ -21240,6 +21241,29 @@ async function _unarchiveForm(formId) {
     toast('↩️ Formulaire restauré');
     formsMgmtView();
   } catch(e) { toast('Erreur : ' + e.message, 'error'); }
+}
+
+// Code QR d'un formulaire : aperçu + téléchargement PNG (affiches, impression) ou SVG (graphiste).
+function _formQr(formId) {
+  const f = (window._formsList || []).find(x => x.id === formId);
+  if (!f) return;
+  const lien = f.lien_court ? window.location.origin + '/' + f.lien_court : window.location.origin + '/formulaire.html?t=' + f.share_token;
+  const base = API + '/forms/' + formId + '/qr?token=' + encodeURIComponent(TOKEN);
+  openModal('Code QR — ' + escHtml(f.titre), `
+    <div style="display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start">
+      <img src="${base}&inline=1&size=600" alt="Code QR du formulaire" style="width:260px;height:260px;border:1px solid var(--border);border-radius:12px;background:#fff;padding:8px"/>
+      <div style="flex:1;min-width:240px">
+        <p style="font-size:.85rem;color:var(--muted);margin-bottom:4px">Ce code mène à :</p>
+        <p style="font-weight:700;word-break:break-all;margin-bottom:16px">${escHtml(lien)}</p>
+        ${f.lien_court ? '' : `<p style="font-size:.82rem;background:#fff8e1;border-radius:8px;padding:10px 12px;margin-bottom:16px">Astuce : ajoutez un <strong>lien court</strong> au formulaire (bouton « Modifier ») pour obtenir un code plus simple, plus facile à scanner, et une adresse facile à écrire.</p>`}
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <a class="btn btn-primary" href="${base}&size=1200" download>Télécharger PNG (1200 px)</a>
+          <a class="btn btn-outline" href="${base}&format=svg" download>Télécharger SVG (graphiste)</a>
+          <button class="btn btn-ghost" onclick="_copyFormLink(${formId})">Copier le lien</button>
+        </div>
+        <p style="font-size:.78rem;color:var(--muted);margin-top:14px">PNG : pour WhatsApp, Facebook ou une feuille imprimée. SVG : reste net à toutes les tailles, idéal pour une affiche imprimée par un graphiste.</p>
+      </div>
+    </div>`);
 }
 
 function _copyFormLink(formId) {
