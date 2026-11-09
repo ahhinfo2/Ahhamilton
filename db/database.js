@@ -1236,6 +1236,9 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS forms (
 // Nombre maximum de réponses (ex. 8 bénévoles) — NULL = illimité. Le lien public refuse
 // toute nouvelle réponse une fois la limite atteinte.
 try { db.exec('ALTER TABLE forms ADD COLUMN max_reponses INTEGER'); } catch {}
+// Lien court facultatif (ex. « 1erjanvier » → ahhamilton.ca/1erjanvier) pour les affiches et codes QR.
+try { db.exec('ALTER TABLE forms ADD COLUMN lien_court TEXT'); } catch {}
+try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_forms_lien_court ON forms(lien_court) WHERE lien_court IS NOT NULL'); } catch {}
 
 try { db.exec(`CREATE TABLE IF NOT EXISTS form_fields (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

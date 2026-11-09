@@ -21245,8 +21245,8 @@ async function _unarchiveForm(formId) {
 function _copyFormLink(formId) {
   const f = (window._formsList || []).find(x => x.id === formId);
   if (!f) return;
-  const url = window.location.origin + '/formulaire.html?t=' + f.share_token;
-  navigator.clipboard.writeText(url).then(() => toast('Lien copié !')).catch(() => {
+  const url = f.lien_court ? window.location.origin + '/' + f.lien_court : window.location.origin + '/formulaire.html?t=' + f.share_token;
+  navigator.clipboard.writeText(url).then(() => toast('Lien copié : ' + url)).catch(() => {
     prompt('Copiez ce lien :', url);
   });
 }
@@ -21282,7 +21282,7 @@ async function openFormBuilder(formId) {
     `<option value="${a.id}" ${form && form.activity_id === a.id ? 'selected' : ''}>${escHtml(a.titre)}</option>`
   ).join('');
 
-  const shareUrl = form ? (window.location.origin + '/formulaire.html?t=' + form.share_token) : '';
+  const shareUrl = form ? (form.lien_court ? window.location.origin + '/' + form.lien_court : window.location.origin + '/formulaire.html?t=' + form.share_token) : '';
 
   setContent(`
     <div style="padding-bottom:40px">
@@ -21323,6 +21323,14 @@ async function openFormBuilder(formId) {
           <label style="font-weight:600;font-size:.85rem;display:block;margin-bottom:4px">Nombre maximum de réponses (optionnel)</label>
           <input id="fb_max_reponses" type="number" min="1" step="1" placeholder="Illimité" value="${form && form.max_reponses ? form.max_reponses : ''}" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:.9rem"/>
           <small style="color:var(--muted)">Ex. 8 bénévoles. Une fois atteint, le lien affiche « Complet » et refuse les nouvelles réponses. Augmentez-le pour rouvrir.</small>
+        </div>
+        <div>
+          <label style="font-weight:600;font-size:.85rem;display:block;margin-bottom:4px">Lien court (optionnel)</label>
+          <div style="display:flex;align-items:center;border:1.5px solid var(--border);border-radius:8px;overflow:hidden">
+            <span style="padding:10px 0 10px 14px;color:var(--muted);font-size:.9rem;white-space:nowrap">${escHtml(window.location.host)}/</span>
+            <input id="fb_lien_court" type="text" maxlength="40" placeholder="1erjanvier" value="${form && form.lien_court ? escHtml(form.lien_court) : ''}" style="flex:1;min-width:0;padding:10px 14px 10px 2px;border:none;font-size:.9rem;outline:none"/>
+          </div>
+          <small style="color:var(--muted)">Adresse facile à écrire et code QR plus simple pour les affiches. Lettres sans accents, chiffres ou tirets.</small>
         </div>
         <div>
           <label style="font-weight:600;font-size:.85rem;display:block;margin-bottom:4px">Message de fin</label>
@@ -21551,7 +21559,8 @@ async function _saveFormBuilder(formId) {
     message_fin: document.getElementById('fb_message_fin').value.trim() || 'Merci pour votre réponse !',
     redirect_adhesion: document.getElementById('fb_redirect').checked ? 1 : 0,
     date_fermeture: document.getElementById('fb_date_fermeture').value || null,
-    max_reponses: document.getElementById('fb_max_reponses').value || null
+    max_reponses: document.getElementById('fb_max_reponses').value || null,
+    lien_court: document.getElementById('fb_lien_court').value.trim()
   };
 
   try {

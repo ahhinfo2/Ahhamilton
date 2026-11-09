@@ -338,6 +338,14 @@ const PUBLIC_ROOT_FILES = new Set([
   '_nav.js', '_lang.js', '_fix_lightbox.js', '_gal_replace.js', 'casl-consent.js', 'nav-auth.js'
 ]);
 const SAFE_ROOT_ASSET_EXT = /\.(html|css|jpe?g|png|gif|webp|avif|svg|ico|woff2?|ttf)$/i;
+// Liens courts des formulaires (ex. ahhamilton.ca/1erjanvier → formulaire.html?t=…). Avant le
+// garde-fou ci-dessous : redirige seulement si un formulaire actif porte ce nom, sinon le
+// garde-fou s'applique normalement (404).
+app.get(/^\/([A-Za-z0-9-]{3,40})\/?$/, (req, res, next) => {
+  const form = db.prepare("SELECT share_token FROM forms WHERE lien_court = ? AND statut NOT IN ('ferme','archivee')").get(req.params[0].toLowerCase());
+  if (!form) return next();
+  res.redirect(302, '/formulaire.html?t=' + form.share_token);
+});
 app.use((req, res, next) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') return next();
   if (req.path === '/' || req.path.startsWith('/api/')) return next();
@@ -9432,16 +9440,20 @@ app.get('/api/forms/:id', authMiddleware, requireRole(...FORM_EXEC), (req, res) 
 app.post('/api/forms', authMiddleware, requireRole(...FORM_EXEC), (req, res) => {
   const { titre, description, activity_id, allow_anonymous, message_fin, redirect_adhesion, date_fermeture } = req.body;
   if (!titre) return res.status(400).json({ error: 'Titre requis' });
+  const lc = formLienCourt(req.body.lien_court);
+  if (!lc.ok) return res.status(400).json({ error: lc.error });
+  if (lc.valeur && db.prepare('SELECT 1 FROM forms WHERE lien_court = ?').get(lc.valeur)) return res.status(409).json({ error: `Le lien court « ${lc.valeur} » est déjà utilisé par un autre formulaire.` });
   const crypto = require('crypto');
   const share_token = crypto.randomBytes(24).toString('hex');
-  const r = db.prepare(`INSERT INTO forms (titre, description, share_token, activity_id, allow_anonymous, message_fin, redirect_adhesion, date_fermeture, max_reponses, cree_par)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+  const r = db.prepare(`INSERT INTO forms (titre, description, share_token, activity_id, allow_anonymous, message_fin, redirect_adhesion, date_fermeture, max_reponses, lien_court, cree_par)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     titre, description || null, share_token, activity_id || null,
     allow_anonymous === undefined ? 1 : (allow_anonymous ? 1 : 0),
     message_fin || 'Merci pour votre réponse !',
     redirect_adhesion === undefined ? 1 : (redirect_adhesion ? 1 : 0),
     date_fermeture || null,
     formMaxReponses(req.body.max_reponses),
+    lc.valeur || null,
     req.user.id
   );
   res.status(201).json({ id: r.lastInsertRowid, share_token });
@@ -9449,13 +9461,17 @@ app.post('/api/forms', authMiddleware, requireRole(...FORM_EXEC), (req, res) => 
 
 // ── Modifier un formulaire ──────────────────────────────────────────────────
 app.put('/api/forms/:id', authMiddleware, requireRole(...FORM_EXEC), (req, res) => {
-  const form = db.prepare('SELECT id FROM forms WHERE id = ?').get(req.params.id);
+  const form = db.prepare('SELECT id, lien_court FROM forms WHERE id = ?').get(req.params.id);
   if (!form) return res.status(404).json({ error: 'Formulaire introuvable' });
   const { titre, description, activity_id, statut, allow_anonymous, message_fin, redirect_adhesion, date_fermeture } = req.body;
-  db.prepare(`UPDATE forms SET titre=?, description=?, activity_id=?, statut=?, allow_anonymous=?, message_fin=?, redirect_adhesion=?, date_fermeture=?, max_reponses=? WHERE id=?`).run(
+  const lc = formLienCourt(req.body.lien_court);
+  if (!lc.ok) return res.status(400).json({ error: lc.error });
+  const lienCourt = lc.valeur === undefined ? form.lien_court : lc.valeur; // champ absent = inchangé
+  if (lienCourt && db.prepare('SELECT 1 FROM forms WHERE lien_court = ? AND id != ?').get(lienCourt, form.id)) return res.status(409).json({ error: `Le lien court « ${lienCourt} » est déjà utilisé par un autre formulaire.` });
+  db.prepare(`UPDATE forms SET titre=?, description=?, activity_id=?, statut=?, allow_anonymous=?, message_fin=?, redirect_adhesion=?, date_fermeture=?, max_reponses=?, lien_court=? WHERE id=?`).run(
     titre, description || null, activity_id || null, statut || 'actif',
     allow_anonymous ? 1 : 0, message_fin || 'Merci pour votre réponse !',
-    redirect_adhesion ? 1 : 0, date_fermeture || null, formMaxReponses(req.body.max_reponses), req.params.id
+    redirect_adhesion ? 1 : 0, date_fermeture || null, formMaxReponses(req.body.max_reponses), lienCourt || null, req.params.id
   );
   res.json({ message: 'Formulaire mis à jour' });
 });
@@ -9564,6 +9580,20 @@ function formDeadlinePassed(form) {
 function formMaxReponses(v) {
   const n = parseInt(v, 10);
   return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+// Lien court d'un formulaire : 3 à 40 caractères a-z, 0-9, tiret. Refuse les noms déjà pris
+// par une page ou un dossier du site (sinon le lien court masquerait la page, ou l'inverse).
+const LIENS_COURTS_RESERVES = new Set(['api', 'dashboard', 'uploads', 'public', 'assets', 'images', 'admin',
+  'login', 'sw', 'manifest', 'favicon', 'robots', 'sitemap',
+  ...fs.readdirSync(__dirname).filter(f => f.endsWith('.html')).map(f => f.slice(0, -5).toLowerCase())]);
+function formLienCourt(v) {
+  if (v === undefined) return { ok: true, valeur: undefined };
+  const s = String(v || '').trim().toLowerCase().replace(/^\/+/, '');
+  if (!s) return { ok: true, valeur: null };
+  if (!/^[a-z0-9-]{3,40}$/.test(s)) return { ok: false, error: 'Lien court : 3 à 40 caractères, lettres sans accents, chiffres ou tirets (ex. 1erjanvier).' };
+  if (LIENS_COURTS_RESERVES.has(s)) return { ok: false, error: `Le lien court « ${s} » est déjà utilisé par une page du site.` };
+  return { ok: true, valeur: s };
 }
 
 function formComplet(form) {
